@@ -2,7 +2,7 @@ package views
 
 import "fmt"
 
-templ Home(quoteCount int) {
+templ Home(buildSHA string, quoteCount int) {
 	@Layout("Inicio") {
 		<h1>Cladex</h1>
 		<p>{ fmt.Sprintf("%d cotizaciones", quoteCount) }</p>
@@ -10,6 +10,7 @@ templ Home(quoteCount int) {
 			Probar htmx
 		</button>
 		<div id="saludo-resultado"></div>
+		<footer><small>{ "build " + buildSHA }</small></footer>
 	}
 }
 

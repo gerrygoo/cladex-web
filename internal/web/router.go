@@ -34,7 +34,7 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store) *http.ServeMux {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		views.Home(count).Render(r.Context(), w)
+		views.Home(buildSHA, count).Render(r.Context(), w)
 	})
 
 	mux.HandleFunc("GET /saludo", func(w http.ResponseWriter, r *http.Request) {
