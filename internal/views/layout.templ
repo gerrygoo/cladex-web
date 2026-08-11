@@ -1,0 +1,22 @@
+package views
+
+templ Layout(title string) {
+	<!DOCTYPE html>
+	<html lang="es">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ title } · Cladex</title>
+			<link rel="stylesheet" href="/static/app.css"/>
+			<script src="/static/htmx.min.js"></script>
+		</head>
+		<body>
+			<header class="app-header">
+				<strong>Cladex</strong>
+			</header>
+			<main class="app-main">
+				{ children... }
+			</main>
+		</body>
+	</html>
+}

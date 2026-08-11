@@ -1,0 +1,16 @@
+package views
+
+templ Home() {
+	@Layout("Inicio") {
+		<h1>Cladex</h1>
+		<p>Cotizador — esqueleto en pie.</p>
+		<button hx-get="/saludo" hx-target="#saludo-resultado" hx-swap="innerHTML">
+			Probar htmx
+		</button>
+		<div id="saludo-resultado"></div>
+	}
+}
+
+templ Saludo(mensaje string) {
+	<p>{ mensaje }</p>
+}
