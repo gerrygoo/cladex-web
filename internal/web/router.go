@@ -6,11 +6,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
 
 // NewMux builds the application router. buildSHA is surfaced on /healthz.
-func NewMux(buildSHA string, staticFS fs.FS) *http.ServeMux {
+func NewMux(buildSHA string, staticFS fs.FS, db *store.Store) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
@@ -21,7 +22,12 @@ func NewMux(buildSHA string, staticFS fs.FS) *http.ServeMux {
 	})
 
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		views.Home().Render(r.Context(), w)
+		count, err := db.QuoteCount(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		views.Home(count).Render(r.Context(), w)
 	})
 
 	mux.HandleFunc("GET /saludo", func(w http.ResponseWriter, r *http.Request) {

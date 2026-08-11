@@ -1,9 +1,11 @@
 package views
 
-templ Home() {
+import "fmt"
+
+templ Home(quoteCount int) {
 	@Layout("Inicio") {
 		<h1>Cladex</h1>
-		<p>Cotizador — esqueleto en pie.</p>
+		<p>{ fmt.Sprintf("%d cotizaciones", quoteCount) }</p>
 		<button hx-get="/saludo" hx-target="#saludo-resultado" hx-swap="innerHTML">
 			Probar htmx
 		</button>
