@@ -1,0 +1,15 @@
+services:
+  cladex:
+    build:
+      context: .
+      platforms:
+        - linux/amd64
+    platform: linux/amd64
+    user: "${UID:-501}:${GID:-20}"
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./data:/data
+    environment:
+      PORT: "8090"
+      DB_PATH: "/data/cladex.db"
