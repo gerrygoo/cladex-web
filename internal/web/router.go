@@ -6,9 +6,16 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gerrygoo/cladex-web/internal/pdf"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
+
+const sampleTypst = `
+= Cladex
+
+Hello world — Typst render pipeline is up.
+`
 
 // NewMux builds the application router. buildSHA is surfaced on /healthz.
 func NewMux(buildSHA string, staticFS fs.FS, db *store.Store) *http.ServeMux {
@@ -33,6 +40,16 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store) *http.ServeMux {
 	mux.HandleFunc("GET /saludo", func(w http.ResponseWriter, r *http.Request) {
 		mensaje := fmt.Sprintf("Hola — htmx funciona. Hora del servidor: %s", time.Now().Format(time.TimeOnly))
 		views.Saludo(mensaje).Render(r.Context(), w)
+	})
+
+	mux.HandleFunc("GET /sample.pdf", func(w http.ResponseWriter, r *http.Request) {
+		bytes, err := pdf.Render(r.Context(), sampleTypst)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/pdf")
+		w.Write(bytes)
 	})
 
 	return mux
