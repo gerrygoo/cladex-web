@@ -20,6 +20,16 @@ main.app-main {
   padding: 1.25rem;
 }
 
+div.brand {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+nav.app-nav a {
+  margin-right: 0.75rem;
+}
+
 div.nav-user {
   display: flex;
   align-items: center;
@@ -37,4 +47,39 @@ p.error {
 
 p.success {
   color: light-dark(#0a7a2f, #4ade80);
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+th, td {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid light-dark(#ddd, #333);
+}
+
+div.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+div.toolbar form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+label {
+  display: block;
+  margin-top: 0.75rem;
+}
+
+input, select {
+  display: block;
+  margin-top: 0.25rem;
 }

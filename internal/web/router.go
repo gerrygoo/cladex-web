@@ -23,6 +23,7 @@ Hello world — Typst render pipeline is up.
 func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool) http.Handler {
 	mux := http.NewServeMux()
 	auth := NewAuth(db, cookieSecure)
+	products := NewProducts(db)
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
 
@@ -36,6 +37,13 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool)
 	mux.HandleFunc("POST /logout", auth.Logout)
 	mux.Handle("GET /mi-cuenta", auth.RequireAuth(http.HandlerFunc(auth.MiCuentaPage)))
 	mux.Handle("POST /mi-cuenta", auth.RequireAuth(http.HandlerFunc(auth.MiCuentaSubmit)))
+
+	mux.Handle("GET /productos", auth.RequireAuth(http.HandlerFunc(products.List)))
+	mux.Handle("GET /productos/nuevo", auth.RequireAuth(http.HandlerFunc(products.NewPage)))
+	mux.Handle("POST /productos/nuevo", auth.RequireAuth(http.HandlerFunc(products.Create)))
+	mux.Handle("GET /productos/{id}", auth.RequireAuth(http.HandlerFunc(products.EditPage)))
+	mux.Handle("POST /productos/{id}", auth.RequireAuth(http.HandlerFunc(products.Update)))
+	mux.Handle("POST /productos/{id}/eliminar", auth.RequireAuth(http.HandlerFunc(products.Delete)))
 
 	mux.Handle("GET /{$}", auth.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		count, err := db.QuoteCount(r.Context())

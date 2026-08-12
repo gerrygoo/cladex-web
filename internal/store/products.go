@@ -2,22 +2,35 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
 )
 
 // Product is a catalog row. KgPerMMicros, UnitPriceMicros, and CostMicros are nil when
 // the corresponding column is NULL — see migrations/0001_init.sql and
-// migrations/0002_add_product_cost.sql for what each means.
+// migrations/0002_add_product_cost.sql for what each means. ID and FamilyName are
+// populated by the CRUD read paths (ListProducts, ProductByID, ProductBySKU); they're
+// left zero by the import path, which only ever upserts by SKU.
 type Product struct {
+	ID              int64
 	FamilyID        int64
+	FamilyName      string
 	SKU             string
 	Description     string
 	KgPerMMicros    *money.Micros
 	UnitPriceMicros *money.Micros
 	CostMicros      *money.Micros
 	Currency        string // "MXN" or "USD"; defaults to "MXN" if empty
+}
+
+// ProductFamily is a product_families row, for populating the product form's family
+// selector.
+type ProductFamily struct {
+	ID   int64
+	Name string
 }
 
 // UpsertFamily inserts a product family by name if it doesn't exist, or updates its
@@ -75,4 +88,178 @@ func microsPtr(m *money.Micros) any {
 		return nil
 	}
 	return int64(*m)
+}
+
+const productSelectCols = `
+	p.id, p.family_id, pf.name, p.sku, p.description,
+	p.kg_per_m_micros, p.unit_price_micros, p.cost_micros, p.currency`
+
+const productFrom = `FROM products p JOIN product_families pf ON pf.id = p.family_id`
+
+func scanProduct(row interface{ Scan(...any) error }) (*Product, error) {
+	var p Product
+	var kgPerM, unitPrice, cost sql.NullInt64
+	err := row.Scan(&p.ID, &p.FamilyID, &p.FamilyName, &p.SKU, &p.Description,
+		&kgPerM, &unitPrice, &cost, &p.Currency)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if kgPerM.Valid {
+		m := money.Micros(kgPerM.Int64)
+		p.KgPerMMicros = &m
+	}
+	if unitPrice.Valid {
+		m := money.Micros(unitPrice.Int64)
+		p.UnitPriceMicros = &m
+	}
+	if cost.Valid {
+		m := money.Micros(cost.Int64)
+		p.CostMicros = &m
+	}
+	return &p, nil
+}
+
+// ListFamilies returns all product families ordered by name.
+func (s *Store) ListFamilies(ctx context.Context) ([]ProductFamily, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name FROM product_families ORDER BY name`)
+	if err != nil {
+		return nil, fmt.Errorf("store: list families: %w", err)
+	}
+	defer rows.Close()
+
+	var families []ProductFamily
+	for rows.Next() {
+		var f ProductFamily
+		if err := rows.Scan(&f.ID, &f.Name); err != nil {
+			return nil, fmt.Errorf("store: list families: %w", err)
+		}
+		families = append(families, f)
+	}
+	return families, rows.Err()
+}
+
+// ListProducts returns non-deleted products ordered by description, optionally
+// filtered by a case-insensitive substring match on SKU or description.
+func (s *Store) ListProducts(ctx context.Context, query string) ([]Product, error) {
+	like := "%" + escapeLike(query) + "%"
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT `+productSelectCols+`
+		`+productFrom+`
+		WHERE p.deleted_at IS NULL
+		  AND (? = '' OR p.sku LIKE ? ESCAPE '\' COLLATE NOCASE OR p.description LIKE ? ESCAPE '\' COLLATE NOCASE)
+		ORDER BY p.description`, query, like, like,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: list products: %w", err)
+	}
+	defer rows.Close()
+
+	var products []Product
+	for rows.Next() {
+		p, err := scanProduct(rows)
+		if err != nil {
+			return nil, fmt.Errorf("store: list products: %w", err)
+		}
+		products = append(products, *p)
+	}
+	return products, rows.Err()
+}
+
+// escapeLike escapes SQL LIKE wildcards in user-supplied search text so a SKU or
+// description containing "%" or "_" is matched literally.
+func escapeLike(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return r.Replace(s)
+}
+
+// ProductByID returns the non-deleted product with the given id, or nil if none exists.
+func (s *Store) ProductByID(ctx context.Context, id int64) (*Product, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT `+productSelectCols+`
+		`+productFrom+`
+		WHERE p.id = ? AND p.deleted_at IS NULL`, id,
+	)
+	p, err := scanProduct(row)
+	if err != nil {
+		return nil, fmt.Errorf("store: product by id %d: %w", id, err)
+	}
+	return p, nil
+}
+
+// ProductBySKU returns the non-deleted product with the given SKU, or nil if none
+// exists. Used to give a friendly "SKU already taken" form error instead of a raw
+// UNIQUE constraint failure.
+func (s *Store) ProductBySKU(ctx context.Context, sku string) (*Product, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT `+productSelectCols+`
+		`+productFrom+`
+		WHERE p.sku = ? AND p.deleted_at IS NULL`, sku,
+	)
+	p, err := scanProduct(row)
+	if err != nil {
+		return nil, fmt.Errorf("store: product by sku %q: %w", sku, err)
+	}
+	return p, nil
+}
+
+// CreateProduct inserts a new product, returning its id.
+func (s *Store) CreateProduct(ctx context.Context, p Product) (int64, error) {
+	currency := p.Currency
+	if currency == "" {
+		currency = "MXN"
+	}
+	res, err := s.db.ExecContext(ctx, `
+		INSERT INTO products (
+			family_id, sku, description, kg_per_m_micros, unit_price_micros,
+			cost_micros, currency
+		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		p.FamilyID, p.SKU, p.Description, microsPtr(p.KgPerMMicros),
+		microsPtr(p.UnitPriceMicros), microsPtr(p.CostMicros), currency,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("store: create product %q: %w", p.SKU, err)
+	}
+	return res.LastInsertId()
+}
+
+// UpdateProduct overwrites an existing product's editable fields, identified by p.ID.
+func (s *Store) UpdateProduct(ctx context.Context, p Product) error {
+	currency := p.Currency
+	if currency == "" {
+		currency = "MXN"
+	}
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE products SET
+			family_id          = ?,
+			sku                = ?,
+			description        = ?,
+			kg_per_m_micros    = ?,
+			unit_price_micros  = ?,
+			cost_micros        = ?,
+			currency           = ?,
+			updated_at         = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+		WHERE id = ?`,
+		p.FamilyID, p.SKU, p.Description, microsPtr(p.KgPerMMicros),
+		microsPtr(p.UnitPriceMicros), microsPtr(p.CostMicros), currency, p.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("store: update product %d: %w", p.ID, err)
+	}
+	return nil
+}
+
+// SoftDeleteProduct sets deleted_at, hiding the product from ListProducts/ProductByID.
+// Products are never hard-deleted — old quote_lines may still reference them.
+func (s *Store) SoftDeleteProduct(ctx context.Context, id int64) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE products SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+		WHERE id = ?`, id,
+	)
+	if err != nil {
+		return fmt.Errorf("store: soft-delete product %d: %w", id, err)
+	}
+	return nil
 }

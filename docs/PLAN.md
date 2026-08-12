@@ -209,9 +209,45 @@ determines the column types.
 | 1.2 | `cmd/import` — parse the 4 catalog sheets into families, products, price_breaks | me² | Idempotent; row counts match; spot-check 5 SKUs by hand — ✅ (3 of 4 families; ELECTRACLEAN deferred) |
 | 1.3 | Auth: bcrypt, sessions table, login/logout, middleware, rate limiting, CSRF | me³ | Log in, hit a protected route, log out → 302. 6th bad password is throttled — ✅ |
 | 1.4 | `cladexctl user add/passwd/disable` + change-own-password page | me⁴ | Create a user via CLI, log in as them, change the password, log in again — ✅ |
-| 1.5 | Products CRUD — list, search, create, edit, soft-delete | me | Full lifecycle through the UI; persists; works with JS disabled |
+| 1.5 | Products CRUD — list, search, create, edit, soft-delete | me | Full lifecycle through the UI; persists; works with JS disabled — ✅ |
 | 1.6 | Customers CRUD | me | Same |
 | 1.7 | Users admin + settings (FX, metal prices, margins), admin-gated | me | Vendedor gets 403 on both; admin can edit FX and see it reflected |
+
+⁵ `internal/store/products.go` gained the CRUD half (`ListFamilies`, `ListProducts`
+with case-insensitive substring search — LIKE wildcards in the query text are
+escaped so a literal `%` or `_` in a SKU/description doesn't act as one —,
+`ProductByID`, `ProductBySKU`, `CreateProduct`, `UpdateProduct`,
+`SoftDeleteProduct`); the import-only upsert half was already there from 1.2.
+Soft-delete uses `products.deleted_at`, mirroring `customers` (1.6 will follow the
+same pattern) — the pre-existing `products.active` column is untouched by this
+slice, left for a possible future distinction between "soft-deleted" and
+"discontinued but kept for quote history". `internal/money` gained `ParseMicros`
+(decimal string → `Micros`, never through `float64`, so a catalog value's full six
+digits of precision round-trips through a form field exactly) and `Micros.String()`
+(the inverse, trailing zeros trimmed, for prefilling the edit form). Routes:
+`GET /productos` (list + search), `GET/POST /productos/nuevo`,
+`GET/POST /productos/{id}`, `POST /productos/{id}/eliminar` — all `RequireAuth`
+only, no admin gate, since vendedor already has full product read/write per the
+Auth design section. Search is a live htmx swap of just `#productos-tbody`
+(`hx-trigger="keyup changed delay:400ms, search"`) with a plain `GET` form
+fallback for JS-disabled — verified both paths actually work in a real browser,
+not just via the httprecorder tests (an earlier pass looked broken because a
+`templ generate` was missed after a late edit to `layout.templ`; the dev server
+was serving a stale nav bar with no "Productos" link — a reminder to always
+regenerate and restart before trusting a browser check). Create/update use
+standard POST + redirect (to the edit page with `?guardado=1`, not back to the
+list) rather than mi-cuenta's render-in-place, since that's the plan's stated
+default and lets you immediately see the saved values. Duplicate SKU is checked
+with a pre-`INSERT` `ProductBySKU` lookup rather than parsing the driver's UNIQUE
+violation error, for a friendly field error instead of a 500 — matches the
+codebase's existing preference for plain `database/sql`, no driver-specific error
+introspection anywhere else either. Verified end-to-end in a real browser against a
+fresh dev DB (two seeded families, no import): create with a six-decimal unit
+price → list shows it rounded to centavos → edit page shows the un-rounded
+`6.319872` prefilled → live search filters correctly and updates the URL via
+`hx-push-url` → soft-delete removes it from the list. Also covered by
+`go test ./...` (store CRUD + search escaping, web handlers for create/validate/
+duplicate-SKU/update/soft-delete/htmx-fragment-response/auth-required).
 
 **1.2 is the riskiest slice.** The sheets are irregular — merged headers, a hidden
 `Descripción | Precio` block on the right of each, per-family layouts that disagree.

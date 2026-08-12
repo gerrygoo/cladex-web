@@ -8,6 +8,7 @@ package money
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 )
 
@@ -19,6 +20,66 @@ type Micros int64
 // it once, at the point external float data enters the system, and never round again.
 func MicrosFromFloat(f float64) Micros {
 	return Micros(math.Round(f * 1_000_000))
+}
+
+// ParseMicros parses a plain decimal string (e.g. "6.319872", "1234.56", "-3") into
+// Micros. Unlike MicrosFromFloat, it never passes through float64 — form input for a
+// catalog value with up to six decimal digits must round-trip exactly, and float64
+// can't guarantee that.
+func ParseMicros(s string) (Micros, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, fmt.Errorf("money: empty value")
+	}
+	neg := strings.HasPrefix(s, "-")
+	if neg {
+		s = s[1:]
+	}
+	intPart, fracPart, hasFrac := strings.Cut(s, ".")
+	if strings.Contains(fracPart, ".") || (intPart == "" && !hasFrac) {
+		return 0, fmt.Errorf("money: invalid number %q", s)
+	}
+	if len(fracPart) > 6 {
+		return 0, fmt.Errorf("money: too many decimal digits in %q", s)
+	}
+	if intPart == "" {
+		intPart = "0"
+	}
+	fracPart += strings.Repeat("0", 6-len(fracPart))
+
+	intVal, err := strconv.ParseInt(intPart, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("money: invalid number %q: %w", s, err)
+	}
+	fracVal, err := strconv.ParseInt(fracPart, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("money: invalid number %q: %w", s, err)
+	}
+
+	v := intVal*1_000_000 + fracVal
+	if neg {
+		v = -v
+	}
+	return Micros(v), nil
+}
+
+// String formats Micros as a plain decimal peso string with trailing zeros trimmed
+// (e.g. Micros(6_319_872).String() == "6.319872"), for round-tripping through an HTML
+// form field. Unlike Centavos.String, this is not currency-formatted — no thousands
+// separator or "$" sign, since it feeds a value attribute, not a display label.
+func (m Micros) String() string {
+	v := int64(m)
+	neg := v < 0
+	if neg {
+		v = -v
+	}
+	sign := ""
+	if neg {
+		sign = "-"
+	}
+	s := fmt.Sprintf("%s%d.%06d", sign, v/1_000_000, v%1_000_000)
+	s = strings.TrimRight(s, "0")
+	return strings.TrimRight(s, ".")
 }
 
 // Centavos is a monetary amount in centavos (1e-2 MXN). Used for anything actually

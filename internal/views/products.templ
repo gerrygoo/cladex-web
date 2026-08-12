@@ -1,0 +1,177 @@
+package views
+
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// productPriceDisplay renders a product's price for the list table. A product has a
+// flat unit price or a pre-margin cost, in practice never both — see
+// migrations/0002_add_product_cost.sql.
+func productPriceDisplay(p store.Product) string {
+	switch {
+	case p.UnitPriceMicros != nil:
+		return p.UnitPriceMicros.ToCentavosHalfUp().String()
+	case p.CostMicros != nil:
+		return p.CostMicros.ToCentavosHalfUp().String() + " (costo)"
+	default:
+		return "—"
+	}
+}
+
+templ ProductsList(products []store.Product, query string, successMsg string, user *NavUser) {
+	@Layout("Productos", user) {
+		<h1>Productos</h1>
+		if successMsg != "" {
+			<p class="success">{ successMsg }</p>
+		}
+		<div class="toolbar">
+			<form method="get" action="/productos" role="search">
+				<input
+					type="search"
+					name="q"
+					placeholder="Buscar por SKU o descripción…"
+					value={ query }
+					hx-get="/productos"
+					hx-trigger="keyup changed delay:400ms, search"
+					hx-target="#productos-tbody"
+					hx-swap="outerHTML"
+					hx-push-url="true"
+				/>
+				<button type="submit">Buscar</button>
+			</form>
+			<a href="/productos/nuevo"><button type="button">Nuevo producto</button></a>
+		</div>
+		<table>
+			<thead>
+				<tr>
+					<th>SKU</th>
+					<th>Descripción</th>
+					<th>Familia</th>
+					<th>Precio</th>
+					<th>Moneda</th>
+					<th></th>
+				</tr>
+			</thead>
+			@ProductsTableBody(products)
+		</table>
+	}
+}
+
+templ ProductsTableBody(products []store.Product) {
+	<tbody id="productos-tbody">
+		if len(products) == 0 {
+			<tr>
+				<td colspan="6">No se encontraron productos.</td>
+			</tr>
+		}
+		for _, p := range products {
+			<tr>
+				<td>{ p.SKU }</td>
+				<td>{ p.Description }</td>
+				<td>{ p.FamilyName }</td>
+				<td>{ productPriceDisplay(p) }</td>
+				<td>{ p.Currency }</td>
+				<td>
+					<a href={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10)) }>Editar</a>
+					<form
+						method="post"
+						action={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10) + "/eliminar") }
+						style="display:inline"
+					>
+						<button type="submit" hx-confirm="¿Eliminar este producto?">Eliminar</button>
+					</form>
+				</td>
+			</tr>
+		}
+	</tbody>
+}
+
+// ProductFormValues is the view-model for ProductForm — raw strings so a validation
+// error can redisplay exactly what the user typed, per the plan's form convention.
+type ProductFormValues struct {
+	FamilyID    string
+	SKU         string
+	Description string
+	Currency    string
+	UnitPrice   string
+	Cost        string
+	KgPerM      string
+}
+
+templ ProductForm(title string, action string, values ProductFormValues, fieldErrors map[string]string, successMsg string, families []store.ProductFamily, user *NavUser) {
+	@Layout(title, user) {
+		<h1>{ title }</h1>
+		if successMsg != "" {
+			<p class="success">{ successMsg }</p>
+		}
+		<form method="post" action={ templ.URL(action) }>
+			<label>
+				SKU
+				<input type="text" name="sku" value={ values.SKU } required/>
+			</label>
+			if fieldErrors["sku"] != "" {
+				<p class="error">{ fieldErrors["sku"] }</p>
+			}
+			<label>
+				Descripción
+				<input type="text" name="description" value={ values.Description } required/>
+			</label>
+			if fieldErrors["description"] != "" {
+				<p class="error">{ fieldErrors["description"] }</p>
+			}
+			<label>
+				Familia
+				<select name="family_id" required>
+					<option value="">— Selecciona —</option>
+					for _, f := range families {
+						if strconv.FormatInt(f.ID, 10) == values.FamilyID {
+							<option value={ strconv.FormatInt(f.ID, 10) } selected>{ f.Name }</option>
+						} else {
+							<option value={ strconv.FormatInt(f.ID, 10) }>{ f.Name }</option>
+						}
+					}
+				</select>
+			</label>
+			if fieldErrors["family_id"] != "" {
+				<p class="error">{ fieldErrors["family_id"] }</p>
+			}
+			<label>
+				Moneda
+				<select name="currency">
+					if values.Currency == "USD" {
+						<option value="MXN">MXN</option>
+						<option value="USD" selected>USD</option>
+					} else {
+						<option value="MXN" selected>MXN</option>
+						<option value="USD">USD</option>
+					}
+				</select>
+			</label>
+			<label>
+				Precio unitario (pesos, opcional)
+				<input type="text" name="unit_price" value={ values.UnitPrice } placeholder="p. ej. 6.319872"/>
+			</label>
+			if fieldErrors["unit_price"] != "" {
+				<p class="error">{ fieldErrors["unit_price"] }</p>
+			}
+			<label>
+				Costo (pesos, opcional — para productos con margen)
+				<input type="text" name="cost" value={ values.Cost } placeholder="p. ej. 45.00"/>
+			</label>
+			if fieldErrors["cost"] != "" {
+				<p class="error">{ fieldErrors["cost"] }</p>
+			}
+			<label>
+				Peso (kg/m, opcional)
+				<input type="text" name="kg_per_m" value={ values.KgPerM } placeholder="p. ej. 0.123"/>
+			</label>
+			if fieldErrors["kg_per_m"] != "" {
+				<p class="error">{ fieldErrors["kg_per_m"] }</p>
+			}
+			<button type="submit">Guardar</button>
+			<a href="/productos">Cancelar</a>
+		</form>
+	}
+}

@@ -18,7 +18,14 @@ templ Layout(title string, user *NavUser) {
 		</head>
 		<body>
 			<header class="app-header">
-				<strong>Cladex</strong>
+				<div class="brand">
+					<strong>Cladex</strong>
+					if user != nil {
+						<nav class="app-nav">
+							<a href="/productos">Productos</a>
+						</nav>
+					}
+				</div>
 				if user != nil {
 					<div class="nav-user">
 						<a href="/mi-cuenta">{ user.Username }</a>
