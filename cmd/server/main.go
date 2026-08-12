@@ -26,6 +26,10 @@ func main() {
 	if dbPath == "" {
 		dbPath = "data/cladex.db"
 	}
+	// Secure by default (production sits behind a TLS-terminating proxy); set
+	// COOKIE_SECURE=false for local plain-HTTP dev, where a Secure cookie would never
+	// be sent back by the browser.
+	cookieSecure := os.Getenv("COOKIE_SECURE") != "false"
 
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		log.Fatalf("data dir: %v", err)
@@ -43,7 +47,7 @@ func main() {
 		log.Fatalf("static assets: %v", err)
 	}
 
-	mux := web.NewMux(buildSHA, staticFS, db)
+	mux := web.NewMux(buildSHA, staticFS, db, cookieSecure)
 
 	addr := fmt.Sprintf(":%s", port)
 	log.Printf("cladex listening on %s (build %s)", addr, buildSHA)

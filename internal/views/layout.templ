@@ -1,6 +1,12 @@
 package views
 
-templ Layout(title string) {
+// NavUser is the trimmed view-model Layout needs to render the signed-in state —
+// callers build it from store.AuthenticatedUser without views importing internal/store.
+type NavUser struct {
+	Username string
+}
+
+templ Layout(title string, user *NavUser) {
 	<!DOCTYPE html>
 	<html lang="es">
 		<head>
@@ -13,6 +19,12 @@ templ Layout(title string) {
 		<body>
 			<header class="app-header">
 				<strong>Cladex</strong>
+				if user != nil {
+					<form method="post" action="/logout" class="nav-user">
+						<span>{ user.Username }</span>
+						<button type="submit">Salir</button>
+					</form>
+				}
 			</header>
 			<main class="app-main">
 				{ children... }

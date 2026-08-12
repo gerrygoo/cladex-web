@@ -17,9 +17,12 @@ const sampleTypst = `
 Hello world — Typst render pipeline is up.
 `
 
-// NewMux builds the application router. buildSHA is surfaced on /healthz.
-func NewMux(buildSHA string, staticFS fs.FS, db *store.Store) *http.ServeMux {
+// NewMux builds the application router. buildSHA is surfaced on /healthz. cookieSecure
+// controls the session cookie's Secure flag — true in production (behind the
+// TLS-terminating proxy), false for local plain-HTTP dev.
+func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool) http.Handler {
 	mux := http.NewServeMux()
+	auth := NewAuth(db, cookieSecure)
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
 
@@ -28,14 +31,19 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store) *http.ServeMux {
 		fmt.Fprintf(w, "ok %s", buildSHA)
 	})
 
-	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /login", auth.LoginPage)
+	mux.HandleFunc("POST /login", auth.LoginSubmit)
+	mux.HandleFunc("POST /logout", auth.Logout)
+
+	mux.Handle("GET /{$}", auth.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		count, err := db.QuoteCount(r.Context())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		views.Home(buildSHA, count).Render(r.Context(), w)
-	})
+		user, _ := UserFromContext(r.Context())
+		views.Home(buildSHA, count, &views.NavUser{Username: user.Username}).Render(r.Context(), w)
+	})))
 
 	mux.HandleFunc("GET /saludo", func(w http.ResponseWriter, r *http.Request) {
 		mensaje := fmt.Sprintf("Hola — htmx funciona. Hora del servidor: %s", time.Now().Format(time.TimeOnly))
@@ -52,5 +60,6 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store) *http.ServeMux {
 		w.Write(bytes)
 	})
 
-	return mux
+	csrf := http.NewCrossOriginProtection()
+	return csrf.Handler(mux)
 }

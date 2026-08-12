@@ -19,3 +19,13 @@ header.app-header {
 main.app-main {
   padding: 1.25rem;
 }
+
+form.nav-user {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+p.error {
+  color: light-dark(#b00020, #ff6b6b);
+}
