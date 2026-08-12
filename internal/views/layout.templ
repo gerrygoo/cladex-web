@@ -4,6 +4,7 @@ package views
 // callers build it from store.AuthenticatedUser without views importing internal/store.
 type NavUser struct {
 	Username string
+	IsAdmin  bool
 }
 
 templ Layout(title string, user *NavUser) {
@@ -23,6 +24,10 @@ templ Layout(title string, user *NavUser) {
 					if user != nil {
 						<nav class="app-nav">
 							<a href="/productos">Productos</a>
+							if user.IsAdmin {
+								<a href="/usuarios">Usuarios</a>
+								<a href="/ajustes">Ajustes</a>
+							}
 						</nav>
 					}
 				</div>

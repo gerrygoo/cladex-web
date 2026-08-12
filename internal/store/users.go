@@ -89,3 +89,53 @@ func (s *Store) DisableUser(ctx context.Context, username string) (bool, error) 
 	}
 	return n > 0, nil
 }
+
+// ListUsers returns all users ordered by username, for the admin /usuarios page.
+func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, username, name, password_hash, role, disabled_at
+		FROM users ORDER BY username`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: list users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.Username, &u.Name, &u.PasswordHash, &u.Role, &u.DisabledAt); err != nil {
+			return nil, fmt.Errorf("store: list users: %w", err)
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
+// SetUserDisabled sets or clears disabled_at for the given user id, by id (unlike
+// DisableUser, which the CLI uses by username) — the admin /usuarios page already has
+// the row's id from ListUsers.
+func (s *Store) SetUserDisabled(ctx context.Context, id int64, disabled bool) error {
+	var err error
+	if disabled {
+		_, err = s.db.ExecContext(ctx, `
+			UPDATE users SET disabled_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+			WHERE id = ?`, id)
+	} else {
+		_, err = s.db.ExecContext(ctx, `UPDATE users SET disabled_at = NULL WHERE id = ?`, id)
+	}
+	if err != nil {
+		return fmt.Errorf("store: set user %d disabled=%v: %w", id, disabled, err)
+	}
+	return nil
+}
+
+// SetUserRole updates a user's role. role must be "admin" or "vendedor" (enforced by
+// the users.role CHECK constraint).
+func (s *Store) SetUserRole(ctx context.Context, id int64, role string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE users SET role = ? WHERE id = ?`, role, id)
+	if err != nil {
+		return fmt.Errorf("store: set user %d role %q: %w", id, role, err)
+	}
+	return nil
+}

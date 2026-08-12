@@ -211,7 +211,7 @@ determines the column types.
 | 1.4 | `cladexctl user add/passwd/disable` + change-own-password page | me⁴ | Create a user via CLI, log in as them, change the password, log in again — ✅ |
 | 1.5 | Products CRUD — list, search, create, edit, soft-delete | me | Full lifecycle through the UI; persists; works with JS disabled — ✅ |
 | 1.6 | Customers CRUD | me | Same |
-| 1.7 | Users admin + settings (FX, metal prices, margins), admin-gated | me | Vendedor gets 403 on both; admin can edit FX and see it reflected |
+| 1.7 | Users admin + settings (FX, metal prices, margins), admin-gated | me | Vendedor gets 403 on both; admin can edit FX and see it reflected — ✅ |
 
 ⁵ `internal/store/products.go` gained the CRUD half (`ListFamilies`, `ListProducts`
 with case-insensitive substring search — LIKE wildcards in the query text are
@@ -248,6 +248,44 @@ price → list shows it rounded to centavos → edit page shows the un-rounded
 `hx-push-url` → soft-delete removes it from the list. Also covered by
 `go test ./...` (store CRUD + search escaping, web handlers for create/validate/
 duplicate-SKU/update/soft-delete/htmx-fragment-response/auth-required).
+
+⁶ Scope call, not fully forced by the plan text: `/usuarios` manages role and
+enabled/disabled state for *existing* accounts only — no create-user, no
+password-reset-via-web. The Auth design section is explicit that provisioning is
+out-of-band with no self-service surface ("no signup, no public password reset");
+extending that to a web page that could mint a fresh password or a brand-new
+account would cut against that decision, so creation and password resets stay
+`cladexctl`-only (1.4). `internal/store/users.go` gained `ListUsers`,
+`SetUserDisabled` (by id, unlike the CLI's `DisableUser` which takes a username),
+and `SetUserRole`. A new `internal/store/settings.go` wraps the already-existing
+generic `settings` key/value table with `SettingValue`/`SettingValues`/
+`SetSetting`; `/ajustes` exposes three fixed knobs (`fx_rate`, `copper_price`,
+`default_margin`) as a hardcoded list in `internal/web/ajustes.go` rather than
+walking the table generically, since the UI needs a Spanish label and a
+placeholder per field — adding a fourth knob later (e.g. an aluminum price, once
+the deferred ALUMOCLAD family lands) is a one-line addition to that list, no
+migration, per the table's original design intent. Settings values reuse
+`internal/money.ParseMicros`/`Micros.String()` from 1.5 — same fixed-point
+round-trip, so `0.35` for a 35% margin persists and redisplays as `0.35`, not
+`0.350000` or a float-drifted approximation. `/ajustes` submission is all-or-nothing:
+if any of the three fields fails to parse, nothing is written, and all three
+fields redisplay with the entered (possibly invalid) values per the plan's form
+convention. Both `/usuarios` and `/ajustes` are gated
+`auth.RequireAuth(auth.RequireAdmin(handler))` — the first real exercise of
+`RequireAdmin` against a live route rather than only in `auth_test.go` (built in
+1.3). Guarded against self-lockout: an admin can't change their own role or
+disable their own account through `/usuarios` — the UI hides those controls on
+the signed-in admin's own row, and the handler re-checks server-side so a crafted
+POST can't bypass it either. `NavUser` gained an `IsAdmin` field so the layout can
+show/hide the "Usuarios"/"Ajustes" nav links; `navUserView` sets it from
+`AuthenticatedUser.Role`. Verified end-to-end in a real browser: logged in as a
+plain vendedor, confirmed both nav links are absent and direct navigation to
+either route 403s ("prohibido"); logged in as admin, changed a user's role,
+disabled and re-enabled a different user, saved all three settings, then reloaded
+`/ajustes` from a fresh request (not just the POST response) to confirm the
+values actually round-tripped through SQLite. Also covered by `go test ./...`
+(settings round-trip, `ListUsers`/`SetUserDisabled`/`SetUserRole`, and web
+handlers for both routes including the 403-for-vendedor and self-lockout cases).
 
 **1.2 is the riskiest slice.** The sheets are irregular — merged headers, a hidden
 `Descripción | Precio` block on the right of each, per-family layouts that disagree.

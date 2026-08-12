@@ -1,0 +1,33 @@
+package views
+
+// SettingFieldView is one row of the /ajustes form: a settings.key, its current
+// display value (a plain decimal string, already converted from stored micros), and
+// any validation error for it.
+type SettingFieldView struct {
+	Key         string
+	Label       string
+	Placeholder string
+	Value       string
+	Error       string
+}
+
+templ Ajustes(fields []SettingFieldView, successMsg string, user *NavUser) {
+	@Layout("Ajustes", user) {
+		<h1>Ajustes</h1>
+		if successMsg != "" {
+			<p class="success">{ successMsg }</p>
+		}
+		<form method="post" action="/ajustes">
+			for _, f := range fields {
+				<label>
+					{ f.Label }
+					<input type="text" name={ f.Key } value={ f.Value } placeholder={ f.Placeholder } required/>
+				</label>
+				if f.Error != "" {
+					<p class="error">{ f.Error }</p>
+				}
+			}
+			<button type="submit">Guardar</button>
+		</form>
+	}
+}

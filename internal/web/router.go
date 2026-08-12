@@ -24,6 +24,8 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool)
 	mux := http.NewServeMux()
 	auth := NewAuth(db, cookieSecure)
 	products := NewProducts(db)
+	users := NewUsers(db)
+	settings := NewSettings(db)
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
 
@@ -44,6 +46,14 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool)
 	mux.Handle("GET /productos/{id}", auth.RequireAuth(http.HandlerFunc(products.EditPage)))
 	mux.Handle("POST /productos/{id}", auth.RequireAuth(http.HandlerFunc(products.Update)))
 	mux.Handle("POST /productos/{id}/eliminar", auth.RequireAuth(http.HandlerFunc(products.Delete)))
+
+	mux.Handle("GET /usuarios", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(users.List))))
+	mux.Handle("POST /usuarios/{id}/rol", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(users.SetRole))))
+	mux.Handle("POST /usuarios/{id}/deshabilitar", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(users.SetDisabled(true)))))
+	mux.Handle("POST /usuarios/{id}/habilitar", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(users.SetDisabled(false)))))
+
+	mux.Handle("GET /ajustes", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.Page))))
+	mux.Handle("POST /ajustes", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.Submit))))
 
 	mux.Handle("GET /{$}", auth.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		count, err := db.QuoteCount(r.Context())

@@ -58,7 +58,7 @@ func navUserView(u *store.AuthenticatedUser) *views.NavUser {
 	if u == nil {
 		return nil
 	}
-	return &views.NavUser{Username: u.Username}
+	return &views.NavUser{Username: u.Username, IsAdmin: u.Role == "admin"}
 }
 
 // RequireAuth redirects to /login unless the request carries a valid, unexpired
