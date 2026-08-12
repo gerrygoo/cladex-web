@@ -205,7 +205,7 @@ determines the column types.
 
 | # | Slice | Owner | Done when |
 |---|---|---|---|
-| 1.1 | Backups: nightly `sqlite3 .backup` + the `quotes/` PDF dir, offsite copy | me¹ | Restore into a scratch dir and open it — **before 1.2 loads real data** — ✅ script done, ⏳ cron pending |
+| 1.1 | Backups: nightly `sqlite3 .backup` + the `quotes/` PDF dir, offsite copy | me¹ | Restore into a scratch dir and open it — **before 1.2 loads real data** — ✅ |
 | 1.2 | `cmd/import` — parse the 4 catalog sheets into families, products, price_breaks | me | Idempotent; row counts match; spot-check 5 SKUs by hand |
 | 1.3 | Auth: bcrypt, sessions table, login/logout, middleware, rate limiting, CSRF | me | Log in, hit a protected route, log out → 302. 6th bad password is throttled |
 | 1.4 | `cladexctl user add/passwd/disable` + change-own-password page | me | Create a user via CLI, log in as them, change the password, log in again |
