@@ -1,0 +1,137 @@
+package views
+
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+templ CustomersList(customers []store.Customer, query string, successMsg string, user *NavUser) {
+	@Layout("Clientes", user) {
+		<h1>Clientes</h1>
+		if successMsg != "" {
+			<p class="success">{ successMsg }</p>
+		}
+		<div class="toolbar">
+			<form method="get" action="/clientes" role="search">
+				<input
+					type="search"
+					name="q"
+					placeholder="Buscar por nombre, RFC o contacto…"
+					value={ query }
+					hx-get="/clientes"
+					hx-trigger="keyup changed delay:400ms, search"
+					hx-target="#clientes-tbody"
+					hx-swap="outerHTML"
+					hx-push-url="true"
+				/>
+				<button type="submit">Buscar</button>
+			</form>
+			<a href="/clientes/nuevo"><button type="button">Nuevo cliente</button></a>
+		</div>
+		<table>
+			<thead>
+				<tr>
+					<th>Nombre</th>
+					<th>RFC</th>
+					<th>Contacto</th>
+					<th>Teléfono</th>
+					<th>Email</th>
+					<th></th>
+				</tr>
+			</thead>
+			@CustomersTableBody(customers)
+		</table>
+	}
+}
+
+templ CustomersTableBody(customers []store.Customer) {
+	<tbody id="clientes-tbody">
+		if len(customers) == 0 {
+			<tr>
+				<td colspan="6">No se encontraron clientes.</td>
+			</tr>
+		}
+		for _, c := range customers {
+			<tr>
+				<td>{ c.Name }</td>
+				<td>{ c.RFC }</td>
+				<td>{ c.ContactName }</td>
+				<td>{ c.Phone }</td>
+				<td>{ c.Email }</td>
+				<td>
+					<a href={ templ.URL("/clientes/" + strconv.FormatInt(c.ID, 10)) }>Editar</a>
+					<form
+						method="post"
+						action={ templ.URL("/clientes/" + strconv.FormatInt(c.ID, 10) + "/eliminar") }
+						style="display:inline"
+					>
+						<button type="submit" hx-confirm="¿Eliminar este cliente?">Eliminar</button>
+					</form>
+				</td>
+			</tr>
+		}
+	</tbody>
+}
+
+// CustomerFormValues is the view-model for CustomerForm — raw strings so a validation
+// error can redisplay exactly what the user typed.
+type CustomerFormValues struct {
+	Name        string
+	RFC         string
+	ContactName string
+	Phone       string
+	Email       string
+	Address     string
+	Notes       string
+}
+
+templ CustomerForm(title string, action string, values CustomerFormValues, fieldErrors map[string]string, successMsg string, user *NavUser) {
+	@Layout(title, user) {
+		<h1>{ title }</h1>
+		if successMsg != "" {
+			<p class="success">{ successMsg }</p>
+		}
+		<form method="post" action={ templ.URL(action) }>
+			<label>
+				Nombre
+				<input type="text" name="name" value={ values.Name } required/>
+			</label>
+			if fieldErrors["name"] != "" {
+				<p class="error">{ fieldErrors["name"] }</p>
+			}
+			<label>
+				RFC (opcional)
+				<input type="text" name="rfc" value={ values.RFC }/>
+			</label>
+			if fieldErrors["rfc"] != "" {
+				<p class="error">{ fieldErrors["rfc"] }</p>
+			}
+			<label>
+				Contacto (opcional)
+				<input type="text" name="contact_name" value={ values.ContactName }/>
+			</label>
+			<label>
+				Teléfono (opcional)
+				<input type="text" name="phone" value={ values.Phone }/>
+			</label>
+			<label>
+				Email (opcional)
+				<input type="text" name="email" value={ values.Email }/>
+			</label>
+			if fieldErrors["email"] != "" {
+				<p class="error">{ fieldErrors["email"] }</p>
+			}
+			<label>
+				Dirección (opcional)
+				<input type="text" name="address" value={ values.Address }/>
+			</label>
+			<label>
+				Notas (opcional)
+				<input type="text" name="notes" value={ values.Notes }/>
+			</label>
+			<button type="submit">Guardar</button>
+			<a href="/clientes">Cancelar</a>
+		</form>
+	}
+}

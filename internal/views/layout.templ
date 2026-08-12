@@ -24,6 +24,7 @@ templ Layout(title string, user *NavUser) {
 					if user != nil {
 						<nav class="app-nav">
 							<a href="/productos">Productos</a>
+							<a href="/clientes">Clientes</a>
 							if user.IsAdmin {
 								<a href="/usuarios">Usuarios</a>
 								<a href="/ajustes">Ajustes</a>

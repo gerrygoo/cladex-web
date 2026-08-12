@@ -210,7 +210,7 @@ determines the column types.
 | 1.3 | Auth: bcrypt, sessions table, login/logout, middleware, rate limiting, CSRF | me³ | Log in, hit a protected route, log out → 302. 6th bad password is throttled — ✅ |
 | 1.4 | `cladexctl user add/passwd/disable` + change-own-password page | me⁴ | Create a user via CLI, log in as them, change the password, log in again — ✅ |
 | 1.5 | Products CRUD — list, search, create, edit, soft-delete | me | Full lifecycle through the UI; persists; works with JS disabled — ✅ |
-| 1.6 | Customers CRUD | me | Same |
+| 1.6 | Customers CRUD | me | Same — ✅⁷ |
 | 1.7 | Users admin + settings (FX, metal prices, margins), admin-gated | me | Vendedor gets 403 on both; admin can edit FX and see it reflected — ✅ |
 
 ⁵ `internal/store/products.go` gained the CRUD half (`ListFamilies`, `ListProducts`
@@ -286,6 +286,28 @@ disabled and re-enabled a different user, saved all three settings, then reloade
 values actually round-tripped through SQLite. Also covered by `go test ./...`
 (settings round-trip, `ListUsers`/`SetUserDisabled`/`SetUserRole`, and web
 handlers for both routes including the 403-for-vendedor and self-lockout cases).
+
+⁷ Built after 1.7 (user request), mirroring 1.5's shape exactly — same
+list/search/create/edit/soft-delete pattern, same file layout
+(`internal/store/customers.go`, `internal/web/customers.go`,
+`internal/views/customers.templ`). `customers` has no equivalent of products'
+`family_id`/pricing fields, so the form is simpler: `name` required, everything
+else (`rfc`, `contact_name`, `phone`, `email`, `address`, `notes`) optional free
+text, stored as SQL `NULL` when blank via a small `nullIfEmpty` helper rather
+than empty strings — kept the intent ("not provided" vs "explicitly blank")
+visible in the schema, matching how the column was already nullable. Search
+matches name, RFC, or contact name (`ListCustomers`), reusing the same
+`escapeLike` wildcard-escaping helper `products.go` already defined in the
+`store` package. Routes are `RequireAuth`-only, no admin gate, same reasoning as
+products (vendedor already has full customer read/write per the Auth design
+section). Verified end-to-end in a real browser as a vendedor: create a
+customer with RFC/contact/phone/email → edit page shows it all prefilled → list
+row shows it → live search matches on contact name, not just company name →
+plain-GET fallback (typed a query, pressed Enter — no live-search JS path)
+returns the same filtered result → soft-delete removes it from the list. Also
+covered by `go test ./...` (store CRUD + search-across-three-columns, web
+handlers for create/validate/update/soft-delete/htmx-fragment-response/
+auth-required).
 
 **1.2 is the riskiest slice.** The sheets are irregular — merged headers, a hidden
 `Descripción | Precio` block on the right of each, per-family layouts that disagree.
