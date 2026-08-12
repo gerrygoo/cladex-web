@@ -7,11 +7,19 @@ package money
 
 import (
 	"fmt"
+	"math"
 	"strings"
 )
 
 // Micros is a monetary amount in micro-pesos (1e-6 MXN). Used for unit prices.
 type Micros int64
+
+// MicrosFromFloat converts a float64 amount (e.g. a value read from a spreadsheet cell)
+// to Micros, rounding half away from zero. This is the float→fixed-point boundary: call
+// it once, at the point external float data enters the system, and never round again.
+func MicrosFromFloat(f float64) Micros {
+	return Micros(math.Round(f * 1_000_000))
+}
 
 // Centavos is a monetary amount in centavos (1e-2 MXN). Used for anything actually
 // charged: line totals, subtotal, IVA, total.

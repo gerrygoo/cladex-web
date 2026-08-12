@@ -206,7 +206,7 @@ determines the column types.
 | # | Slice | Owner | Done when |
 |---|---|---|---|
 | 1.1 | Backups: nightly `sqlite3 .backup` + the `quotes/` PDF dir, offsite copy | me¹ | Restore into a scratch dir and open it — **before 1.2 loads real data** — ✅ |
-| 1.2 | `cmd/import` — parse the 4 catalog sheets into families, products, price_breaks | me | Idempotent; row counts match; spot-check 5 SKUs by hand |
+| 1.2 | `cmd/import` — parse the 4 catalog sheets into families, products, price_breaks | me² | Idempotent; row counts match; spot-check 5 SKUs by hand — ✅ (3 of 4 families; ELECTRACLEAN deferred) |
 | 1.3 | Auth: bcrypt, sessions table, login/logout, middleware, rate limiting, CSRF | me | Log in, hit a protected route, log out → 302. 6th bad password is throttled |
 | 1.4 | `cladexctl user add/passwd/disable` + change-own-password page | me | Create a user via CLI, log in as them, change the password, log in again |
 | 1.5 | Products CRUD — list, search, create, edit, soft-delete | me | Full lifecycle through the UI; persists; works with JS disabled |
@@ -224,6 +224,40 @@ offsite push was built. Installing the nightly cron entry needs `sudo` on the NA
 wall as 0.8's deploy cron) — bounced to the user. Also learned: `scp` to the NAS fails
 under the modern SFTP-based protocol (`dest open ... No such file or directory`); use
 `scp -O` (legacy protocol) instead.
+
+² Built and verified against the real workbook (`~/Downloads/Cladex catalogo precios.xlsx`
+on the user's Mac — never committed, `-xlsx` flag points at it). Key discovery: every
+catalog sheet has a *hidden* two-to-four-column mirror block elsewhere in the sheet that
+the existing "Cotizador" quote forms actually `VLOOKUP` against — traced the real
+formulas to confirm. That hidden block is Cladex's own clean, flattened
+`(Descripción, Precio, ...)` list, immune to the merged-header/multi-category mess in the
+raw columns, so the importer reads from there instead of trying to parse the raw layout
+directly.
+
+Per-family decisions (confirmed with the user, not assumed):
+- **ABASTILUM**: flat catalog prices → `unit_price_micros`. No real SKU exists (the
+  business VLOOKUPs on description alone), so SKU is `abl-<slug of description>`.
+- **CCA** and **CCS & AC**: cost + margin families — margin is applied at quote time
+  (M2), so the importer stores the pre-margin *cost*, not the mirror's margin-adjusted
+  price. This needed a schema addition, `migrations/0002_add_product_cost.sql`
+  (`products.cost_micros`, nullable — mutually exclusive with `unit_price_micros` in
+  practice). SKU is `<family>-c<gauge>` (`cca-c14`, `ccad-c14` for the bare/DESNUDO
+  variant) — except CCS & AC, where the raw AWG code collides across two products
+  (`7#6 LC DSA` and `19#9 LC DSA` are both `3/0`), so its SKU is `ccs-<slug of name>`
+  instead.
+- **ELECTRACLEAN**: skipped entirely for now, per the user ("ignore everything related
+  to electraclean") — no family row, no products. `price_breaks` (quantity-tiered
+  pricing) is therefore still unused; ELECTRACLEAN was its only real use case in the
+  current data.
+- One outlier, "CABLE ALUMOCLAD CALIBRE 7#8", lives outside any mirror block (a
+  hardcoded cell reference in the "Cotizador Alumoclad" form) — skipped, to be added by
+  hand once 1.5 (Products CRUD) exists.
+
+Verified: dry-run (`-dry-run`) prints every proposed row before any write; the importer
+checks for cross-family SKU collisions and refuses to import if any are found; a real run
+against a local dev DB produced 69 products across 3 families, re-running was a no-op row
+count (idempotent via `ON CONFLICT (sku) DO UPDATE`), and 5 spot-checked rows matched the
+source workbook exactly (in micros).
 
 ## M2 — Quoting engine and PDF
 

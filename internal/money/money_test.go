@@ -42,6 +42,25 @@ func TestCentavosString(t *testing.T) {
 	}
 }
 
+func TestMicrosFromFloat(t *testing.T) {
+	cases := []struct {
+		f    float64
+		want Micros
+	}{
+		{0, 0},
+		{6.319872233629933, 6_319_872}, // catalog's own per-metre price, rounds down
+		{5.54, 5_540_000},
+		{0.1723, 172_300},
+		{37800, 37_800_000_000},
+		{-1.5, -1_500_000},
+	}
+	for _, c := range cases {
+		if got := MicrosFromFloat(c.f); got != c.want {
+			t.Errorf("MicrosFromFloat(%v) = %d, want %d", c.f, got, c.want)
+		}
+	}
+}
+
 func TestRoundOnceInvariant(t *testing.T) {
 	// Sanity check on the domain's own numbers: the spreadsheet's per-metre price.
 	price := Micros(6_319_872) // truncated from 6.319872233629933
