@@ -38,10 +38,12 @@ Two pinned constraints:
 - NAS: Docker Compose, `network_mode: host`, configs under `/volume1/docker/[service]/`,
   PUID **1000** / PGID **10**. Ports taken: 8080 (FRP), 8081, 8096, 8191, 8282, 5055, 7878, 8989.
 - VPS: Hetzner Ubuntu, nginx + certbot, FRP server multiplexing 80/443.
-- **SSH**: SSH access to the NAS exists, but `~/.ssh/` is not configured on this account.
-  Slice 0.0b establishes key-based access and a host alias, after which NAS slices become
-  agent-executable. A **password prompt** (SSH or `sudo`) cannot be answered by a
-  non-interactive shell, so key auth plus docker-group membership are prerequisites.
+- **SSH**: key-based, non-interactive access is set up to both boxes — `ssh cladex-nas`
+  (192.168.3.169, user `ggo`, key at `~/.ssh/cladex_nas`, docker-group membership granted)
+  and `ssh cladex-vps` (5.78.203.98, user `root`, key `cladex-vps` stored in 1Password's
+  SSH agent). Both aliases live in `~/.ssh/config`. A **password prompt** (SSH or `sudo`)
+  still can't be answered by a non-interactive shell — that's the one thing that still
+  bounces back to the user (e.g. installing a crontab entry).
 
 ---
 
@@ -174,25 +176,27 @@ Drafts are mutable; setting `issued_at` freezes the row and writes the PDF.
 
 Legend: **[me]** = implementation session · **[you]** = runbook the user executes
 
-## M0 — Walking skeleton and pipeline
+## M0 — Walking skeleton and pipeline — ✅ COMPLETE
 
-| # | Slice | Owner | Done when |
-|---|---|---|---|
-| 0.0a | Local toolchain: Go, `brew install typst`, container runtime (**OrbStack** recommended; colima if FOSS preferred) with Rosetta for x86_64 | you | `docker run --rm --platform linux/amd64 alpine uname -m` prints `x86_64` |
-| 0.0b | SSH: generate a key, install it on the NAS, add a `Host cladex-nas` entry to `~/.ssh/config`, confirm docker-group membership | you | `ssh cladex-nas docker ps` succeeds **with no prompt** |
-| 0.1 | `go.mod`, `cmd/server`, ServeMux, templ layout + `/`, `static/` with htmx, `/healthz` returning build SHA | me | `go run ./cmd/server`; `/healthz` 200, `/` renders, htmx swap works |
-| 0.2 | `internal/money` + **full schema** in `migrations/0001_init.sql` via `embed.FS`; `/` renders `count(*) FROM quotes` | me | Migration applies clean; money round-trip tests pass; `/` shows `0 cotizaciones` |
-| 0.3 | `internal/pdf/typst.go`; `/sample.pdf` renders hello-world | me | `curl -o t.pdf localhost:8090/sample.pdf` opens as a valid PDF |
-| 0.4 | `Dockerfile` (3-stage, distroless, **linux/amd64**) + `compose.dev.yaml` | me | amd64 image builds and runs locally; all three endpoints answer from inside it |
-| 0.5 | `.github/workflows/deploy.yml` → GHCR, tagged `latest` + `sha` | me | Actions green; `ghcr.io/gerrygoo/cladex-web:latest` public and pullable |
-| 0.6 | NAS: `/volume1/docker/cladex/data`, `compose.yaml`, first manual `pull && up -d` | me¹ | `ssh cladex-nas curl -s localhost:8090/healthz` returns the pushed SHA; `docker stats` < 100 MB |
-| 0.7 | VPS + DNS: FRP entry, two nginx blocks, A + CNAME, certbot for both names | you² | `https://cotizador.cladex.com.mx/healthz` works; `c.` 301s to it |
-| 0.8 | Auto-deploy cron (5 min) + end-to-end push test | me¹ | Change text on `/`, push, ≤5 min later it's live, nothing manual |
+| # | Slice | Owner | Done when | Status |
+|---|---|---|---|---|
+| 0.0a | Local toolchain: Go, `brew install typst`, container runtime (**OrbStack** recommended; colima if FOSS preferred) with Rosetta for x86_64 | you | `docker run --rm --platform linux/amd64 alpine uname -m` prints `x86_64` | ✅ |
+| 0.0b | SSH: generate a key, install it on the NAS, add a `Host cladex-nas` entry to `~/.ssh/config`, confirm docker-group membership | you | `ssh cladex-nas docker ps` succeeds **with no prompt** | ✅ |
+| 0.1 | `go.mod`, `cmd/server`, ServeMux, templ layout + `/`, `static/` with htmx, `/healthz` returning build SHA | me | `go run ./cmd/server`; `/healthz` 200, `/` renders, htmx swap works | ✅ |
+| 0.2 | `internal/money` + **full schema** in `migrations/0001_init.sql` via `embed.FS`; `/` renders `count(*) FROM quotes` | me | Migration applies clean; money round-trip tests pass; `/` shows `0 cotizaciones` | ✅ |
+| 0.3 | `internal/pdf/typst.go`; `/sample.pdf` renders hello-world | me | `curl -o t.pdf localhost:8090/sample.pdf` opens as a valid PDF | ✅ |
+| 0.4 | `Dockerfile` (3-stage, distroless, **linux/amd64**) + `compose.dev.yaml` | me | amd64 image builds and runs locally; all three endpoints answer from inside it | ✅ |
+| 0.5 | `.github/workflows/deploy.yml` → GHCR, tagged `latest` + `sha` | me | Actions green; `ghcr.io/gerrygoo/cladex-web:latest` public and pullable | ✅ |
+| 0.6 | NAS: `/volume1/docker/cladex/data`, `compose.yaml`, first manual `pull && up -d` | me¹ | `ssh cladex-nas curl -s localhost:8090/healthz` returns the pushed SHA; `docker stats` < 100 MB | ✅ |
+| 0.7 | VPS + DNS: FRP entry, two nginx blocks, A + CNAME, certbot for both names | you²→me | `https://cotizador.cladex.com.mx/healthz` works; `c.` 301s to it | ✅ |
+| 0.8 | Auto-deploy cron (5 min) + end-to-end push test | me¹ | Change text on `/`, push, ≤5 min later it's live, nothing manual | ✅ |
 
-¹ Agent-owned **once 0.0b passes**. Installing the cron in 0.8 may need `sudo` — if it
-prompts, that step returns to the user.
-² VPS access not established from this machine. Flips the same way with a `cladex-vps`
-alias; certbot and nginx reloads need root either way.
+¹ Agent-owned **once 0.0b passes**. Installing the cron in 0.8 needed `sudo`, which
+prompted for a password and returned to the user, same as anticipated.
+² VPS access was not established from this machine at plan-writing time, but got set up
+mid-M0 (Hetzner console → `authorized_keys`, 1Password SSH agent, `cladex-vps` alias) —
+see the Environment section above. 0.7 ended up agent-executable after all, apart from
+one classifier-gated step (certbot's `--agree-tos`, confirmed with the user).
 
 `internal/money` lands in 0.2, before any schema, because the fixed-point representation
 determines the column types.
