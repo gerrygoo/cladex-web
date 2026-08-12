@@ -354,6 +354,24 @@ Revisit once M2 is in daily use.
 **Auth hardening**: OAuth/SSO, 2FA. Username+password is adequate for 5 known users behind
 a rate-limited login; revisit if headcount or exposure grows.
 
+**Finer-grained RBAC and a mutation-approval workflow.** Flagged by the user when
+provisioning the first real accounts (2026-08-12): the actual org has more than two
+tiers — sysadmin (full/root), admin (COO-level, broad write), and sales (narrower:
+read plus specifically the factura flow) — where today's schema only has `admin` and
+`vendedor`, and `vendedor` already gets full read/write on products, customers, and
+quotes (only `/usuarios`/`/ajustes` are admin-gated). The four initial accounts were
+provisioned on the existing two-role schema as a stopgap (sysadmin+COO → `admin`,
+both sales → `vendedor`), not because that's the right long-term model. Two related
+ideas to design together, not separately: (1) a request/approval system so lesser
+roles can submit mutations for a higher role to approve rather than being flatly
+denied: (2) **facturas** (invoices — distinct from quotes/cotizaciones; Mexican
+CFDI/tax documents) created as mutable drafts, then frozen as immutable once
+published — this is structurally the same draft→frozen pattern the quotes engine
+already uses (`quotes.status` `borrador`→`emitida`, see M2 above), so whether
+facturas reuse that machinery or need their own is worth resolving before
+either is built. Revisit once M2 (quoting) is in daily use and it's clear which
+CRUD/quoting patterns are actually solid enough to extend.
+
 **Email intake** for RFPs (IMAP polling on the Cladex domain). Depends on the above.
 
 **Other**: htmx round-trip limits on the quote builder → JS island, decided in 2.2. TLS
