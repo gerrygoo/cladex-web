@@ -207,7 +207,7 @@ determines the column types.
 |---|---|---|---|
 | 1.1 | Backups: nightly `sqlite3 .backup` + the `quotes/` PDF dir, offsite copy | me¹ | Restore into a scratch dir and open it — **before 1.2 loads real data** — ✅ |
 | 1.2 | `cmd/import` — parse the 4 catalog sheets into families, products, price_breaks | me² | Idempotent; row counts match; spot-check 5 SKUs by hand — ✅ (3 of 4 families; ELECTRACLEAN deferred) |
-| 1.3 | Auth: bcrypt, sessions table, login/logout, middleware, rate limiting, CSRF | me | Log in, hit a protected route, log out → 302. 6th bad password is throttled |
+| 1.3 | Auth: bcrypt, sessions table, login/logout, middleware, rate limiting, CSRF | me³ | Log in, hit a protected route, log out → 302. 6th bad password is throttled — ✅ |
 | 1.4 | `cladexctl user add/passwd/disable` + change-own-password page | me | Create a user via CLI, log in as them, change the password, log in again |
 | 1.5 | Products CRUD — list, search, create, edit, soft-delete | me | Full lifecycle through the UI; persists; works with JS disabled |
 | 1.6 | Customers CRUD | me | Same |
@@ -215,6 +215,32 @@ determines the column types.
 
 **1.2 is the riskiest slice.** The sheets are irregular — merged headers, a hidden
 `Descripción | Precio` block on the right of each, per-family layouts that disagree.
+
+³ `internal/store/{users,sessions,login_attempts}.go` + `internal/web/auth.go`.
+Sessions: SHA-256(token) in `sessions.token_hash`, sliding 14-day expiry (renewed at
+most once/day per session, computed in SQL — no Go-side time parsing needed since
+timestamps stay in the DB's own ISO-8601 string format). Cookie is `HttpOnly`,
+`SameSite=Lax`, and `Secure` by default; `COOKIE_SECURE=false` (set in
+`compose.dev.yaml`) opts out for local plain-HTTP dev, since the app itself never
+terminates TLS (nginx/VPS does) so `r.TLS` is always nil regardless of environment.
+CSRF via stdlib `http.CrossOriginProtection` wrapping the whole mux — zero deps, and
+requests without `Origin`/`Sec-Fetch-Site` (curl, non-browser) pass through untouched.
+Rate limiting counts failed `login_attempts` since each username/IP's last success
+(so a successful login resets the streak), exponential backoff `2^(failures-5)`
+seconds capped at 5 minutes, checked *before* the password comparison so the 6th
+attempt is rejected without even touching bcrypt. Login also runs bcrypt against a
+fixed dummy hash when the username doesn't exist, so a failed login takes the same
+time either way — defeats timing-based username enumeration. `RequireAuth` /
+`RequireAdmin` middleware are built and unit-tested (403 for vendedor, 200 for
+admin) — there are no real admin routes to gate yet (`/usuarios`, `/ajustes` are
+1.7), so RBAC enforcement is proven in `internal/web/auth_test.go` rather than
+against a live route. Verified end-to-end against a locally seeded dev DB (two
+throwaway users, one per role, created directly via `store.CreateUser` — not through
+`cladexctl`, which is still 1.4): login sets the cookie, `/` requires it and shows
+the logged-in username, logout clears the session, and the 6th bad password gets a
+429 with `Retry-After`. `golang.org/x/crypto` (bcrypt) promoted from an indirect to
+a direct dependency; no schema changes — `sessions` and `login_attempts` were
+already in `migrations/0001_init.sql`.
 
 ¹ Deployed and verified: `backup.sh` runs nightly `sqlite3 .backup` + integrity check +
 `quotes/` dir into a 14-day-retention tarball under `/volume1/docker/cladex/backups/`,
