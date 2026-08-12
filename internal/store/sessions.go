@@ -78,3 +78,14 @@ func (s *Store) DeleteSession(ctx context.Context, tokenHash string) error {
 	}
 	return nil
 }
+
+// DeleteSessionsByUserID removes every session belonging to a user — used after an
+// admin-driven password reset (cladexctl user passwd) so a stale cookie can't outlive
+// the reset.
+func (s *Store) DeleteSessionsByUserID(ctx context.Context, userID int64) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, userID)
+	if err != nil {
+		return fmt.Errorf("store: delete sessions for user %d: %w", userID, err)
+	}
+	return nil
+}

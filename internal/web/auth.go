@@ -52,6 +52,15 @@ func UserFromContext(ctx context.Context) (*store.AuthenticatedUser, bool) {
 	return u, ok
 }
 
+// navUserView adapts a store.AuthenticatedUser to the trimmed view-model Layout needs,
+// so internal/views doesn't have to import internal/store.
+func navUserView(u *store.AuthenticatedUser) *views.NavUser {
+	if u == nil {
+		return nil
+	}
+	return &views.NavUser{Username: u.Username}
+}
+
 // RequireAuth redirects to /login unless the request carries a valid, unexpired
 // session cookie for a non-disabled user. On success it renews the session (sliding
 // expiry) and attaches the user to the request context.

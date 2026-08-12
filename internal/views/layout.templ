@@ -20,10 +20,12 @@ templ Layout(title string, user *NavUser) {
 			<header class="app-header">
 				<strong>Cladex</strong>
 				if user != nil {
-					<form method="post" action="/logout" class="nav-user">
-						<span>{ user.Username }</span>
-						<button type="submit">Salir</button>
-					</form>
+					<div class="nav-user">
+						<a href="/mi-cuenta">{ user.Username }</a>
+						<form method="post" action="/logout">
+							<button type="submit">Salir</button>
+						</form>
+					</div>
 				}
 			</header>
 			<main class="app-main">

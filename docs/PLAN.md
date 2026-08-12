@@ -208,7 +208,7 @@ determines the column types.
 | 1.1 | Backups: nightly `sqlite3 .backup` + the `quotes/` PDF dir, offsite copy | me¹ | Restore into a scratch dir and open it — **before 1.2 loads real data** — ✅ |
 | 1.2 | `cmd/import` — parse the 4 catalog sheets into families, products, price_breaks | me² | Idempotent; row counts match; spot-check 5 SKUs by hand — ✅ (3 of 4 families; ELECTRACLEAN deferred) |
 | 1.3 | Auth: bcrypt, sessions table, login/logout, middleware, rate limiting, CSRF | me³ | Log in, hit a protected route, log out → 302. 6th bad password is throttled — ✅ |
-| 1.4 | `cladexctl user add/passwd/disable` + change-own-password page | me | Create a user via CLI, log in as them, change the password, log in again |
+| 1.4 | `cladexctl user add/passwd/disable` + change-own-password page | me⁴ | Create a user via CLI, log in as them, change the password, log in again — ✅ |
 | 1.5 | Products CRUD — list, search, create, edit, soft-delete | me | Full lifecycle through the UI; persists; works with JS disabled |
 | 1.6 | Customers CRUD | me | Same |
 | 1.7 | Users admin + settings (FX, metal prices, margins), admin-gated | me | Vendedor gets 403 on both; admin can edit FX and see it reflected |
@@ -241,6 +241,39 @@ the logged-in username, logout clears the session, and the 6th bad password gets
 429 with `Retry-After`. `golang.org/x/crypto` (bcrypt) promoted from an indirect to
 a direct dependency; no schema changes — `sessions` and `login_attempts` were
 already in `migrations/0001_init.sql`.
+
+⁴ Resolved a real ambiguity between this plan's "Application structure" (a separate
+`cmd/cladexctl` binary) and its own worked provisioning example (`docker compose exec
+cladex /cladex user add ...`, reusing the server's binary): the deployed image ships
+only `/cladex` (see `Dockerfile`'s `COPY --from=build /out/cladex /cladex`), so
+`cmd/server/main.go` now dispatches `user add/passwd/disable` itself when
+`os.Args[1] == "user"`, sharing the actual logic with the rest of the app via a new
+`internal/cli` package. `cmd/cladexctl` was also built as a thin wrapper around the
+same package, purely for local-dev convenience (`go run ./cmd/cladexctl user add
+...` without the server's env-var assumptions) — it isn't part of the deploy image
+or the documented provisioning command. Caught by testing the plan's *exact* worked
+command during verification: Go's `flag.Parse` stops at the first non-flag token, so
+`cladex user add rodolfo --name ... --role ...` (username first, flags after) failed
+until the username was peeled off by hand before handing the rest to a `FlagSet` —
+would have shipped broken if only tested as `add --name ... --role ... rodolfo`.
+`user add` generates a 16-char random password (ambiguous characters like `0`/`O`
+and `1`/`l`/`I` excluded, since an admin reads it once off a terminal), bcrypt cost
+12, printed once — never stored in the clear. `user passwd` additionally deletes all
+of that user's sessions (`store.DeleteSessionsByUserID`), since a reset is the
+account-recovery path and an old stolen cookie shouldn't survive it; self-service
+`/mi-cuenta` does not do this — it's not a recovery flow, and force-logging the user
+out of their own change would be a bad experience for no security benefit. `user
+disable` relies on the `SessionUser` query's existing `disabled_at IS NULL` check
+for immediate effect — no separate session deletion needed. `/mi-cuenta` follows the
+plan's `Validate() map[string]string` form convention (`ChangePasswordForm` in
+`internal/web/mi_cuenta.go`) but deliberately does not echo password values back
+into the re-rendered form on a validation error, unlike the general "preserve
+values" rule — echoing password input back into HTML, even same-response, isn't
+worth the marginal convenience. Verified end-to-end against a fresh local dev DB
+using the actual `cladex user add` dispatch (not a direct `store.CreateUser` call,
+unlike 1.3's verification): created a user, logged in, changed the password via
+`/mi-cuenta`, confirmed the old password now fails and the new one works, and
+confirmed `user disable` immediately blocks login.
 
 ¹ Deployed and verified: `backup.sh` runs nightly `sqlite3 .backup` + integrity check +
 `quotes/` dir into a 14-day-retention tarball under `/volume1/docker/cladex/backups/`,

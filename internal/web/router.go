@@ -34,6 +34,8 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool)
 	mux.HandleFunc("GET /login", auth.LoginPage)
 	mux.HandleFunc("POST /login", auth.LoginSubmit)
 	mux.HandleFunc("POST /logout", auth.Logout)
+	mux.Handle("GET /mi-cuenta", auth.RequireAuth(http.HandlerFunc(auth.MiCuentaPage)))
+	mux.Handle("POST /mi-cuenta", auth.RequireAuth(http.HandlerFunc(auth.MiCuentaSubmit)))
 
 	mux.Handle("GET /{$}", auth.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		count, err := db.QuoteCount(r.Context())
@@ -42,7 +44,7 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool)
 			return
 		}
 		user, _ := UserFromContext(r.Context())
-		views.Home(buildSHA, count, &views.NavUser{Username: user.Username}).Render(r.Context(), w)
+		views.Home(buildSHA, count, navUserView(user)).Render(r.Context(), w)
 	})))
 
 	mux.HandleFunc("GET /saludo", func(w http.ResponseWriter, r *http.Request) {
