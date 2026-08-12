@@ -259,6 +259,14 @@ against a local dev DB produced 69 products across 3 families, re-running was a 
 count (idempotent via `ON CONFLICT (sku) DO UPDATE`), and 5 spot-checked rows matched the
 source workbook exactly (in micros).
 
+**Run against production** (with the user's explicit confirmation — writes to the live DB
+aren't auto-approved): cross-compiled `cmd/import` for the NAS's amd64, staged it and the
+workbook in a scratch dir there, dry-ran against the real production path first (matched
+the local test exactly), then ran for real. Same 69/3 result, same spot-check. Scratch
+dir (binary + workbook) deleted immediately after — the workbook never lives on the NAS
+longer than the run itself. ELECTRACLEAN and the Alumoclad outlier are deferred to when
+Products CRUD (1.5) exists, per the user.
+
 ## M2 — Quoting engine and PDF
 
 | # | Slice | Owner | Done when |
