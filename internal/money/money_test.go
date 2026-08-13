@@ -134,3 +134,123 @@ func TestRoundOnceInvariant(t *testing.T) {
 		t.Errorf("got %d centavos, want %d", got, want)
 	}
 }
+
+func TestRoundHalfUp(t *testing.T) {
+	cases := []struct {
+		num, denom, want int64
+	}{
+		{0, 100, 0},
+		{50, 100, 1},   // exactly half -> rounds up
+		{49, 100, 0},   // just under half -> rounds down
+		{150, 100, 2},  // 1.5 -> 2
+		{-50, 100, -1}, // negative: half rounds away from zero
+		{-49, 100, 0},
+	}
+	for _, c := range cases {
+		if got := RoundHalfUp(c.num, c.denom); got != c.want {
+			t.Errorf("RoundHalfUp(%d, %d) = %d, want %d", c.num, c.denom, got, c.want)
+		}
+	}
+}
+
+func TestMilliFromFloat(t *testing.T) {
+	cases := []struct {
+		f    float64
+		want Milli
+	}{
+		{0, 0},
+		{1, 1_000},
+		{0.5, 500},
+		{12.345, 12_345},
+		{-2.5, -2_500},
+	}
+	for _, c := range cases {
+		if got := MilliFromFloat(c.f); got != c.want {
+			t.Errorf("MilliFromFloat(%v) = %d, want %d", c.f, got, c.want)
+		}
+	}
+}
+
+func TestParseMilli(t *testing.T) {
+	cases := []struct {
+		in   string
+		want Milli
+	}{
+		{"0", 0},
+		{"1", 1_000},
+		{"12.345", 12_345},
+		{".5", 500},
+		{"-2.5", -2_500},
+	}
+	for _, c := range cases {
+		got, err := ParseMilli(c.in)
+		if err != nil {
+			t.Errorf("ParseMilli(%q) error: %v", c.in, err)
+			continue
+		}
+		if got != c.want {
+			t.Errorf("ParseMilli(%q) = %d, want %d", c.in, got, c.want)
+		}
+	}
+}
+
+func TestParseMilliInvalid(t *testing.T) {
+	for _, in := range []string{"", "-", "abc", "1.2.3", "1.2345"} {
+		if _, err := ParseMilli(in); err == nil {
+			t.Errorf("ParseMilli(%q) = nil error, want error", in)
+		}
+	}
+}
+
+func TestMilliString(t *testing.T) {
+	cases := []struct {
+		m    Milli
+		want string
+	}{
+		{0, "0"},
+		{1_000, "1"},
+		{12_345, "12.345"},
+		{-2_500, "-2.5"},
+	}
+	for _, c := range cases {
+		if got := c.m.String(); got != c.want {
+			t.Errorf("Milli(%d).String() = %q, want %q", c.m, got, c.want)
+		}
+	}
+}
+
+func TestLineTotalCentavos(t *testing.T) {
+	cases := []struct {
+		unitPrice Micros
+		qty       Milli
+		want      Centavos
+	}{
+		{0, 1_000, 0},
+		{6_319_872, 1_000, 632},      // qty=1, matches TestRoundOnceInvariant
+		{6_319_872, 5_000, 3_160},    // qty=5: 31.5993... -> 3160 centavos
+		{37_906_000, 12_500, 47_383}, // qty=12.5m: exactly 473825.0 milli-centavos -> half rounds up
+		{1_000_000, 1, 0},            // 1 peso * 0.001 qty = 0.001 -> rounds to 0
+	}
+	for _, c := range cases {
+		if got := LineTotalCentavos(c.unitPrice, c.qty); got != c.want {
+			t.Errorf("LineTotalCentavos(%d, %d) = %d, want %d", c.unitPrice, c.qty, got, c.want)
+		}
+	}
+}
+
+func TestApplyRate(t *testing.T) {
+	cases := []struct {
+		amount Centavos
+		rate   Micros
+		want   Centavos
+	}{
+		{0, 160_000, 0},
+		{100_000, 160_000, 16_000}, // $1000.00 * 16% = $160.00
+		{123_210, 160_000, 19_714}, // subtotal from the CCA sample quote, IVA at 16%
+	}
+	for _, c := range cases {
+		if got := ApplyRate(c.amount, c.rate); got != c.want {
+			t.Errorf("ApplyRate(%d, %d) = %d, want %d", c.amount, c.rate, got, c.want)
+		}
+	}
+}

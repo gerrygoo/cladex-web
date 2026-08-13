@@ -426,7 +426,7 @@ Products CRUD (1.5) exists, per the user.
 
 | # | Slice | Owner | Done when |
 |---|---|---|---|
-| 2.1 | Pricing engine, pure Go, no HTTP: `kg/m × metal $/kg × (1+margin)`, USD×FX, qty breaks, IVA | me | Unit tests reproduce ≥15 known prices from the spreadsheet exactly |
+| 2.1 | Pricing engine, pure Go, no HTTP: `kg/m × metal $/kg × (1+margin)`, USD×FX, qty breaks, IVA | me | Unit tests reproduce ≥15 known prices from the spreadsheet exactly — ✅⁸ |
 | 2.2 | Quote builder UI — htmx shell + vanilla-JS island for live line editing and totals | me | Build a 5-line quote end to end; totals match 2.1 |
 | 2.3 | Typst cotización template + render pipeline; per-family terms blocks | me | Generated PDF matches the current Excel output for the same input |
 | 2.4 | Folio sequences, issue flow (freeze row, write PDF + SHA), status, revisions | me | Issue, change FX and copper, reprint → byte-identical PDF. Revise → `-R1`, original untouched |
@@ -435,6 +435,37 @@ Products CRUD (1.5) exists, per the user.
 **2.1 before 2.2, without exception.** The engine is testable against the spreadsheet's own
 numbers; the UI is not. Prove the engine first and later UI bugs can never be mistaken for
 pricing bugs.
+
+⁸ `internal/pricing` (new package) + `internal/money` gained `RoundHalfUp` (the existing
+micros→centavos rounding, generalized to an arbitrary denominator so margin and
+line-total math share the same rule instead of duplicating it), `Milli` (1e-3 fixed-point
+quantity type, for `qty_milli`/`min_qty_milli`), `LineTotalCentavos`, and `ApplyRate`.
+Reverse-engineered the actual formulas from the workbook (`CCA`, `CCS & AC`, their
+`Cotizador` forms, and the hidden `TIPO DE CAMBIO` settings block down in row 1048561+)
+since there's no written spec — dumped every relevant cell's raw formula with a scratch
+`excelize` program rather than guessing from the visible numbers. Three surprises that
+shaped the design:
+- The plan's shorthand `kg/m × metal $/kg × (1+margin)` doesn't match CCA's actual
+  formula, which is `cost / (1 - margin)` — margin-on-*sale-price*, not markup-on-cost.
+  Using `(1+margin)` with the same nominal fraction produces a different number, so the
+  engine matches the workbook's convention exactly rather than the plan's paraphrase.
+- CCS & AC's margin is *derived* from copper price in the sheet
+  (`(copper_price - base_cost) / copper_price`), and algebraically cancels: feeding it
+  back through `cost / (1 - margin)` reduces to exactly `kg_per_m × copper_price`, with
+  no separate margin term at all. Confirmed by hand (not just numerically) before relying
+  on it, since it means CCS & AC has no independent margin knob — the `Cotizador CCS`
+  form's own line prices confirm there's no additional markup layered on top.
+- Only CCA's margin needed a settable knob, and it's the one number in the whole workbook
+  that isn't copper-price-derived or already baked into a flat price — so it maps
+  directly onto 1.7's existing `default_margin` setting; no new settings knob or
+  migration was needed. ABASTILUM's flat `unit_price_micros` (already FX- and
+  margin-adjusted at 1.2's import time) needs no live formula at all, so the engine
+  returns it unchanged; USD→FX conversion and price-break tier selection are implemented
+  generically per the plan but have no real spreadsheet-sourced test data yet (no
+  imported product is USD-priced or qty-tiered) — covered by synthetic tests instead.
+Verified against 27 real prices pulled programmatically from the workbook (11 THW-2-LS +
+7 CABLE DESNUDO rows from `CCA`'s hidden mirror block, 9 rows from `CCS & AC`'s), not
+hand-transcribed — `internal/pricing/pricing_test.go`. `go test ./...` green.
 
 ---
 
