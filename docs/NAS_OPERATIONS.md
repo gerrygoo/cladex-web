@@ -81,6 +81,51 @@ password a non-interactive SSH session can't answer — this is a hard wall for 
 session; hand it to the user rather than trying to script around it. Same wall applies
 to the nightly backup cron (see below).
 
+## Litestream (continuous DB replication)
+
+`compose.yaml` carries a `litestream` sidecar that replicates `data/cladex.db` to
+`backups/litestream/cladex` continuously, closing the up-to-24h window the nightly
+tarball leaves open. Config is `litestream.yml` in the repo root.
+
+**This does not arrive via the deploy pipeline.** The NAS cron pulls the *image*; it
+does not sync `compose.yaml`, which the NAS keeps its own copy of from slice 0.6. So a
+compose change is a manual push, one time:
+
+```bash
+ssh cladex-nas 'mkdir -p /volume1/docker/cladex/backups'
+scp -O compose.yaml litestream.yml cladex-nas:/volume1/docker/cladex/   # -O, see above
+ssh cladex-nas 'cd /volume1/docker/cladex && docker compose up -d'
+```
+
+Verify it caught:
+
+```bash
+ssh cladex-nas 'docker logs cladex-litestream --tail 20'   # expect "replica sync" lines
+ssh cladex-nas 'ls -R /volume1/docker/cladex/backups/litestream/cladex | head'
+```
+
+Restore (the app must be stopped, and the target must not already exist):
+
+```bash
+ssh cladex-nas 'cd /volume1/docker/cladex && docker compose stop cladex'
+# Latest:
+ssh cladex-nas 'cd /volume1/docker/cladex && docker compose run --rm litestream \
+    restore -config /etc/litestream.yml -o /data/cladex-recovered.db /data/cladex.db'
+# A specific moment:
+ssh cladex-nas 'cd /volume1/docker/cladex && docker compose run --rm litestream \
+    restore -config /etc/litestream.yml -timestamp 2026-08-19T14:30:00Z \
+    -o /data/cladex-recovered.db /data/cladex.db'
+```
+
+Restoring to `cladex-recovered.db` rather than over `cladex.db` is deliberate — inspect
+it before swapping anything into place.
+
+Two caveats worth knowing before relying on this. Litestream v0.5 **dropped age
+encryption**, so the replica is plaintext; that's acceptable while it stays on the NAS
+under `backups/`, but not if it's ever pointed at S3. And Litestream only sees the
+database file — the stored quote PDFs under `data/quotes/` are invisible to it, which
+is why `backup.sh` still runs.
+
 ## Backups
 
 `backup.sh` runs nightly on the NAS: `sqlite3 .backup` + integrity check, plus the
@@ -111,3 +156,5 @@ directory, once set up — no bespoke offsite push exists yet.
 | Copy a file to the NAS | `scp -O <file> cladex-nas:/volume1/docker/cladex/<dest>` |
 | Provision a user | `ssh cladex-nas docker compose exec cladex /cladex user add <username> --name "..." --role vendedor` |
 | Force a redeploy now (don't wait for cron) | `ssh cladex-nas 'cd /volume1/docker/cladex && docker compose pull && docker compose up -d'` |
+| Check replication is live | `ssh cladex-nas 'docker logs cladex-litestream --tail 20'` |
+| Push a compose change (not automatic) | `scp -O compose.yaml litestream.yml cladex-nas:/volume1/docker/cladex/ && ssh cladex-nas 'cd /volume1/docker/cladex && docker compose up -d'` |
