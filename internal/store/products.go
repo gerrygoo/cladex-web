@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
+	"github.com/gerrygoo/cladex-web/internal/pricing"
 )
 
 // Product is a catalog row. KgPerMMicros, UnitPriceMicros, and CostMicros are nil when
@@ -284,6 +285,34 @@ func (s *Store) UpdateProduct(ctx context.Context, p Product) error {
 		return fmt.Errorf("store: update product %d: %w", p.ID, err)
 	}
 	return nil
+}
+
+// ListPriceBreaks returns a product's quantity-tiered price overrides (see 0001's
+// price_breaks table), for feeding directly into pricing.UnitPrice. Currently unused by
+// any imported product (ELECTRACLEAN, the only real use case, was deferred at import —
+// see docs/PLAN.md's 1.2 footnote) but the quote builder calls this generically rather
+// than assuming an always-empty slice.
+func (s *Store) ListPriceBreaks(ctx context.Context, productID int64) ([]pricing.PriceBreak, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT min_qty_milli, unit_price_micros
+		FROM price_breaks
+		WHERE product_id = ?
+		ORDER BY min_qty_milli`, productID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: list price breaks for product %d: %w", productID, err)
+	}
+	defer rows.Close()
+
+	var breaks []pricing.PriceBreak
+	for rows.Next() {
+		var b pricing.PriceBreak
+		if err := rows.Scan(&b.MinQty, &b.UnitPriceMicros); err != nil {
+			return nil, fmt.Errorf("store: list price breaks for product %d: %w", productID, err)
+		}
+		breaks = append(breaks, b)
+	}
+	return breaks, rows.Err()
 }
 
 // SoftDeleteProduct sets deleted_at, hiding the product from ListProducts/ProductByID.

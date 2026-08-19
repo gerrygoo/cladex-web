@@ -23,6 +23,7 @@ templ Layout(title string, user *NavUser) {
 					<strong>Cladex</strong>
 					if user != nil {
 						<nav class="app-nav">
+							<a href="/cotizaciones">Cotizaciones</a>
 							<a href="/productos">Productos</a>
 							<a href="/clientes">Clientes</a>
 							if user.IsAdmin {
