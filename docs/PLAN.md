@@ -428,7 +428,7 @@ Products CRUD (1.5) exists, per the user.
 |---|---|---|---|
 | 2.1 | Pricing engine, pure Go, no HTTP: `kg/m × metal $/kg × (1+margin)`, USD×FX, qty breaks, IVA | me | Unit tests reproduce ≥15 known prices from the spreadsheet exactly — ✅⁸ |
 | 2.2 | Quote builder UI — htmx shell + vanilla-JS island for live line editing and totals | me | Build a 5-line quote end to end; totals match 2.1 — ✅⁹ |
-| 2.3 | Typst cotización template + render pipeline; per-family terms blocks | me | Generated PDF matches the current Excel output for the same input |
+| 2.3 | Typst cotización template + render pipeline; per-family terms blocks | me | Generated PDF matches the current Excel output for the same input — ✅¹⁰ |
 | 2.4 | Folio sequences, issue flow (freeze row, write PDF + SHA), status, revisions | me | Issue, change FX and copper, reprint → byte-identical PDF. Revise → `-R1`, original untouched |
 | 2.5 | Quote history: list, filter by customer/vendedor/status, re-download stored PDF | me | Every quote ever issued is findable and re-downloadable |
 
@@ -521,6 +521,68 @@ the removed line) with the correct `pricing_inputs` snapshot on the product line
 `NULL` on the free line. Also confirmed the no-JS fallback: the product search's plain
 "Buscar" button (a real GET, no htmx) returns results embedded in the full page rather
 than a bare fragment.
+
+¹⁰ `internal/pdf/quote.go` (new): `RenderQuote`/`QuoteDocument` builds the Typst source
+for a cotización — letterhead (logo + address), folio/cliente/fecha/vendedor header, a
+line-item table, subtotal/IVA/total, and a `QuoteTerms` map keyed by folio prefix
+(QA/QS/QI) holding each family's terms block, transcribed from the legacy workbook's
+separate "Cotizador CCA"/"Cotizador CCS"/"Cotizador Alumbrado" sheets (each ends in its
+own list — cable specs and packaging terms differ by family). Every dynamic value
+(customer name, product/free-line descriptions — none of it under this app's control) is
+bound via Typst `#let` to an escaped string literal and interpolated with `#name`, never
+spliced into markup source directly: interpolating a `str` value inserts its literal
+text without re-parsing it as markup or code, so content containing Typst
+metacharacters (`#`, `*`, `[`, `$`, a literal backslash) can't break out of its cell or
+execute as Typst code — confirmed by compiling adversarial input containing
+`#read("...")` and confirming it renders as inert text (`internal/pdf/quote_test.go`).
+The Cladex logo is embedded as a Typst `bytes()` literal generated from a `//go:embed`
+PNG, not read from a file path, so `Render`'s pure stdin/stdout subprocess interface
+(unchanged since 0.3) needed no `--root`/filesystem access. `Quotes.PDF`
+(`GET /cotizaciones/{folio}/pdf`, `internal/web/quotes.go`) renders a draft's *current*
+state through the same `computeQuoteLines` path the builder and Guardar use, so the PDF
+always matches what's on screen — available as a live preview during drafting; freezing
+and persisting the PDF bytes on issue is still 2.4's job. `store.Quote` gained `UserName`
+(joined from `users`, alongside the existing `CustomerName` join) so the PDF can show a
+vendedor name without a second query.
+
+Verified against the real workbook (`~/Downloads/Cladex catalogo precios.xlsx`, same file
+1.2 used): imported a fresh dev DB, set `fx_rate`/`copper_price`/`default_margin` to the
+workbook's own `TIPO DE CAMBIO` sheet values (`$18.00`, `$220.00`/kg, and 0.1234 — the
+*true* CCA margin is 12.34%, traced through `Cotizador CCA`'s `D19` formula chain to
+`CCA!J4 = E4/'TIPO DE CAMBIO'!C1048561`, not the sheet's rounded-for-display "Margen CCA
+(%) = 12%" label), then built one quote per prefix reproducing the exact line items from
+each family's Cotizador sheet. Every one of the 18 CCA/CCAD line prices and all 9 CCS/AC
+line prices matched the workbook exactly, to the centavo (e.g. THW-2-LS calibre 14 →
+$6.32, Cable CCS 30% ALAMBRE 4 → $37.91), and each PDF's terms block matched its sheet's
+list verbatim. One expected, pre-existing divergence: the workbook's own subtotal sums
+*unrounded* line prices and rounds once at the end ($1,232.10 for the CCA example), while
+this app's subtotal sums each line's already-rounded total (`$1,232.09`) per the money
+design's "round exactly once, at line total" rule (`docs/PLAN.md`'s Money section,
+decided at 0.2) — a one-centavo aggregate drift on large multi-line quotes, not a pricing
+error on any individual line, and not something this slice changes.
+
+This verification pass also caught a real, previously-shipped pricing bug, unrelated to
+the PDF work itself: `cmd/import`'s `parseCCSAC` populated *both* `CostMicros` and
+`KgPerMMicros` on every CCS & AC product, and `pricing.basePrice`'s field-presence
+dispatch (`internal/pricing/pricing.go`) checks `CostMicros` before `KgPerMMicros` — so
+every CCS/AC line has been silently priced with CCA's `cost / (1 - margin)` formula
+instead of the correct `kg_per_m × copper_price` (footnote 8) ever since 2.2 shipped
+`computeQuoteLines`. `internal/pricing/pricing_test.go`'s own CCS test cases never caught
+this because they construct a synthetic `Product{KgPerMMicros: ...}` with `CostMicros`
+left nil — the real bug only appears when a real imported product (which had both fields
+set) flows through the actual store → web → pricing path, which no test exercised until
+this manual PDF check. Fixed by no longer importing CCS & AC's "cost before margin"
+column at all (`cmd/import/parse.go`): that family has no independent margin knob, so the
+value was never meaningful pricing input, only a latent trap once stored alongside
+`kg_per_m_micros`. CCA is unaffected — it legitimately stores both fields (cost as the
+pricing input, kg/m as reference-only weight data) and `CostMicros` winning first is
+correct for that family. Added `cmd/import/parse_test.go` (`TestParseCCSACOmitsCost`) as
+a regression test, since `cmd/import` had no tests before this. **Not yet re-run against
+production** — 1.2 imported CCS & AC there before this fix existed, so production's
+`products.cost_micros` is still stale for those 9 rows until `cmd/import` is re-run
+(idempotent upsert, per 1.2); flagged to the user rather than run unprompted, since it
+writes to the live DB. No real quote has used the broken formula yet — 2.2/2.3 are still
+on a feature branch, not deployed.
 
 ---
 
