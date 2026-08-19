@@ -22,8 +22,10 @@ func NewCustomers(s *store.Store) *Customers {
 // CustomerForm is the /clientes/nuevo and /clientes/{id} form, per the plan's "one
 // struct per form with Validate()" convention. Fields are raw strings so a validation
 // error can redisplay exactly what the user typed. Only Name is required — RFC,
-// contact, phone, email, address, and notes are all optional free text, matching the
-// customers table.
+// contact, phone, email, address, postal code, tax regime, and notes are all optional
+// free text, matching the customers table. PostalCode/TaxRegime are kept separate from
+// Address so a future invoicing/billing portal integration can read them directly; a
+// customer may still be a prospect with no fiscal data yet.
 type CustomerForm struct {
 	Name        string
 	RFC         string
@@ -31,6 +33,8 @@ type CustomerForm struct {
 	Phone       string
 	Email       string
 	Address     string
+	PostalCode  string
+	TaxRegime   string
 	Notes       string
 }
 
@@ -42,6 +46,8 @@ func parseCustomerForm(r *http.Request) CustomerForm {
 		Phone:       strings.TrimSpace(r.FormValue("phone")),
 		Email:       strings.TrimSpace(r.FormValue("email")),
 		Address:     strings.TrimSpace(r.FormValue("address")),
+		PostalCode:  strings.TrimSpace(r.FormValue("postal_code")),
+		TaxRegime:   strings.TrimSpace(r.FormValue("tax_regime")),
 		Notes:       strings.TrimSpace(r.FormValue("notes")),
 	}
 }
@@ -65,6 +71,8 @@ func (f CustomerForm) toValues() views.CustomerFormValues {
 		Phone:       f.Phone,
 		Email:       f.Email,
 		Address:     f.Address,
+		PostalCode:  f.PostalCode,
+		TaxRegime:   f.TaxRegime,
 		Notes:       f.Notes,
 	}
 }
@@ -77,6 +85,8 @@ func (f CustomerForm) toCustomer() store.Customer {
 		Phone:       f.Phone,
 		Email:       f.Email,
 		Address:     f.Address,
+		PostalCode:  f.PostalCode,
+		TaxRegime:   f.TaxRegime,
 		Notes:       f.Notes,
 	}
 }
@@ -89,6 +99,8 @@ func customerToValues(c store.Customer) views.CustomerFormValues {
 		Phone:       c.Phone,
 		Email:       c.Email,
 		Address:     c.Address,
+		PostalCode:  c.PostalCode,
+		TaxRegime:   c.TaxRegime,
 		Notes:       c.Notes,
 	}
 }

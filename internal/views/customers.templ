@@ -92,6 +92,8 @@ type CustomerFormValues struct {
 	Phone       string
 	Email       string
 	Address     string
+	PostalCode  string
+	TaxRegime   string
 	Notes       string
 }
 
@@ -134,6 +136,14 @@ templ CustomerForm(title string, action string, values CustomerFormValues, field
 			<label>
 				Dirección (opcional)
 				<input type="text" name="address" value={ values.Address }/>
+			</label>
+			<label>
+				Código postal (opcional)
+				<input type="text" name="postal_code" value={ values.PostalCode }/>
+			</label>
+			<label>
+				Régimen fiscal (opcional)
+				<input type="text" name="tax_regime" value={ values.TaxRegime }/>
 			</label>
 			<label>
 				Notas (opcional)

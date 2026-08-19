@@ -31,6 +31,8 @@ func TestCustomersCreateListEditDelete(t *testing.T) {
 		"rfc":          {"PEM010101ABC"},
 		"contact_name": {"Juan Pérez"},
 		"email":        {"juan@grupopeme.mx"},
+		"postal_code":  {"76000"},
+		"tax_regime":   {"601 - General de Ley Personas Morales"},
 	}
 	req := httptest.NewRequest("POST", "/clientes/nuevo", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -70,6 +72,9 @@ func TestCustomersCreateListEditDelete(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "PEM010101ABC") {
 		t.Fatalf("EditPage body missing prefilled RFC: %s", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "76000") || !strings.Contains(rec.Body.String(), "General de Ley Personas Morales") {
+		t.Fatalf("EditPage body missing prefilled postal code / tax regime: %s", rec.Body.String())
 	}
 
 	// Update — change the name.

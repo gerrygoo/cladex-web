@@ -34,12 +34,14 @@ func TestCustomerCRUDLifecycle(t *testing.T) {
 	if got.Name != "Grupo PEME" || got.RFC != "PEM010101ABC" || got.ContactName != "Juan Pérez" {
 		t.Fatalf("CustomerByID = %+v", got)
 	}
-	if got.Address != "" || got.Notes != "" {
-		t.Fatalf("unset fields should be empty strings, got Address=%q Notes=%q", got.Address, got.Notes)
+	if got.Address != "" || got.PostalCode != "" || got.TaxRegime != "" || got.Notes != "" {
+		t.Fatalf("unset fields should be empty strings, got %+v", got)
 	}
 
 	// Update.
 	got.Name = "Grupo PEME SA de CV"
+	got.PostalCode = "76000"
+	got.TaxRegime = "601 - General de Ley Personas Morales"
 	got.Notes = "Cliente frecuente"
 	if err := s.UpdateCustomer(ctx, *got); err != nil {
 		t.Fatalf("UpdateCustomer: %v", err)
@@ -48,7 +50,8 @@ func TestCustomerCRUDLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CustomerByID after update: %v", err)
 	}
-	if updated.Name != "Grupo PEME SA de CV" || updated.Notes != "Cliente frecuente" {
+	if updated.Name != "Grupo PEME SA de CV" || updated.PostalCode != "76000" ||
+		updated.TaxRegime != "601 - General de Ley Personas Morales" || updated.Notes != "Cliente frecuente" {
 		t.Fatalf("CustomerByID after update = %+v", updated)
 	}
 
