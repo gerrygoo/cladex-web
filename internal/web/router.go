@@ -66,6 +66,7 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool)
 	mux.Handle("POST /cotizaciones/{folio}/recalcular", auth.RequireAuth(http.HandlerFunc(quotes.Recalcular)))
 	mux.Handle("GET /cotizaciones/{folio}/productos", auth.RequireAuth(http.HandlerFunc(quotes.BuscarProductos)))
 	mux.Handle("POST /cotizaciones/{folio}/guardar", auth.RequireAuth(http.HandlerFunc(quotes.Guardar)))
+	mux.Handle("GET /cotizaciones/{folio}/pdf", auth.RequireAuth(http.HandlerFunc(quotes.PDF)))
 
 	mux.Handle("GET /usuarios", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(users.List))))
 	mux.Handle("POST /usuarios/{id}/rol", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(users.SetRole))))

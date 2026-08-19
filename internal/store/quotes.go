@@ -9,8 +9,8 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/pricing"
 )
 
-// Quote is a quotes row. CustomerName is populated by the CRUD read paths (a join),
-// left zero elsewhere. See migrations/0001_init.sql.
+// Quote is a quotes row. CustomerName and UserName are populated by the CRUD read
+// paths (joins), left zero elsewhere. See migrations/0001_init.sql.
 type Quote struct {
 	ID           int64
 	Folio        string
@@ -18,6 +18,7 @@ type Quote struct {
 	CustomerID   int64
 	CustomerName string
 	UserID       int64
+	UserName     string
 	Status       string // borrador | emitida | revisada
 	Currency     string
 	Subtotal     money.Centavos
@@ -85,16 +86,17 @@ func (s *Store) CreateDraftQuote(ctx context.Context, customerID, userID int64, 
 }
 
 const quoteSelectCols = `
-	q.id, q.folio, q.prefix, q.customer_id, c.name, q.user_id, q.status, q.currency,
+	q.id, q.folio, q.prefix, q.customer_id, c.name, q.user_id, u.name, q.status, q.currency,
 	q.subtotal, q.iva, q.total, q.created_at`
 
 const quoteFrom = `
 	FROM quotes q
-	JOIN customers c ON c.id = q.customer_id`
+	JOIN customers c ON c.id = q.customer_id
+	JOIN users u ON u.id = q.user_id`
 
 func scanQuote(row interface{ Scan(...any) error }) (*Quote, error) {
 	var q Quote
-	err := row.Scan(&q.ID, &q.Folio, &q.Prefix, &q.CustomerID, &q.CustomerName, &q.UserID,
+	err := row.Scan(&q.ID, &q.Folio, &q.Prefix, &q.CustomerID, &q.CustomerName, &q.UserID, &q.UserName,
 		&q.Status, &q.Currency, &q.Subtotal, &q.IVA, &q.Total, &q.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil

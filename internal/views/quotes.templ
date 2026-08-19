@@ -362,6 +362,9 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 				Guardar borrador
 			</button>
 		</form>
-		<p><a href="/cotizaciones">Volver a cotizaciones</a></p>
+		<p>
+			<a href={ templ.URL("/cotizaciones/" + quote.Folio + "/pdf") } target="_blank">Descargar PDF</a> ·
+			<a href="/cotizaciones">Volver a cotizaciones</a>
+		</p>
 	}
 }

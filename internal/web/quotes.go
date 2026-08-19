@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
+	"github.com/gerrygoo/cladex-web/internal/pdf"
 	"github.com/gerrygoo/cladex-web/internal/pricing"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/views"
@@ -534,4 +536,73 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, fmt.Sprintf("/cotizaciones/%s?guardado=1", quote.Folio), http.StatusSeeOther)
+}
+
+// formatFecha renders a quotes.created_at timestamp (ISO-8601 UTC, from SQLite's
+// strftime default) as a plain DD/MM/YYYY date. Falls back to the raw string on a
+// parse miss rather than failing the whole PDF over a display date.
+func formatFecha(iso string) string {
+	for _, layout := range []string{"2006-01-02T15:04:05.000Z", time.RFC3339Nano, time.RFC3339} {
+		if t, err := time.Parse(layout, iso); err == nil {
+			return t.Format("02/01/2006")
+		}
+	}
+	return iso
+}
+
+// PDF handles GET /cotizaciones/{folio}/pdf: renders the quote's current state (same
+// computeQuoteLines path as the builder and Guardar, so the PDF always matches what's
+// on screen) as a downloadable cotización PDF via internal/pdf. Available for a draft
+// as a preview — 2.4's issue flow is what freezes and persists the PDF bytes.
+func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	quote := q.loadQuoteOrNotFound(w, r)
+	if quote == nil {
+		return
+	}
+	persisted, err := q.store.ListQuoteLines(ctx, quote.ID)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	settings, err := q.loadPricingSettings(ctx)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), settings)
+	totals := computeQuoteTotals(lines)
+
+	docLines := make([]pdf.QuoteLineDoc, 0, len(lines))
+	for _, l := range lines {
+		if l.Error != "" {
+			continue
+		}
+		docLines = append(docLines, pdf.QuoteLineDoc{
+			Description: l.Description,
+			Qty:         l.QtyMilli.String(),
+			UnitPrice:   l.UnitPriceMicros.ToCentavosHalfUp().String(),
+			Total:       l.LineTotal.String(),
+		})
+	}
+	doc := pdf.QuoteDocument{
+		Folio:        quote.Folio,
+		CustomerName: quote.CustomerName,
+		Vendedor:     quote.UserName,
+		Fecha:        formatFecha(quote.CreatedAt),
+		Lines:        docLines,
+		Subtotal:     totals.Subtotal.String(),
+		IVA:          totals.IVA.String(),
+		Total:        totals.Total.String(),
+		Terms:        pdf.QuoteTerms[quote.Prefix],
+	}
+
+	bytes, err := pdf.RenderQuote(ctx, doc)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s.pdf"`, quote.Folio))
+	w.Write(bytes)
 }

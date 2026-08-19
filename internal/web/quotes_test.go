@@ -273,6 +273,40 @@ func TestQuotesGuardarRejectsInvalidLine(t *testing.T) {
 	}
 }
 
+// TestQuotesPDF requires the `typst` CLI (part of the documented local dev toolchain,
+// see docs/PLAN.md 0.0a).
+func TestQuotesPDF(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, flatProductID, _ := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, userID)
+
+	quote, err := a.store.CreateDraftQuote(context.Background(), customerID, userID, "QA")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+	totals := pricing.ComputeTotals([]pricing.Line{{UnitPriceMicros: money.Micros(100_000_000), QtyMilli: money.Milli(1_000)}})
+	err = a.store.ReplaceQuoteLines(context.Background(), quote.ID, []store.QuoteLine{
+		{ProductID: &flatProductID, DescriptionSnapshot: "Foco LED", QtyMilli: money.Milli(1_000), UnitPriceMicros: money.Micros(100_000_000), LineTotal: money.LineTotalCentavos(money.Micros(100_000_000), money.Milli(1_000)), Source: "manual"},
+	}, totals)
+	if err != nil {
+		t.Fatalf("ReplaceQuoteLines: %v", err)
+	}
+
+	rec := doForm(t, a, userID, q.PDF, "GET", "/cotizaciones/"+quote.Folio+"/pdf",
+		map[string]string{"folio": quote.Folio}, nil, false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PDF status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/pdf" {
+		t.Fatalf("Content-Type = %q, want application/pdf", ct)
+	}
+	if !strings.HasPrefix(rec.Body.String(), "%PDF") {
+		t.Fatalf("body doesn't look like a PDF")
+	}
+}
+
 func TestQuotesBuscarProductosHTMXFragment(t *testing.T) {
 	a := newTestAuth(t)
 	q := newTestQuotes(t, a)
