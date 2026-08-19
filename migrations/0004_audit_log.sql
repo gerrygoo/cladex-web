@@ -45,6 +45,8 @@ CREATE INDEX idx_audit_log_actor ON audit_log (actor_id, id);
 -- Audited tables are the ones where "who changed this" has money or security weight:
 -- prices (products, price_breaks), pricing knobs (settings), invoicing data (customers),
 -- and access (users). quotes is audited for its status transitions.
+-- product_unit_conversions is audited for the same reason as prices: a wrong
+-- "1 rollo = 100 m" silently multiplies a quote line, and it is user-editable.
 --
 -- Deliberately NOT audited:
 --   sessions, login_attempts -- churn, and login_attempts is already an audit trail
@@ -62,7 +64,8 @@ CREATE TRIGGER audit_products_ai AFTER INSERT ON products BEGIN
                         'kg_per_m_micros', new.kg_per_m_micros,
                         'unit_price_micros', new.unit_price_micros,
                         'cost_micros', new.cost_micros, 'currency', new.currency,
-                        'active', new.active, 'deleted_at', new.deleted_at));
+                        'active', new.active, 'unit_id', new.unit_id,
+                        'deleted_at', new.deleted_at));
 END;
 
 CREATE TRIGGER audit_products_au AFTER UPDATE ON products BEGIN
@@ -75,13 +78,15 @@ CREATE TRIGGER audit_products_au AFTER UPDATE ON products BEGIN
                         'kg_per_m_micros', old.kg_per_m_micros,
                         'unit_price_micros', old.unit_price_micros,
                         'cost_micros', old.cost_micros, 'currency', old.currency,
-                        'active', old.active, 'deleted_at', old.deleted_at),
+                        'active', old.active, 'unit_id', old.unit_id,
+                        'deleted_at', old.deleted_at),
             json_object('family_id', new.family_id, 'sku', new.sku,
                         'description', new.description,
                         'kg_per_m_micros', new.kg_per_m_micros,
                         'unit_price_micros', new.unit_price_micros,
                         'cost_micros', new.cost_micros, 'currency', new.currency,
-                        'active', new.active, 'deleted_at', new.deleted_at));
+                        'active', new.active, 'unit_id', new.unit_id,
+                        'deleted_at', new.deleted_at));
 END;
 
 CREATE TRIGGER audit_products_ad AFTER DELETE ON products BEGIN
@@ -94,7 +99,8 @@ CREATE TRIGGER audit_products_ad AFTER DELETE ON products BEGIN
                         'kg_per_m_micros', old.kg_per_m_micros,
                         'unit_price_micros', old.unit_price_micros,
                         'cost_micros', old.cost_micros, 'currency', old.currency,
-                        'active', old.active, 'deleted_at', old.deleted_at));
+                        'active', old.active, 'unit_id', old.unit_id,
+                        'deleted_at', old.deleted_at));
 END;
 
 CREATE TRIGGER audit_price_breaks_ai AFTER INSERT ON price_breaks BEGIN
@@ -269,6 +275,60 @@ CREATE TRIGGER audit_quotes_ad AFTER DELETE ON quotes BEGIN
                         'issued_at', old.issued_at, 'valid_until', old.valid_until,
                         'supersedes_quote_id', old.supersedes_quote_id,
                         'pdf_sha256', old.pdf_sha256));
+END;
+
+CREATE TRIGGER audit_units_ai AFTER INSERT ON units BEGIN
+    INSERT INTO audit_log (table_name, row_key, op, actor_id, source, new_values)
+    VALUES ('units', new.id, 'insert',
+            (SELECT user_id FROM audit_actor WHERE id = 1),
+            (SELECT source FROM audit_actor WHERE id = 1),
+            json_object('code', new.code, 'name', new.name));
+END;
+
+CREATE TRIGGER audit_units_au AFTER UPDATE ON units BEGIN
+    INSERT INTO audit_log (table_name, row_key, op, actor_id, source, old_values, new_values)
+    VALUES ('units', new.id, 'update',
+            (SELECT user_id FROM audit_actor WHERE id = 1),
+            (SELECT source FROM audit_actor WHERE id = 1),
+            json_object('code', old.code, 'name', old.name),
+            json_object('code', new.code, 'name', new.name));
+END;
+
+CREATE TRIGGER audit_units_ad AFTER DELETE ON units BEGIN
+    INSERT INTO audit_log (table_name, row_key, op, actor_id, source, old_values)
+    VALUES ('units', old.id, 'delete',
+            (SELECT user_id FROM audit_actor WHERE id = 1),
+            (SELECT source FROM audit_actor WHERE id = 1),
+            json_object('code', old.code, 'name', old.name));
+END;
+
+CREATE TRIGGER audit_product_unit_conversions_ai AFTER INSERT ON product_unit_conversions BEGIN
+    INSERT INTO audit_log (table_name, row_key, op, actor_id, source, new_values)
+    VALUES ('product_unit_conversions', new.id, 'insert',
+            (SELECT user_id FROM audit_actor WHERE id = 1),
+            (SELECT source FROM audit_actor WHERE id = 1),
+            json_object('product_id', new.product_id, 'from_unit_id', new.from_unit_id,
+                        'to_unit_id', new.to_unit_id, 'rate_micros', new.rate_micros));
+END;
+
+CREATE TRIGGER audit_product_unit_conversions_au AFTER UPDATE ON product_unit_conversions BEGIN
+    INSERT INTO audit_log (table_name, row_key, op, actor_id, source, old_values, new_values)
+    VALUES ('product_unit_conversions', new.id, 'update',
+            (SELECT user_id FROM audit_actor WHERE id = 1),
+            (SELECT source FROM audit_actor WHERE id = 1),
+            json_object('product_id', old.product_id, 'from_unit_id', old.from_unit_id,
+                        'to_unit_id', old.to_unit_id, 'rate_micros', old.rate_micros),
+            json_object('product_id', new.product_id, 'from_unit_id', new.from_unit_id,
+                        'to_unit_id', new.to_unit_id, 'rate_micros', new.rate_micros));
+END;
+
+CREATE TRIGGER audit_product_unit_conversions_ad AFTER DELETE ON product_unit_conversions BEGIN
+    INSERT INTO audit_log (table_name, row_key, op, actor_id, source, old_values)
+    VALUES ('product_unit_conversions', old.id, 'delete',
+            (SELECT user_id FROM audit_actor WHERE id = 1),
+            (SELECT source FROM audit_actor WHERE id = 1),
+            json_object('product_id', old.product_id, 'from_unit_id', old.from_unit_id,
+                        'to_unit_id', old.to_unit_id, 'rate_micros', old.rate_micros));
 END;
 
 -- Append-only guards. These stop a careless UPDATE/DELETE from the app or the sqlite3

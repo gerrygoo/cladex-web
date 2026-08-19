@@ -51,7 +51,7 @@ func (s *Store) CreateUnit(ctx context.Context, code, name string) (int64, error
 		return 0, ErrDuplicateUnitCode
 	}
 
-	res, err := s.db.ExecContext(ctx, `INSERT INTO units (code, name) VALUES (?, ?)`, code, name)
+	res, err := s.exec(ctx, `INSERT INTO units (code, name) VALUES (?, ?)`, code, name)
 	if err != nil {
 		return 0, fmt.Errorf("store: create unit %q: %w", code, err)
 	}
@@ -123,7 +123,7 @@ func (s *Store) CreateConversion(ctx context.Context, productID, fromUnitID, toU
 		return 0, ErrDuplicateUnitPair
 	}
 
-	res, err := s.db.ExecContext(ctx, `
+	res, err := s.exec(ctx, `
 		INSERT INTO product_unit_conversions (product_id, from_unit_id, to_unit_id, rate_micros)
 		VALUES (?, ?, ?, ?)`,
 		productID, fromUnitID, toUnitID, int64(rateMicros),
@@ -136,7 +136,7 @@ func (s *Store) CreateConversion(ctx context.Context, productID, fromUnitID, toU
 
 // DeleteConversion removes a conversion rate by id.
 func (s *Store) DeleteConversion(ctx context.Context, id int64) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM product_unit_conversions WHERE id = ?`, id)
+	_, err := s.exec(ctx, `DELETE FROM product_unit_conversions WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("store: delete conversion %d: %w", id, err)
 	}

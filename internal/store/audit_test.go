@@ -241,3 +241,70 @@ func TestAuditRollsBackWithFailedWrite(t *testing.T) {
 		t.Fatalf("failed write left %d audit rows behind", len(after)-len(before))
 	}
 }
+
+// The units work landed on main alongside this trail; conversions carry the same
+// money weight as prices, since a wrong "1 rollo = 100 m" silently multiplies a line.
+func TestAuditCoversUnitConversions(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	userID, err := s.CreateUser(ctx, "rodolfo", "Rodolfo Flores", "hashedpw", "admin")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	productID := seedProduct(t, s, ctx, "cca-thw-12")
+
+	units, err := s.ListUnits(ctx)
+	if err != nil {
+		t.Fatalf("ListUnits: %v", err)
+	}
+	byCode := map[string]int64{}
+	for _, u := range units {
+		byCode[u.Code] = u.ID
+	}
+
+	actorCtx := WithActor(ctx, Actor{UserID: userID, Source: SourceWeb})
+	convID, err := s.CreateConversion(actorCtx, productID, byCode["rollo"], byCode["m"], 100_000_000)
+	if err != nil {
+		t.Fatalf("CreateConversion: %v", err)
+	}
+	if err := s.DeleteConversion(actorCtx, convID); err != nil {
+		t.Fatalf("DeleteConversion: %v", err)
+	}
+
+	entries, err := s.AuditLog(ctx, AuditFilter{TableName: "product_unit_conversions"})
+	if err != nil {
+		t.Fatalf("AuditLog: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("got %d entries, want 2 (insert + delete)", len(entries))
+	}
+	if entries[0].Op != "delete" || entries[0].NewValues != nil {
+		t.Fatalf("delete entry = %+v", entries[0])
+	}
+	if entries[0].OldValues["rate_micros"] != float64(100_000_000) {
+		t.Fatalf("deleted rate = %v, want 100000000", entries[0].OldValues["rate_micros"])
+	}
+	if entries[1].ActorID == nil || *entries[1].ActorID != userID {
+		t.Fatalf("insert actor = %v, want %d", entries[1].ActorID, userID)
+	}
+}
+
+// products gained unit_id in the units migration; a column the trail does not capture
+// is a silent hole, so assert it is there.
+func TestAuditCoversProductUnitColumn(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProduct(t, s, ctx, "cca-thw-12")
+
+	entries, err := s.AuditLog(ctx, AuditFilter{TableName: "products"})
+	if err != nil {
+		t.Fatalf("AuditLog: %v", err)
+	}
+	if len(entries) == 0 {
+		t.Fatal("no audit entries for products")
+	}
+	if _, ok := entries[0].NewValues["unit_id"]; !ok {
+		t.Fatalf("products audit entry has no unit_id key: %v", entries[0].NewValues)
+	}
+}

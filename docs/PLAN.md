@@ -189,9 +189,11 @@ Metadata only, never bodies — `POST /login` carries a plaintext password and
 Debug so the steady background traffic doesn't bury everything else; a *failing* static
 request still logs at Warn.
 
-**Row auditing: SQLite triggers**, in `migrations/0003_audit_log.sql`. Every insert,
-update, and delete on `products`, `price_breaks`, `customers`, `users`, `settings`, and
-`quotes` writes an `audit_log` row holding the audited columns before and after as JSON.
+**Row auditing: SQLite triggers**, in `migrations/0004_audit_log.sql`. Every insert,
+update, and delete on `products`, `price_breaks`, `customers`, `users`, `settings`,
+`quotes`, `units`, and `product_unit_conversions` writes an `audit_log` row holding the
+audited columns before and after as JSON. Conversions are in for the same reason prices
+are: a wrong "1 rollo = 100 m" silently multiplies a quote line.
 Triggers rather than application-level logging because they fire for *every* writer of
 the file — the web app, `cladex user ...`, `cmd/import`, and anyone who opens the DB with
 the sqlite3 shell on the NAS. A store method added next year that forgets to log is still
