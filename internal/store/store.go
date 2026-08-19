@@ -39,6 +39,31 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+// sortColumn maps an external, URL-facing column name to the literal SQL expression
+// it sorts by.
+type sortColumn struct {
+	name string
+	expr string
+}
+
+// orderByClause builds a safe "ORDER BY <expr> ASC|DESC" clause for a list handler's
+// sort/dir query params. allowed is a whitelist — col is looked up against it rather
+// than concatenated into SQL directly, since it comes straight from the URL; the first
+// entry in allowed is the default when col doesn't match anything in it.
+func orderByClause(allowed []sortColumn, col, dir string) string {
+	expr := allowed[0].expr
+	for _, a := range allowed {
+		if a.name == col {
+			expr = a.expr
+			break
+		}
+	}
+	if dir == "desc" {
+		return "ORDER BY " + expr + " DESC"
+	}
+	return "ORDER BY " + expr + " ASC"
+}
+
 // QuoteCount returns the number of rows in quotes, for the M0 walking-skeleton home page.
 func (s *Store) QuoteCount(ctx context.Context) (int, error) {
 	var n int

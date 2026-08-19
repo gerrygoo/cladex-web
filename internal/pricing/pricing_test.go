@@ -218,3 +218,29 @@ func TestComputeTotals(t *testing.T) {
 		t.Errorf("Total = %v, want %v", got.Total, wantSubtotal+wantIVA)
 	}
 }
+
+// TestConvertQty checks the fixed-point arithmetic directly: qty (Milli, 1e-3) times
+// rate (Micros, 1e-6) should reduce to a Milli result via the same RoundHalfUp rule
+// used everywhere else in this package.
+func TestConvertQty(t *testing.T) {
+	cases := []struct {
+		desc    string
+		qty     float64
+		rate    float64
+		wantQty float64
+	}{
+		{"3 rollos at 100 m/rollo -> 300 m", 3, 100, 300},
+		{"2.5 kg at 3.937 m/kg -> 9.8425 m, rounds to 9.843", 2.5, 3.937, 9.843},
+		{"1 unit at 1:1 rate is unchanged", 1, 1, 1},
+		{"0 qty converts to 0", 0, 100, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.desc, func(t *testing.T) {
+			got := ConvertQty(money.MilliFromFloat(c.qty), money.MicrosFromFloat(c.rate))
+			want := money.MilliFromFloat(c.wantQty)
+			if got != want {
+				t.Errorf("ConvertQty(%v, %v) = %v, want %v", c.qty, c.rate, got, want)
+			}
+		})
+	}
+}

@@ -90,11 +90,21 @@ func (s *Store) DisableUser(ctx context.Context, username string) (bool, error) 
 	return n > 0, nil
 }
 
-// ListUsers returns all users ordered by username, for the admin /usuarios page.
-func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
+// userSortColumns is the sortable-column whitelist for ListUsers; the first entry
+// (username) is the default when sort doesn't match a known column.
+var userSortColumns = []sortColumn{
+	{"username", "username"},
+	{"name", "name"},
+	{"role", "role"},
+	{"status", "disabled_at"},
+}
+
+// ListUsers returns all users, sorted per sort/dir (see userSortColumns; dir is "asc"
+// or "desc"), for the admin /usuarios page.
+func (s *Store) ListUsers(ctx context.Context, sort, dir string) ([]User, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, username, name, password_hash, role, disabled_at
-		FROM users ORDER BY username`,
+		FROM users `+orderByClause(userSortColumns, sort, dir),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: list users: %w", err)

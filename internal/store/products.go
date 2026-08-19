@@ -24,6 +24,9 @@ type Product struct {
 	UnitPriceMicros *money.Micros
 	CostMicros      *money.Micros
 	Currency        string // "MXN" or "USD"; defaults to "MXN" if empty
+	UnitID          *int64
+	UnitCode        string // populated by the CRUD read paths when UnitID is set
+	UnitName        string // populated by the CRUD read paths when UnitID is set
 }
 
 // ProductFamily is a product_families row, for populating the product form's family
@@ -64,8 +67,8 @@ func (s *Store) UpsertProduct(ctx context.Context, p Product) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO products (
 			family_id, sku, description, kg_per_m_micros, unit_price_micros,
-			cost_micros, currency
-		) VALUES (?, ?, ?, ?, ?, ?, ?)
+			cost_micros, currency, unit_id
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (sku) DO UPDATE SET
 			family_id          = excluded.family_id,
 			description         = excluded.description,
@@ -73,9 +76,10 @@ func (s *Store) UpsertProduct(ctx context.Context, p Product) error {
 			unit_price_micros  = excluded.unit_price_micros,
 			cost_micros        = excluded.cost_micros,
 			currency            = excluded.currency,
+			unit_id             = excluded.unit_id,
 			updated_at          = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
 		p.FamilyID, p.SKU, p.Description, microsPtr(p.KgPerMMicros),
-		microsPtr(p.UnitPriceMicros), microsPtr(p.CostMicros), currency,
+		microsPtr(p.UnitPriceMicros), microsPtr(p.CostMicros), currency, idPtr(p.UnitID),
 	)
 	if err != nil {
 		return fmt.Errorf("store: upsert product %q: %w", p.SKU, err)
@@ -90,17 +94,29 @@ func microsPtr(m *money.Micros) any {
 	return int64(*m)
 }
 
+func idPtr(id *int64) any {
+	if id == nil {
+		return nil
+	}
+	return *id
+}
+
 const productSelectCols = `
 	p.id, p.family_id, pf.name, p.sku, p.description,
-	p.kg_per_m_micros, p.unit_price_micros, p.cost_micros, p.currency`
+	p.kg_per_m_micros, p.unit_price_micros, p.cost_micros, p.currency,
+	p.unit_id, u.code, u.name`
 
-const productFrom = `FROM products p JOIN product_families pf ON pf.id = p.family_id`
+const productFrom = `
+	FROM products p
+	JOIN product_families pf ON pf.id = p.family_id
+	LEFT JOIN units u ON u.id = p.unit_id`
 
 func scanProduct(row interface{ Scan(...any) error }) (*Product, error) {
 	var p Product
-	var kgPerM, unitPrice, cost sql.NullInt64
+	var kgPerM, unitPrice, cost, unitID sql.NullInt64
+	var unitCode, unitName sql.NullString
 	err := row.Scan(&p.ID, &p.FamilyID, &p.FamilyName, &p.SKU, &p.Description,
-		&kgPerM, &unitPrice, &cost, &p.Currency)
+		&kgPerM, &unitPrice, &cost, &p.Currency, &unitID, &unitCode, &unitName)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -118,6 +134,12 @@ func scanProduct(row interface{ Scan(...any) error }) (*Product, error) {
 	if cost.Valid {
 		m := money.Micros(cost.Int64)
 		p.CostMicros = &m
+	}
+	if unitID.Valid {
+		id := unitID.Int64
+		p.UnitID = &id
+		p.UnitCode = unitCode.String
+		p.UnitName = unitName.String
 	}
 	return &p, nil
 }
@@ -141,16 +163,28 @@ func (s *Store) ListFamilies(ctx context.Context) ([]ProductFamily, error) {
 	return families, rows.Err()
 }
 
-// ListProducts returns non-deleted products ordered by description, optionally
-// filtered by a case-insensitive substring match on SKU or description.
-func (s *Store) ListProducts(ctx context.Context, query string) ([]Product, error) {
+// productSortColumns is the sortable-column whitelist for ListProducts; the first
+// entry (description) is the default when sort doesn't match a known column.
+var productSortColumns = []sortColumn{
+	{"description", "p.description"},
+	{"sku", "p.sku"},
+	{"familia", "pf.name"},
+	{"precio", "COALESCE(p.unit_price_micros, p.cost_micros)"},
+	{"moneda", "p.currency"},
+	{"unidad", "u.code"},
+}
+
+// ListProducts returns non-deleted products, optionally filtered by a case-insensitive
+// substring match on SKU or description, and sorted per sort/dir (see
+// productSortColumns for the allowed sort column names; dir is "asc" or "desc").
+func (s *Store) ListProducts(ctx context.Context, query, sort, dir string) ([]Product, error) {
 	like := "%" + escapeLike(query) + "%"
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+productSelectCols+`
 		`+productFrom+`
 		WHERE p.deleted_at IS NULL
 		  AND (? = '' OR p.sku LIKE ? ESCAPE '\' COLLATE NOCASE OR p.description LIKE ? ESCAPE '\' COLLATE NOCASE)
-		ORDER BY p.description`, query, like, like,
+		`+orderByClause(productSortColumns, sort, dir), query, like, like,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: list products: %w", err)
@@ -214,10 +248,10 @@ func (s *Store) CreateProduct(ctx context.Context, p Product) (int64, error) {
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO products (
 			family_id, sku, description, kg_per_m_micros, unit_price_micros,
-			cost_micros, currency
-		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			cost_micros, currency, unit_id
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		p.FamilyID, p.SKU, p.Description, microsPtr(p.KgPerMMicros),
-		microsPtr(p.UnitPriceMicros), microsPtr(p.CostMicros), currency,
+		microsPtr(p.UnitPriceMicros), microsPtr(p.CostMicros), currency, idPtr(p.UnitID),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("store: create product %q: %w", p.SKU, err)
@@ -240,10 +274,11 @@ func (s *Store) UpdateProduct(ctx context.Context, p Product) error {
 			unit_price_micros  = ?,
 			cost_micros        = ?,
 			currency           = ?,
+			unit_id            = ?,
 			updated_at         = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 		WHERE id = ?`,
 		p.FamilyID, p.SKU, p.Description, microsPtr(p.KgPerMMicros),
-		microsPtr(p.UnitPriceMicros), microsPtr(p.CostMicros), currency, p.ID,
+		microsPtr(p.UnitPriceMicros), microsPtr(p.CostMicros), currency, idPtr(p.UnitID), p.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("store: update product %d: %w", p.ID, err)

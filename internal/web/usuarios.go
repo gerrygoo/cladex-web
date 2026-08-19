@@ -22,7 +22,8 @@ func NewUsers(s *store.Store) *Users {
 
 func (u *Users) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	users, err := u.store.ListUsers(ctx)
+	sort, dir := sortParams(r)
+	users, err := u.store.ListUsers(ctx, sort, dir)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
@@ -32,7 +33,7 @@ func (u *Users) List(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("guardado") == "1" {
 		successMsg = "Cambios guardados."
 	}
-	views.UsersList(users, authUser.ID, successMsg, "", navUserView(authUser)).Render(ctx, w)
+	views.UsersList(users, authUser.ID, sort, dir, successMsg, "", navUserView(authUser)).Render(ctx, w)
 }
 
 // SetRole handles POST /usuarios/{id}/rol. An admin can't change their own role
@@ -91,12 +92,13 @@ func (u *Users) SetDisabled(disabled bool) http.HandlerFunc {
 
 func (u *Users) renderListError(w http.ResponseWriter, r *http.Request, errorMsg string) {
 	ctx := r.Context()
-	users, err := u.store.ListUsers(ctx)
+	sort, dir := sortParams(r)
+	users, err := u.store.ListUsers(ctx, sort, dir)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
 	authUser, _ := UserFromContext(ctx)
 	w.WriteHeader(http.StatusUnprocessableEntity)
-	views.UsersList(users, authUser.ID, "", errorMsg, navUserView(authUser)).Render(ctx, w)
+	views.UsersList(users, authUser.ID, sort, dir, "", errorMsg, navUserView(authUser)).Render(ctx, w)
 }

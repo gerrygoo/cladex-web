@@ -150,7 +150,7 @@ func TestCustomersCreateValidationErrors(t *testing.T) {
 		}
 	}
 
-	customers, err := a.store.ListCustomers(context.Background(), "")
+	customers, err := a.store.ListCustomers(context.Background(), "", "", "")
 	if err != nil {
 		t.Fatalf("ListCustomers: %v", err)
 	}

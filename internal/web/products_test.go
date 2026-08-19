@@ -179,7 +179,7 @@ func TestProductsCreateValidationErrors(t *testing.T) {
 		}
 	}
 
-	products, err := a.store.ListProducts(context.Background(), "")
+	products, err := a.store.ListProducts(context.Background(), "", "", "")
 	if err != nil {
 		t.Fatalf("ListProducts: %v", err)
 	}

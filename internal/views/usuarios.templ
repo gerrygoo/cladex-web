@@ -14,7 +14,13 @@ func roleLabel(role string) string {
 	return "Vendedor"
 }
 
-templ UsersList(users []store.User, currentUserID int64, successMsg string, errorMsg string, user *NavUser) {
+templ usersSortHeader(label, col, sort, dir string) {
+	<th>
+		<a href={ templ.URL(SortHref("/usuarios", "", col, sort, dir)) }>{ label } { SortIndicator(col, sort, dir) }</a>
+	</th>
+}
+
+templ UsersList(users []store.User, currentUserID int64, sort string, dir string, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Usuarios", user) {
 		<h1>Usuarios</h1>
 		if successMsg != "" {
@@ -26,10 +32,10 @@ templ UsersList(users []store.User, currentUserID int64, successMsg string, erro
 		<table>
 			<thead>
 				<tr>
-					<th>Usuario</th>
-					<th>Nombre</th>
-					<th>Rol</th>
-					<th>Estado</th>
+					@usersSortHeader("Usuario", "username", sort, dir)
+					@usersSortHeader("Nombre", "name", sort, dir)
+					@usersSortHeader("Rol", "role", sort, dir)
+					@usersSortHeader("Estado", "status", sort, dir)
 					<th></th>
 				</tr>
 			</thead>

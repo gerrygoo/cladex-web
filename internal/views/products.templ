@@ -20,7 +20,18 @@ func productPriceDisplay(p store.Product) string {
 	}
 }
 
-templ ProductsList(products []store.Product, query string, successMsg string, user *NavUser) {
+// productsSortHeader renders one sortable <th> for the products table: a click-to-sort
+// link that toggles direction, preserving the current search query. A plain full-page
+// link, not htmx — htmx's live search only swaps #productos-tbody, and this header
+// row lives outside it, so an htmx-swapped click would leave the arrow indicator and
+// the link's own next-toggle href stale after the first click.
+templ productsSortHeader(label, col, query, sort, dir string) {
+	<th>
+		<a href={ templ.URL(SortHref("/productos", query, col, sort, dir)) }>{ label } { SortIndicator(col, sort, dir) }</a>
+	</th>
+}
+
+templ ProductsList(products []store.Product, query string, sort string, dir string, successMsg string, user *NavUser) {
 	@Layout("Productos", user) {
 		<h1>Productos</h1>
 		if successMsg != "" {
@@ -46,11 +57,12 @@ templ ProductsList(products []store.Product, query string, successMsg string, us
 		<table>
 			<thead>
 				<tr>
-					<th>SKU</th>
-					<th>Descripción</th>
-					<th>Familia</th>
-					<th>Precio</th>
-					<th>Moneda</th>
+					@productsSortHeader("SKU", "sku", query, sort, dir)
+					@productsSortHeader("Descripción", "description", query, sort, dir)
+					@productsSortHeader("Familia", "familia", query, sort, dir)
+					@productsSortHeader("Precio", "precio", query, sort, dir)
+					@productsSortHeader("Moneda", "moneda", query, sort, dir)
+					@productsSortHeader("Unidad", "unidad", query, sort, dir)
 					<th></th>
 				</tr>
 			</thead>
@@ -63,7 +75,7 @@ templ ProductsTableBody(products []store.Product) {
 	<tbody id="productos-tbody">
 		if len(products) == 0 {
 			<tr>
-				<td colspan="6">No se encontraron productos.</td>
+				<td colspan="7">No se encontraron productos.</td>
 			</tr>
 		}
 		for _, p := range products {
@@ -73,6 +85,7 @@ templ ProductsTableBody(products []store.Product) {
 				<td>{ p.FamilyName }</td>
 				<td>{ productPriceDisplay(p) }</td>
 				<td>{ p.Currency }</td>
+				<td>{ p.UnitCode }</td>
 				<td>
 					<a href={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10)) }>Editar</a>
 					<form
@@ -98,9 +111,13 @@ type ProductFormValues struct {
 	UnitPrice   string
 	Cost        string
 	KgPerM      string
+	UnitID      string
 }
 
-templ ProductForm(title string, action string, values ProductFormValues, fieldErrors map[string]string, successMsg string, families []store.ProductFamily, user *NavUser) {
+// ProductForm renders the create/edit form. productID is 0 for the create form, which
+// omits the unit-conversions section below it — conversions reference an existing
+// product, so they only make sense once one exists (see ProductConversionsSection).
+templ ProductForm(title string, action string, values ProductFormValues, fieldErrors map[string]string, successMsg string, families []store.ProductFamily, units []store.Unit, productID int64, conversions []store.ProductUnitConversion, conversionsErrorMsg string, user *NavUser) {
 	@Layout(title, user) {
 		<h1>{ title }</h1>
 		if successMsg != "" {
@@ -170,8 +187,90 @@ templ ProductForm(title string, action string, values ProductFormValues, fieldEr
 			if fieldErrors["kg_per_m"] != "" {
 				<p class="error">{ fieldErrors["kg_per_m"] }</p>
 			}
+			<label>
+				Unidad (opcional)
+				<select name="unit_id">
+					<option value="">— Ninguna —</option>
+					for _, u := range units {
+						if strconv.FormatInt(u.ID, 10) == values.UnitID {
+							<option value={ strconv.FormatInt(u.ID, 10) } selected>{ u.Name }</option>
+						} else {
+							<option value={ strconv.FormatInt(u.ID, 10) }>{ u.Name }</option>
+						}
+					}
+				</select>
+			</label>
 			<button type="submit">Guardar</button>
 			<a href="/productos">Cancelar</a>
 		</form>
+		if productID != 0 {
+			@ProductConversionsSection(productID, conversions, units, conversionsErrorMsg)
+		}
 	}
+}
+
+// ProductConversionsSection lists a product's unit conversion rates and offers a form
+// to add another. rate_micros is displayed and entered as a plain decimal (the amount
+// of "A" per 1 "De" — see migrations/0003_add_units_and_conversions.sql).
+templ ProductConversionsSection(productID int64, conversions []store.ProductUnitConversion, units []store.Unit, errorMsg string) {
+	<h2>Conversiones de unidades</h2>
+	if errorMsg != "" {
+		<p class="error">{ errorMsg }</p>
+	}
+	<table>
+		<thead>
+			<tr>
+				<th>De</th>
+				<th>A</th>
+				<th>Tasa (A por 1 De)</th>
+				<th></th>
+			</tr>
+		</thead>
+		<tbody>
+			if len(conversions) == 0 {
+				<tr>
+					<td colspan="4">Sin conversiones registradas.</td>
+				</tr>
+			}
+			for _, c := range conversions {
+				<tr>
+					<td>{ c.FromUnitCode }</td>
+					<td>{ c.ToUnitCode }</td>
+					<td>{ c.RateMicros.String() }</td>
+					<td>
+						<form
+							method="post"
+							action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/conversiones/" + strconv.FormatInt(c.ID, 10) + "/eliminar") }
+							style="display:inline"
+						>
+							<button type="submit" hx-confirm="¿Eliminar esta conversión?">Eliminar</button>
+						</form>
+					</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+	<form method="post" action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/conversiones") }>
+		<label>
+			De
+			<select name="from_unit_id" required>
+				for _, u := range units {
+					<option value={ strconv.FormatInt(u.ID, 10) }>{ u.Code }</option>
+				}
+			</select>
+		</label>
+		<label>
+			A
+			<select name="to_unit_id" required>
+				for _, u := range units {
+					<option value={ strconv.FormatInt(u.ID, 10) }>{ u.Code }</option>
+				}
+			</select>
+		</label>
+		<label>
+			Tasa
+			<input type="text" name="rate" placeholder="p. ej. 100" required/>
+		</label>
+		<button type="submit">Agregar conversión</button>
+	</form>
 }

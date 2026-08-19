@@ -6,7 +6,16 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-templ CustomersList(customers []store.Customer, query string, successMsg string, user *NavUser) {
+// customersSortHeader is a plain full-page link, not htmx — see productsSortHeader's
+// doc comment for why (the header row lives outside the htmx-swapped tbody, so a
+// swapped click would leave the arrow indicator and next-toggle href stale).
+templ customersSortHeader(label, col, query, sort, dir string) {
+	<th>
+		<a href={ templ.URL(SortHref("/clientes", query, col, sort, dir)) }>{ label } { SortIndicator(col, sort, dir) }</a>
+	</th>
+}
+
+templ CustomersList(customers []store.Customer, query string, sort string, dir string, successMsg string, user *NavUser) {
 	@Layout("Clientes", user) {
 		<h1>Clientes</h1>
 		if successMsg != "" {
@@ -32,11 +41,11 @@ templ CustomersList(customers []store.Customer, query string, successMsg string,
 		<table>
 			<thead>
 				<tr>
-					<th>Nombre</th>
-					<th>RFC</th>
-					<th>Contacto</th>
-					<th>Teléfono</th>
-					<th>Email</th>
+					@customersSortHeader("Nombre", "name", query, sort, dir)
+					@customersSortHeader("RFC", "rfc", query, sort, dir)
+					@customersSortHeader("Contacto", "contact_name", query, sort, dir)
+					@customersSortHeader("Teléfono", "phone", query, sort, dir)
+					@customersSortHeader("Email", "email", query, sort, dir)
 					<th></th>
 				</tr>
 			</thead>

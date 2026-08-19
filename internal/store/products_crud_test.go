@@ -91,17 +91,17 @@ func TestProductCRUDLifecycle(t *testing.T) {
 	}
 
 	// List + search.
-	products, err := s.ListProducts(ctx, "")
+	products, err := s.ListProducts(ctx, "", "", "")
 	if err != nil {
 		t.Fatalf("ListProducts(\"\"): %v", err)
 	}
 	if len(products) != 1 {
 		t.Fatalf("ListProducts(\"\") = %d products, want 1", len(products))
 	}
-	if products, err = s.ListProducts(ctx, "cal. 14"); err != nil || len(products) != 1 {
+	if products, err = s.ListProducts(ctx, "cal. 14", "", ""); err != nil || len(products) != 1 {
 		t.Fatalf("ListProducts(case-insensitive substring) = %d, %v; want 1, nil", len(products), err)
 	}
-	if products, err = s.ListProducts(ctx, "no existe"); err != nil || len(products) != 0 {
+	if products, err = s.ListProducts(ctx, "no existe", "", ""); err != nil || len(products) != 0 {
 		t.Fatalf("ListProducts(no match) = %d, %v; want 0, nil", len(products), err)
 	}
 
@@ -112,7 +112,7 @@ func TestProductCRUDLifecycle(t *testing.T) {
 	if p, err := s.ProductByID(ctx, id); err != nil || p != nil {
 		t.Fatalf("ProductByID after delete = %+v, %v; want nil, nil", p, err)
 	}
-	if products, err := s.ListProducts(ctx, ""); err != nil || len(products) != 0 {
+	if products, err := s.ListProducts(ctx, "", "", ""); err != nil || len(products) != 0 {
 		t.Fatalf("ListProducts after delete = %d, %v; want 0, nil", len(products), err)
 	}
 	var deletedAt *string
@@ -144,7 +144,7 @@ func TestListProductsSearchEscapesWildcards(t *testing.T) {
 	}
 
 	// A literal "%" in the search text must not act as a wildcard matching everything.
-	products, err := s.ListProducts(ctx, "50%")
+	products, err := s.ListProducts(ctx, "50%", "", "")
 	if err != nil {
 		t.Fatalf("ListProducts: %v", err)
 	}

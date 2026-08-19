@@ -27,6 +27,7 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool)
 	customers := NewCustomers(db)
 	users := NewUsers(db)
 	settings := NewSettings(db)
+	units := NewUnits(db)
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
 
@@ -47,6 +48,8 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool)
 	mux.Handle("GET /productos/{id}", auth.RequireAuth(http.HandlerFunc(products.EditPage)))
 	mux.Handle("POST /productos/{id}", auth.RequireAuth(http.HandlerFunc(products.Update)))
 	mux.Handle("POST /productos/{id}/eliminar", auth.RequireAuth(http.HandlerFunc(products.Delete)))
+	mux.Handle("POST /productos/{id}/conversiones", auth.RequireAuth(http.HandlerFunc(products.CreateConversion)))
+	mux.Handle("POST /productos/{id}/conversiones/{cid}/eliminar", auth.RequireAuth(http.HandlerFunc(products.DeleteConversion)))
 
 	mux.Handle("GET /clientes", auth.RequireAuth(http.HandlerFunc(customers.List)))
 	mux.Handle("GET /clientes/nuevo", auth.RequireAuth(http.HandlerFunc(customers.NewPage)))
@@ -62,6 +65,9 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool)
 
 	mux.Handle("GET /ajustes", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.Page))))
 	mux.Handle("POST /ajustes", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.Submit))))
+
+	mux.Handle("GET /unidades", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(units.List))))
+	mux.Handle("POST /unidades", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(units.Create))))
 
 	mux.Handle("GET /{$}", auth.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		count, err := db.QuoteCount(r.Context())

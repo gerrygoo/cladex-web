@@ -98,6 +98,15 @@ func basePrice(p Product, s Settings) (money.Micros, error) {
 	}
 }
 
+// ConvertQty converts a quantity from one unit to another, given the rate between
+// them (amount of the target unit per 1 of the source unit — see
+// migrations/0003_add_units_and_conversions.sql). Used to turn a quote line entered
+// in a non-base unit (e.g. "rollos") into the product's own base unit before UnitPrice
+// and ComputeTotals run, which both assume qty is already in that base unit.
+func ConvertQty(qty money.Milli, rateMicros money.Micros) money.Milli {
+	return money.Milli(money.RoundHalfUp(int64(qty)*int64(rateMicros), 1_000_000))
+}
+
 func bestPriceBreak(breaks []PriceBreak, qty money.Milli) (money.Micros, bool) {
 	found := false
 	var best money.Micros

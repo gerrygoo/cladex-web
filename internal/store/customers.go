@@ -41,9 +41,20 @@ func scanCustomer(row interface{ Scan(...any) error }) (*Customer, error) {
 	return &c, nil
 }
 
-// ListCustomers returns non-deleted customers ordered by name, optionally filtered by
-// a case-insensitive substring match on name, RFC, or contact name.
-func (s *Store) ListCustomers(ctx context.Context, query string) ([]Customer, error) {
+// customerSortColumns is the sortable-column whitelist for ListCustomers; the first
+// entry (name) is the default when sort doesn't match a known column.
+var customerSortColumns = []sortColumn{
+	{"name", "name"},
+	{"rfc", "rfc"},
+	{"contact_name", "contact_name"},
+	{"phone", "phone"},
+	{"email", "email"},
+}
+
+// ListCustomers returns non-deleted customers, optionally filtered by a
+// case-insensitive substring match on name, RFC, or contact name, and sorted per
+// sort/dir (see customerSortColumns; dir is "asc" or "desc").
+func (s *Store) ListCustomers(ctx context.Context, query, sort, dir string) ([]Customer, error) {
 	like := "%" + escapeLike(query) + "%"
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+customerSelectCols+`
@@ -52,7 +63,7 @@ func (s *Store) ListCustomers(ctx context.Context, query string) ([]Customer, er
 		  AND (? = '' OR name LIKE ? ESCAPE '\' COLLATE NOCASE
 		           OR rfc LIKE ? ESCAPE '\' COLLATE NOCASE
 		           OR contact_name LIKE ? ESCAPE '\' COLLATE NOCASE)
-		ORDER BY name`, query, like, like, like,
+		`+orderByClause(customerSortColumns, sort, dir), query, like, like, like,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: list customers: %w", err)

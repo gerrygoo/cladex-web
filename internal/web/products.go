@@ -1,6 +1,8 @@
 package web
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -31,6 +33,7 @@ type ProductForm struct {
 	UnitPrice   string
 	Cost        string
 	KgPerM      string
+	UnitID      string
 }
 
 func parseProductForm(r *http.Request) ProductForm {
@@ -46,6 +49,7 @@ func parseProductForm(r *http.Request) ProductForm {
 		UnitPrice:   strings.TrimSpace(r.FormValue("unit_price")),
 		Cost:        strings.TrimSpace(r.FormValue("cost")),
 		KgPerM:      strings.TrimSpace(r.FormValue("kg_per_m")),
+		UnitID:      strings.TrimSpace(r.FormValue("unit_id")),
 	}
 }
 
@@ -90,6 +94,7 @@ func (f ProductForm) toValues() views.ProductFormValues {
 		UnitPrice:   f.UnitPrice,
 		Cost:        f.Cost,
 		KgPerM:      f.KgPerM,
+		UnitID:      f.UnitID,
 	}
 }
 
@@ -116,6 +121,10 @@ func (f ProductForm) toProduct() store.Product {
 		m, _ := money.ParseMicros(f.KgPerM)
 		p.KgPerMMicros = &m
 	}
+	if f.UnitID != "" {
+		uid, _ := strconv.ParseInt(f.UnitID, 10, 64)
+		p.UnitID = &uid
+	}
 	return p
 }
 
@@ -135,6 +144,9 @@ func productToValues(p store.Product) views.ProductFormValues {
 	if p.KgPerMMicros != nil {
 		v.KgPerM = p.KgPerMMicros.String()
 	}
+	if p.UnitID != nil {
+		v.UnitID = strconv.FormatInt(*p.UnitID, 10)
+	}
 	return v
 }
 
@@ -143,7 +155,8 @@ func productToValues(p store.Product) views.ProductFormValues {
 func (p *Products) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	products, err := p.store.ListProducts(ctx, query)
+	sort, dir := sortParams(r)
+	products, err := p.store.ListProducts(ctx, query, sort, dir)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
@@ -162,7 +175,7 @@ func (p *Products) List(w http.ResponseWriter, r *http.Request) {
 		successMsg = "Producto eliminado."
 	}
 	user, _ := UserFromContext(ctx)
-	views.ProductsList(products, query, successMsg, navUserView(user)).Render(ctx, w)
+	views.ProductsList(products, query, sort, dir, successMsg, navUserView(user)).Render(ctx, w)
 }
 
 // NewPage renders the empty create form at /productos/nuevo.
@@ -173,9 +186,14 @@ func (p *Products) NewPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
+	units, err := p.store.ListUnits(ctx)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
 	user, _ := UserFromContext(ctx)
 	values := views.ProductFormValues{Currency: "MXN"}
-	views.ProductForm("Nuevo producto", "/productos/nuevo", values, nil, "", families, navUserView(user)).Render(ctx, w)
+	views.ProductForm("Nuevo producto", "/productos/nuevo", values, nil, "", families, units, 0, nil, "", navUserView(user)).Render(ctx, w)
 }
 
 // Create handles POST /productos/nuevo.
@@ -200,7 +218,7 @@ func (p *Products) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(fieldErrors) > 0 {
-		p.renderFormError(w, r, "Nuevo producto", "/productos/nuevo", form, fieldErrors)
+		p.renderFormError(w, r, "Nuevo producto", "/productos/nuevo", 0, form, fieldErrors)
 		return
 	}
 
@@ -212,7 +230,33 @@ func (p *Products) Create(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, fmt.Sprintf("/productos/%d?guardado=1", id), http.StatusSeeOther)
 }
 
-// EditPage renders the edit form at GET /productos/{id}.
+// loadEditData loads everything the edit form (and its unit-conversions section)
+// needs in one place, since both EditPage and the conversion mutation handlers'
+// error paths need the same four reads. Returns a nil product, with no error, if id
+// doesn't exist.
+func (p *Products) loadEditData(ctx context.Context, id int64) (*store.Product, []store.ProductFamily, []store.Unit, []store.ProductUnitConversion, error) {
+	product, err := p.store.ProductByID(ctx, id)
+	if err != nil || product == nil {
+		return nil, nil, nil, nil, err
+	}
+	families, err := p.store.ListFamilies(ctx)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	units, err := p.store.ListUnits(ctx)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	conversions, err := p.store.ListConversionsByProduct(ctx, id)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	return product, families, units, conversions, nil
+}
+
+// EditPage renders the edit form at GET /productos/{id}, plus the product's unit
+// conversion rates (only meaningful once the product exists, so this section doesn't
+// appear on the create form).
 func (p *Products) EditPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -220,7 +264,7 @@ func (p *Products) EditPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	product, err := p.store.ProductByID(ctx, id)
+	product, families, units, conversions, err := p.loadEditData(ctx, id)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
@@ -229,18 +273,88 @@ func (p *Products) EditPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	families, err := p.store.ListFamilies(ctx)
-	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
-		return
-	}
 	successMsg := ""
 	if r.URL.Query().Get("guardado") == "1" {
 		successMsg = "Producto guardado."
 	}
 	user, _ := UserFromContext(ctx)
 	action := fmt.Sprintf("/productos/%d", id)
-	views.ProductForm("Editar producto", action, productToValues(*product), nil, successMsg, families, navUserView(user)).Render(ctx, w)
+	views.ProductForm("Editar producto", action, productToValues(*product), nil, successMsg, families, units, id, conversions, "", navUserView(user)).Render(ctx, w)
+}
+
+// renderConversionsError re-renders the edit form with a validation error scoped to
+// the unit-conversions section — the main product fields are unaffected, so their
+// values come straight from the stored product, not re-parsed form input.
+func (p *Products) renderConversionsError(w http.ResponseWriter, r *http.Request, id int64, errorMsg string) {
+	ctx := r.Context()
+	product, families, units, conversions, err := p.loadEditData(ctx, id)
+	if err != nil || product == nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	w.WriteHeader(http.StatusUnprocessableEntity)
+	action := fmt.Sprintf("/productos/%d", id)
+	views.ProductForm("Editar producto", action, productToValues(*product), nil, "", families, units, id, conversions, errorMsg, navUserView(user)).Render(ctx, w)
+}
+
+// CreateConversion handles POST /productos/{id}/conversiones: adds a conversion rate
+// between two units for this product.
+func (p *Products) CreateConversion(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "solicitud inválida", http.StatusBadRequest)
+		return
+	}
+	fromUnitID, errFrom := strconv.ParseInt(r.FormValue("from_unit_id"), 10, 64)
+	toUnitID, errTo := strconv.ParseInt(r.FormValue("to_unit_id"), 10, 64)
+	if errFrom != nil || errTo != nil {
+		p.renderConversionsError(w, r, id, "Selecciona ambas unidades.")
+		return
+	}
+	if fromUnitID == toUnitID {
+		p.renderConversionsError(w, r, id, "Las dos unidades deben ser diferentes.")
+		return
+	}
+	rate, err := money.ParseMicros(strings.TrimSpace(r.FormValue("rate")))
+	if err != nil || rate <= 0 {
+		p.renderConversionsError(w, r, id, "Tasa inválida; usa un número positivo, p. ej. 100.")
+		return
+	}
+
+	if _, err := p.store.CreateConversion(ctx, id, fromUnitID, toUnitID, rate); err != nil {
+		if errors.Is(err, store.ErrDuplicateUnitPair) {
+			p.renderConversionsError(w, r, id, "Ya existe una conversión entre estas unidades para este producto.")
+			return
+		}
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/productos/%d?guardado=1", id), http.StatusSeeOther)
+}
+
+// DeleteConversion handles POST /productos/{id}/conversiones/{cid}/eliminar.
+func (p *Products) DeleteConversion(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	cid, err := strconv.ParseInt(r.PathValue("cid"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := p.store.DeleteConversion(r.Context(), cid); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/productos/%d?guardado=1", id), http.StatusSeeOther)
 }
 
 // Update handles POST /productos/{id}.
@@ -270,7 +384,7 @@ func (p *Products) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(fieldErrors) > 0 {
-		p.renderFormError(w, r, "Editar producto", fmt.Sprintf("/productos/%d", id), form, fieldErrors)
+		p.renderFormError(w, r, "Editar producto", fmt.Sprintf("/productos/%d", id), id, form, fieldErrors)
 		return
 	}
 
@@ -298,14 +412,31 @@ func (p *Products) Delete(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/productos?eliminado=1", http.StatusSeeOther)
 }
 
-func (p *Products) renderFormError(w http.ResponseWriter, r *http.Request, title, action string, form ProductForm, fieldErrors map[string]string) {
+// renderFormError re-renders the create or edit form with field-level validation
+// errors. id is 0 for the create form (no conversions section); for the edit form,
+// its existing conversions are loaded and shown alongside the re-displayed field
+// values.
+func (p *Products) renderFormError(w http.ResponseWriter, r *http.Request, title, action string, id int64, form ProductForm, fieldErrors map[string]string) {
 	ctx := r.Context()
 	families, err := p.store.ListFamilies(ctx)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
+	units, err := p.store.ListUnits(ctx)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	var conversions []store.ProductUnitConversion
+	if id != 0 {
+		conversions, err = p.store.ListConversionsByProduct(ctx, id)
+		if err != nil {
+			http.Error(w, "error interno", http.StatusInternalServerError)
+			return
+		}
+	}
 	user, _ := UserFromContext(ctx)
 	w.WriteHeader(http.StatusUnprocessableEntity)
-	views.ProductForm(title, action, form.toValues(), fieldErrors, "", families, navUserView(user)).Render(ctx, w)
+	views.ProductForm(title, action, form.toValues(), fieldErrors, "", families, units, id, conversions, "", navUserView(user)).Render(ctx, w)
 }

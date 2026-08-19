@@ -1,0 +1,50 @@
+package views
+
+import (
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+templ UnitsList(units []store.Unit, successMsg string, errorMsg string, user *NavUser) {
+	@Layout("Unidades", user) {
+		<h1>Unidades</h1>
+		if successMsg != "" {
+			<p class="success">{ successMsg }</p>
+		}
+		if errorMsg != "" {
+			<p class="error">{ errorMsg }</p>
+		}
+		<table>
+			<thead>
+				<tr>
+					<th>Código</th>
+					<th>Nombre</th>
+				</tr>
+			</thead>
+			<tbody>
+				if len(units) == 0 {
+					<tr>
+						<td colspan="2">No hay unidades.</td>
+					</tr>
+				}
+				for _, u := range units {
+					<tr>
+						<td>{ u.Code }</td>
+						<td>{ u.Name }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+		<h2>Nueva unidad</h2>
+		<form method="post" action="/unidades">
+			<label>
+				Código
+				<input type="text" name="code" placeholder="p. ej. caja" required/>
+			</label>
+			<label>
+				Nombre
+				<input type="text" name="name" placeholder="p. ej. Caja" required/>
+			</label>
+			<button type="submit">Agregar</button>
+		</form>
+	}
+}

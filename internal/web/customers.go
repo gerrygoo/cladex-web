@@ -98,7 +98,8 @@ func customerToValues(c store.Customer) views.CustomerFormValues {
 func (cs *Customers) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	customers, err := cs.store.ListCustomers(ctx, query)
+	sort, dir := sortParams(r)
+	customers, err := cs.store.ListCustomers(ctx, query, sort, dir)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
@@ -117,7 +118,7 @@ func (cs *Customers) List(w http.ResponseWriter, r *http.Request) {
 		successMsg = "Cliente eliminado."
 	}
 	user, _ := UserFromContext(ctx)
-	views.CustomersList(customers, query, successMsg, navUserView(user)).Render(ctx, w)
+	views.CustomersList(customers, query, sort, dir, successMsg, navUserView(user)).Render(ctx, w)
 }
 
 // NewPage renders the empty create form at /clientes/nuevo.
