@@ -139,10 +139,15 @@ func parseCCA(f *excelize.File) family {
 	return fam
 }
 
-// parseCCSAC reads the 'CCS & AC' sheet, rows 4-12, where the raw data (B=name, E=kg/m,
-// F=cost before margin) and the hidden mirror (P=description) sit on the same rows, so
-// no join is needed. Like CCA, this is a cost + margin family, so only cost_micros is
-// populated.
+// parseCCSAC reads the 'CCS & AC' sheet, rows 4-12, where the raw data (B=name, E=kg/m)
+// and the hidden mirror (P=description) sit on the same rows, so no join is needed.
+// Unlike CCA, this family's margin is copper-price-derived and cancels out entirely
+// (see internal/pricing's package doc / docs/PLAN.md footnote 8): the real formula is
+// exactly kg_per_m * copper_price, with no independent margin term, so only
+// kg_per_m_micros is populated — column F ("cost before margin") is deliberately not
+// imported. Populating both would make pricing.basePrice's field-presence dispatch
+// silently pick CCA's cost/margin formula instead (its only real bug, caught during
+// M2.3's PDF verification: it priced every CCS/AC line using the CCA margin).
 //
 // SKU deviates from the "ccs-c<awg>" scheme used for CCA: the raw AWG code (column C)
 // isn't unique here — two products ("7#6 LC DSA" and "19#9 LC DSA") both carry "3/0" —
@@ -164,10 +169,6 @@ func parseCCSAC(f *excelize.File) family {
 		if kgm, ok := cellFloat(f, sheet, fmt.Sprintf("E%d", r)); ok {
 			m := money.MicrosFromFloat(kgm)
 			it.KgPerMMicros = &m
-		}
-		if cost, ok := cellFloat(f, sheet, fmt.Sprintf("F%d", r)); ok {
-			m := money.MicrosFromFloat(cost)
-			it.CostMicros = &m
 		}
 		fam.Items = append(fam.Items, it)
 	}
