@@ -427,7 +427,7 @@ Products CRUD (1.5) exists, per the user.
 | # | Slice | Owner | Done when |
 |---|---|---|---|
 | 2.1 | Pricing engine, pure Go, no HTTP: `kg/m × metal $/kg × (1+margin)`, USD×FX, qty breaks, IVA | me | Unit tests reproduce ≥15 known prices from the spreadsheet exactly — ✅⁸ |
-| 2.2 | Quote builder UI — htmx shell + vanilla-JS island for live line editing and totals | me | Build a 5-line quote end to end; totals match 2.1 |
+| 2.2 | Quote builder UI — htmx shell + vanilla-JS island for live line editing and totals | me | Build a 5-line quote end to end; totals match 2.1 — ✅⁹ |
 | 2.3 | Typst cotización template + render pipeline; per-family terms blocks | me | Generated PDF matches the current Excel output for the same input |
 | 2.4 | Folio sequences, issue flow (freeze row, write PDF + SHA), status, revisions | me | Issue, change FX and copper, reprint → byte-identical PDF. Revise → `-R1`, original untouched |
 | 2.5 | Quote history: list, filter by customer/vendedor/status, re-download stored PDF | me | Every quote ever issued is findable and re-downloadable |
@@ -466,6 +466,61 @@ shaped the design:
 Verified against 27 real prices pulled programmatically from the workbook (11 THW-2-LS +
 7 CABLE DESNUDO rows from `CCA`'s hidden mirror block, 9 rows from `CCS & AC`'s), not
 hand-transcribed — `internal/pricing/pricing_test.go`. `go test ./...` green.
+
+⁹ Two decisions confirmed with the user before building, both diverging from this plan's
+own shorthand: (1) a quote's `prefix` (QA/QS/QI) is a free choice made once at creation —
+purely a folio-series label, matching the legacy workbook's four separate "Cotizador"
+forms — and does **not** restrict which products the quote can contain; any product, any
+family, plus free-text lines, on one quote. (2) the `quotes` row (and its folio) is
+persisted the moment a draft is started, but `quote_lines` are **not** written per edit —
+every add/remove/qty-change is a pure recompute (no DB write) via
+`POST /cotizaciones/{folio}/recalcular`, and only the explicit "Guardar borrador" action
+(`POST .../guardar`) replaces the whole line set in one transaction
+(`Store.ReplaceQuoteLines`), so editing never produces a per-edit history row. Also
+diverged from the plan's "vanilla-JS island" shorthand: the builder is pure htmx, no
+custom JS at all — every line mutation needs a server round-trip anyway (unit price
+depends on live FX/copper/margin settings), so there was no client-side math left to
+speed up, and pure htmx keeps the codebase's existing "forms work without JS" rule intact
+for free (every mutating control is a real `<form>` submit; `formaction` overrides pick
+`recalcular` vs `guardar` per button, and a non-htmx request to `recalcular` gets the full
+page back, not a bare fragment, so a no-JS user is never stranded).
+
+Since `quotes.folio`/`prefix` are `NOT NULL` from the M0.2 schema, this slice had to build
+*some* working folio-assignment scheme even though "Folio sequences" is 2.4's title — a
+new `folio_sequences` table (`migrations/0004_add_folio_sequences.sql`) plus
+`Store.NextFolio`, a single atomic `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`
+(confirmed `RETURNING` works against `modernc.org/sqlite`), giving `QA0001`-style folios
+with no read-then-write race window. 2.4 still owns the revision suffix (`-R1`) and the
+issue/freeze flow on top of this.
+
+`internal/store/quotes.go` (new): `Quote`/`QuoteLine`, `NextFolio`, `CreateDraftQuote`,
+`QuoteByFolio`/`QuoteByID`, `ListQuotes` (search+sort, same shape as
+`ListProducts`/`ListCustomers`), `ListQuoteLines`, and `ReplaceQuoteLines` (the one
+transactional delete+reinsert-lines-plus-update-totals write). `internal/store/products.go`
+gained `ListPriceBreaks`, still exercising the `price_breaks` table for the first time
+since 1.2 deferred its only real use case (ELECTRACLEAN) — wired in generically rather
+than assuming an always-empty slice. `internal/web/quotes.go` (new) parses the builder
+form's line set (`line_keys` + indexed `lines[K][...]` fields, `add_product_id`/
+`add_free`/`remove_key` as the one delta per submit), prices every line through
+`internal/pricing.UnitPrice`/`ComputeTotals` — the same code path for a live recalculation
+and the final save, so nothing persisted ever differs from what was last shown — and
+attaches a per-line error (bad qty, unknown product, missing FX/copper/margin settings)
+without failing the whole request. `internal/views/quotes.templ` (new) follows the
+existing list/form/htmx-fragment conventions (`ProductsList`/`ProductsTableBody`, etc.)
+exactly. Routes are `RequireAuth`-only, no admin gate, same reasoning as products/customers.
+
+Verified with `go test ./...` (folio-sequence increment-per-prefix, draft creation,
+line-replace round-trip including totals, form validation, htmx-fragment vs full-page
+responses, row-level pricing errors blocking a save, auth-required) and end-to-end in a
+real browser: created a draft, added a flat-priced product and a cost+margin product from
+two different families (proving no family restriction), added and priced a free-text
+line, edited a quantity and watched the line and totals recompute live via htmx with no
+page reload, removed a line, saved the draft, and confirmed from a fresh page load — and
+directly in the SQLite file — that exactly the right rows persisted (no stale rows from
+the removed line) with the correct `pricing_inputs` snapshot on the product line and
+`NULL` on the free line. Also confirmed the no-JS fallback: the product search's plain
+"Buscar" button (a real GET, no htmx) returns results embedded in the full page rather
+than a bare fragment.
 
 ---
 
