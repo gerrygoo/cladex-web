@@ -4,6 +4,7 @@ go 1.26.5
 
 require (
 	github.com/a-h/templ v0.3.1020
+	github.com/felixge/httpsnoop v1.1.0
 	github.com/xuri/excelize/v2 v2.11.0
 	golang.org/x/crypto v0.53.0
 	modernc.org/sqlite v1.56.0

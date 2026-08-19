@@ -165,6 +165,70 @@ sheet proves free-text lines are real — `description_snapshot`, `qty`,
 
 Drafts are mutable; setting `issued_at` freezes the row and writes the PDF.
 
+## Observability and auditing
+
+Two separate questions, with two separate answers. The premise that they share one —
+"turn on the binlog" — does not survive contact with SQLite, which has no binlog and no
+logical replication: the WAL is a physical page log, so the CDC tooling built for
+MySQL/Postgres (Debezium, `wal2json`, Maxwell, `pgaudit`) has nothing to attach to and
+all of it needs a database *server* besides.
+
+**Request logs: stdlib.** `log/slog` writing JSON to stdout, plus an access-log
+middleware in `internal/web/logging.go` that also converts a handler panic into a 500
+instead of a dropped connection. The one dependency is `github.com/felixge/httpsnoop`
+(MIT, no transitive deps) for capturing the status code and byte count — the naive
+`ResponseWriter` wrapper everyone writes by hand silently breaks `http.Flusher` and
+`http.Hijacker`. Retention is the `json-file` driver's `max-size`/`max-file` in
+`compose.yaml`, and `docker logs cladex` is the query interface. A shipper (Loki,
+Vector, OpenTelemetry) is rejected on the same grounds as Chromium in M0: it would cost
+more memory on the shared 8 GB box than the app it watches.
+
+Metadata only, never bodies — `POST /login` carries a plaintext password and
+`POST /clientes` carries RFC and contact details. Query strings are dropped too, since
+`?q=` on the list pages is customer search text. Static assets and `/healthz` log at
+Debug so the steady background traffic doesn't bury everything else; a *failing* static
+request still logs at Warn.
+
+**Row auditing: SQLite triggers**, in `migrations/0003_audit_log.sql`. Every insert,
+update, and delete on `products`, `price_breaks`, `customers`, `users`, `settings`, and
+`quotes` writes an `audit_log` row holding the audited columns before and after as JSON.
+Triggers rather than application-level logging because they fire for *every* writer of
+the file — the web app, `cladex user ...`, `cmd/import`, and anyone who opens the DB with
+the sqlite3 shell on the NAS. A store method added next year that forgets to log is still
+audited.
+
+What triggers cannot see is *who*: SQLite has no session user. `store.WithActor` puts the
+actor on the context (`RequireAuth` attaches the session user, `cmd/cladexctl` and
+`cmd/import` attach their source), and `store.exec` stamps the single-row `audit_actor`
+table inside the same transaction as the write, which the triggers read. It stamps on
+every write including unattributed ones, so a CLI edit is never misattributed to whoever
+happened to write last. Two constraints found the hard way: a trigger cannot reference a
+TEMP table (`cannot reference objects in database temp`), which rules out the usual
+per-connection scratch-table trick; and the stamp must share the write's transaction, so
+a failed write leaves no orphan audit row.
+
+`users.password_hash` is never written to the trail — a bcrypt hash is a credential, and
+the audit log is the most-read table during an incident. A `password_changed` boolean
+records the fact instead. `audit_log` is append-only, guarded by `RAISE(ABORT)` triggers
+on UPDATE and DELETE; a future retention policy has to drop them in a reviewed migration,
+which is the point. `quote_lines` is deliberately not audited: it is rewritten on every
+draft edit, and an issued quote already snapshots everything that matters.
+
+At five users this table grows by a few thousand rows a year, so there is no pruning
+story and doesn't need to be one. `store.AuditLog` reads it back with a
+table/row/actor filter; no UI yet.
+
+**Point-in-time recovery: Litestream** (`litestream.yml`, a sidecar service in
+`compose.yaml`). This is the honest analogue of a binlog for SQLite — it ships WAL frames
+continuously and restores to any second. It answers "what did the database look like on
+Tuesday", which the audit trail does not, just as the trail answers "who changed this",
+which Litestream does not. `backup.sh` keeps its job: it covers the quote PDFs, which are
+files and invisible to Litestream, and produces a tarball that restores with no tooling.
+What Litestream closes is the up-to-24h window in which a lost disk cost a day of quotes.
+The replica is a local file under `$BACKUP_DIR`, which the NAS cloud sync already carries
+offsite — so no cloud credentials live on the box. Note that Litestream v0.5 dropped age
+encryption, so that replica is plaintext.
+
 ---
 
 # Session-sized slices

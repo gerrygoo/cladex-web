@@ -1,0 +1,32 @@
+# Continuous replication of the SQLite database, mounted into the litestream service in
+# compose.yaml.
+#
+# This is the closest SQLite gets to a binlog: Litestream ships WAL frames as they are
+# written, so the database can be restored to any point in time rather than to last
+# night. backup.sh keeps its job — a self-contained nightly archive that also covers the
+# quote PDFs, which are files, not database rows — but the up-to-24h window in which a
+# lost disk would cost a day of quotes is what this closes.
+#
+# Restore (the DB must not be running, and cladex.db must not already exist):
+#   docker compose stop cladex
+#   docker compose run --rm litestream restore -config /etc/litestream.yml /data/cladex.db
+#   docker compose run --rm litestream restore -config /etc/litestream.yml \
+#       -timestamp 2026-08-19T14:30:00Z -o /data/cladex-recovered.db /data/cladex.db
+#
+# Note that Litestream v0.5 dropped age encryption, so the replica below is plaintext.
+# It stays on the NAS under $BACKUP_DIR, which is where the offsite sync points.
+
+dbs:
+  - path: /data/cladex.db
+
+    # File replica rather than S3: the NAS-level cloud sync already covers this directory
+    # (see backup.sh), so replication stays local and there are no cloud credentials to
+    # store on the box.
+    replica:
+      type: file
+      path: /backups/litestream/cladex
+
+    snapshot:
+      interval: 24h
+      # 14 days of restore window, matching backup.sh's KEEP_DAYS.
+      retention: 336h

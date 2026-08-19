@@ -1,3 +1,6 @@
+// Session and login-attempt writes deliberately bypass the audit-stamping exec in
+// audit.go: they are not audited (see migrations/0003_audit_log.sql), they run on every
+// authenticated request, and wrapping each one in a transaction would buy nothing.
 package store
 
 import (

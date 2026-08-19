@@ -97,7 +97,7 @@ func (s *Store) CustomerByID(ctx context.Context, id int64) (*Customer, error) {
 
 // CreateCustomer inserts a new customer, returning its id.
 func (s *Store) CreateCustomer(ctx context.Context, c Customer) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `
+	res, err := s.exec(ctx, `
 		INSERT INTO customers (name, rfc, contact_name, phone, email, address, notes)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		c.Name, nullIfEmpty(c.RFC), nullIfEmpty(c.ContactName), nullIfEmpty(c.Phone),
@@ -111,7 +111,7 @@ func (s *Store) CreateCustomer(ctx context.Context, c Customer) (int64, error) {
 
 // UpdateCustomer overwrites an existing customer's editable fields, identified by c.ID.
 func (s *Store) UpdateCustomer(ctx context.Context, c Customer) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.exec(ctx, `
 		UPDATE customers SET
 			name         = ?,
 			rfc          = ?,
@@ -135,7 +135,7 @@ func (s *Store) UpdateCustomer(ctx context.Context, c Customer) error {
 // ListCustomers/CustomerByID. Customers are never hard-deleted — old quotes may still
 // reference them.
 func (s *Store) SoftDeleteCustomer(ctx context.Context, id int64) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.exec(ctx, `
 		UPDATE customers SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 		WHERE id = ?`, id,
 	)

@@ -39,7 +39,7 @@ type ProductFamily struct {
 // UpsertFamily inserts a product family by name if it doesn't exist, or updates its
 // sheet_name if it does, returning the family's id either way.
 func (s *Store) UpsertFamily(ctx context.Context, name, sheetName string) (int64, error) {
-	if _, err := s.db.ExecContext(ctx, `
+	if _, err := s.exec(ctx, `
 		INSERT INTO product_families (name, sheet_name) VALUES (?, ?)
 		ON CONFLICT (name) DO UPDATE SET sheet_name = excluded.sheet_name`,
 		name, sheetName,
@@ -64,7 +64,7 @@ func (s *Store) UpsertProduct(ctx context.Context, p Product) error {
 	if currency == "" {
 		currency = "MXN"
 	}
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.exec(ctx, `
 		INSERT INTO products (
 			family_id, sku, description, kg_per_m_micros, unit_price_micros,
 			cost_micros, currency, unit_id
@@ -245,7 +245,7 @@ func (s *Store) CreateProduct(ctx context.Context, p Product) (int64, error) {
 	if currency == "" {
 		currency = "MXN"
 	}
-	res, err := s.db.ExecContext(ctx, `
+	res, err := s.exec(ctx, `
 		INSERT INTO products (
 			family_id, sku, description, kg_per_m_micros, unit_price_micros,
 			cost_micros, currency, unit_id
@@ -265,7 +265,7 @@ func (s *Store) UpdateProduct(ctx context.Context, p Product) error {
 	if currency == "" {
 		currency = "MXN"
 	}
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.exec(ctx, `
 		UPDATE products SET
 			family_id          = ?,
 			sku                = ?,
@@ -289,7 +289,7 @@ func (s *Store) UpdateProduct(ctx context.Context, p Product) error {
 // SoftDeleteProduct sets deleted_at, hiding the product from ListProducts/ProductByID.
 // Products are never hard-deleted — old quote_lines may still reference them.
 func (s *Store) SoftDeleteProduct(ctx context.Context, id int64) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.exec(ctx, `
 		UPDATE products SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 		WHERE id = ?`, id,
 	)

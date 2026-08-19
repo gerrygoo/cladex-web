@@ -54,7 +54,7 @@ func (s *Store) SettingValues(ctx context.Context, keys []string) (map[string]st
 
 // SetSetting upserts a setting's value, recording which admin changed it.
 func (s *Store) SetSetting(ctx context.Context, key, value string, updatedByUserID int64) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.exec(ctx, `
 		INSERT INTO settings (key, value, updated_by) VALUES (?, ?, ?)
 		ON CONFLICT (key) DO UPDATE SET
 			value      = excluded.value,
