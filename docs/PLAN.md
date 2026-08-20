@@ -487,7 +487,7 @@ page back, not a bare fragment, so a no-JS user is never stranded).
 
 Since `quotes.folio`/`prefix` are `NOT NULL` from the M0.2 schema, this slice had to build
 *some* working folio-assignment scheme even though "Folio sequences" is 2.4's title — a
-new `folio_sequences` table (`migrations/0004_add_folio_sequences.sql`) plus
+new `folio_sequences` table (`migrations/0005_add_folio_sequences.sql`) plus
 `Store.NextFolio`, a single atomic `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`
 (confirmed `RETURNING` works against `modernc.org/sqlite`), giving `QA0001`-style folios
 with no read-then-write race window. 2.4 still owns the revision suffix (`-R1`) and the

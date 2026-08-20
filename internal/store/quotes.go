@@ -60,7 +60,7 @@ type QuoteLine struct {
 
 // NextFolio hands out the next folio number for prefix (QA/QS/QI) as
 // "<prefix><4-digit zero-padded number>" (e.g. "QA0001"), via folio_sequences
-// (migrations/0004_add_folio_sequences.sql). The upsert-and-RETURNING is one atomic
+// (migrations/0005_add_folio_sequences.sql). The upsert-and-RETURNING is one atomic
 // statement, so concurrent callers can never receive the same folio.
 func (s *Store) NextFolio(ctx context.Context, prefix string) (string, error) {
 	var n int64
