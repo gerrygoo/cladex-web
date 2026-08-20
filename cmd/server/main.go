@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	cladex "github.com/gerrygoo/cladex-web"
 	"github.com/gerrygoo/cladex-web/internal/cli"
@@ -17,6 +19,30 @@ import (
 
 // buildSHA is set at build time via -ldflags "-X main.buildSHA=...".
 var buildSHA = "dev"
+
+// newLogger builds the process logger. Output goes to stdout, which is where the
+// container runtime collects it: `docker logs cladex`, with rotation configured by the
+// json-file driver options in compose.yaml. No log shipper, no agent — at this scale
+// that stack would cost more memory than the app.
+//
+// LOG_FORMAT=text gives human-readable lines for local dev; the default is JSON so the
+// deployed logs stay greppable with jq. LOG_LEVEL=debug surfaces static-asset and
+// healthcheck requests, which are otherwise filtered out as noise.
+func newLogger() *slog.Logger {
+	level := slog.LevelInfo
+	if err := level.UnmarshalText([]byte(strings.ToLower(os.Getenv("LOG_LEVEL")))); err != nil {
+		level = slog.LevelInfo
+	}
+	opts := &slog.HandlerOptions{Level: level}
+
+	var handler slog.Handler
+	if strings.EqualFold(os.Getenv("LOG_FORMAT"), "text") {
+		handler = slog.NewTextHandler(os.Stdout, opts)
+	} else {
+		handler = slog.NewJSONHandler(os.Stdout, opts)
+	}
+	return slog.New(handler)
+}
 
 func dbPath() string {
 	if p := os.Getenv("DB_PATH"); p != "" {
@@ -44,7 +70,9 @@ func main() {
 }
 
 func runCLI() {
-	ctx := context.Background()
+	// Writes made here are audited as coming from the CLI: there is no session user
+	// behind `docker compose exec cladex /cladex user ...`.
+	ctx := store.WithActor(context.Background(), store.Actor{Source: store.SourceCLI})
 	db, err := openStore(ctx)
 	if err != nil {
 		log.Fatalf("store: %v", err)
@@ -58,6 +86,9 @@ func runCLI() {
 }
 
 func runServer() {
+	logger := newLogger()
+	slog.SetDefault(logger)
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8090"
@@ -70,20 +101,23 @@ func runServer() {
 	ctx := context.Background()
 	db, err := openStore(ctx)
 	if err != nil {
-		log.Fatalf("store: %v", err)
+		logger.Error("open store", slog.Any("err", err))
+		os.Exit(1)
 	}
 	defer db.Close()
 
 	staticFS, err := fs.Sub(cladex.StaticFS, "static")
 	if err != nil {
-		log.Fatalf("static assets: %v", err)
+		logger.Error("static assets", slog.Any("err", err))
+		os.Exit(1)
 	}
 
-	mux := web.NewMux(buildSHA, staticFS, db, cookieSecure, filepath.Dir(dbPath()))
+	mux := web.NewMux(buildSHA, staticFS, db, cookieSecure, logger, filepath.Dir(dbPath()))
 
 	addr := fmt.Sprintf(":%s", port)
-	log.Printf("cladex listening on %s (build %s)", addr, buildSHA)
+	logger.Info("listening", slog.String("addr", addr), slog.String("build", buildSHA))
 	if err := http.ListenAndServe(addr, mux); err != nil {
-		log.Fatal(err)
+		logger.Error("serve", slog.Any("err", err))
+		os.Exit(1)
 	}
 }

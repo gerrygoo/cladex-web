@@ -56,7 +56,9 @@ func main() {
 		return
 	}
 
-	ctx := context.Background()
+	// Catalog rewrites are audited as coming from the importer, so a price that moved
+	// during a re-import is distinguishable from one a person edited.
+	ctx := store.WithActor(context.Background(), store.Actor{Source: store.SourceImport})
 	db, err := store.Open(ctx, *dbPath, cladex.MigrationsFS)
 	if err != nil {
 		log.Fatalf("open store: %v", err)

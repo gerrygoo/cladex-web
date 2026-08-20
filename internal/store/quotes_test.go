@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
@@ -286,6 +287,77 @@ func TestCreateRevision(t *testing.T) {
 	}
 	if rev2.Folio != "QA0001-R2" || rev2.SupersedesQuoteID == nil || *rev2.SupersedesQuoteID != rev.ID {
 		t.Fatalf("second revision = %+v", rev2)
+	}
+}
+
+// TestQuotesAreAudited is a regression test for a gap this store package would
+// otherwise have left silently: quotes is an audited table (migrations/0004_audit_log.sql),
+// but ReplaceQuoteLines and CreateRevision each compose a quotes write into a larger,
+// manually-managed transaction alongside unaudited quote_lines writes, so they can't
+// simply call s.exec like a single-statement write would — they have to stamp the
+// actor themselves via stampActor. Confirms every quotes write this package makes
+// (create, save totals, issue, revise x2 including the original's status flip) is
+// correctly attributed rather than silently unattributed or inheriting a stale actor.
+func TestQuotesAreAudited(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	customerID, _, flatProductID, _ := seedQuoteFixtures(t, s, ctx)
+	userID, err := s.CreateUser(ctx, "vendedora", "Vendedora Uno", "hash", "vendedor")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	actorCtx := WithActor(ctx, Actor{UserID: userID, Source: SourceWeb})
+
+	q, err := s.CreateDraftQuote(actorCtx, customerID, userID, "QA")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+
+	lines := []QuoteLine{
+		{ProductID: &flatProductID, DescriptionSnapshot: "Foco LED", QtyMilli: money.Milli(1_000), UnitPriceMicros: money.Micros(100_000_000), LineTotal: money.Centavos(10_000), Source: "manual"},
+	}
+	totals := pricing.ComputeTotals([]pricing.Line{{UnitPriceMicros: lines[0].UnitPriceMicros, QtyMilli: lines[0].QtyMilli}})
+	if err := s.ReplaceQuoteLines(actorCtx, q.ID, lines, totals); err != nil {
+		t.Fatalf("ReplaceQuoteLines: %v", err)
+	}
+	if err := s.IssueQuote(actorCtx, q.ID, money.Micros(18_000_000), "term", nil, "quotes/QA0001.pdf", "sha1"); err != nil {
+		t.Fatalf("IssueQuote: %v", err)
+	}
+	rev, err := s.CreateRevision(actorCtx, q.ID, userID)
+	if err != nil {
+		t.Fatalf("CreateRevision: %v", err)
+	}
+
+	entries, err := s.AuditLog(ctx, AuditFilter{TableName: "quotes", RowKey: strconv.FormatInt(q.ID, 10)})
+	if err != nil {
+		t.Fatalf("AuditLog(original): %v", err)
+	}
+	// insert (CreateDraftQuote), update (ReplaceQuoteLines totals), update (IssueQuote
+	// freeze), update (CreateRevision's status flip to revisada).
+	if len(entries) != 4 {
+		t.Fatalf("got %d audit entries for the original quote, want 4: %+v", len(entries), entries)
+	}
+	for _, e := range entries {
+		if e.ActorID == nil || *e.ActorID != userID || e.Source != SourceWeb {
+			t.Fatalf("entry not attributed to the actor: %+v", e)
+		}
+	}
+	if entries[0].Op != "update" || entries[0].NewValues["status"] != "revisada" {
+		t.Fatalf("newest entry should be the revisada status flip: %+v", entries[0])
+	}
+
+	revEntries, err := s.AuditLog(ctx, AuditFilter{TableName: "quotes", RowKey: strconv.FormatInt(rev.ID, 10)})
+	if err != nil {
+		t.Fatalf("AuditLog(revision): %v", err)
+	}
+	// insert (the new draft) + update (its totals, copied from the original).
+	if len(revEntries) != 2 {
+		t.Fatalf("got %d audit entries for the revision, want 2: %+v", len(revEntries), revEntries)
+	}
+	for _, e := range revEntries {
+		if e.ActorID == nil || *e.ActorID != userID || e.Source != SourceWeb {
+			t.Fatalf("revision entry not attributed to the actor: %+v", e)
+		}
 	}
 }
 

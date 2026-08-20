@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -19,10 +20,14 @@ Hello world — Typst render pipeline is up.
 
 // NewMux builds the application router. buildSHA is surfaced on /healthz. cookieSecure
 // controls the session cookie's Secure flag — true in production (behind the
-// TLS-terminating proxy), false for local plain-HTTP dev. dataDir is the app's data
+// TLS-terminating proxy), false for local plain-HTTP dev. logger receives the access
+// log; pass nil to discard it, as the handler tests do. dataDir is the app's data
 // directory (alongside the SQLite file) — issued quote PDFs are written under
 // <dataDir>/quotes/, matching docs/PLAN.md's "Quote persistence" design.
-func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool, dataDir string) http.Handler {
+func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool, logger *slog.Logger, dataDir string) http.Handler {
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
 	mux := http.NewServeMux()
 	auth := NewAuth(db, cookieSecure)
 	products := NewProducts(db)
@@ -108,6 +113,8 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool,
 		w.Write(bytes)
 	})
 
+	// Outermost first: the access log has to see the status the CSRF check produces, and
+	// its panic recovery has to cover everything below it.
 	csrf := http.NewCrossOriginProtection()
-	return csrf.Handler(mux)
+	return AccessLog(logger)(csrf.Handler(mux))
 }

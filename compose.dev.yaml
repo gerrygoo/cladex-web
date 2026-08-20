@@ -14,3 +14,6 @@ services:
       PORT: "8090"
       DB_PATH: "/data/cladex.db"
       COOKIE_SECURE: "false"
+      # Human-readable lines for a terminal; production defaults to JSON.
+      LOG_FORMAT: "text"
+      LOG_LEVEL: "debug"

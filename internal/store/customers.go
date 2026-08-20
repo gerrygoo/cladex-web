@@ -17,15 +17,17 @@ type Customer struct {
 	Phone       string
 	Email       string
 	Address     string
+	PostalCode  string
+	TaxRegime   string
 	Notes       string
 }
 
-const customerSelectCols = `id, name, rfc, contact_name, phone, email, address, notes`
+const customerSelectCols = `id, name, rfc, contact_name, phone, email, address, postal_code, tax_regime, notes`
 
 func scanCustomer(row interface{ Scan(...any) error }) (*Customer, error) {
 	var c Customer
-	var rfc, contactName, phone, email, address, notes sql.NullString
-	err := row.Scan(&c.ID, &c.Name, &rfc, &contactName, &phone, &email, &address, &notes)
+	var rfc, contactName, phone, email, address, postalCode, taxRegime, notes sql.NullString
+	err := row.Scan(&c.ID, &c.Name, &rfc, &contactName, &phone, &email, &address, &postalCode, &taxRegime, &notes)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -37,6 +39,8 @@ func scanCustomer(row interface{ Scan(...any) error }) (*Customer, error) {
 	c.Phone = phone.String
 	c.Email = email.String
 	c.Address = address.String
+	c.PostalCode = postalCode.String
+	c.TaxRegime = taxRegime.String
 	c.Notes = notes.String
 	return &c, nil
 }
@@ -97,11 +101,12 @@ func (s *Store) CustomerByID(ctx context.Context, id int64) (*Customer, error) {
 
 // CreateCustomer inserts a new customer, returning its id.
 func (s *Store) CreateCustomer(ctx context.Context, c Customer) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `
-		INSERT INTO customers (name, rfc, contact_name, phone, email, address, notes)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+	res, err := s.exec(ctx, `
+		INSERT INTO customers (name, rfc, contact_name, phone, email, address, postal_code, tax_regime, notes)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		c.Name, nullIfEmpty(c.RFC), nullIfEmpty(c.ContactName), nullIfEmpty(c.Phone),
-		nullIfEmpty(c.Email), nullIfEmpty(c.Address), nullIfEmpty(c.Notes),
+		nullIfEmpty(c.Email), nullIfEmpty(c.Address), nullIfEmpty(c.PostalCode),
+		nullIfEmpty(c.TaxRegime), nullIfEmpty(c.Notes),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("store: create customer %q: %w", c.Name, err)
@@ -111,7 +116,7 @@ func (s *Store) CreateCustomer(ctx context.Context, c Customer) (int64, error) {
 
 // UpdateCustomer overwrites an existing customer's editable fields, identified by c.ID.
 func (s *Store) UpdateCustomer(ctx context.Context, c Customer) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.exec(ctx, `
 		UPDATE customers SET
 			name         = ?,
 			rfc          = ?,
@@ -119,11 +124,14 @@ func (s *Store) UpdateCustomer(ctx context.Context, c Customer) error {
 			phone        = ?,
 			email        = ?,
 			address      = ?,
+			postal_code  = ?,
+			tax_regime   = ?,
 			notes        = ?,
 			updated_at   = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 		WHERE id = ?`,
 		c.Name, nullIfEmpty(c.RFC), nullIfEmpty(c.ContactName), nullIfEmpty(c.Phone),
-		nullIfEmpty(c.Email), nullIfEmpty(c.Address), nullIfEmpty(c.Notes), c.ID,
+		nullIfEmpty(c.Email), nullIfEmpty(c.Address), nullIfEmpty(c.PostalCode),
+		nullIfEmpty(c.TaxRegime), nullIfEmpty(c.Notes), c.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("store: update customer %d: %w", c.ID, err)
@@ -135,7 +143,7 @@ func (s *Store) UpdateCustomer(ctx context.Context, c Customer) error {
 // ListCustomers/CustomerByID. Customers are never hard-deleted — old quotes may still
 // reference them.
 func (s *Store) SoftDeleteCustomer(ctx context.Context, id int64) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.exec(ctx, `
 		UPDATE customers SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 		WHERE id = ?`, id,
 	)

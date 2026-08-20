@@ -24,7 +24,7 @@ func main() {
 		log.Fatalf("data dir: %v", err)
 	}
 
-	ctx := context.Background()
+	ctx := store.WithActor(context.Background(), store.Actor{Source: store.SourceCLI})
 	s, err := store.Open(ctx, dbPath, cladex.MigrationsFS)
 	if err != nil {
 		log.Fatalf("store: %v", err)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	stdsort "sort"
 	"strings"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
@@ -40,7 +41,7 @@ type ProductFamily struct {
 // UpsertFamily inserts a product family by name if it doesn't exist, or updates its
 // sheet_name if it does, returning the family's id either way.
 func (s *Store) UpsertFamily(ctx context.Context, name, sheetName string) (int64, error) {
-	if _, err := s.db.ExecContext(ctx, `
+	if _, err := s.exec(ctx, `
 		INSERT INTO product_families (name, sheet_name) VALUES (?, ?)
 		ON CONFLICT (name) DO UPDATE SET sheet_name = excluded.sheet_name`,
 		name, sheetName,
@@ -65,7 +66,7 @@ func (s *Store) UpsertProduct(ctx context.Context, p Product) error {
 	if currency == "" {
 		currency = "MXN"
 	}
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.exec(ctx, `
 		INSERT INTO products (
 			family_id, sku, description, kg_per_m_micros, unit_price_micros,
 			cost_micros, currency, unit_id
@@ -177,15 +178,23 @@ var productSortColumns = []sortColumn{
 
 // ListProducts returns non-deleted products, optionally filtered by a case-insensitive
 // substring match on SKU or description, and sorted per sort/dir (see
-// productSortColumns for the allowed sort column names; dir is "asc" or "desc").
+// productSortColumns for the allowed sort column names; dir is "asc" or "desc"). The
+// "sku" column sorts naturally (digit runs compare by value, so "SKU-9" < "SKU-10")
+// rather than byte-by-byte, since SQL's ORDER BY has no notion of that — see
+// naturalLess.
 func (s *Store) ListProducts(ctx context.Context, query, sort, dir string) ([]Product, error) {
 	like := "%" + escapeLike(query) + "%"
+	orderBy := orderByClause(productSortColumns, sort, dir)
+	if sort == "sku" {
+		// Re-sorted naturally in Go below; order here only needs to be deterministic.
+		orderBy = "ORDER BY p.id ASC"
+	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+productSelectCols+`
 		`+productFrom+`
 		WHERE p.deleted_at IS NULL
 		  AND (? = '' OR p.sku LIKE ? ESCAPE '\' COLLATE NOCASE OR p.description LIKE ? ESCAPE '\' COLLATE NOCASE)
-		`+orderByClause(productSortColumns, sort, dir), query, like, like,
+		`+orderBy, query, like, like,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: list products: %w", err)
@@ -200,7 +209,19 @@ func (s *Store) ListProducts(ctx context.Context, query, sort, dir string) ([]Pr
 		}
 		products = append(products, *p)
 	}
-	return products, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if sort == "sku" {
+		stdsort.SliceStable(products, func(i, j int) bool {
+			if dir == "desc" {
+				return naturalLess(products[j].SKU, products[i].SKU)
+			}
+			return naturalLess(products[i].SKU, products[j].SKU)
+		})
+	}
+	return products, nil
 }
 
 // escapeLike escapes SQL LIKE wildcards in user-supplied search text so a SKU or
@@ -246,7 +267,7 @@ func (s *Store) CreateProduct(ctx context.Context, p Product) (int64, error) {
 	if currency == "" {
 		currency = "MXN"
 	}
-	res, err := s.db.ExecContext(ctx, `
+	res, err := s.exec(ctx, `
 		INSERT INTO products (
 			family_id, sku, description, kg_per_m_micros, unit_price_micros,
 			cost_micros, currency, unit_id
@@ -266,7 +287,7 @@ func (s *Store) UpdateProduct(ctx context.Context, p Product) error {
 	if currency == "" {
 		currency = "MXN"
 	}
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.exec(ctx, `
 		UPDATE products SET
 			family_id          = ?,
 			sku                = ?,
@@ -318,7 +339,7 @@ func (s *Store) ListPriceBreaks(ctx context.Context, productID int64) ([]pricing
 // SoftDeleteProduct sets deleted_at, hiding the product from ListProducts/ProductByID.
 // Products are never hard-deleted — old quote_lines may still reference them.
 func (s *Store) SoftDeleteProduct(ctx context.Context, id int64) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.exec(ctx, `
 		UPDATE products SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 		WHERE id = ?`, id,
 	)

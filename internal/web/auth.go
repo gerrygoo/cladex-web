@@ -87,6 +87,13 @@ func (a *Auth) RequireAuth(next http.Handler) http.Handler {
 			return
 		}
 		ctx := context.WithValue(r.Context(), userContextKey, user)
+		// Attribute any database write made downstream to this user, for the audit
+		// triggers in migrations/0003_audit_log.sql, and let the access log name them.
+		ctx = store.WithActor(ctx, store.Actor{UserID: user.ID, Source: store.SourceWeb})
+		if info := requestInfoFrom(ctx); info != nil {
+			info.userID = user.ID
+			info.username = user.Username
+		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

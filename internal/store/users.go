@@ -52,7 +52,7 @@ func (s *Store) UserByID(ctx context.Context, id int64) (*User, error) {
 // CreateUser inserts a new user with an already-hashed password, returning its id.
 // role must be "admin" or "vendedor" (enforced by the users.role CHECK constraint).
 func (s *Store) CreateUser(ctx context.Context, username, name, passwordHash, role string) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `
+	res, err := s.exec(ctx, `
 		INSERT INTO users (username, name, password_hash, role) VALUES (?, ?, ?, ?)`,
 		username, name, passwordHash, role,
 	)
@@ -65,7 +65,7 @@ func (s *Store) CreateUser(ctx context.Context, username, name, passwordHash, ro
 // UpdatePassword sets a user's password hash — used both by admin-driven resets
 // (cladexctl user passwd) and self-service change (POST /mi-cuenta).
 func (s *Store) UpdatePassword(ctx context.Context, userID int64, passwordHash string) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ?`, passwordHash, userID)
+	_, err := s.exec(ctx, `UPDATE users SET password_hash = ? WHERE id = ?`, passwordHash, userID)
 	if err != nil {
 		return fmt.Errorf("store: update password for user %d: %w", userID, err)
 	}
@@ -76,7 +76,7 @@ func (s *Store) UpdatePassword(ctx context.Context, userID int64, passwordHash s
 // exists. Disabling is immediate: SessionUser already excludes disabled users, so no
 // separate session revocation is needed.
 func (s *Store) DisableUser(ctx context.Context, username string) (bool, error) {
-	res, err := s.db.ExecContext(ctx, `
+	res, err := s.exec(ctx, `
 		UPDATE users SET disabled_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 		WHERE username = ?`, username,
 	)
@@ -128,11 +128,11 @@ func (s *Store) ListUsers(ctx context.Context, sort, dir string) ([]User, error)
 func (s *Store) SetUserDisabled(ctx context.Context, id int64, disabled bool) error {
 	var err error
 	if disabled {
-		_, err = s.db.ExecContext(ctx, `
+		_, err = s.exec(ctx, `
 			UPDATE users SET disabled_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 			WHERE id = ?`, id)
 	} else {
-		_, err = s.db.ExecContext(ctx, `UPDATE users SET disabled_at = NULL WHERE id = ?`, id)
+		_, err = s.exec(ctx, `UPDATE users SET disabled_at = NULL WHERE id = ?`, id)
 	}
 	if err != nil {
 		return fmt.Errorf("store: set user %d disabled=%v: %w", id, disabled, err)
@@ -143,7 +143,7 @@ func (s *Store) SetUserDisabled(ctx context.Context, id int64, disabled bool) er
 // SetUserRole updates a user's role. role must be "admin" or "vendedor" (enforced by
 // the users.role CHECK constraint).
 func (s *Store) SetUserRole(ctx context.Context, id int64, role string) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE users SET role = ? WHERE id = ?`, role, id)
+	_, err := s.exec(ctx, `UPDATE users SET role = ? WHERE id = ?`, role, id)
 	if err != nil {
 		return fmt.Errorf("store: set user %d role %q: %w", id, role, err)
 	}

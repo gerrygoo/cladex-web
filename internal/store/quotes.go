@@ -85,7 +85,7 @@ func (s *Store) CreateDraftQuote(ctx context.Context, customerID, userID int64, 
 	if err != nil {
 		return nil, fmt.Errorf("store: create draft quote: %w", err)
 	}
-	res, err := s.db.ExecContext(ctx, `
+	res, err := s.exec(ctx, `
 		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, currency)
 		VALUES (?, ?, ?, ?, 'borrador', 'MXN')`,
 		folio, prefix, customerID, userID,
@@ -265,7 +265,10 @@ func (s *Store) ListQuoteLines(ctx context.Context, quoteID int64) ([]QuoteLine,
 // updates the quote's stored totals to match — the one and only write quote_lines gets
 // per "Guardar borrador" click, not per edit (see docs/PLAN.md's quote persistence
 // design and the M2.2 slice notes). line_no is assigned from the slice order (1-based),
-// not from any LineNo already set on the input.
+// not from any LineNo already set on the input. quote_lines isn't an audited table
+// (see migrations/0004_audit_log.sql), but quotes is, so the totals UPDATE below stamps
+// the actor first via stampActor — this method can't just call s.exec for it, since
+// that write has to share this transaction with the quote_lines delete+reinsert.
 func (s *Store) ReplaceQuoteLines(ctx context.Context, quoteID int64, lines []QuoteLine, totals pricing.Totals) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -298,6 +301,9 @@ func (s *Store) ReplaceQuoteLines(ctx context.Context, quoteID int64, lines []Qu
 		}
 	}
 
+	if err := stampActor(ctx, tx); err != nil {
+		return fmt.Errorf("store: replace quote lines for quote %d: %w", quoteID, err)
+	}
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE quotes SET subtotal = ?, iva = ?, total = ? WHERE id = ?`,
 		int64(totals.Subtotal), int64(totals.IVA), int64(totals.Total), quoteID,
@@ -324,7 +330,7 @@ func (s *Store) IssueQuote(ctx context.Context, quoteID int64, fxRateUsed money.
 	if validUntil != nil {
 		validUntilArg = *validUntil
 	}
-	res, err := s.db.ExecContext(ctx, `
+	res, err := s.exec(ctx, `
 		UPDATE quotes SET
 			status = 'emitida',
 			issued_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
@@ -400,7 +406,11 @@ func nextRevisionNumber(ctx context.Context, tx *sql.Tx, base string) (int, erro
 // changed beyond that one status flip: its lines, totals, terms_snapshot, and PDF stay
 // exactly as issued, per docs/PLAN.md's "original untouched" revision design. Only the
 // currently-active issued quote in a lineage can be revised (see ErrQuoteNotIssued) —
-// revise the latest revision, not a superseded one.
+// revise the latest revision, not a superseded one. Stamps the actor once, via
+// stampActor, before this transaction's first write to quotes (an audited table) —
+// one stamp covers all three of this method's quotes writes (the new draft's INSERT,
+// its totals UPDATE, and the original's status UPDATE), since nothing else can write
+// to audit_actor while this transaction holds the write lock.
 func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*Quote, error) {
 	original, err := s.QuoteByID(ctx, originalID)
 	if err != nil {
@@ -430,6 +440,9 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 	}
 	newFolio := fmt.Sprintf("%s-R%d", base, n)
 
+	if err := stampActor(ctx, tx); err != nil {
+		return nil, fmt.Errorf("store: create revision of quote %d: %w", originalID, err)
+	}
 	res, err := tx.ExecContext(ctx, `
 		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, currency, supersedes_quote_id)
 		VALUES (?, ?, ?, ?, 'borrador', ?, ?)`,

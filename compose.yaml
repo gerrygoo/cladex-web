@@ -10,3 +10,36 @@ services:
     environment:
       PORT: "8090"
       DB_PATH: "/data/cladex.db"
+      # json (default) keeps the access log greppable with jq; LOG_LEVEL=debug adds
+      # static-asset and healthcheck requests.
+      LOG_FORMAT: "json"
+      LOG_LEVEL: "info"
+    # The access log goes to stdout, so `docker logs cladex` is the query interface.
+    # Rotation is the whole retention policy — a shipper (Loki, Vector) would cost more
+    # memory on this box than the app does.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Continuous point-in-time replication of the SQLite file; see litestream.yml.
+  # Reads the same ./data mount as cladex and writes WAL frames to ./backups, which the
+  # NAS cloud sync already carries offsite.
+  litestream:
+    image: litestream/litestream:0.5.16
+    container_name: cladex-litestream
+    user: "1000:10"
+    restart: unless-stopped
+    command: replicate -config /etc/litestream.yml
+    volumes:
+      - ./data:/data
+      - ./backups:/backups
+      - ./litestream.yml:/etc/litestream.yml:ro
+    depends_on:
+      - cladex
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
