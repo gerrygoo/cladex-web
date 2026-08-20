@@ -2,9 +2,13 @@ package web
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -16,7 +20,7 @@ import (
 
 func newTestQuotes(t *testing.T, a *Auth) *Quotes {
 	t.Helper()
-	return NewQuotes(a.store)
+	return NewQuotes(a.store, t.TempDir())
 }
 
 func seedPricingSettings(t *testing.T, a *Auth, userID int64) {
@@ -304,6 +308,204 @@ func TestQuotesPDF(t *testing.T) {
 	}
 	if !strings.HasPrefix(rec.Body.String(), "%PDF") {
 		t.Fatalf("body doesn't look like a PDF")
+	}
+}
+
+// TestQuotesEmitir requires the `typst` CLI (part of the documented local dev
+// toolchain, see docs/PLAN.md 0.0a).
+func TestQuotesEmitir(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, flatProductID, _ := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, userID)
+
+	quote, err := a.store.CreateDraftQuote(context.Background(), customerID, userID, "QA")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+
+	form := url.Values{
+		"line_keys":            {"0"},
+		"lines[0][kind]":       {"product"},
+		"lines[0][product_id]": {strconv.FormatInt(flatProductID, 10)},
+		"lines[0][qty]":        {"2"},
+	}
+	rec := doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+quote.Folio+"/emitir",
+		map[string]string{"folio": quote.Folio}, form, false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir status = %d, want 303; body = %s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); loc != "/cotizaciones/"+quote.Folio+"?emitida=1" {
+		t.Fatalf("Emitir Location = %q", loc)
+	}
+
+	issued, err := a.store.QuoteByID(context.Background(), quote.ID)
+	if err != nil {
+		t.Fatalf("QuoteByID: %v", err)
+	}
+	if issued.Status != "emitida" {
+		t.Fatalf("Status = %q, want emitida", issued.Status)
+	}
+	if issued.IssuedAt == nil || issued.FxRateUsedMicros == nil || issued.TermsSnapshot == nil || issued.ValidUntil == nil {
+		t.Fatalf("issue didn't freeze all expected fields: %+v", issued)
+	}
+	if issued.PDFPath == nil || issued.PDFSHA256 == nil {
+		t.Fatalf("issue didn't record PDF path/hash: %+v", issued)
+	}
+
+	pdfBytes, err := os.ReadFile(filepath.Join(q.quotesDir, filepath.Base(*issued.PDFPath)))
+	if err != nil {
+		t.Fatalf("stored PDF not found: %v", err)
+	}
+	if !strings.HasPrefix(string(pdfBytes), "%PDF") {
+		t.Fatal("stored file doesn't look like a PDF")
+	}
+	sum := sha256.Sum256(pdfBytes)
+	if hex.EncodeToString(sum[:]) != *issued.PDFSHA256 {
+		t.Fatal("stored PDF's SHA-256 doesn't match the recorded hash")
+	}
+
+	// Once issued, Guardar refuses to touch it (immutability).
+	rec = doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+quote.Folio+"/guardar",
+		map[string]string{"folio": quote.Folio}, form, false)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("Guardar(issued quote) status = %d, want 409", rec.Code)
+	}
+
+	// Issuing again is refused too — a quote is issued exactly once.
+	rec = doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+quote.Folio+"/emitir",
+		map[string]string{"folio": quote.Folio}, form, false)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("Emitir(already issued) status = %d, want 409", rec.Code)
+	}
+
+	// Reprint is byte-identical even after settings change — it serves the stored
+	// bytes, not a fresh live render.
+	rec1 := doForm(t, a, userID, q.PDF, "GET", "/cotizaciones/"+quote.Folio+"/pdf",
+		map[string]string{"folio": quote.Folio}, nil, false)
+	if err := a.store.SetSetting(context.Background(), "fx_rate", "99000000", userID); err != nil {
+		t.Fatalf("SetSetting(fx_rate): %v", err)
+	}
+	if err := a.store.SetSetting(context.Background(), "copper_price", "999000000", userID); err != nil {
+		t.Fatalf("SetSetting(copper_price): %v", err)
+	}
+	rec2 := doForm(t, a, userID, q.PDF, "GET", "/cotizaciones/"+quote.Folio+"/pdf",
+		map[string]string{"folio": quote.Folio}, nil, false)
+	if rec1.Body.String() != rec2.Body.String() {
+		t.Fatal("reprint after changing FX/copper settings is not byte-identical")
+	}
+}
+
+func TestQuotesEmitirRejectsInvalidLine(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, userID)
+
+	quote, err := a.store.CreateDraftQuote(context.Background(), customerID, userID, "QA")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+	form := url.Values{
+		"line_keys":             {"0"},
+		"lines[0][kind]":        {"free"},
+		"lines[0][description]": {"Servicio"},
+		"lines[0][qty]":         {"no-es-un-numero"},
+		"lines[0][unit_price]":  {"10.00"},
+	}
+	rec := doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+quote.Folio+"/emitir",
+		map[string]string{"folio": quote.Folio}, form, false)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("Emitir(invalid line) status = %d, want 422", rec.Code)
+	}
+	reloaded, err := a.store.QuoteByID(context.Background(), quote.ID)
+	if err != nil || reloaded.Status != "borrador" {
+		t.Fatalf("quote should remain a draft after a rejected Emitir: %+v, %v", reloaded, err)
+	}
+}
+
+// TestQuotesRevisar requires the `typst` CLI (see TestQuotesEmitir).
+func TestQuotesRevisar(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, flatProductID, _ := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, userID)
+
+	quote, err := a.store.CreateDraftQuote(context.Background(), customerID, userID, "QA")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+
+	// Revising a draft (never issued) is refused.
+	rec := doForm(t, a, userID, q.Revisar, "POST", "/cotizaciones/"+quote.Folio+"/revisar",
+		map[string]string{"folio": quote.Folio}, url.Values{}, false)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("Revisar(draft) status = %d, want 409", rec.Code)
+	}
+
+	form := url.Values{
+		"line_keys":            {"0"},
+		"lines[0][kind]":       {"product"},
+		"lines[0][product_id]": {strconv.FormatInt(flatProductID, 10)},
+		"lines[0][qty]":        {"1"},
+	}
+	rec = doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+quote.Folio+"/emitir",
+		map[string]string{"folio": quote.Folio}, form, false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir status = %d, want 303; body = %s", rec.Code, rec.Body.String())
+	}
+	beforeRevision, err := a.store.QuoteByID(context.Background(), quote.ID)
+	if err != nil {
+		t.Fatalf("QuoteByID: %v", err)
+	}
+
+	rec = doForm(t, a, userID, q.Revisar, "POST", "/cotizaciones/"+quote.Folio+"/revisar",
+		map[string]string{"folio": quote.Folio}, url.Values{}, false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Revisar status = %d, want 303; body = %s", rec.Code, rec.Body.String())
+	}
+	wantFolio := quote.Folio + "-R1"
+	if loc := rec.Header().Get("Location"); loc != "/cotizaciones/"+wantFolio {
+		t.Fatalf("Revisar Location = %q, want /cotizaciones/%s", loc, wantFolio)
+	}
+
+	rev, err := a.store.QuoteByFolio(context.Background(), wantFolio)
+	if err != nil || rev == nil {
+		t.Fatalf("QuoteByFolio(%s): %+v, %v", wantFolio, rev, err)
+	}
+	if rev.Status != "borrador" || rev.SupersedesQuoteID == nil || *rev.SupersedesQuoteID != quote.ID {
+		t.Fatalf("revision = %+v", rev)
+	}
+	revLines, err := a.store.ListQuoteLines(context.Background(), rev.ID)
+	if err != nil || len(revLines) != 1 {
+		t.Fatalf("revision lines = %+v, %v", revLines, err)
+	}
+
+	// The original is untouched (same PDF/hash/totals as right after issuing) except
+	// for its status flip to 'revisada'.
+	original, err := a.store.QuoteByID(context.Background(), quote.ID)
+	if err != nil {
+		t.Fatalf("QuoteByID(original): %v", err)
+	}
+	if original.Status != "revisada" {
+		t.Fatalf("original.Status = %q, want revisada", original.Status)
+	}
+	if original.SupersededByFolio != wantFolio {
+		t.Fatalf("original.SupersededByFolio = %q, want %q", original.SupersededByFolio, wantFolio)
+	}
+	if *original.PDFSHA256 != *beforeRevision.PDFSHA256 || original.Total != beforeRevision.Total {
+		t.Fatalf("original quote's own data changed after revising: before=%+v after=%+v", beforeRevision, original)
+	}
+
+	// Revising the (now-superseded) original again is refused — only the active
+	// revision can be revised further.
+	rec = doForm(t, a, userID, q.Revisar, "POST", "/cotizaciones/"+quote.Folio+"/revisar",
+		map[string]string{"folio": quote.Folio}, url.Values{}, false)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("Revisar(revisada) status = %d, want 409", rec.Code)
 	}
 }
 

@@ -19,13 +19,15 @@ Hello world — Typst render pipeline is up.
 
 // NewMux builds the application router. buildSHA is surfaced on /healthz. cookieSecure
 // controls the session cookie's Secure flag — true in production (behind the
-// TLS-terminating proxy), false for local plain-HTTP dev.
-func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool) http.Handler {
+// TLS-terminating proxy), false for local plain-HTTP dev. dataDir is the app's data
+// directory (alongside the SQLite file) — issued quote PDFs are written under
+// <dataDir>/quotes/, matching docs/PLAN.md's "Quote persistence" design.
+func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool, dataDir string) http.Handler {
 	mux := http.NewServeMux()
 	auth := NewAuth(db, cookieSecure)
 	products := NewProducts(db)
 	customers := NewCustomers(db)
-	quotes := NewQuotes(db)
+	quotes := NewQuotes(db, dataDir)
 	users := NewUsers(db)
 	settings := NewSettings(db)
 	units := NewUnits(db)
@@ -66,6 +68,8 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool)
 	mux.Handle("POST /cotizaciones/{folio}/recalcular", auth.RequireAuth(http.HandlerFunc(quotes.Recalcular)))
 	mux.Handle("GET /cotizaciones/{folio}/productos", auth.RequireAuth(http.HandlerFunc(quotes.BuscarProductos)))
 	mux.Handle("POST /cotizaciones/{folio}/guardar", auth.RequireAuth(http.HandlerFunc(quotes.Guardar)))
+	mux.Handle("POST /cotizaciones/{folio}/emitir", auth.RequireAuth(http.HandlerFunc(quotes.Emitir)))
+	mux.Handle("POST /cotizaciones/{folio}/revisar", auth.RequireAuth(http.HandlerFunc(quotes.Revisar)))
 	mux.Handle("GET /cotizaciones/{folio}/pdf", auth.RequireAuth(http.HandlerFunc(quotes.PDF)))
 
 	mux.Handle("GET /usuarios", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(users.List))))

@@ -314,13 +314,77 @@ templ ProductSearchResults(products []store.Product) {
 	</div>
 }
 
-// QuoteBuilder is the main /cotizaciones/{folio} page: customer/folio header, the
-// product picker, the line table (QuoteLinesFragment), and "Guardar borrador". Every
-// mutating control lives inside the one <form id="linea-form">, whose default action is
-// Recalcular (a pure recompute, never persisted); only the "Guardar borrador" button
-// overrides its own formaction to actually write the draft. searchQuery/searchResults
-// are the no-JS fallback for the picker (a real page reload with ?q=) — htmx enhances
-// the same input into a live, in-place search against BuscarProductos.
+// emitirPath is the formaction the "Emitir cotización" button overrides to — saves the
+// submitted line set (same as Guardar) and then freezes the quote.
+func emitirPath(folio string) string {
+	return "/cotizaciones/" + folio + "/emitir"
+}
+
+// revisarPath is the action for the read-only "Revisar" button on an issued quote —
+// creates a new editable "<folio>-R<n>" draft and redirects into it.
+func revisarPath(folio string) string {
+	return "/cotizaciones/" + folio + "/revisar"
+}
+
+// QuoteLinesReadOnly renders an issued or revised quote's frozen lines — no qty
+// inputs, no remove buttons, nothing that implies the row can still change. Used
+// instead of QuoteLinesFragment once a quote leaves 'borrador'.
+templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
+	<table>
+		<thead>
+			<tr>
+				<th>Producto / Descripción</th>
+				<th>Cantidad</th>
+				<th>Precio unitario</th>
+				<th>Total</th>
+			</tr>
+		</thead>
+		<tbody>
+			if len(lines) == 0 {
+				<tr>
+					<td colspan="4">Sin líneas.</td>
+				</tr>
+			}
+			for _, line := range lines {
+				<tr>
+					<td>
+						if line.IsFree {
+							{ line.Description }
+						} else {
+							{ line.ProductLabel }
+						}
+					</td>
+					<td>
+						{ line.QtyMilli.String() }
+						if line.UnitCode != "" {
+							{ " " + line.UnitCode }
+						}
+					</td>
+					<td>{ line.UnitPriceMicros.ToCentavosHalfUp().String() }</td>
+					<td>{ line.LineTotal.String() }</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+	<div class="quote-totals">
+		<p>Subtotal: { totals.Subtotal.String() }</p>
+		<p>IVA (16%): { totals.IVA.String() }</p>
+		<p><strong>Total: { totals.Total.String() }</strong></p>
+	</div>
+}
+
+// QuoteBuilder is the main /cotizaciones/{folio} page. A draft ('borrador') gets the
+// full editable form: every mutating control lives inside the one
+// <form id="linea-form">, whose default action is Recalcular (a pure recompute, never
+// persisted); "Guardar borrador" and "Emitir cotización" are the only two buttons that
+// override their own formaction to actually write. searchQuery/searchResults are the
+// no-JS fallback for the product picker (a real page reload with ?q=) — htmx otherwise
+// enhances the same input into a live, in-place search against BuscarProductos.
+//
+// An issued ('emitida') or revised ('revisada') quote is immutable, so it renders a
+// read-only summary instead: QuoteLinesReadOnly, the frozen issue metadata, and either
+// a "Revisar" button (emitida — the active version) or a note pointing at whichever
+// revision superseded it (revisada).
 templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, successMsg string, searchQuery string, searchResults []store.Product, user *NavUser) {
 	@Layout("Cotización "+quote.Folio, user) {
 		<h1>Cotización { quote.Folio }</h1>
@@ -329,39 +393,67 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 			Serie: { quote.Prefix } ·
 			Estado: { quote.Status }
 		</p>
+		if quote.SupersedesFolio != "" {
+			<p>Esta es una revisión de <a href={ templ.URL("/cotizaciones/" + quote.SupersedesFolio) }>{ quote.SupersedesFolio }</a>.</p>
+		}
 		if successMsg != "" {
 			<p class="success">{ successMsg }</p>
 		}
-		<form id="linea-form" method="post" action={ templ.URL(recalcularPath(quote.Folio)) }>
-			<div class="toolbar">
-				<input
-					type="search"
-					name="q"
-					placeholder="Buscar producto por SKU o descripción…"
-					value={ searchQuery }
-					hx-get={ "/cotizaciones/" + quote.Folio + "/productos" }
-					hx-trigger="keyup changed delay:400ms, search"
-					hx-target="#product-search-results"
-					hx-swap="outerHTML"
-				/>
-				<button type="submit" formmethod="get" formaction={ "/cotizaciones/" + quote.Folio }>Buscar</button>
-				<button
-					type="submit"
-					name="add_free"
-					value="1"
-					hx-post={ recalcularPath(quote.Folio) }
-					hx-target="#quote-lines-fragment"
-					hx-swap="outerHTML"
-				>
-					Línea libre
+		if quote.Status == "borrador" {
+			<form id="linea-form" method="post" action={ templ.URL(recalcularPath(quote.Folio)) }>
+				<div class="toolbar">
+					<input
+						type="search"
+						name="q"
+						placeholder="Buscar producto por SKU o descripción…"
+						value={ searchQuery }
+						hx-get={ "/cotizaciones/" + quote.Folio + "/productos" }
+						hx-trigger="keyup changed delay:400ms, search"
+						hx-target="#product-search-results"
+						hx-swap="outerHTML"
+					/>
+					<button type="submit" formmethod="get" formaction={ "/cotizaciones/" + quote.Folio }>Buscar</button>
+					<button
+						type="submit"
+						name="add_free"
+						value="1"
+						hx-post={ recalcularPath(quote.Folio) }
+						hx-target="#quote-lines-fragment"
+						hx-swap="outerHTML"
+					>
+						Línea libre
+					</button>
+				</div>
+				@ProductSearchResults(searchResults)
+				@QuoteLinesFragment(quote, lines, totals)
+				<button type="submit" formaction={ guardarPath(quote.Folio) }>
+					Guardar borrador
 				</button>
-			</div>
-			@ProductSearchResults(searchResults)
-			@QuoteLinesFragment(quote, lines, totals)
-			<button type="submit" formaction={ guardarPath(quote.Folio) }>
-				Guardar borrador
-			</button>
-		</form>
+				<button type="submit" formaction={ emitirPath(quote.Folio) }>
+					Emitir cotización
+				</button>
+			</form>
+		} else {
+			@QuoteLinesReadOnly(lines, totals)
+			<p>
+				if quote.IssuedAt != nil {
+					Emitida: { *quote.IssuedAt } ·
+				}
+				if quote.ValidUntil != nil {
+					Vigencia: { *quote.ValidUntil } ·
+				}
+				if quote.FxRateUsedMicros != nil {
+					Tipo de cambio usado: { quote.FxRateUsedMicros.String() }
+				}
+			</p>
+			if quote.Status == "emitida" {
+				<form method="post" action={ templ.URL(revisarPath(quote.Folio)) }>
+					<button type="submit">Revisar</button>
+				</form>
+			} else if quote.Status == "revisada" && quote.SupersededByFolio != "" {
+				<p>Esta cotización fue revisada. Ver <a href={ templ.URL("/cotizaciones/" + quote.SupersededByFolio) }>{ quote.SupersededByFolio }</a>.</p>
+			}
+		}
 		<p>
 			<a href={ templ.URL("/cotizaciones/" + quote.Folio + "/pdf") } target="_blank">Descargar PDF</a> ·
 			<a href="/cotizaciones">Volver a cotizaciones</a>

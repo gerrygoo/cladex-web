@@ -2,9 +2,14 @@ package web
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -16,14 +21,22 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
 
-// Quotes holds the dependencies for the /cotizaciones handlers.
+// Quotes holds the dependencies for the /cotizaciones handlers. quotesDir is where
+// issued quotes' rendered PDFs are written and re-read from — <dataDir>/quotes/, per
+// docs/PLAN.md's "Quote persistence" design.
 type Quotes struct {
-	store *store.Store
+	store     *store.Store
+	quotesDir string
 }
 
-func NewQuotes(s *store.Store) *Quotes {
-	return &Quotes{store: s}
+func NewQuotes(s *store.Store, dataDir string) *Quotes {
+	return &Quotes{store: s, quotesDir: filepath.Join(dataDir, "quotes")}
 }
+
+// defaultValidityDays is how long an issued quote is valid for when no other input
+// sets it — no UI exists yet to pick a custom validity per quote, so every issued
+// quote gets this fixed window. Matches a typical commercial-quote validity period.
+const defaultValidityDays = 30
 
 // validPrefixes mirrors the quotes.prefix CHECK constraint in migrations/0001_init.sql.
 // Per the user's decision, prefix is a free choice at quote-creation time — a folio
@@ -432,8 +445,11 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	successMsg := ""
-	if r.URL.Query().Get("guardado") == "1" {
+	switch {
+	case r.URL.Query().Get("guardado") == "1":
 		successMsg = "Borrador guardado."
+	case r.URL.Query().Get("emitida") == "1":
+		successMsg = "Cotización emitida."
 	}
 	user, _ := UserFromContext(ctx)
 	views.QuoteBuilder(*quote, lines, totals, successMsg, searchQuery, searchResults, navUserView(user)).Render(ctx, w)
@@ -498,6 +514,10 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 	if quote == nil {
 		return
 	}
+	if quote.Status != "borrador" {
+		http.Error(w, "esta cotización ya no es editable", http.StatusConflict)
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "solicitud inválida", http.StatusBadRequest)
 		return
@@ -538,9 +558,9 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, fmt.Sprintf("/cotizaciones/%s?guardado=1", quote.Folio), http.StatusSeeOther)
 }
 
-// formatFecha renders a quotes.created_at timestamp (ISO-8601 UTC, from SQLite's
-// strftime default) as a plain DD/MM/YYYY date. Falls back to the raw string on a
-// parse miss rather than failing the whole PDF over a display date.
+// formatFecha renders an ISO-8601 UTC timestamp (SQLite's strftime default, e.g.
+// quotes.created_at or issued_at) as a plain DD/MM/YYYY date. Falls back to the raw
+// string on a parse miss rather than failing the whole PDF over a display date.
 func formatFecha(iso string) string {
 	for _, layout := range []string{"2006-01-02T15:04:05.000Z", time.RFC3339Nano, time.RFC3339} {
 		if t, err := time.Parse(layout, iso); err == nil {
@@ -550,16 +570,85 @@ func formatFecha(iso string) string {
 	return iso
 }
 
-// PDF handles GET /cotizaciones/{folio}/pdf: renders the quote's current state (same
-// computeQuoteLines path as the builder and Guardar, so the PDF always matches what's
-// on screen) as a downloadable cotización PDF via internal/pdf. Available for a draft
-// as a preview — 2.4's issue flow is what freezes and persists the PDF bytes.
+// formatFechaDate renders a plain YYYY-MM-DD date (quotes.valid_until's format) as
+// DD/MM/YYYY, matching formatFecha's display. Empty/unparseable input renders as "".
+func formatFechaDate(isoDate string) string {
+	if t, err := time.Parse("2006-01-02", isoDate); err == nil {
+		return t.Format("02/01/2006")
+	}
+	return ""
+}
+
+// docLinesFrom converts computed line views into the PDF package's already-formatted
+// shape, skipping any row that failed to price (same rule computeQuoteTotals uses).
+func docLinesFrom(lines []views.QuoteLineView) []pdf.QuoteLineDoc {
+	docLines := make([]pdf.QuoteLineDoc, 0, len(lines))
+	for _, l := range lines {
+		if l.Error != "" {
+			continue
+		}
+		docLines = append(docLines, pdf.QuoteLineDoc{
+			Description: l.Description,
+			Qty:         l.QtyMilli.String(),
+			UnitPrice:   l.UnitPriceMicros.ToCentavosHalfUp().String(),
+			Total:       l.LineTotal.String(),
+		})
+	}
+	return docLines
+}
+
+// buildQuoteDocument assembles the pdf package's input from a quote, its computed
+// lines/totals, and a resolved terms block (the caller decides live QuoteTerms vs. a
+// frozen terms_snapshot — see PDF and Emitir below) and vencimiento display string.
+func buildQuoteDocument(quote store.Quote, lines []views.QuoteLineView, totals pricing.Totals, terms []string, vencimiento string) pdf.QuoteDocument {
+	return pdf.QuoteDocument{
+		Folio:        quote.Folio,
+		CustomerName: quote.CustomerName,
+		Vendedor:     quote.UserName,
+		Fecha:        formatFecha(quote.CreatedAt),
+		Vencimiento:  vencimiento,
+		Lines:        docLinesFrom(lines),
+		Subtotal:     totals.Subtotal.String(),
+		IVA:          totals.IVA.String(),
+		Total:        totals.Total.String(),
+		Terms:        terms,
+	}
+}
+
+// resolveTerms returns a quote's frozen terms_snapshot (newline-joined, per
+// IssueQuote) if it has one, else the live per-prefix terms — a draft has no snapshot
+// yet, so its PDF preview always reflects the current terms text.
+func resolveTerms(quote store.Quote) []string {
+	if quote.TermsSnapshot != nil {
+		return strings.Split(*quote.TermsSnapshot, "\n")
+	}
+	return pdf.QuoteTerms[quote.Prefix]
+}
+
+// PDF handles GET /cotizaciones/{folio}/pdf. An issued or revised quote serves the
+// exact bytes written at issue time (guaranteeing a byte-identical reprint no matter
+// how the template or settings change afterward); a draft renders a live preview
+// through the same computeQuoteLines path as the builder and Guardar, so it always
+// matches what's on screen.
 func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	quote := q.loadQuoteOrNotFound(w, r)
 	if quote == nil {
 		return
 	}
+
+	if quote.PDFPath != nil {
+		bytes, err := os.ReadFile(filepath.Join(q.quotesDir, filepath.Base(*quote.PDFPath)))
+		if err != nil {
+			http.Error(w, "error interno", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/pdf")
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s.pdf"`, quote.Folio))
+		w.Write(bytes)
+		return
+	}
+
 	persisted, err := q.store.ListQuoteLines(ctx, quote.ID)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
@@ -573,30 +662,7 @@ func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
 	lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), settings)
 	totals := computeQuoteTotals(lines)
 
-	docLines := make([]pdf.QuoteLineDoc, 0, len(lines))
-	for _, l := range lines {
-		if l.Error != "" {
-			continue
-		}
-		docLines = append(docLines, pdf.QuoteLineDoc{
-			Description: l.Description,
-			Qty:         l.QtyMilli.String(),
-			UnitPrice:   l.UnitPriceMicros.ToCentavosHalfUp().String(),
-			Total:       l.LineTotal.String(),
-		})
-	}
-	doc := pdf.QuoteDocument{
-		Folio:        quote.Folio,
-		CustomerName: quote.CustomerName,
-		Vendedor:     quote.UserName,
-		Fecha:        formatFecha(quote.CreatedAt),
-		Lines:        docLines,
-		Subtotal:     totals.Subtotal.String(),
-		IVA:          totals.IVA.String(),
-		Total:        totals.Total.String(),
-		Terms:        pdf.QuoteTerms[quote.Prefix],
-	}
-
+	doc := buildQuoteDocument(*quote, lines, totals, resolveTerms(*quote), "")
 	bytes, err := pdf.RenderQuote(ctx, doc)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
@@ -605,4 +671,117 @@ func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s.pdf"`, quote.Folio))
 	w.Write(bytes)
+}
+
+// Emitir handles POST /cotizaciones/{folio}/emitir: the "Emitir cotización" button on
+// the builder form, which submits the same full line set Guardar does. It saves that
+// state (so issuing also captures any not-yet-saved edit) and then freezes the quote:
+// locks the FX rate and terms text actually used, renders and writes the PDF to disk,
+// and flips status to 'emitida' via store.IssueQuote. Only valid on a draft; re-renders
+// the builder with row-level errors, without writing anything, if a line is invalid —
+// the same rule Guardar follows.
+func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	quote := q.loadQuoteOrNotFound(w, r)
+	if quote == nil {
+		return
+	}
+	if quote.Status != "borrador" {
+		http.Error(w, "esta cotización ya fue emitida", http.StatusConflict)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "solicitud inválida", http.StatusBadRequest)
+		return
+	}
+	settings, err := q.loadPricingSettings(ctx)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), settings)
+	totals := computeQuoteTotals(lines)
+
+	if len(lines) == 0 {
+		user, _ := UserFromContext(ctx)
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		views.QuoteBuilder(*quote, lines, totals, "", "", nil, navUserView(user)).Render(ctx, w)
+		return
+	}
+	for _, l := range lines {
+		if l.Error != "" {
+			user, _ := UserFromContext(ctx)
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			views.QuoteBuilder(*quote, lines, totals, "", "", nil, navUserView(user)).Render(ctx, w)
+			return
+		}
+	}
+
+	storeLines := make([]store.QuoteLine, len(lines))
+	for i, l := range lines {
+		storeLines[i] = store.QuoteLine{
+			ProductID:           l.ProductID,
+			DescriptionSnapshot: l.Description,
+			QtyMilli:            l.QtyMilli,
+			UnitPriceMicros:     l.UnitPriceMicros,
+			LineTotal:           l.LineTotal,
+			PricingInputsJSON:   l.PricingInputsJSON,
+			Source:              "manual",
+		}
+	}
+	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, storeLines, totals); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+
+	terms := pdf.QuoteTerms[quote.Prefix]
+	validUntil := time.Now().AddDate(0, 0, defaultValidityDays).Format("2006-01-02")
+	doc := buildQuoteDocument(*quote, lines, totals, terms, formatFechaDate(validUntil))
+
+	pdfBytes, err := pdf.RenderQuote(ctx, doc)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	sum := sha256.Sum256(pdfBytes)
+	sha := hex.EncodeToString(sum[:])
+	fileName := quote.Folio + ".pdf"
+	if err := os.MkdirAll(q.quotesDir, 0o755); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	if err := os.WriteFile(filepath.Join(q.quotesDir, fileName), pdfBytes, 0o644); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+
+	termsSnapshot := strings.Join(terms, "\n")
+	if err := q.store.IssueQuote(ctx, quote.ID, settings.FXRate, termsSnapshot, &validUntil, "quotes/"+fileName, sha); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/cotizaciones/"+quote.Folio+"?emitida=1", http.StatusSeeOther)
+}
+
+// Revisar handles POST /cotizaciones/{folio}/revisar: creates an editable revision of
+// an issued quote (a new "<folio>-R<n>" draft, pre-populated with the original's
+// lines) and redirects into its builder. Only valid on the currently-active issued
+// quote in a lineage — see store.CreateRevision / store.ErrQuoteNotIssued.
+func (q *Quotes) Revisar(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	quote := q.loadQuoteOrNotFound(w, r)
+	if quote == nil {
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	rev, err := q.store.CreateRevision(ctx, quote.ID, user.ID)
+	if err != nil {
+		if errors.Is(err, store.ErrQuoteNotIssued) {
+			http.Error(w, "solo se puede revisar una cotización emitida", http.StatusConflict)
+			return
+		}
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/cotizaciones/"+rev.Folio, http.StatusSeeOther)
 }

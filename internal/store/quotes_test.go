@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
@@ -153,6 +154,138 @@ func TestReplaceQuoteLines(t *testing.T) {
 	}
 	if len(got) != 1 {
 		t.Fatalf("ListQuoteLines after second replace = %d lines, want 1", len(got))
+	}
+}
+
+func TestIssueQuote(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	customerID, userID, flatProductID, _ := seedQuoteFixtures(t, s, ctx)
+
+	q, err := s.CreateDraftQuote(ctx, customerID, userID, "QA")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+	lines := []QuoteLine{
+		{ProductID: &flatProductID, DescriptionSnapshot: "Foco LED", QtyMilli: money.Milli(1_000), UnitPriceMicros: money.Micros(100_000_000), LineTotal: money.Centavos(10_000), Source: "manual"},
+	}
+	totals := pricing.ComputeTotals([]pricing.Line{{UnitPriceMicros: lines[0].UnitPriceMicros, QtyMilli: lines[0].QtyMilli}})
+	if err := s.ReplaceQuoteLines(ctx, q.ID, lines, totals); err != nil {
+		t.Fatalf("ReplaceQuoteLines: %v", err)
+	}
+
+	validUntil := "2026-09-01"
+	fxRate := money.Micros(18_000_000)
+	if err := s.IssueQuote(ctx, q.ID, fxRate, "term one\nterm two", &validUntil, "quotes/QA0001.pdf", "deadbeef"); err != nil {
+		t.Fatalf("IssueQuote: %v", err)
+	}
+
+	issued, err := s.QuoteByID(ctx, q.ID)
+	if err != nil {
+		t.Fatalf("QuoteByID: %v", err)
+	}
+	if issued.Status != "emitida" {
+		t.Fatalf("Status = %q, want emitida", issued.Status)
+	}
+	if issued.IssuedAt == nil || *issued.IssuedAt == "" {
+		t.Fatal("IssuedAt not set")
+	}
+	if issued.FxRateUsedMicros == nil || *issued.FxRateUsedMicros != fxRate {
+		t.Fatalf("FxRateUsedMicros = %v, want %v", issued.FxRateUsedMicros, fxRate)
+	}
+	if issued.TermsSnapshot == nil || *issued.TermsSnapshot != "term one\nterm two" {
+		t.Fatalf("TermsSnapshot = %v", issued.TermsSnapshot)
+	}
+	if issued.ValidUntil == nil || *issued.ValidUntil != validUntil {
+		t.Fatalf("ValidUntil = %v, want %v", issued.ValidUntil, validUntil)
+	}
+	if issued.PDFPath == nil || *issued.PDFPath != "quotes/QA0001.pdf" || issued.PDFSHA256 == nil || *issued.PDFSHA256 != "deadbeef" {
+		t.Fatalf("PDF fields = %+v", issued)
+	}
+
+	// Issuing an already-issued quote fails — not a thing.
+	if err := s.IssueQuote(ctx, q.ID, fxRate, "x", nil, "y", "z"); !errors.Is(err, ErrQuoteNotDraft) {
+		t.Fatalf("IssueQuote(already issued) = %v, want ErrQuoteNotDraft", err)
+	}
+}
+
+func TestCreateRevision(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	customerID, userID, flatProductID, _ := seedQuoteFixtures(t, s, ctx)
+
+	q, err := s.CreateDraftQuote(ctx, customerID, userID, "QA")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+	// A revision of a draft (never issued) should fail.
+	if _, err := s.CreateRevision(ctx, q.ID, userID); !errors.Is(err, ErrQuoteNotIssued) {
+		t.Fatalf("CreateRevision(draft) = %v, want ErrQuoteNotIssued", err)
+	}
+
+	lines := []QuoteLine{
+		{ProductID: &flatProductID, DescriptionSnapshot: "Foco LED", QtyMilli: money.Milli(1_000), UnitPriceMicros: money.Micros(100_000_000), LineTotal: money.Centavos(10_000), Source: "manual"},
+	}
+	totals := pricing.ComputeTotals([]pricing.Line{{UnitPriceMicros: lines[0].UnitPriceMicros, QtyMilli: lines[0].QtyMilli}})
+	if err := s.ReplaceQuoteLines(ctx, q.ID, lines, totals); err != nil {
+		t.Fatalf("ReplaceQuoteLines: %v", err)
+	}
+	if err := s.IssueQuote(ctx, q.ID, money.Micros(18_000_000), "term", nil, "quotes/QA0001.pdf", "sha1"); err != nil {
+		t.Fatalf("IssueQuote: %v", err)
+	}
+
+	rev, err := s.CreateRevision(ctx, q.ID, userID)
+	if err != nil {
+		t.Fatalf("CreateRevision: %v", err)
+	}
+	if rev.Folio != "QA0001-R1" || rev.Status != "borrador" || rev.SupersedesQuoteID == nil || *rev.SupersedesQuoteID != q.ID {
+		t.Fatalf("revision = %+v", rev)
+	}
+	if rev.CustomerID != customerID || rev.Prefix != "QA" || rev.Currency != "MXN" {
+		t.Fatalf("revision didn't copy customer/prefix/currency: %+v", rev)
+	}
+	if rev.Subtotal != totals.Subtotal || rev.Total != totals.Total {
+		t.Fatalf("revision totals = %+v, want copied from original %+v", rev, totals)
+	}
+	revLines, err := s.ListQuoteLines(ctx, rev.ID)
+	if err != nil || len(revLines) != 1 || *revLines[0].ProductID != flatProductID {
+		t.Fatalf("revision lines = %+v, %v", revLines, err)
+	}
+
+	// The original is untouched except for its status flip, and knows who supersedes it.
+	original, err := s.QuoteByID(ctx, q.ID)
+	if err != nil {
+		t.Fatalf("QuoteByID(original): %v", err)
+	}
+	if original.Status != "revisada" {
+		t.Fatalf("original.Status = %q, want revisada", original.Status)
+	}
+	if original.SupersededByFolio != "QA0001-R1" {
+		t.Fatalf("original.SupersededByFolio = %q, want QA0001-R1", original.SupersededByFolio)
+	}
+	if original.PDFPath == nil || *original.PDFPath != "quotes/QA0001.pdf" {
+		t.Fatalf("original.PDFPath changed: %+v", original.PDFPath)
+	}
+
+	// Revising an already-revised (revisada) quote directly should fail — only the
+	// current latest revision (still 'emitida') can be revised further.
+	if _, err := s.CreateRevision(ctx, q.ID, userID); !errors.Is(err, ErrQuoteNotIssued) {
+		t.Fatalf("CreateRevision(revisada) = %v, want ErrQuoteNotIssued", err)
+	}
+
+	// Issuing and revising the revision itself produces -R2, chained off the same base.
+	if err := s.ReplaceQuoteLines(ctx, rev.ID, lines, totals); err != nil {
+		t.Fatalf("ReplaceQuoteLines(rev): %v", err)
+	}
+	if err := s.IssueQuote(ctx, rev.ID, money.Micros(18_500_000), "term", nil, "quotes/QA0001-R1.pdf", "sha2"); err != nil {
+		t.Fatalf("IssueQuote(rev): %v", err)
+	}
+	rev2, err := s.CreateRevision(ctx, rev.ID, userID)
+	if err != nil {
+		t.Fatalf("CreateRevision(rev): %v", err)
+	}
+	if rev2.Folio != "QA0001-R2" || rev2.SupersedesQuoteID == nil || *rev2.SupersedesQuoteID != rev.ID {
+		t.Fatalf("second revision = %+v", rev2)
 	}
 }
 

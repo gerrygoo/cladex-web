@@ -3,28 +3,43 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
 	"github.com/gerrygoo/cladex-web/internal/pricing"
 )
 
-// Quote is a quotes row. CustomerName and UserName are populated by the CRUD read
-// paths (joins), left zero elsewhere. See migrations/0001_init.sql.
+// Quote is a quotes row. CustomerName, UserName, and SupersededByFolio are populated by
+// the CRUD read paths (joins), left zero elsewhere. FxRateUsedMicros, TermsSnapshot,
+// IssuedAt, ValidUntil, PDFPath, and PDFSHA256 are nil until IssueQuote freezes the row.
+// SupersedesQuoteID is set only on a revision (a quote created by CreateRevision). See
+// migrations/0001_init.sql.
 type Quote struct {
-	ID           int64
-	Folio        string
-	Prefix       string
-	CustomerID   int64
-	CustomerName string
-	UserID       int64
-	UserName     string
-	Status       string // borrador | emitida | revisada
-	Currency     string
-	Subtotal     money.Centavos
-	IVA          money.Centavos
-	Total        money.Centavos
-	CreatedAt    string
+	ID                int64
+	Folio             string
+	Prefix            string
+	CustomerID        int64
+	CustomerName      string
+	UserID            int64
+	UserName          string
+	Status            string // borrador | emitida | revisada
+	Currency          string
+	Subtotal          money.Centavos
+	IVA               money.Centavos
+	Total             money.Centavos
+	FxRateUsedMicros  *money.Micros
+	TermsSnapshot     *string
+	CreatedAt         string
+	IssuedAt          *string
+	ValidUntil        *string
+	SupersedesQuoteID *int64
+	SupersedesFolio   string // folio of the quote this one revises, if this is a revision
+	SupersededByFolio string // folio of the revision that supersedes this quote, if any
+	PDFPath           *string
+	PDFSHA256         *string
 }
 
 // QuoteLine is a quote_lines row. ProductID is nil for a free-text ("Cotizador libre")
@@ -87,7 +102,10 @@ func (s *Store) CreateDraftQuote(ctx context.Context, customerID, userID int64, 
 
 const quoteSelectCols = `
 	q.id, q.folio, q.prefix, q.customer_id, c.name, q.user_id, u.name, q.status, q.currency,
-	q.subtotal, q.iva, q.total, q.created_at`
+	q.subtotal, q.iva, q.total, q.fx_rate_used_micros, q.terms_snapshot, q.created_at,
+	q.issued_at, q.valid_until, q.supersedes_quote_id, q.pdf_path, q.pdf_sha256,
+	(SELECT o.folio FROM quotes o WHERE o.id = q.supersedes_quote_id),
+	(SELECT r.folio FROM quotes r WHERE r.supersedes_quote_id = q.id)`
 
 const quoteFrom = `
 	FROM quotes q
@@ -96,14 +114,43 @@ const quoteFrom = `
 
 func scanQuote(row interface{ Scan(...any) error }) (*Quote, error) {
 	var q Quote
+	var fxRate sql.NullInt64
+	var termsSnapshot, issuedAt, validUntil, pdfPath, pdfSHA256 sql.NullString
+	var supersedesFolio, supersededByFolio sql.NullString
+	var supersedesQuoteID sql.NullInt64
 	err := row.Scan(&q.ID, &q.Folio, &q.Prefix, &q.CustomerID, &q.CustomerName, &q.UserID, &q.UserName,
-		&q.Status, &q.Currency, &q.Subtotal, &q.IVA, &q.Total, &q.CreatedAt)
+		&q.Status, &q.Currency, &q.Subtotal, &q.IVA, &q.Total, &fxRate, &termsSnapshot, &q.CreatedAt,
+		&issuedAt, &validUntil, &supersedesQuoteID, &pdfPath, &pdfSHA256, &supersedesFolio, &supersededByFolio)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	if fxRate.Valid {
+		m := money.Micros(fxRate.Int64)
+		q.FxRateUsedMicros = &m
+	}
+	if termsSnapshot.Valid {
+		q.TermsSnapshot = &termsSnapshot.String
+	}
+	if issuedAt.Valid {
+		q.IssuedAt = &issuedAt.String
+	}
+	if validUntil.Valid {
+		q.ValidUntil = &validUntil.String
+	}
+	if supersedesQuoteID.Valid {
+		q.SupersedesQuoteID = &supersedesQuoteID.Int64
+	}
+	if pdfPath.Valid {
+		q.PDFPath = &pdfPath.String
+	}
+	if pdfSHA256.Valid {
+		q.PDFSHA256 = &pdfSHA256.String
+	}
+	q.SupersedesFolio = supersedesFolio.String
+	q.SupersededByFolio = supersededByFolio.String
 	return &q, nil
 }
 
@@ -259,4 +306,182 @@ func (s *Store) ReplaceQuoteLines(ctx context.Context, quoteID int64, lines []Qu
 	}
 
 	return tx.Commit()
+}
+
+// ErrQuoteNotDraft is returned by IssueQuote when the target quote isn't currently
+// 'borrador' — a quote is issued exactly once; see CreateRevision for changing an
+// already-issued quote afterward.
+var ErrQuoteNotDraft = errors.New("store: quote is not a draft")
+
+// IssueQuote freezes a draft quote: locks the FX rate and terms text actually used,
+// records where the rendered PDF was written and its SHA-256, sets an optional
+// expiry, and flips status to 'emitida'. Only succeeds against a quote currently
+// 'borrador' (checked and enforced in the same statement, so two concurrent issue
+// attempts can't both succeed) — the caller is expected to have already saved the
+// final line set (e.g. via ReplaceQuoteLines) before calling this.
+func (s *Store) IssueQuote(ctx context.Context, quoteID int64, fxRateUsed money.Micros, termsSnapshot string, validUntil *string, pdfPath, pdfSHA256 string) error {
+	var validUntilArg any
+	if validUntil != nil {
+		validUntilArg = *validUntil
+	}
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE quotes SET
+			status = 'emitida',
+			issued_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+			fx_rate_used_micros = ?,
+			terms_snapshot = ?,
+			valid_until = ?,
+			pdf_path = ?,
+			pdf_sha256 = ?
+		WHERE id = ? AND status = 'borrador'`,
+		int64(fxRateUsed), termsSnapshot, validUntilArg, pdfPath, pdfSHA256, quoteID,
+	)
+	if err != nil {
+		return fmt.Errorf("store: issue quote %d: %w", quoteID, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("store: issue quote %d: %w", quoteID, err)
+	}
+	if n != 1 {
+		return ErrQuoteNotDraft
+	}
+	return nil
+}
+
+// ErrQuoteNotIssued is returned by CreateRevision when the target quote isn't
+// currently 'emitida' — only the active issued version of a quote lineage can be
+// revised; a superseded ('revisada') quote must be revised via its own successor.
+var ErrQuoteNotIssued = errors.New("store: quote is not issued")
+
+// revisionSuffixRe matches a folio's "-R<n>" revision suffix, if present. Folios are
+// always machine-generated by NextFolio/CreateRevision, never user-typed, so this
+// pattern (and the plain LIKE below) never needs to defend against adversarial input.
+var revisionSuffixRe = regexp.MustCompile(`^(.+)-R(\d+)$`)
+
+// baseFolio strips a "-R<n>" suffix, if present, returning the root folio a whole
+// revision chain shares (e.g. "QA0105-R2" -> "QA0105").
+func baseFolio(folio string) string {
+	if m := revisionSuffixRe.FindStringSubmatch(folio); m != nil {
+		return m[1]
+	}
+	return folio
+}
+
+// nextRevisionNumber finds the highest existing "<base>-R<n>" folio and returns n+1,
+// or 1 if base has no revisions yet.
+func nextRevisionNumber(ctx context.Context, tx *sql.Tx, base string) (int, error) {
+	var lastFolio string
+	err := tx.QueryRowContext(ctx, `
+		SELECT folio FROM quotes WHERE folio LIKE ? ORDER BY id DESC LIMIT 1`,
+		base+"-R%",
+	).Scan(&lastFolio)
+	if err == sql.ErrNoRows {
+		return 1, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	m := revisionSuffixRe.FindStringSubmatch(lastFolio)
+	if m == nil {
+		return 1, nil
+	}
+	n, err := strconv.Atoi(m[2])
+	if err != nil {
+		return 1, nil
+	}
+	return n + 1, nil
+}
+
+// CreateRevision makes an editable copy of an issued quote as a new draft: a new
+// folio (<base>-R<n>, e.g. QA0105-R1, or QA0105-R2 if revising a quote that's already
+// a revision), sharing customer/prefix/currency and starting from the original's
+// lines — and marks the original 'revisada'. Nothing about the original's own row is
+// changed beyond that one status flip: its lines, totals, terms_snapshot, and PDF stay
+// exactly as issued, per docs/PLAN.md's "original untouched" revision design. Only the
+// currently-active issued quote in a lineage can be revised (see ErrQuoteNotIssued) —
+// revise the latest revision, not a superseded one.
+func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*Quote, error) {
+	original, err := s.QuoteByID(ctx, originalID)
+	if err != nil {
+		return nil, fmt.Errorf("store: create revision of quote %d: %w", originalID, err)
+	}
+	if original == nil {
+		return nil, nil
+	}
+	if original.Status != "emitida" {
+		return nil, ErrQuoteNotIssued
+	}
+	lines, err := s.ListQuoteLines(ctx, originalID)
+	if err != nil {
+		return nil, fmt.Errorf("store: create revision of quote %d: %w", originalID, err)
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("store: create revision of quote %d: %w", originalID, err)
+	}
+	defer tx.Rollback()
+
+	base := baseFolio(original.Folio)
+	n, err := nextRevisionNumber(ctx, tx, base)
+	if err != nil {
+		return nil, fmt.Errorf("store: create revision of quote %d: %w", originalID, err)
+	}
+	newFolio := fmt.Sprintf("%s-R%d", base, n)
+
+	res, err := tx.ExecContext(ctx, `
+		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, currency, supersedes_quote_id)
+		VALUES (?, ?, ?, ?, 'borrador', ?, ?)`,
+		newFolio, original.Prefix, original.CustomerID, userID, original.Currency, originalID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: create revision of quote %d: insert: %w", originalID, err)
+	}
+	newID, err := res.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("store: create revision of quote %d: %w", originalID, err)
+	}
+
+	for i, l := range lines {
+		var productID any
+		if l.ProductID != nil {
+			productID = *l.ProductID
+		}
+		var pricingInputs any
+		if l.PricingInputsJSON != nil {
+			pricingInputs = *l.PricingInputsJSON
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO quote_lines (
+				quote_id, line_no, product_id, description_snapshot, qty_milli,
+				unit_price_micros, line_total, pricing_inputs, source
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			newID, i+1, productID, l.DescriptionSnapshot, int64(l.QtyMilli),
+			int64(l.UnitPriceMicros), int64(l.LineTotal), pricingInputs, l.Source,
+		); err != nil {
+			return nil, fmt.Errorf("store: create revision of quote %d: copy line %d: %w", originalID, i+1, err)
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE quotes SET subtotal = ?, iva = ?, total = ? WHERE id = ?`,
+		int64(original.Subtotal), int64(original.IVA), int64(original.Total), newID,
+	); err != nil {
+		return nil, fmt.Errorf("store: create revision of quote %d: totals: %w", originalID, err)
+	}
+
+	res, err = tx.ExecContext(ctx, `
+		UPDATE quotes SET status = 'revisada' WHERE id = ? AND status = 'emitida'`, originalID)
+	if err != nil {
+		return nil, fmt.Errorf("store: create revision of quote %d: mark superseded: %w", originalID, err)
+	}
+	if affected, _ := res.RowsAffected(); affected != 1 {
+		return nil, ErrQuoteNotIssued
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("store: create revision of quote %d: %w", originalID, err)
+	}
+	return s.QuoteByID(ctx, newID)
 }

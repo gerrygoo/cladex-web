@@ -79,7 +79,7 @@ func runServer() {
 		log.Fatalf("static assets: %v", err)
 	}
 
-	mux := web.NewMux(buildSHA, staticFS, db, cookieSecure)
+	mux := web.NewMux(buildSHA, staticFS, db, cookieSecure, filepath.Dir(dbPath()))
 
 	addr := fmt.Sprintf(":%s", port)
 	log.Printf("cladex listening on %s (build %s)", addr, buildSHA)
