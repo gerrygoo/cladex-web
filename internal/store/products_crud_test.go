@@ -152,3 +152,44 @@ func TestListProductsSearchEscapesWildcards(t *testing.T) {
 		t.Fatalf("ListProducts(%%q) = %+v, want just cca-c14", products)
 	}
 }
+
+func TestListProductsSortSKUIsNatural(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	familyID, err := s.UpsertFamily(ctx, "CCA", "CCA")
+	if err != nil {
+		t.Fatalf("UpsertFamily: %v", err)
+	}
+	// Inserted out of natural order, and with SKUs that would sort differently
+	// byte-by-byte ("SKU-10" < "SKU-2" lexicographically) than numerically.
+	for _, sku := range []string{"SKU-10", "SKU-2", "SKU-1"} {
+		if _, err := s.CreateProduct(ctx, Product{FamilyID: familyID, SKU: sku}); err != nil {
+			t.Fatalf("CreateProduct(%q): %v", sku, err)
+		}
+	}
+
+	asc, err := s.ListProducts(ctx, "", "sku", "asc")
+	if err != nil {
+		t.Fatalf("ListProducts(sort=sku, asc): %v", err)
+	}
+	gotAsc := []string{asc[0].SKU, asc[1].SKU, asc[2].SKU}
+	wantAsc := []string{"SKU-1", "SKU-2", "SKU-10"}
+	for i := range wantAsc {
+		if gotAsc[i] != wantAsc[i] {
+			t.Fatalf("ListProducts(sort=sku, asc) = %v, want %v", gotAsc, wantAsc)
+		}
+	}
+
+	desc, err := s.ListProducts(ctx, "", "sku", "desc")
+	if err != nil {
+		t.Fatalf("ListProducts(sort=sku, desc): %v", err)
+	}
+	gotDesc := []string{desc[0].SKU, desc[1].SKU, desc[2].SKU}
+	wantDesc := []string{"SKU-10", "SKU-2", "SKU-1"}
+	for i := range wantDesc {
+		if gotDesc[i] != wantDesc[i] {
+			t.Fatalf("ListProducts(sort=sku, desc) = %v, want %v", gotDesc, wantDesc)
+		}
+	}
+}
