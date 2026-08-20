@@ -429,7 +429,7 @@ Products CRUD (1.5) exists, per the user.
 | 2.1 | Pricing engine, pure Go, no HTTP: `kg/m × metal $/kg × (1+margin)`, USD×FX, qty breaks, IVA | me | Unit tests reproduce ≥15 known prices from the spreadsheet exactly — ✅⁸ |
 | 2.2 | Quote builder UI — htmx shell + vanilla-JS island for live line editing and totals | me | Build a 5-line quote end to end; totals match 2.1 — ✅⁹ |
 | 2.3 | Typst cotización template + render pipeline; per-family terms blocks | me | Generated PDF matches the current Excel output for the same input — ✅¹⁰ |
-| 2.4 | Folio sequences, issue flow (freeze row, write PDF + SHA), status, revisions | me | Issue, change FX and copper, reprint → byte-identical PDF. Revise → `-R1`, original untouched |
+| 2.4 | Folio sequences, issue flow (freeze row, write PDF + SHA), status, revisions | me | Issue, change FX and copper, reprint → byte-identical PDF. Revise → `-R1`, original untouched — ✅¹¹ |
 | 2.5 | Quote history: list, filter by customer/vendedor/status, re-download stored PDF | me | Every quote ever issued is findable and re-downloadable |
 
 **2.1 before 2.2, without exception.** The engine is testable against the spreadsheet's own
@@ -577,12 +577,95 @@ value was never meaningful pricing input, only a latent trap once stored alongsi
 `kg_per_m_micros`. CCA is unaffected — it legitimately stores both fields (cost as the
 pricing input, kg/m as reference-only weight data) and `CostMicros` winning first is
 correct for that family. Added `cmd/import/parse_test.go` (`TestParseCCSACOmitsCost`) as
-a regression test, since `cmd/import` had no tests before this. **Not yet re-run against
-production** — 1.2 imported CCS & AC there before this fix existed, so production's
-`products.cost_micros` is still stale for those 9 rows until `cmd/import` is re-run
-(idempotent upsert, per 1.2); flagged to the user rather than run unprompted, since it
-writes to the live DB. No real quote has used the broken formula yet — 2.2/2.3 are still
-on a feature branch, not deployed.
+a regression test, since `cmd/import` had no tests before this.
+
+**Fixed in production**, not by re-running `cmd/import`: the user flagged that sellers
+may have hand-edited some product rows since 1.2's import, and a full re-import
+overwrites every column from the spreadsheet (not just the broken one), so it could
+silently clobber those edits — confirmed this risk was real when the dry-run showed
+production's CCS & AC SKUs use an older scheme than the current importer generates
+(`CCS-A#4` vs. `ccs-alambre-4`), meaning a SKU-matched re-import might not even have
+lined up with the existing rows correctly. Instead wrote a narrowly-scoped, one-off
+spot-fix (`cmd/spotfix-ccs-cost`, not committed — deleted after use) that clears only
+`products.cost_micros`, only on rows in the `CCS & AC` family (matched by
+`product_families.name`, not SKU): `UPDATE products SET cost_micros = NULL WHERE id IN
+(SELECT p.id FROM products p JOIN product_families f ON f.id = p.family_id WHERE
+f.name = 'CCS & AC' AND p.cost_micros IS NOT NULL)`. Verified locally first against a
+scratch DB seeded with a fake "user edit" (changed description + kg/m) on one of the
+affected rows, confirming the fix left it untouched. Then, with the user's explicit
+go-ahead, cross-compiled for the NAS's `amd64`, staged it via `scp -O`, dry-ran against
+the real production DB (`/volume1/docker/cladex/data/cladex.db`) to show the exact 9
+rows first, ran for real, verified a second dry-run found nothing left, confirmed
+`/healthz` the whole time, and deleted the binary from the NAS.
+
+¹¹ Extended `store.Quote` with the freeze/revision fields the M0.2 schema already
+reserved (`FxRateUsedMicros`, `TermsSnapshot`, `IssuedAt`, `ValidUntil`,
+`SupersedesQuoteID`, `PDFPath`, `PDFSHA256`), plus two read-only convenience fields
+populated by correlated subqueries in `quoteSelectCols` — `SupersedesFolio` (the folio
+this one revises, if it's a revision) and `SupersededByFolio` (the folio that
+superseded this one, if any) — so the UI never needs a second query to link a
+revision chain together.
+
+**Issue flow** (`Store.IssueQuote`, `Quotes.Emitir` at `POST
+/cotizaciones/{folio}/emitir`): the "Emitir cotización" button lives on the same
+`<form id="linea-form">` as "Guardar borrador" (a `formaction` override, same pattern
+as the rest of the builder), so issuing also saves whatever's currently on screen —
+no separate "save first, then issue" step. `IssueQuote` is a single `UPDATE ... WHERE
+id = ? AND status = 'borrador'`, so two concurrent issue attempts can't both succeed
+and a second `Emitir` on an already-issued quote gets `ErrQuoteNotDraft` (surfaced as
+409). Freezing captures: the FX rate actually in `Ajustes` at that moment
+(`fx_rate_used_micros` — always recorded, not only for USD lines, since it's cheap,
+useful audit context either way); the family's terms text, newline-joined into
+`terms_snapshot` — critical for "reprint → byte-identical", since without freezing it
+a future edit to `pdf.QuoteTerms` would silently change what an old issued quote
+reprints as; a `valid_until` 30 days out (`defaultValidityDays` — no UI exists yet to
+pick a custom validity per quote, a scope call, not a schema limitation); and the
+rendered PDF's bytes, written to `<dataDir>/quotes/<folio>.pdf` and SHA-256'd
+(`pdf_path`/`pdf_sha256`). `dataDir` threads from `cmd/server/main.go`
+(`filepath.Dir(dbPath())`, so it's `data/` locally and `/data` in the container,
+alongside `cladex.db` — no new env var) through `web.NewMux` into `NewQuotes`.
+
+**Reprint** (`Quotes.PDF`): branches on `quote.PDFPath` — set, it serves those exact
+bytes straight off disk (`os.ReadFile`, joined against `quotesDir` via
+`filepath.Base` so a corrupted/adversarial `pdf_path` value can't path-traverse);
+unset (still a draft), it live-renders a preview through the same `computeQuoteLines`
+path the builder uses, using the *live* `pdf.QuoteTerms` (a draft has no snapshot
+yet to freeze from — see `resolveTerms`). Verified the byte-identical guarantee two
+ways: a `go test` that renders, then changes `fx_rate`/`copper_price` in the DB, then
+re-fetches and diffs the response bodies; and manually in a real browser — issued a
+quote, downloaded the PDF, changed FX/copper/margin to wildly different values via
+`/ajustes`, downloaded again, and confirmed the SHA-256 was identical both times.
+
+**Revisions** (`Store.CreateRevision`, `Quotes.Revisar` at `POST
+/cotizaciones/{folio}/revisar`): only callable on a quote currently `'emitida'`
+(`ErrQuoteNotIssued` otherwise, 409) — the active version of a lineage, never a
+`'revisada'` one, so revising has to go through whichever quote is currently active.
+One transaction: compute the next folio (`baseFolio` strips any existing `-R<n>`
+suffix via regex, so revising `QA0105-R1` produces `QA0105-R2`, not
+`QA0105-R1-R1`; the next number is the highest existing `<base>-R%` folio + 1, found
+with a plain `LIKE` — safe without escaping because every folio is machine-generated,
+never user-typed), insert the new `'borrador'` row (`supersedes_quote_id` pointing at
+the quote just revised, customer/prefix/currency copied across), copy the original's
+`quote_lines` verbatim as a starting point (not re-priced — reopening the revision in
+the builder recomputes them live from current settings exactly like any other draft's
+persisted lines would), copy its totals so the new draft displays correctly before any
+edit, then flip the original's `status` to `'revisada'` — the *only* write to the
+original's row; its folio, lines, totals, `terms_snapshot`, and PDF are never touched
+again. `Guardar` also rejects a non-`'borrador'` quote (409) as a second layer of
+immutability enforcement, independent of the UI not rendering edit controls for one.
+
+Verified with `go test ./...` (issue freezes exactly the expected fields and rejects a
+second issue; issuing with an invalid line saves nothing and leaves the quote a draft;
+a revision copies lines/totals, marks the original `revisada`, and a further revision
+of the *original* is rejected while revising the *new* revision correctly chains to
+`-R2`; the byte-identical-reprint-after-settings-change check above) and end-to-end in
+a real browser: issued a quote (5 units), confirmed the read-only view, frozen FX/
+vigencia, and stored PDF file; clicked "Revisar", landed on an editable `-R1` draft
+pre-filled with the same line and linking back to the original; changed the quantity
+to 8, watched totals recompute live, and issued the revision; reloaded the *original*
+and confirmed it now reads "revisada" with its original qty-5/$36.66 totals completely
+unchanged and a link forward to `-R1` — proving the original truly never moved once a
+newer revision existed.
 
 ---
 
