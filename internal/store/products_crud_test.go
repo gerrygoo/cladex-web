@@ -192,4 +192,16 @@ func TestListProductsSortSKUIsNatural(t *testing.T) {
 			t.Fatalf("ListProducts(sort=sku, desc) = %v, want %v", gotDesc, wantDesc)
 		}
 	}
+
+	// No explicit sort param defaults to natural SKU order, same as sort=sku asc.
+	def, err := s.ListProducts(ctx, "", "", "")
+	if err != nil {
+		t.Fatalf("ListProducts(sort=\"\"): %v", err)
+	}
+	gotDefault := []string{def[0].SKU, def[1].SKU, def[2].SKU}
+	for i := range wantAsc {
+		if gotDefault[i] != wantAsc[i] {
+			t.Fatalf("ListProducts(sort=\"\") = %v, want %v (natural SKU order)", gotDefault, wantAsc)
+		}
+	}
 }
