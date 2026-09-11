@@ -383,6 +383,28 @@ func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput,
 	return result
 }
 
+// frozenQuoteLines renders an issued or revised quote's lines exactly as stored at issue
+// time — description snapshot, quantity, unit price, line total — without consulting
+// the live catalog or settings. Only drafts are ever recomputed; past 'borrador' the
+// page shows what the customer received (the same numbers as the stored PDF), even if a
+// quoted product has since been repriced or deleted.
+func frozenQuoteLines(persisted []store.QuoteLine) []views.QuoteLineView {
+	out := make([]views.QuoteLineView, len(persisted))
+	for i, l := range persisted {
+		out[i] = views.QuoteLineView{
+			Key:             strconv.Itoa(i),
+			IsFree:          l.ProductID == nil,
+			ProductID:       l.ProductID,
+			ProductLabel:    l.DescriptionSnapshot,
+			Description:     l.DescriptionSnapshot,
+			QtyMilli:        l.QtyMilli,
+			UnitPriceMicros: l.UnitPriceMicros,
+			LineTotal:       l.LineTotal,
+		}
+	}
+	return out
+}
+
 // computeQuoteTotals sums every line without a row-level error — an invalid line
 // contributes nothing until it's fixed, rather than 500ing the whole recalculation.
 func computeQuoteTotals(lines []views.QuoteLineView) pricing.Totals {
@@ -429,13 +451,20 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
-	settings, err := q.loadPricingSettings(ctx)
-	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
-		return
+	var lines []views.QuoteLineView
+	var totals pricing.Totals
+	if quote.Status == "borrador" {
+		settings, err := q.loadPricingSettings(ctx)
+		if err != nil {
+			http.Error(w, "error interno", http.StatusInternalServerError)
+			return
+		}
+		lines = q.computeQuoteLines(ctx, inputsFromPersisted(persisted), settings)
+		totals = computeQuoteTotals(lines)
+	} else {
+		lines = frozenQuoteLines(persisted)
+		totals = pricing.Totals{Subtotal: quote.Subtotal, IVA: quote.IVA, Total: quote.Total}
 	}
-	lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), settings)
-	totals := computeQuoteTotals(lines)
 
 	searchQuery := strings.TrimSpace(r.URL.Query().Get("q"))
 	searchResults, err := q.productSearchResults(ctx, searchQuery)
@@ -466,6 +495,10 @@ func (q *Quotes) Recalcular(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	quote := q.loadQuoteOrNotFound(w, r)
 	if quote == nil {
+		return
+	}
+	if quote.Status != "borrador" {
+		http.Error(w, "esta cotización ya no es editable", http.StatusConflict)
 		return
 	}
 	if err := r.ParseForm(); err != nil {

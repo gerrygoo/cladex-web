@@ -397,6 +397,66 @@ func TestQuotesEmitir(t *testing.T) {
 	}
 }
 
+// TestQuotesIssuedPageShowsFrozenLines guards the on-screen half of issue-time
+// immutability: an issued quote's page must show the prices and descriptions the
+// customer received, not a live recompute — neither a settings change nor deleting a
+// product it quoted may alter it.
+func TestQuotesIssuedPageShowsFrozenLines(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, userID) // margin 0.30: $45.00 / 0.70 = $64.29
+
+	quote, err := a.store.CreateDraftQuote(context.Background(), customerID, userID, "QA")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+	form := url.Values{
+		"line_keys":            {"0"},
+		"lines[0][kind]":       {"product"},
+		"lines[0][product_id]": {strconv.FormatInt(costProductID, 10)},
+		"lines[0][qty]":        {"1"},
+	}
+	rec := doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+quote.Folio+"/emitir",
+		map[string]string{"folio": quote.Folio}, form, false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+
+	// Margin 0.50 would reprice the line to $90.00; deleting the product would make a
+	// live recompute drop it altogether.
+	if err := a.store.SetSetting(context.Background(), "default_margin", "500000", userID); err != nil {
+		t.Fatalf("SetSetting(default_margin): %v", err)
+	}
+	if err := a.store.SoftDeleteProduct(context.Background(), costProductID); err != nil {
+		t.Fatalf("SoftDeleteProduct: %v", err)
+	}
+
+	rec = doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+quote.Folio,
+		map[string]string{"folio": quote.Folio}, nil, false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Builder status = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{"Cable THW 14", "64.29", "74.58"} { // description, unit price, total incl. IVA
+		if !strings.Contains(body, want) {
+			t.Errorf("issued quote page missing frozen %q", want)
+		}
+	}
+	if strings.Contains(body, "90.00") {
+		t.Error("issued quote page shows a live-repriced line ($90.00)")
+	}
+
+	// Recalcular never writes, but it must not render an edited view of an issued quote
+	// either.
+	rec = doForm(t, a, userID, q.Recalcular, "POST", "/cotizaciones/"+quote.Folio+"/recalcular",
+		map[string]string{"folio": quote.Folio}, form, true)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("Recalcular(issued quote) status = %d, want 409", rec.Code)
+	}
+}
+
 func TestQuotesEmitirRejectsInvalidLine(t *testing.T) {
 	a := newTestAuth(t)
 	q := newTestQuotes(t, a)
