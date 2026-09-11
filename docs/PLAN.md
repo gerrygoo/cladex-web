@@ -140,6 +140,12 @@ margins); vendedor gets everything else. Checked in middleware — not a permiss
 - Validation: one struct per form with `Validate() map[string]string`; field errors render
   back into the same templ form with values preserved.
 - Flash messages via the session.
+- **User guide.** `docs/guia/` is the sellers' manual: Spanish, one page per app area,
+  numbered step-by-step instructions for every happy path, quoting button/field/message
+  labels exactly as rendered, plus a "Problemas comunes" table of real error messages.
+  Any slice that adds or changes a user-visible flow updates its guide page in the same
+  commit — a slice isn't done until its page is. Plain markdown, so it can be mirrored to
+  a GitHub wiki verbatim if that's ever wanted.
 
 ## Quote persistence
 
@@ -701,6 +707,16 @@ ways: a `go test` that renders, then changes `fx_rate`/`copper_price` in the DB,
 re-fetches and diffs the response bodies; and manually in a real browser — issued a
 quote, downloaded the PDF, changed FX/copper/margin to wildly different values via
 `/ajustes`, downloaded again, and confirmed the SHA-256 was identical both times.
+
+*Follow-up fix (found while writing `docs/guia/`):* the PDF half of immutability held,
+but the **on-screen** half didn't — `Quotes.Builder` ran every quote, issued or not,
+through `computeQuoteLines`, so an issued quote's page showed live-repriced lines (a
+margin change moved a frozen $64.29 line to $90.00) and silently dropped any line whose
+product had since been soft-deleted. Builder now recomputes only drafts; past
+`'borrador'` it renders `frozenQuoteLines` (the stored `description_snapshot`,
+`qty_milli`, `unit_price_micros`, `line_total`) with the stored
+`subtotal`/`iva`/`total`. `Recalcular` also 409s on non-drafts, matching
+`Guardar`/`Emitir`. Guarded by `TestQuotesIssuedPageShowsFrozenLines`.
 
 **Revisions** (`Store.CreateRevision`, `Quotes.Revisar` at `POST
 /cotizaciones/{folio}/revisar`): only callable on a quote currently `'emitida'`
