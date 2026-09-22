@@ -15,6 +15,10 @@ and Revisar tests shell out to it through `internal/pdf.Render` and fail — the
 not skip — when it is missing. On the dev Mac it comes from Homebrew
 (`brew install typst`); in the deployed image it is the static musl binary.
 
+CI runs exactly this (plus `go vet ./...`) in the `test` job of
+`.github/workflows/deploy.yml`, and `build-push` depends on it — a failing test
+blocks the deploy.
+
 Coverage, per package and as a single cross-package number:
 
 ```bash
@@ -41,9 +45,11 @@ go tool cover -func=/tmp/cover.out | grep -v '100.0%' | sort -k3 -n
   failure, not a production surprise.
 - **Handlers are tested through `httptest`**, constructed directly
   (`NewProducts(s)`, `NewQuotes(s, dir)`) and, where the route is gated, wrapped by
-  hand in `a.RequireAuth(a.RequireAdmin(...))`. This is fast, but it is also the
-  source of the router gap tracked below: the test wraps the middleware, so it
-  proves the middleware works, not that `NewMux` applies it.
+  hand in `a.RequireAuth(a.RequireAdmin(...))`. This is fast, but it proves only that
+  the middleware works — that `NewMux` actually applies it is `router_test.go`'s job.
+- **Every route in `NewMux` has a row in `router_test.go`'s table.** That table is what
+  proves the router applies `RequireAuth`/`RequireAdmin` at all; a new route without a
+  row is an untested gate. Adding the row is part of adding the route.
 - **bcrypt at `MinCost` in tests.** Production provisioning uses cost 12; tests use
   `bcrypt.MinCost` so the suite stays under a couple of seconds.
 - **Money and pricing are held to a higher bar than everything else.** Prices are
@@ -52,55 +58,62 @@ go tool cover -func=/tmp/cover.out | grep -v '100.0%' | sort -k3 -n
   are expected to stay at or near 100%. Treat a drop there as a release blocker;
   treat a drop in a CRUD handler as a normal bug.
 - **The generated `internal/views/*_templ.go` files are not tested directly.** They
-  are covered incidentally by the handler tests (~58% of their statements). Do not
+  are covered incidentally by the handler tests (~69% of their statements). Do not
   write tests against generated code; test the handler that renders it.
 
-## Coverage snapshot — 2026-09-22 (at `05e9567`)
+## Coverage snapshot — 2026-09-22 (at `e367860`+, after the first gap-closing pass)
 
 | Package | Coverage | Notes |
 |---|---|---|
 | `internal/pricing` | 100.0% | The quoting engine. Keep it here. |
 | `internal/money` | 99.0% | |
 | `internal/pdf` | 94.2% | |
-| `internal/store` | 79.5% | Remainder is mostly `if err != nil` branches. |
+| `internal/store` | 81.1% | Remainder is mostly `if err != nil` branches. |
 | `internal/cli` | 76.4% | |
-| `internal/web` | 60.3% | Handlers; where the real gaps are. |
-| `cmd/import` | 18.7% | One of three spreadsheet parsers tested. |
+| `internal/web` | 75.5% | Includes the router gating tests. |
+| `cmd/import` | 59.0% | All three spreadsheet parsers tested; `main`/report printing are not. |
 | `cmd/server`, `cmd/cladexctl` | 0.0% | Startup and flag wiring. |
-| `internal/views` | 0.0% standalone / ~58% via handler tests | Generated templ code. |
+| `internal/views` | 0.0% standalone / ~69% via handler tests | Generated templ code. |
 
-Cross-package total, counting generated views and the `main` packages: **57.0%**.
-All tests pass; nothing is skipped or marked `t.Skip`.
+Cross-package total, counting generated views and the `main` packages: **67.2%**
+(was 57.0% before the first gap-closing pass). All tests pass; nothing is skipped.
 
 ## Tracked gaps
 
 Ordered by how much a defect there would cost. Tick one off in the same commit that
 closes it, and refresh the snapshot above when the numbers move.
 
-- [ ] **Route permissions are never asserted.** `NewMux` is at 0%. Handler tests
-      apply `RequireAuth`/`RequireAdmin` themselves, so deleting `RequireAdmin` from
-      `/usuarios`, `/ajustes`, or `/unidades` in `internal/web/router.go` breaks
-      nothing in the suite. The fix is one table-driven test that builds the real
-      mux and walks every route twice — once signed out, once as a vendedor —
-      asserting a login redirect and a 403 respectively. This also drags most of the
-      next item into coverage.
-- [ ] **Handlers with no test at all:** all of `internal/web/units.go`;
-      `products.CreateConversion` / `DeleteConversion`; `quotes.List`;
-      `friendlyPricingError`; the `NewPage` handlers; `auth.LoginPage`.
-- [ ] **Quote create and issue are happy-path only.** `quotes.Create` 43.5%,
-      `quotes.Emitir` 64.8%. Validation failures and the error branches around folio
-      assignment and PDF writing are untested — and these are the routes that mint
-      the artifact the customer actually receives.
-- [ ] **Untested store functions:** `DisableUser`, `DeleteSessionsByUserID`,
-      `QuoteCount`. `DeleteSessionsByUserID` is the one that matters: it is what
-      ends a disabled or password-reset user's live sessions.
-- [ ] **Two of three import parsers untested:** `parseABASTILUM` and `parseCCA` are
-      at 0%; only `parseCCSAC` has a test. Import is a one-shot operation per
-      catalog, which is why this ranks below the others, but a silent misparse puts
-      wrong prices in the DB.
-- [ ] **CI does not run the tests.** `.github/workflows/deploy.yml` builds and pushes
-      to GHCR with no `go test ./...` step, so a red suite still deploys. Add the
-      step before the build.
+- [x] **Route permissions are never asserted.** Closed by `internal/web/router_test.go`,
+      which builds the real mux and walks a hand-maintained route table three ways:
+      signed out (every route must bounce to `/login`), as a vendedor (admin routes must
+      403, ordinary routes must not), and as an admin (admin routes must not 403). Both
+      directions are asserted, so over-gating an ordinary route fails too. Verified by
+      mutation: dropping `RequireAdmin` from `/unidades` and `RequireAuth` from
+      `/clientes` each fail the suite. **Add a route to `NewMux` → add it to the table.**
+- [x] **Handlers with no test at all.** `internal/web/units_test.go` covers the
+      `/unidades` list, create, duplicate-code, and empty-field paths;
+      `friendlyPricingError` has a table test pinning pricing's English errors to their
+      Spanish messages; the rest (`quotes.List`, the `NewPage` handlers, `LoginPage`)
+      are now exercised by the router tests.
+- [x] **Untested store functions.** `DisableUser`, `DeleteSessionsByUserID`, and
+      `QuoteCount` are covered in `internal/store/auth_test.go` and `quotes_test.go`.
+      The session tests assert the parts that matter operationally: disabling a user
+      kills their live cookie through `SessionUser`, and a password reset ends *every*
+      session that user has while leaving other users' sessions alone.
+- [x] **Two of three import parsers untested.** `parseABASTILUM` and `parseCCA` now have
+      tests built on synthetic `excelize` sheets, same style as the existing
+      `parseCCSAC` regression test. Both pin the family's pricing-field shape — flat
+      price for ABASTILUM, cost + kg/m with the mirror's margin-adjusted price
+      *excluded* for CCA — since that shape is what `internal/pricing`'s field-presence
+      dispatch keys off.
+- [x] **CI does not run the tests.** `.github/workflows/deploy.yml` gained a `test` job
+      (`go vet ./...` then `go test ./...`, with the pinned typst binary installed) that
+      `build-push` now `needs`, so a red suite blocks the deploy.
+- [ ] **Quote create and issue still lack their error paths.** `quotes.Create` 73.9% and
+      `quotes.Emitir` 66.7% — the validation paths are covered now, but the store-failure
+      branches are not reachable without fault injection, which would mean introducing a
+      `Store` interface purely for tests. Deliberately left open; revisit only if these
+      branches ever misbehave in production.
 
 ## Deliberate non-goals
 

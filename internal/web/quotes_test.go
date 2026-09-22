@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -854,5 +855,25 @@ func TestQuotesComments(t *testing.T) {
 	}
 	if strings.Index(body, "Volver a cotizaciones") > strings.Index(body, `name="comment"`) {
 		t.Error("comment box is not below the download / back links")
+	}
+}
+
+// TestFriendlyPricingError pins the mapping from internal/pricing's errors to the
+// Spanish message the seller sees, including when a caller has wrapped them.
+func TestFriendlyPricingError(t *testing.T) {
+	cases := []struct {
+		err  error
+		want string
+	}{
+		{pricing.ErrNoMargin, "Elige un margen disponible para esta cotización."},
+		{fmt.Errorf("store: quote line 3: %w", pricing.ErrNoMargin), "Elige un margen disponible para esta cotización."},
+		{pricing.ErrNoCost, "Este producto no tiene datos de precio configurados."},
+		{fmt.Errorf("store: quote line 3: %w", pricing.ErrNoCost), "Este producto no tiene datos de precio configurados."},
+		{errors.New("store: quote line 3: something nobody anticipated"), "No se pudo calcular el precio de esta línea."},
+	}
+	for _, c := range cases {
+		if got := friendlyPricingError(c.err); got != c.want {
+			t.Errorf("friendlyPricingError(%q) = %q, want %q", c.err, got, c.want)
+		}
 	}
 }
