@@ -248,6 +248,13 @@ The replica is a local file under `$BACKUP_DIR`, which the NAS cloud sync alread
 offsite — so no cloud credentials live on the box. Note that Litestream v0.5 dropped age
 encryption, so that replica is plaintext.
 
+## Testing
+
+`go test ./...` is the whole suite; it needs the `typst` CLI on `PATH`. Test
+conventions, the current coverage snapshot, and the tracked coverage gaps live in
+`docs/TESTING.md` — refresh that file's snapshot and tick its checklist in the same
+commit that changes what is covered.
+
 ---
 
 # Session-sized slices
