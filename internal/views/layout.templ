@@ -18,6 +18,11 @@ templ Layout(title string, user *NavUser) {
 			<script src="/static/htmx.min.js"></script>
 		</head>
 		<body>
+			<noscript>
+				<p class="noscript-banner">
+					JavaScript está desactivado. La aplicación funciona igual, pero cada acción recarga la página completa; actívalo para una experiencia más rápida.
+				</p>
+			</noscript>
 			<header class="app-header">
 				<div class="brand">
 					<strong>Cladex</strong>

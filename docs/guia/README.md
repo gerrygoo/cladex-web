@@ -21,6 +21,10 @@ sección de la app, en el orden en que normalmente se hacen.
 [emitir](cotizaciones.md#emitir-la-cotización) →
 [descargar el PDF](cotizaciones.md#descargar-y-enviar-el-pdf).
 
+> Si ves un aviso amarillo arriba que dice *"JavaScript está desactivado"*, la app sigue
+> funcionando, pero cada acción recarga la página completa. Activa JavaScript en tu
+> navegador para que buscar y editar líneas sea instantáneo.
+
 ## Quién puede hacer qué
 
 | Sección | Vendedor | Administrador |

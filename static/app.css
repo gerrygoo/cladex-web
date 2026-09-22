@@ -45,6 +45,14 @@ p.error {
   color: light-dark(#b00020, #ff6b6b);
 }
 
+p.noscript-banner {
+  margin: 0;
+  padding: 0.5rem 1rem;
+  background: light-dark(#fff4d6, #3a2e0a);
+  color: light-dark(#5c4400, #f5d77a);
+  border-bottom: 1px solid light-dark(#e8cf8a, #6b5518);
+}
+
 p.success {
   color: light-dark(#0a7a2f, #4ade80);
 }
