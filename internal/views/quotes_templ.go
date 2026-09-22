@@ -360,6 +360,21 @@ var quotePrefixOptions = []struct{ Code, Label string }{
 	{"QI", "QI — Alumbrado"},
 }
 
+// quotePrefixFamilies maps each folio series to the product family it's named after —
+// used only as the builder's default search filter ("solo productos de la familia"),
+// which the user can switch off, so it never restricts what a quote can contain.
+var quotePrefixFamilies = map[string]string{
+	"QA": "CCA",
+	"QS": "CCS & AC",
+	"QI": "ABASTILUM",
+}
+
+// QuotePrefixFamily returns the product family name a folio series defaults its
+// product search to, or "" if the series has none.
+func QuotePrefixFamily(prefix string) string {
+	return quotePrefixFamilies[prefix]
+}
+
 func QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldErrors map[string]string, user *NavUser) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -400,7 +415,7 @@ func QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldEr
 			var templ_7745c5c3_Var18 templ.SafeURL
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/cotizaciones/nueva"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 115, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 130, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -419,7 +434,7 @@ func QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldEr
 					var templ_7745c5c3_Var19 string
 					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(strconv.FormatInt(c.ID, 10))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 122, Col: 50}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 137, Col: 50}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 					if templ_7745c5c3_Err != nil {
@@ -432,7 +447,7 @@ func QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldEr
 					var templ_7745c5c3_Var20 string
 					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(c.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 122, Col: 70}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 137, Col: 70}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 					if templ_7745c5c3_Err != nil {
@@ -450,7 +465,7 @@ func QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldEr
 					var templ_7745c5c3_Var21 string
 					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue(strconv.FormatInt(c.ID, 10))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 124, Col: 50}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 139, Col: 50}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
 					if templ_7745c5c3_Err != nil {
@@ -463,7 +478,7 @@ func QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldEr
 					var templ_7745c5c3_Var22 string
 					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(c.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 124, Col: 61}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 139, Col: 61}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 					if templ_7745c5c3_Err != nil {
@@ -487,7 +502,7 @@ func QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldEr
 				var templ_7745c5c3_Var23 string
 				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(fieldErrors["customer_id"])
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 130, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 145, Col: 49}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 				if templ_7745c5c3_Err != nil {
@@ -515,7 +530,7 @@ func QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldEr
 					var templ_7745c5c3_Var24 string
 					templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.ResolveAttributeValue(opt.Code)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 137, Col: 57}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 152, Col: 57}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var24)
 					if templ_7745c5c3_Err != nil {
@@ -533,7 +548,7 @@ func QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldEr
 					var templ_7745c5c3_Var25 string
 					templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.ResolveAttributeValue(opt.Code)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 139, Col: 57}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 154, Col: 57}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var25)
 					if templ_7745c5c3_Err != nil {
@@ -547,7 +562,7 @@ func QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldEr
 				var templ_7745c5c3_Var26 string
 				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(opt.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 141, Col: 17}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 156, Col: 17}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 				if templ_7745c5c3_Err != nil {
@@ -570,7 +585,7 @@ func QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldEr
 				var templ_7745c5c3_Var27 string
 				templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(fieldErrors["prefix"])
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 146, Col: 44}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 161, Col: 44}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 				if templ_7745c5c3_Err != nil {
@@ -657,7 +672,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 		var templ_7745c5c3_Var29 string
 		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.ResolveAttributeValue("lines[" + line.Key + "][kind]")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 191, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 206, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var29)
 		if templ_7745c5c3_Err != nil {
@@ -670,7 +685,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 		var templ_7745c5c3_Var30 string
 		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.ResolveAttributeValue(lineKind(line))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 191, Col: 87}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 206, Col: 87}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var30)
 		if templ_7745c5c3_Err != nil {
@@ -688,7 +703,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 			var templ_7745c5c3_Var31 string
 			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.ResolveAttributeValue("lines[" + line.Key + "][description]")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 195, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 210, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var31)
 			if templ_7745c5c3_Err != nil {
@@ -701,7 +716,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 			var templ_7745c5c3_Var32 string
 			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.ResolveAttributeValue(line.Description)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 196, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 211, Col: 29}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var32)
 			if templ_7745c5c3_Err != nil {
@@ -714,7 +729,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 			var templ_7745c5c3_Var33 string
 			templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.ResolveAttributeValue(recalcularPath(folio))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 198, Col: 36}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 213, Col: 36}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var33)
 			if templ_7745c5c3_Err != nil {
@@ -732,7 +747,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 			var templ_7745c5c3_Var34 string
 			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.ResolveAttributeValue("lines[" + line.Key + "][product_id]")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 204, Col: 69}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 219, Col: 69}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var34)
 			if templ_7745c5c3_Err != nil {
@@ -745,7 +760,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.ResolveAttributeValue(productIDValue(line.ProductID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 204, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 219, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var35)
 			if templ_7745c5c3_Err != nil {
@@ -758,7 +773,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 			var templ_7745c5c3_Var36 string
 			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(line.ProductLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 205, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 220, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 			if templ_7745c5c3_Err != nil {
@@ -772,7 +787,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 		var templ_7745c5c3_Var37 string
 		templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.ResolveAttributeValue("lines[" + line.Key + "][qty]")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 211, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 226, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var37)
 		if templ_7745c5c3_Err != nil {
@@ -785,7 +800,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 		var templ_7745c5c3_Var38 string
 		templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.ResolveAttributeValue(line.QtyRaw)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 212, Col: 23}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 227, Col: 23}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var38)
 		if templ_7745c5c3_Err != nil {
@@ -798,7 +813,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 		var templ_7745c5c3_Var39 string
 		templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.ResolveAttributeValue(recalcularPath(folio))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 214, Col: 35}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 229, Col: 35}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var39)
 		if templ_7745c5c3_Err != nil {
@@ -812,7 +827,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 			var templ_7745c5c3_Var40 string
 			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(line.UnitCode)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 220, Col: 19}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 235, Col: 19}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 			if templ_7745c5c3_Err != nil {
@@ -831,7 +846,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 			var templ_7745c5c3_Var41 string
 			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.ResolveAttributeValue("lines[" + line.Key + "][unit_price]")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 227, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 242, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var41)
 			if templ_7745c5c3_Err != nil {
@@ -844,7 +859,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 			var templ_7745c5c3_Var42 string
 			templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue(line.UnitPriceRaw)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 228, Col: 30}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 243, Col: 30}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 			if templ_7745c5c3_Err != nil {
@@ -857,7 +872,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 			var templ_7745c5c3_Var43 string
 			templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.ResolveAttributeValue(recalcularPath(folio))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 230, Col: 36}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 245, Col: 36}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var43)
 			if templ_7745c5c3_Err != nil {
@@ -871,7 +886,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 			var templ_7745c5c3_Var44 string
 			templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(line.UnitPriceMicros.ToCentavosHalfUp().String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 236, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 251, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 			if templ_7745c5c3_Err != nil {
@@ -885,7 +900,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 		var templ_7745c5c3_Var45 string
 		templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(line.LineTotal.String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 239, Col: 31}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 254, Col: 31}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 		if templ_7745c5c3_Err != nil {
@@ -898,7 +913,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 		var templ_7745c5c3_Var46 string
 		templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.ResolveAttributeValue(line.Key)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 244, Col: 20}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 259, Col: 20}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var46)
 		if templ_7745c5c3_Err != nil {
@@ -911,7 +926,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 		var templ_7745c5c3_Var47 string
 		templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.ResolveAttributeValue(recalcularPath(folio))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 245, Col: 35}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 260, Col: 35}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var47)
 		if templ_7745c5c3_Err != nil {
@@ -929,7 +944,7 @@ func quoteLineRow(folio string, line QuoteLineView) templ.Component {
 			var templ_7745c5c3_Var48 string
 			templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(line.Error)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 255, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 270, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 			if templ_7745c5c3_Err != nil {
@@ -977,7 +992,7 @@ func QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricing
 		var templ_7745c5c3_Var50 string
 		templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.ResolveAttributeValue(lineKeysValue(lines))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 267, Col: 68}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 282, Col: 68}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var50)
 		if templ_7745c5c3_Err != nil {
@@ -1006,7 +1021,7 @@ func QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricing
 		var templ_7745c5c3_Var51 string
 		templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(totals.Subtotal.String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 290, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 305, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 		if templ_7745c5c3_Err != nil {
@@ -1019,7 +1034,7 @@ func QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricing
 		var templ_7745c5c3_Var52 string
 		templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(totals.IVA.String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 291, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 306, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 		if templ_7745c5c3_Err != nil {
@@ -1032,7 +1047,7 @@ func QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricing
 		var templ_7745c5c3_Var53 string
 		templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(totals.Total.String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 292, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 307, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 		if templ_7745c5c3_Err != nil {
@@ -1088,7 +1103,7 @@ func ProductSearchResults(products []store.Product) templ.Component {
 				var templ_7745c5c3_Var55 string
 				templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.ResolveAttributeValue(strconv.FormatInt(p.ID, 10))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 307, Col: 85}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 322, Col: 85}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var55)
 				if templ_7745c5c3_Err != nil {
@@ -1101,7 +1116,7 @@ func ProductSearchResults(products []store.Product) templ.Component {
 				var templ_7745c5c3_Var56 string
 				templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(p.SKU)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 308, Col: 14}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 323, Col: 14}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 				if templ_7745c5c3_Err != nil {
@@ -1114,7 +1129,7 @@ func ProductSearchResults(products []store.Product) templ.Component {
 				var templ_7745c5c3_Var57 string
 				templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(p.Description)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 308, Col: 36}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 323, Col: 36}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 				if templ_7745c5c3_Err != nil {
@@ -1127,7 +1142,7 @@ func ProductSearchResults(products []store.Product) templ.Component {
 				var templ_7745c5c3_Var58 string
 				templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(productPriceDisplay(p))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 308, Col: 64}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 323, Col: 64}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 				if templ_7745c5c3_Err != nil {
@@ -1206,7 +1221,7 @@ func QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) templ.Comp
 				var templ_7745c5c3_Var60 string
 				templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(line.Description)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 352, Col: 25}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 367, Col: 25}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 				if templ_7745c5c3_Err != nil {
@@ -1216,7 +1231,7 @@ func QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) templ.Comp
 				var templ_7745c5c3_Var61 string
 				templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(line.ProductLabel)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 354, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 369, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 				if templ_7745c5c3_Err != nil {
@@ -1230,7 +1245,7 @@ func QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) templ.Comp
 			var templ_7745c5c3_Var62 string
 			templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(line.QtyMilli.String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 358, Col: 30}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 373, Col: 30}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 			if templ_7745c5c3_Err != nil {
@@ -1244,7 +1259,7 @@ func QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) templ.Comp
 				var templ_7745c5c3_Var63 string
 				templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(" " + line.UnitCode)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 360, Col: 28}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 375, Col: 28}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
 				if templ_7745c5c3_Err != nil {
@@ -1258,7 +1273,7 @@ func QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) templ.Comp
 			var templ_7745c5c3_Var64 string
 			templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs(line.UnitPriceMicros.ToCentavosHalfUp().String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 363, Col: 59}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 378, Col: 59}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
 			if templ_7745c5c3_Err != nil {
@@ -1271,7 +1286,7 @@ func QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) templ.Comp
 			var templ_7745c5c3_Var65 string
 			templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(line.LineTotal.String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 364, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 379, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var65))
 			if templ_7745c5c3_Err != nil {
@@ -1289,7 +1304,7 @@ func QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) templ.Comp
 		var templ_7745c5c3_Var66 string
 		templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(totals.Subtotal.String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 370, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 385, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
 		if templ_7745c5c3_Err != nil {
@@ -1302,7 +1317,7 @@ func QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) templ.Comp
 		var templ_7745c5c3_Var67 string
 		templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinStringErrs(totals.IVA.String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 371, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 386, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var67))
 		if templ_7745c5c3_Err != nil {
@@ -1315,7 +1330,7 @@ func QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) templ.Comp
 		var templ_7745c5c3_Var68 string
 		templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.JoinStringErrs(totals.Total.String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 372, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 387, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var68))
 		if templ_7745c5c3_Err != nil {
@@ -1341,7 +1356,7 @@ func QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) templ.Comp
 // read-only summary instead: QuoteLinesReadOnly, the frozen issue metadata, and either
 // a "Revisar" button (emitida — the active version) or a note pointing at whichever
 // revision superseded it (revisada).
-func QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, successMsg string, searchQuery string, searchResults []store.Product, user *NavUser) templ.Component {
+func QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, successMsg string, searchQuery string, soloFamilia bool, searchResults []store.Product, user *NavUser) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -1381,7 +1396,7 @@ func QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Total
 			var templ_7745c5c3_Var71 string
 			templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(quote.Folio)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 390, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 405, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
 			if templ_7745c5c3_Err != nil {
@@ -1394,7 +1409,7 @@ func QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Total
 			var templ_7745c5c3_Var72 string
 			templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(quote.CustomerName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 392, Col: 32}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 407, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
 			if templ_7745c5c3_Err != nil {
@@ -1407,7 +1422,7 @@ func QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Total
 			var templ_7745c5c3_Var73 string
 			templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.JoinStringErrs(quote.Prefix)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 393, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 408, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var73))
 			if templ_7745c5c3_Err != nil {
@@ -1420,7 +1435,7 @@ func QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Total
 			var templ_7745c5c3_Var74 string
 			templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.JoinStringErrs(quote.Status)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 394, Col: 25}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 409, Col: 25}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var74))
 			if templ_7745c5c3_Err != nil {
@@ -1438,7 +1453,7 @@ func QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Total
 				var templ_7745c5c3_Var75 templ.SafeURL
 				templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/cotizaciones/" + quote.SupersedesFolio))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 397, Col: 92}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 412, Col: 92}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var75))
 				if templ_7745c5c3_Err != nil {
@@ -1451,7 +1466,7 @@ func QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Total
 				var templ_7745c5c3_Var76 string
 				templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.JoinStringErrs(quote.SupersedesFolio)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 397, Col: 118}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 412, Col: 118}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var76))
 				if templ_7745c5c3_Err != nil {
@@ -1474,7 +1489,7 @@ func QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Total
 				var templ_7745c5c3_Var77 string
 				templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.JoinStringErrs(successMsg)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 400, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 415, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var77))
 				if templ_7745c5c3_Err != nil {
@@ -1497,7 +1512,7 @@ func QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Total
 				var templ_7745c5c3_Var78 templ.SafeURL
 				templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(recalcularPath(quote.Folio)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 403, Col: 86}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 418, Col: 86}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var78))
 				if templ_7745c5c3_Err != nil {
@@ -1510,7 +1525,7 @@ func QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Total
 				var templ_7745c5c3_Var79 string
 				templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.ResolveAttributeValue(searchQuery)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 409, Col: 25}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 424, Col: 25}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var79)
 				if templ_7745c5c3_Err != nil {
@@ -1523,39 +1538,85 @@ func QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Total
 				var templ_7745c5c3_Var80 string
 				templ_7745c5c3_Var80, templ_7745c5c3_Err = templ.ResolveAttributeValue("/cotizaciones/" + quote.Folio + "/productos")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 410, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 425, Col: 60}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var80)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 112, "\" hx-trigger=\"keyup changed delay:400ms, search\" hx-target=\"#product-search-results\" hx-swap=\"outerHTML\"> <button type=\"submit\" formmethod=\"get\" formaction=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 112, "\" hx-trigger=\"keyup changed delay:400ms, search\" hx-include=\"#linea-form [name='solo_familia']\" hx-target=\"#product-search-results\" hx-swap=\"outerHTML\"> <button type=\"submit\" formmethod=\"get\" formaction=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var81 string
 				templ_7745c5c3_Var81, templ_7745c5c3_Err = templ.ResolveAttributeValue("/cotizaciones/" + quote.Folio)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 415, Col: 87}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 431, Col: 87}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var81)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 113, "\">Buscar</button> <button type=\"submit\" name=\"add_free\" value=\"1\" hx-post=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 113, "\">Buscar</button> ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var82 string
-				templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.ResolveAttributeValue(recalcularPath(quote.Folio))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 420, Col: 43}
+				if family := QuotePrefixFamily(quote.Prefix); family != "" {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 114, "<input type=\"hidden\" name=\"solo_familia\" value=\"0\"> <label><input type=\"checkbox\" name=\"solo_familia\" value=\"1\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					if soloFamilia {
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 115, " checked")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 116, " hx-get=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var82 string
+					templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.ResolveAttributeValue("/cotizaciones/" + quote.Folio + "/productos")
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 440, Col: 62}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var82)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 117, "\" hx-trigger=\"change\" hx-include=\"#linea-form [name='q'], #linea-form [name='solo_familia']\" hx-target=\"#product-search-results\" hx-swap=\"outerHTML\"> Solo productos de la familia ")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var83 string
+					templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinStringErrs(family)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 446, Col: 44}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var83))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 118, "</label> ")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var82)
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 119, "<button type=\"submit\" name=\"add_free\" value=\"1\" hx-post=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 114, "\" hx-target=\"#quote-lines-fragment\" hx-swap=\"outerHTML\">Línea libre</button></div>")
+				var templ_7745c5c3_Var84 string
+				templ_7745c5c3_Var84, templ_7745c5c3_Err = templ.ResolveAttributeValue(recalcularPath(quote.Folio))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 453, Col: 43}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var84)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 120, "\" hx-target=\"#quote-lines-fragment\" hx-swap=\"outerHTML\">Línea libre</button></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1567,33 +1628,33 @@ func QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Total
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 115, "<button type=\"submit\" formaction=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 121, "<button type=\"submit\" formaction=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var83 string
-				templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.ResolveAttributeValue(guardarPath(quote.Folio))
+				var templ_7745c5c3_Var85 string
+				templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.ResolveAttributeValue(guardarPath(quote.Folio))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 429, Col: 63}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 462, Col: 63}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var83)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 116, "\">Guardar borrador</button> <button type=\"submit\" formaction=\"")
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var85)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var84 string
-				templ_7745c5c3_Var84, templ_7745c5c3_Err = templ.ResolveAttributeValue(emitirPath(quote.Folio))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 432, Col: 62}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var84)
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 122, "\">Guardar borrador</button> <button type=\"submit\" formaction=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 117, "\">Emitir cotización</button></form>")
+				var templ_7745c5c3_Var86 string
+				templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.ResolveAttributeValue(emitirPath(quote.Folio))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 465, Col: 62}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var86)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 123, "\">Emitir cotización</button></form>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1602,132 +1663,132 @@ func QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Total
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 118, " <p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 124, " <p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				if quote.IssuedAt != nil {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 119, "Emitida: ")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var85 string
-					templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.JoinStringErrs(*quote.IssuedAt)
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 440, Col: 31}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var85))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 120, " · ")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				}
-				if quote.ValidUntil != nil {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 121, "Vigencia: ")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var86 string
-					templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.JoinStringErrs(*quote.ValidUntil)
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 443, Col: 34}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var86))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 122, " · ")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				}
-				if quote.FxRateUsedMicros != nil {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 123, "Tipo de cambio usado: ")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 125, "Emitida: ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var87 string
-					templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.JoinStringErrs(quote.FxRateUsedMicros.String())
+					templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.JoinStringErrs(*quote.IssuedAt)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 446, Col: 60}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 473, Col: 31}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var87))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 124, "</p>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				if quote.Status == "emitida" {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 125, "<form method=\"post\" action=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 126, " · ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var88 templ.SafeURL
-					templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(revisarPath(quote.Folio)))
+				}
+				if quote.ValidUntil != nil {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 127, "Vigencia: ")
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 450, Col: 68}
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var88 string
+					templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinStringErrs(*quote.ValidUntil)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 476, Col: 34}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var88))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 126, "\"><button type=\"submit\">Revisar</button></form>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 128, " · ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-				} else if quote.Status == "revisada" && quote.SupersededByFolio != "" {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 127, "<p>Esta cotización fue revisada. Ver <a href=\"")
+				}
+				if quote.FxRateUsedMicros != nil {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 129, "Tipo de cambio usado: ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var89 templ.SafeURL
-					templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/cotizaciones/" + quote.SupersededByFolio))
+					var templ_7745c5c3_Var89 string
+					templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.JoinStringErrs(quote.FxRateUsedMicros.String())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 454, Col: 105}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 479, Col: 60}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var89))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 128, "\">")
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 130, "</p>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if quote.Status == "emitida" {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 131, "<form method=\"post\" action=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var90 string
-					templ_7745c5c3_Var90, templ_7745c5c3_Err = templ.JoinStringErrs(quote.SupersededByFolio)
+					var templ_7745c5c3_Var90 templ.SafeURL
+					templ_7745c5c3_Var90, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(revisarPath(quote.Folio)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 454, Col: 133}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 483, Col: 68}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var90))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 129, "</a>.</p>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 132, "\"><button type=\"submit\">Revisar</button></form>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				} else if quote.Status == "revisada" && quote.SupersededByFolio != "" {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 133, "<p>Esta cotización fue revisada. Ver <a href=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var91 templ.SafeURL
+					templ_7745c5c3_Var91, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/cotizaciones/" + quote.SupersededByFolio))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 487, Col: 105}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var91))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 134, "\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var92 string
+					templ_7745c5c3_Var92, templ_7745c5c3_Err = templ.JoinStringErrs(quote.SupersededByFolio)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 487, Col: 133}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var92))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 135, "</a>.</p>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 130, " <p><a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 136, " <p><a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var91 templ.SafeURL
-			templ_7745c5c3_Var91, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/cotizaciones/" + quote.Folio + "/pdf"))
+			var templ_7745c5c3_Var93 templ.SafeURL
+			templ_7745c5c3_Var93, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/cotizaciones/" + quote.Folio + "/pdf"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 458, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 491, Col: 63}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var91))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var93))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 131, "\" target=\"_blank\">Descargar PDF</a> · <a href=\"/cotizaciones\">Volver a cotizaciones</a></p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 137, "\" target=\"_blank\">Descargar PDF</a> · <a href=\"/cotizaciones\">Volver a cotizaciones</a></p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

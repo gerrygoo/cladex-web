@@ -109,6 +109,21 @@ var quotePrefixOptions = []struct{ Code, Label string }{
 	{"QI", "QI — Alumbrado"},
 }
 
+// quotePrefixFamilies maps each folio series to the product family it's named after —
+// used only as the builder's default search filter ("solo productos de la familia"),
+// which the user can switch off, so it never restricts what a quote can contain.
+var quotePrefixFamilies = map[string]string{
+	"QA": "CCA",
+	"QS": "CCS & AC",
+	"QI": "ABASTILUM",
+}
+
+// QuotePrefixFamily returns the product family name a folio series defaults its
+// product search to, or "" if the series has none.
+func QuotePrefixFamily(prefix string) string {
+	return quotePrefixFamilies[prefix]
+}
+
 templ QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldErrors map[string]string, user *NavUser) {
 	@Layout("Nueva cotización", user) {
 		<h1>Nueva cotización</h1>
@@ -385,7 +400,7 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
 // read-only summary instead: QuoteLinesReadOnly, the frozen issue metadata, and either
 // a "Revisar" button (emitida — the active version) or a note pointing at whichever
 // revision superseded it (revisada).
-templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, successMsg string, searchQuery string, searchResults []store.Product, user *NavUser) {
+templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, successMsg string, searchQuery string, soloFamilia bool, searchResults []store.Product, user *NavUser) {
 	@Layout("Cotización "+quote.Folio, user) {
 		<h1>Cotización { quote.Folio }</h1>
 		<p>
@@ -409,10 +424,28 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 						value={ searchQuery }
 						hx-get={ "/cotizaciones/" + quote.Folio + "/productos" }
 						hx-trigger="keyup changed delay:400ms, search"
+						hx-include="#linea-form [name='solo_familia']"
 						hx-target="#product-search-results"
 						hx-swap="outerHTML"
 					/>
 					<button type="submit" formmethod="get" formaction={ "/cotizaciones/" + quote.Folio }>Buscar</button>
+					if family := QuotePrefixFamily(quote.Prefix); family != "" {
+						<input type="hidden" name="solo_familia" value="0"/>
+						<label>
+							<input
+								type="checkbox"
+								name="solo_familia"
+								value="1"
+								checked?={ soloFamilia }
+								hx-get={ "/cotizaciones/" + quote.Folio + "/productos" }
+								hx-trigger="change"
+								hx-include="#linea-form [name='q'], #linea-form [name='solo_familia']"
+								hx-target="#product-search-results"
+								hx-swap="outerHTML"
+							/>
+							Solo productos de la familia { family }
+						</label>
+					}
 					<button
 						type="submit"
 						name="add_free"

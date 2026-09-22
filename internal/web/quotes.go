@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -419,8 +420,8 @@ func computeQuoteTotals(lines []views.QuoteLineView) pricing.Totals {
 
 // productSearchResults runs the builder's "add product" search, capped to a manageable
 // result count, for embedding either into the full builder page (no-JS fallback) or the
-// htmx results fragment.
-func (q *Quotes) productSearchResults(ctx context.Context, query string) ([]store.Product, error) {
+// htmx results fragment. A non-empty family keeps only that family's products.
+func (q *Quotes) productSearchResults(ctx context.Context, query, family string) ([]store.Product, error) {
 	if query == "" {
 		return nil, nil
 	}
@@ -428,11 +429,41 @@ func (q *Quotes) productSearchResults(ctx context.Context, query string) ([]stor
 	if err != nil {
 		return nil, err
 	}
+	if family != "" {
+		filtered := products[:0]
+		for _, p := range products {
+			if p.FamilyName == family {
+				filtered = append(filtered, p)
+			}
+		}
+		products = filtered
+	}
 	const maxResults = 20
 	if len(products) > maxResults {
 		products = products[:maxResults]
 	}
 	return products, nil
+}
+
+// soloFamiliaParam reads the picker's "solo productos de la familia" toggle, which
+// defaults to on. The form pairs a hidden solo_familia=0 with the checkbox's
+// solo_familia=1, so an unchecked box still sends "0" — only a request that carries
+// neither (first page load) falls back to the default.
+func soloFamiliaParam(r *http.Request) bool {
+	values := r.URL.Query()["solo_familia"]
+	if len(values) == 0 {
+		return true
+	}
+	return slices.Contains(values, "1")
+}
+
+// searchFamily is the family the builder's product search filters to: the quote's
+// series family while the toggle is on, or "" (no filter) otherwise.
+func searchFamily(quote *store.Quote, soloFamilia bool) string {
+	if !soloFamilia {
+		return ""
+	}
+	return views.QuotePrefixFamily(quote.Prefix)
 }
 
 // Builder renders the full quote-builder page at GET /cotizaciones/{folio}, starting
@@ -467,7 +498,8 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	searchQuery := strings.TrimSpace(r.URL.Query().Get("q"))
-	searchResults, err := q.productSearchResults(ctx, searchQuery)
+	soloFamilia := soloFamiliaParam(r)
+	searchResults, err := q.productSearchResults(ctx, searchQuery, searchFamily(quote, soloFamilia))
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
@@ -481,7 +513,7 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 		successMsg = "Cotización emitida."
 	}
 	user, _ := UserFromContext(ctx)
-	views.QuoteBuilder(*quote, lines, totals, successMsg, searchQuery, searchResults, navUserView(user)).Render(ctx, w)
+	views.QuoteBuilder(*quote, lines, totals, successMsg, searchQuery, soloFamilia, searchResults, navUserView(user)).Render(ctx, w)
 }
 
 // Recalcular handles POST /cotizaciones/{folio}/recalcular: the endpoint behind every
@@ -518,19 +550,20 @@ func (q *Quotes) Recalcular(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, _ := UserFromContext(ctx)
-	views.QuoteBuilder(*quote, lines, totals, "", "", nil, navUserView(user)).Render(ctx, w)
+	views.QuoteBuilder(*quote, lines, totals, "", "", true, nil, navUserView(user)).Render(ctx, w)
 }
 
 // BuscarProductos handles GET /cotizaciones/{folio}/productos: the htmx-driven live
 // product search behind the builder's "add line" picker (Builder's own ?q= handling is
-// the no-JS fallback for the same search). Not scoped by the quote's own prefix — per
-// the user's decision, any product may go on any quote.
+// the no-JS fallback for the same search). Defaults to the quote's series family, but
+// the toggle can lift that — per the user's decision, any product may go on any quote.
 func (q *Quotes) BuscarProductos(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if quote := q.loadQuoteOrNotFound(w, r); quote == nil {
+	quote := q.loadQuoteOrNotFound(w, r)
+	if quote == nil {
 		return
 	}
-	products, err := q.productSearchResults(ctx, strings.TrimSpace(r.URL.Query().Get("q")))
+	products, err := q.productSearchResults(ctx, strings.TrimSpace(r.URL.Query().Get("q")), searchFamily(quote, soloFamiliaParam(r)))
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
@@ -567,7 +600,7 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 		if l.Error != "" {
 			user, _ := UserFromContext(ctx)
 			w.WriteHeader(http.StatusUnprocessableEntity)
-			views.QuoteBuilder(*quote, lines, totals, "", "", nil, navUserView(user)).Render(ctx, w)
+			views.QuoteBuilder(*quote, lines, totals, "", "", true, nil, navUserView(user)).Render(ctx, w)
 			return
 		}
 	}
@@ -738,14 +771,14 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 	if len(lines) == 0 {
 		user, _ := UserFromContext(ctx)
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		views.QuoteBuilder(*quote, lines, totals, "", "", nil, navUserView(user)).Render(ctx, w)
+		views.QuoteBuilder(*quote, lines, totals, "", "", true, nil, navUserView(user)).Render(ctx, w)
 		return
 	}
 	for _, l := range lines {
 		if l.Error != "" {
 			user, _ := UserFromContext(ctx)
 			w.WriteHeader(http.StatusUnprocessableEntity)
-			views.QuoteBuilder(*quote, lines, totals, "", "", nil, navUserView(user)).Render(ctx, w)
+			views.QuoteBuilder(*quote, lines, totals, "", "", true, nil, navUserView(user)).Render(ctx, w)
 			return
 		}
 	}

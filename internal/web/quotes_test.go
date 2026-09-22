@@ -595,6 +595,52 @@ func TestQuotesBuscarProductosHTMXFragment(t *testing.T) {
 	}
 }
 
+// TestQuotesBuscarProductosFamilyFilter covers the picker's "solo productos de la
+// familia" toggle: on by default (a QA quote only sees CCA products), off when the
+// form sends only the hidden solo_familia=0.
+func TestQuotesBuscarProductosFamilyFilter(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	ctx := context.Background()
+	ccaFamilyID, err := a.store.UpsertFamily(ctx, "CCA", "CCA")
+	if err != nil {
+		t.Fatalf("UpsertFamily(CCA): %v", err)
+	}
+	cost := money.Micros(45_000_000)
+	if _, err := a.store.CreateProduct(ctx, store.Product{
+		FamilyID: ccaFamilyID, SKU: "cca-c12", Description: "Cable CCA 12", CostMicros: &cost,
+	}); err != nil {
+		t.Fatalf("CreateProduct(cca): %v", err)
+	}
+	quote, err := a.store.CreateDraftQuote(ctx, customerID, userID, "QA")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+
+	search := func(query string) string {
+		t.Helper()
+		rec := doForm(t, a, userID, q.BuscarProductos, "GET", "/cotizaciones/"+quote.Folio+"/productos?"+query,
+			map[string]string{"folio": quote.Folio}, nil, true)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("BuscarProductos(%s) status = %d, want 200", query, rec.Code)
+		}
+		return rec.Body.String()
+	}
+
+	for _, query := range []string{"q=cable", "q=cable&solo_familia=0&solo_familia=1"} {
+		body := search(query)
+		if !strings.Contains(body, "cca-c12") || strings.Contains(body, "cca-c14") {
+			t.Fatalf("BuscarProductos(%s) should show only CCA-family products: %s", query, body)
+		}
+	}
+	body := search("q=cable&solo_familia=0")
+	if !strings.Contains(body, "cca-c12") || !strings.Contains(body, "cca-c14") {
+		t.Fatalf("BuscarProductos with the toggle off should show every family: %s", body)
+	}
+}
+
 func TestQuotesRequireAuth(t *testing.T) {
 	a := newTestAuth(t)
 	q := newTestQuotes(t, a)

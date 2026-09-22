@@ -48,6 +48,10 @@ Con la cotización en borrador:
    la descripción (p. ej. `THW`).
 2. Aparecen hasta 20 resultados, cada uno como botón:
    `SKU — Descripción (precio)`. Si no ves el que buscas, escribe algo más específico.
+   - Junto al buscador está la casilla *"Solo productos de la familia …"* (CCA para
+     serie QA, CCS & AC para QS, ABASTILUM para QI), **marcada de inicio**: solo
+     aparecen productos de la familia de la serie. Desmárcala para buscar en todo el
+     catálogo; cualquier producto se puede agregar a cualquier cotización.
 3. Haz clic en el producto. Se agrega como una línea nueva, con cantidad 1 y su precio
    ya calculado.
 4. Repite para cada producto.
