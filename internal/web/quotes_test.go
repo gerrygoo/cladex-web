@@ -656,3 +656,39 @@ func TestQuotesRequireAuth(t *testing.T) {
 		t.Fatalf("Location = %q, want /login", loc)
 	}
 }
+
+// Enter in a line's qty field (iOS's "Ir" key) does an implicit submit through the
+// builder form's first submit button. That must be a recalcular, never the "Buscar"
+// GET, which reloads the draft from the DB and silently drops unsaved lines.
+func TestQuotesBuilderDefaultSubmitRecalculates(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	quote, err := a.store.CreateDraftQuote(context.Background(), customerID, userID, "QA")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+
+	rec := doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+quote.Folio,
+		map[string]string{"folio": quote.Folio}, nil, false)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Builder status = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	formAt := strings.Index(body, `id="linea-form"`)
+	if formAt < 0 {
+		t.Fatal("builder page missing #linea-form")
+	}
+	rest := body[formAt:]
+	btnAt := strings.Index(rest, `type="submit"`)
+	if btnAt < 0 {
+		t.Fatal("#linea-form has no submit button")
+	}
+	btnEnd := strings.Index(rest[btnAt:], ">")
+	firstButton := rest[btnAt : btnAt+btnEnd]
+	if !strings.Contains(firstButton, `hx-post="/cotizaciones/`+quote.Folio+`/recalcular"`) ||
+		strings.Contains(firstButton, "formaction") {
+		t.Errorf("first submit button in #linea-form is not a plain recalcular: %s", firstButton)
+	}
+}

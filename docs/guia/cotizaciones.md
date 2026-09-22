@@ -66,7 +66,7 @@ Con la cotización en borrador:
 
 1. En la columna **Cantidad**, escribe la cantidad. Acepta decimales (hasta 3, p. ej.
    `152.5`). Junto al campo aparece la unidad del producto, p. ej. `m`.
-2. Presiona **Tab** o haz clic fuera del campo.
+2. Presiona **Enter** (en iPhone/iPad, **Ir**), **Tab**, o haz clic fuera del campo.
 
 El total de la línea, el **Subtotal**, el **IVA (16%)** y el **Total** se actualizan
 solos. La cantidad se captura en la unidad del producto que aparece junto al campo.

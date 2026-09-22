@@ -416,6 +416,21 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 		}
 		if quote.Status == "borrador" {
 			<form id="linea-form" method="post" action={ templ.URL(recalcularPath(quote.Folio)) }>
+				// Enter in any text field (e.g. iOS's "Ir" key on a qty input) does an
+				// implicit submit through the form's first submit button. Without this, that
+				// was "Buscar" — a GET reload from the DB that dropped every unsaved line.
+				// Visually hidden rather than display:none, which Safari skips as a default.
+				<button
+					type="submit"
+					class="visually-hidden"
+					tabindex="-1"
+					aria-hidden="true"
+					hx-post={ recalcularPath(quote.Folio) }
+					hx-target="#quote-lines-fragment"
+					hx-swap="outerHTML"
+				>
+					Recalcular
+				</button>
 				<div class="toolbar">
 					<input
 						type="search"
