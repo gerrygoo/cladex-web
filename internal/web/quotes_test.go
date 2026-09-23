@@ -35,7 +35,31 @@ func seedPricingSettings(t *testing.T, a *Auth, userID int64) {
 	}
 	set("fx_rate", "18.50")
 	set("copper_price", "145.30")
-	set("default_margin", "0.30")
+	setDefaultMarginPercent(t, a, userID, "30")
+}
+
+// setDefaultMarginPercent revalues the default margin option (the one new drafts start
+// on) to pct percent, so a test's cost-product prices don't depend on the seeded value.
+func setDefaultMarginPercent(t *testing.T, a *Auth, userID int64, pct string) {
+	t.Helper()
+	ctx := context.Background()
+	opts, err := a.store.ListMarginOptions(ctx)
+	if err != nil {
+		t.Fatalf("ListMarginOptions: %v", err)
+	}
+	value, err := parseMarginPercent(pct)
+	if err != nil {
+		t.Fatalf("parseMarginPercent(%q): %v", pct, err)
+	}
+	for _, o := range opts {
+		if o.IsDefault {
+			if err := a.store.UpdateMarginOption(ctx, o.ID, o.Name, value, userID); err != nil {
+				t.Fatalf("UpdateMarginOption: %v", err)
+			}
+			return
+		}
+	}
+	t.Fatal("no default margin option")
 }
 
 // seedQuoteBuilderFixtures creates a customer and two products (flat-priced and
@@ -152,7 +176,7 @@ func TestQuotesCreateBuildAndSave(t *testing.T) {
 	// Fill in the free line and the cost+margin product; compute the expected totals
 	// independently via internal/pricing to check the handler wired everything
 	// correctly (settings load, product lookup, price-break lookup).
-	settings := pricing.Settings{FXRate: money.Micros(18_500_000), CopperPrice: money.Micros(145_300_000), DefaultMargin: money.Micros(300_000)}
+	settings := pricing.Settings{FXRate: money.Micros(18_500_000), CopperPrice: money.Micros(145_300_000)}
 	flatUnitPrice, err := pricing.UnitPrice(pricing.Product{UnitPriceMicros: &[]money.Micros{100_000_000}[0], Currency: "MXN"}, money.Milli(2_000), nil, settings)
 	if err != nil {
 		t.Fatalf("pricing.UnitPrice(flat): %v", err)
@@ -290,7 +314,7 @@ func TestQuotesPDF(t *testing.T) {
 		t.Fatalf("CreateDraftQuote: %v", err)
 	}
 	totals := pricing.ComputeTotals([]pricing.Line{{UnitPriceMicros: money.Micros(100_000_000), QtyMilli: money.Milli(1_000)}})
-	err = a.store.ReplaceQuoteLines(context.Background(), quote.ID, []store.QuoteLine{
+	err = a.store.ReplaceQuoteLines(context.Background(), quote.ID, nil, []store.QuoteLine{
 		{ProductID: &flatProductID, DescriptionSnapshot: "Foco LED", QtyMilli: money.Milli(1_000), UnitPriceMicros: money.Micros(100_000_000), LineTotal: money.LineTotalCentavos(money.Micros(100_000_000), money.Milli(1_000)), Source: "manual"},
 	}, totals)
 	if err != nil {
@@ -423,7 +447,7 @@ func TestQuotesIssuedPageShowsFrozenLines(t *testing.T) {
 	q := newTestQuotes(t, a)
 	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
 	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
-	seedPricingSettings(t, a, userID) // margin 0.30: $45.00 / 0.70 = $64.29
+	seedPricingSettings(t, a, userID) // default margin 30%: $45.00 / 0.70 = $64.29
 
 	quote, err := a.store.CreateDraftQuote(context.Background(), customerID, userID, "QA")
 	if err != nil {
@@ -441,11 +465,9 @@ func TestQuotesIssuedPageShowsFrozenLines(t *testing.T) {
 		t.Fatalf("Emitir status = %d; body = %s", rec.Code, rec.Body.String())
 	}
 
-	// Margin 0.50 would reprice the line to $90.00; deleting the product would make a
-	// live recompute drop it altogether.
-	if err := a.store.SetSetting(context.Background(), "default_margin", "500000", userID); err != nil {
-		t.Fatalf("SetSetting(default_margin): %v", err)
-	}
+	// Moving the quote's margin option to 50% would reprice the line to $90.00;
+	// deleting the product would make a live recompute drop it altogether.
+	setDefaultMarginPercent(t, a, userID, "50")
 	if err := a.store.SoftDeleteProduct(context.Background(), costProductID); err != nil {
 		t.Fatalf("SoftDeleteProduct: %v", err)
 	}

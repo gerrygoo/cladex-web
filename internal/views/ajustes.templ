@@ -1,5 +1,11 @@
 package views
 
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
 // SettingFieldView is one row of the /ajustes form: a settings.key, its current
 // display value (a plain decimal string, already converted from stored micros), and
 // any validation error for it.
@@ -11,7 +17,22 @@ type SettingFieldView struct {
 	Error       string
 }
 
-templ Ajustes(fields []SettingFieldView, successMsg string, user *NavUser) {
+func marginFormID(o store.MarginOption) string {
+	return "margen-" + strconv.FormatInt(o.ID, 10)
+}
+
+func marginPath(o store.MarginOption, action string) string {
+	path := "/ajustes/margenes/" + strconv.FormatInt(o.ID, 10)
+	if action != "" {
+		path += "/" + action
+	}
+	return path
+}
+
+// Ajustes is the admin settings page: the single-value knobs (FX rate, copper price)
+// in one all-or-nothing form, then the margin options, each edited, made default,
+// retired or restored by its own small form. errorMsg is a refused margin action.
+templ Ajustes(fields []SettingFieldView, margins []store.MarginOption, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Ajustes", user) {
 		<h1>
 			Ajustes
@@ -19,6 +40,9 @@ templ Ajustes(fields []SettingFieldView, successMsg string, user *NavUser) {
 		</h1>
 		if successMsg != "" {
 			<p class="success">{ successMsg }</p>
+		}
+		if errorMsg != "" {
+			<p class="error">{ errorMsg }</p>
 		}
 		<form method="post" action="/ajustes">
 			for _, f := range fields {
@@ -31,6 +55,73 @@ templ Ajustes(fields []SettingFieldView, successMsg string, user *NavUser) {
 				}
 			}
 			<button type="submit">Guardar</button>
+		</form>
+		<h2>
+			Márgenes
+			@HelpLink(HelpMargenes)
+		</h2>
+		<p>Cada cotización se calcula con uno de estos márgenes; el vendedor lo elige al armarla.</p>
+		<table>
+			<thead>
+				<tr>
+					<th>Nombre</th>
+					<th>Margen (%)</th>
+					<th>Estado</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, m := range margins {
+					<tr>
+						// The inputs sit in their own cells and join the row's edit form, which
+						// lives in the actions cell, through the form attribute.
+						<td>
+							<input type="text" form={ marginFormID(m) } name="name" value={ m.Name } aria-label="Nombre" required/>
+						</td>
+						<td>
+							<input type="text" form={ marginFormID(m) } name="value" value={ MarginPercent(m.ValueMicros) } size="8" aria-label="Margen (%)" required/>
+						</td>
+						<td>
+							if !m.Active() {
+								Retirado
+							} else if m.IsDefault {
+								<strong>Predeterminado</strong>
+							} else {
+								Activo
+							}
+						</td>
+						<td>
+							<form id={ marginFormID(m) } method="post" action={ templ.URL(marginPath(m, "")) } style="display:inline">
+								<button type="submit">Guardar</button>
+							</form>
+							if !m.Active() {
+								<form method="post" action={ templ.URL(marginPath(m, "restaurar")) } style="display:inline">
+									<button type="submit">Restaurar</button>
+								</form>
+							} else if !m.IsDefault {
+								<form method="post" action={ templ.URL(marginPath(m, "predeterminado")) } style="display:inline">
+									<button type="submit">Hacer predeterminado</button>
+								</form>
+								<form method="post" action={ templ.URL(marginPath(m, "retirar")) } style="display:inline">
+									<button type="submit">Retirar</button>
+								</form>
+							}
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+		<h3>Nuevo margen</h3>
+		<form method="post" action="/ajustes/margenes">
+			<label>
+				Nombre
+				<input type="text" name="name" placeholder="p. ej. Distribuidor" required/>
+			</label>
+			<label>
+				Margen (%)
+				<input type="text" name="value" placeholder="p. ej. 12.34" required/>
+			</label>
+			<button type="submit">Agregar</button>
 		</form>
 	}
 }

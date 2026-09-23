@@ -24,7 +24,8 @@ const (
 	HelpConversiones       HelpTopic = "/ayuda/productos#conversiones-de-unidades"
 
 	// Admin-only screens link to the admin-only guide page.
-	HelpAjustes  HelpTopic = "/ayuda/administracion#actualizar-tipo-de-cambio-precio-del-cobre-y-margen"
+	HelpAjustes  HelpTopic = "/ayuda/administracion#actualizar-tipo-de-cambio-y-precio-del-cobre"
+	HelpMargenes HelpTopic = "/ayuda/administracion#márgenes"
 	HelpUsuarios HelpTopic = "/ayuda/administracion#cambiar-el-rol-de-un-usuario"
 	HelpUnidades HelpTopic = "/ayuda/administracion#unidades"
 )
@@ -46,6 +47,7 @@ var HelpTopics = map[HelpTopic]bool{
 	HelpProductoEditar:     false,
 	HelpConversiones:       false,
 	HelpAjustes:            true,
+	HelpMargenes:           true,
 	HelpUsuarios:           true,
 	HelpUnidades:           true,
 }

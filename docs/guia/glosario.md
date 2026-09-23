@@ -45,12 +45,12 @@ Al revisar se crea una nueva cotización (`QA0012-R1`) en borrador.
 
 ## Borrador
 
-Una cotización que todavía se puede editar. Sus precios se recalculan con el catálogo y
-los ajustes vigentes cada vez que la abres.
+Una cotización que todavía se puede editar. Sus precios se recalculan con el catálogo,
+su margen y los ajustes vigentes cada vez que la abres.
 
 ## Emitida
 
-Una cotización congelada: sus precios, tipo de cambio, términos y PDF ya no cambian.
+Una cotización congelada: sus precios, margen, tipo de cambio, términos y PDF ya no cambian.
 Es la que se envía al cliente.
 
 ## Revisada
@@ -84,6 +84,7 @@ peso × precio del cobre. Lo captura un administrador en Ajustes.
 
 ## Margen
 
-La fracción del precio de venta que es utilidad (`0.35` = 35 %). Los productos que se
-cotizan con costo (Cable CCA) cuestan costo ÷ (1 − margen). Lo captura un
-administrador en Ajustes.
+La parte del precio de venta que es utilidad, como porcentaje (35 %). Los productos que
+se cotizan con costo (Cable CCA) cuestan costo ÷ (1 − margen). Cada cotización usa uno
+de los márgenes de una lista con nombre (p. ej. *Estándar (12.34%)*) que mantiene un
+administrador en Ajustes; el vendedor lo elige al armar la cotización.

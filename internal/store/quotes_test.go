@@ -121,7 +121,7 @@ func TestReplaceQuoteLines(t *testing.T) {
 		{UnitPriceMicros: lines[1].UnitPriceMicros, QtyMilli: lines[1].QtyMilli},
 	})
 
-	if err := s.ReplaceQuoteLines(ctx, q.ID, lines, totals); err != nil {
+	if err := s.ReplaceQuoteLines(ctx, q.ID, nil, lines, totals); err != nil {
 		t.Fatalf("ReplaceQuoteLines: %v", err)
 	}
 
@@ -150,7 +150,7 @@ func TestReplaceQuoteLines(t *testing.T) {
 	// Replacing again with fewer lines should leave exactly the new set — no stale rows.
 	single := []QuoteLine{lines[0]}
 	singleTotals := pricing.ComputeTotals([]pricing.Line{{UnitPriceMicros: lines[0].UnitPriceMicros, QtyMilli: lines[0].QtyMilli}})
-	if err := s.ReplaceQuoteLines(ctx, q.ID, single, singleTotals); err != nil {
+	if err := s.ReplaceQuoteLines(ctx, q.ID, nil, single, singleTotals); err != nil {
 		t.Fatalf("ReplaceQuoteLines (second call): %v", err)
 	}
 	got, err = s.ListQuoteLines(ctx, q.ID)
@@ -175,7 +175,7 @@ func TestIssueQuote(t *testing.T) {
 		{ProductID: &flatProductID, DescriptionSnapshot: "Foco LED", QtyMilli: money.Milli(1_000), UnitPriceMicros: money.Micros(100_000_000), LineTotal: money.Centavos(10_000), Source: "manual"},
 	}
 	totals := pricing.ComputeTotals([]pricing.Line{{UnitPriceMicros: lines[0].UnitPriceMicros, QtyMilli: lines[0].QtyMilli}})
-	if err := s.ReplaceQuoteLines(ctx, q.ID, lines, totals); err != nil {
+	if err := s.ReplaceQuoteLines(ctx, q.ID, nil, lines, totals); err != nil {
 		t.Fatalf("ReplaceQuoteLines: %v", err)
 	}
 
@@ -248,7 +248,7 @@ func TestCreateRevision(t *testing.T) {
 		{ProductID: &flatProductID, DescriptionSnapshot: "Foco LED", QtyMilli: money.Milli(1_000), UnitPriceMicros: money.Micros(100_000_000), LineTotal: money.Centavos(10_000), Source: "manual"},
 	}
 	totals := pricing.ComputeTotals([]pricing.Line{{UnitPriceMicros: lines[0].UnitPriceMicros, QtyMilli: lines[0].QtyMilli}})
-	if err := s.ReplaceQuoteLines(ctx, q.ID, lines, totals); err != nil {
+	if err := s.ReplaceQuoteLines(ctx, q.ID, nil, lines, totals); err != nil {
 		t.Fatalf("ReplaceQuoteLines: %v", err)
 	}
 	if err := s.IssueQuote(ctx, q.ID, testIssue("sha1")); err != nil {
@@ -295,7 +295,7 @@ func TestCreateRevision(t *testing.T) {
 	}
 
 	// Issuing and revising the revision itself produces -R2, chained off the same base.
-	if err := s.ReplaceQuoteLines(ctx, rev.ID, lines, totals); err != nil {
+	if err := s.ReplaceQuoteLines(ctx, rev.ID, nil, lines, totals); err != nil {
 		t.Fatalf("ReplaceQuoteLines(rev): %v", err)
 	}
 	if err := s.IssueQuote(ctx, rev.ID, testIssue("sha2")); err != nil {
@@ -337,7 +337,7 @@ func TestQuotesAreAudited(t *testing.T) {
 		{ProductID: &flatProductID, DescriptionSnapshot: "Foco LED", QtyMilli: money.Milli(1_000), UnitPriceMicros: money.Micros(100_000_000), LineTotal: money.Centavos(10_000), Source: "manual"},
 	}
 	totals := pricing.ComputeTotals([]pricing.Line{{UnitPriceMicros: lines[0].UnitPriceMicros, QtyMilli: lines[0].QtyMilli}})
-	if err := s.ReplaceQuoteLines(actorCtx, q.ID, lines, totals); err != nil {
+	if err := s.ReplaceQuoteLines(actorCtx, q.ID, nil, lines, totals); err != nil {
 		t.Fatalf("ReplaceQuoteLines: %v", err)
 	}
 	if err := s.IssueQuote(actorCtx, q.ID, testIssue("sha1")); err != nil {
@@ -418,22 +418,7 @@ func TestMigration0006BackfillsNameSnapshots(t *testing.T) {
 	ctx := context.Background()
 	dsn := filepath.Join(t.TempDir(), "test.db")
 
-	before := fstest.MapFS{}
-	entries, err := fs.ReadDir(cladex.MigrationsFS, "migrations")
-	if err != nil {
-		t.Fatalf("ReadDir: %v", err)
-	}
-	for _, e := range entries {
-		if e.Name() >= "0006" {
-			continue
-		}
-		data, err := fs.ReadFile(cladex.MigrationsFS, "migrations/"+e.Name())
-		if err != nil {
-			t.Fatalf("ReadFile: %v", err)
-		}
-		before["migrations/"+e.Name()] = &fstest.MapFile{Data: data}
-	}
-	old, err := Open(ctx, dsn, before)
+	old, err := Open(ctx, dsn, migrationsBefore(t, "0006"))
 	if err != nil {
 		t.Fatalf("open at 0005: %v", err)
 	}
@@ -477,4 +462,26 @@ func TestMigration0006BackfillsNameSnapshots(t *testing.T) {
 		`SELECT count(*) FROM pragma_table_info('quotes') WHERE name = 'pdf_path'`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("pdf_path still present (count %d, err %v)", n, err)
 	}
+}
+
+// migrationsBefore returns the embedded migrations whose filenames sort before first,
+// for opening a database as it was before a migration under test.
+func migrationsBefore(t *testing.T, first string) fstest.MapFS {
+	t.Helper()
+	before := fstest.MapFS{}
+	entries, err := fs.ReadDir(cladex.MigrationsFS, "migrations")
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	for _, e := range entries {
+		if e.Name() >= first {
+			continue
+		}
+		data, err := fs.ReadFile(cladex.MigrationsFS, "migrations/"+e.Name())
+		if err != nil {
+			t.Fatalf("ReadFile: %v", err)
+		}
+		before["migrations/"+e.Name()] = &fstest.MapFile{Data: data}
+	}
+	return before
 }

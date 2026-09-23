@@ -6,8 +6,8 @@ El flujo completo, de principio a fin:
    [[borrador]] con su [[folio]].
 2. Agregar líneas: [productos del catálogo](#agregar-productos-por-sku) y/o
    [líneas libres](#agregar-una-línea-libre).
-3. [Ajustar cantidades](#cambiar-la-cantidad-de-una-línea); el sistema calcula precios,
-   [[IVA]] y total.
+3. [Ajustar cantidades](#cambiar-la-cantidad-de-una-línea) y
+   [elegir el margen](#elegir-el-margen); el sistema calcula precios, [[IVA]] y total.
 4. [Guardar el borrador](#guardar-el-borrador), cuantas veces quieras.
 5. [Emitir](#emitir-la-cotización): se congela y se genera el PDF definitivo.
 6. [Descargar el PDF](#descargar-y-enviar-el-pdf) y enviarlo al cliente.
@@ -58,8 +58,9 @@ Con la cotización en borrador:
    ya calculado. La lista se queda en la misma página.
 3. Repite para cada producto.
 
-> El precio de una línea **lo calcula el sistema** a partir del catálogo y de los
-> ajustes vigentes ([[tipo de cambio]], [[precio del cobre]], [[margen]]). No se captura a mano. Ver
+> El precio de una línea **lo calcula el sistema** a partir del catálogo, el
+> [margen de la cotización](#elegir-el-margen) y los ajustes vigentes
+> ([[tipo de cambio]], [[precio del cobre]]). No se captura a mano. Ver
 > [cómo se calcula el precio de un producto](productos.md#cómo-se-calcula-el-precio-de-un-producto).
 > El precio que aparece entre paréntesis en los resultados es el dato del catálogo, no
 > necesariamente el precio final de la línea.
@@ -72,6 +73,23 @@ Con la cotización en borrador:
 
 El total de la línea, el **Subtotal**, el **IVA (16%)** y el **Total** se actualizan
 solos. La cantidad se captura en la unidad del producto que aparece junto al campo.
+
+## Elegir el margen
+
+Cada cotización se calcula con un [[margen]] que eliges de una lista, p. ej.
+*Estándar (12.34%)*. Una cotización nueva empieza con el margen predeterminado.
+
+1. En **Margen**, arriba de las líneas, elige otro de la lista.
+2. Los precios y totales se recalculan solos.
+3. [Guarda el borrador](#guardar-el-borrador) para conservar el cambio.
+
+El margen aplica a todas las líneas de la cotización. Hoy solo cambia el precio de los
+productos que se cotizan con costo (Cable CCA); las [líneas libres](#agregar-una-línea-libre)
+no lo usan. El margen no aparece en el PDF.
+
+> La lista de márgenes la mantiene un administrador en Ajustes. Si cambia el porcentaje
+> de tu margen, tu borrador toma el valor nuevo; si lo retira, tienes que
+> [elegir otro](#problemas-comunes) antes de emitir.
 
 ## Agregar una línea libre
 
@@ -103,8 +121,9 @@ Los cambios en las líneas **no se guardan solos**.
 > hasta corregirla. Ver [problemas comunes](#problemas-comunes).
 
 > **Los precios de un borrador no son definitivos.** Cada vez que abres un borrador, sus
-> precios se recalculan con el catálogo y los ajustes vigentes. Si un administrador
-> cambia el tipo de cambio o el precio del cobre, tu borrador toma los precios nuevos.
+> precios se recalculan con el catálogo, el margen elegido y los ajustes vigentes. Si
+> un administrador cambia el tipo de cambio, el precio del cobre o el porcentaje de tu
+> margen, tu borrador toma los precios nuevos.
 > Los precios se fijan hasta que [emites](#emitir-la-cotización).
 
 ## Ver una vista previa del PDF
@@ -128,7 +147,7 @@ Cuando la cotización está lista para enviarse al cliente:
 
 Qué pasa al emitir:
 
-- Se congelan los precios, el tipo de cambio y los términos y condiciones. La
+- Se congelan los precios, el margen, el tipo de cambio y los términos y condiciones. La
   cotización ya no se puede editar; aunque después cambien los ajustes o el catálogo,
   lo que ves en la página y en el PDF sigue siendo lo que se emitió.
 - El PDF queda definitivo. Cada vez que lo descargues tendrá los mismos precios,
@@ -136,7 +155,8 @@ Qué pasa al emitir:
   ajustes, el catálogo o los datos del cliente.
 - La [[vigencia]] es de 30 días a partir de hoy; aparece en el PDF y en la página.
 
-> Para emitir, la cotización necesita al menos una línea y ninguna línea con error.
+> Para emitir, la cotización necesita al menos una línea, ninguna línea con error y un
+> margen disponible.
 
 ## Descargar y enviar el PDF
 
@@ -168,8 +188,10 @@ Qué pasa al revisar:
   revisar la versión emitida más reciente.
 - No se puede deshacer: al hacer clic en **Revisar**, la original queda como revisada.
 
-> **Importante:** la revisión es un borrador, así que sus precios se recalculan con los
-> ajustes **actuales**, no con los de la original. Revisa los precios antes de emitirla.
+> **Importante:** la revisión es un borrador. Empieza con el mismo margen que la
+> original, pero sus precios se recalculan con el catálogo, el porcentaje de ese margen
+> y los ajustes **actuales**, no con los de la original. Revisa los precios antes de
+> emitirla.
 
 ## Buscar una cotización
 
@@ -188,9 +210,12 @@ Qué pasa al revisar:
 | *Cantidad inválida.* | La cantidad está vacía, es cero o negativa, o no es un número. | Escribe un número mayor que 0. |
 | *Descripción obligatoria.* | Una línea libre no tiene descripción. | Escríbela, o quita la línea. |
 | *Precio inválido.* | Una línea libre tiene el precio vacío o con letras o signos. | Escribe solo el número, p. ej. `123.45`. |
-| *Falta configurar el tipo de cambio en Ajustes.* | El producto está en USD y no hay tipo de cambio capturado. | Pide a un administrador que lo capture en [Ajustes](administracion.md#actualizar-tipo-de-cambio-precio-del-cobre-y-margen). |
+| *Falta configurar el tipo de cambio en Ajustes.* | El producto está en USD y no hay tipo de cambio capturado. | Pide a un administrador que lo capture en [Ajustes](administracion.md#actualizar-tipo-de-cambio-y-precio-del-cobre). |
 | *Falta configurar el precio del cobre en Ajustes.* | El producto se cotiza por peso y no hay precio del cobre. | Igual: un administrador lo captura en Ajustes. |
-| *Falta configurar el margen por defecto en Ajustes.* | El producto se cotiza con costo + margen y no hay margen. | Igual: un administrador lo captura en Ajustes. |
+| *Elige un margen para esta cotización.* | La cotización no tiene margen (p. ej. una revisión de una cotización antigua). | [Elige uno](#elegir-el-margen) en **Margen**. |
+| *El margen elegido ya no está disponible; elige otro.* | Un administrador retiró el margen de la cotización. | [Elige otro](#elegir-el-margen) en **Margen**. |
+| *Elige un margen disponible para esta cotización.* | Aparece en las líneas con costo mientras la cotización no tiene un margen disponible. | Igual: elige un margen en **Margen**. |
+| Al hacer clic en **Emitir cotización** la página se recarga con un mensaje sobre el margen. | El margen de la cotización no está disponible. | Elige un margen en **Margen** y vuelve a emitir. |
 | *Este producto no tiene datos de precio configurados.* | El producto no tiene precio, costo ni peso. | [Corrige el producto](productos.md#editar-un-producto) o usa una [línea libre](#agregar-una-línea-libre). |
 | *Producto no encontrado.* | El producto se eliminó del catálogo después de agregarlo al borrador. | Quita la línea y agrega el producto correcto. |
 | *esta cotización ya no es editable* | La cotización ya fue emitida (p. ej. la emitiste desde otra pestaña). | Ábrela de nuevo. Para cambiarla, usa [Revisar](#revisar-una-cotización-emitida). |

@@ -3,7 +3,7 @@
 Solo para cuentas con rol **Administrador**. Estas opciones aparecen en el menú como
 **Usuarios**, **Unidades** y **Ajustes**.
 
-## Actualizar tipo de cambio, precio del cobre y margen
+## Actualizar tipo de cambio y precio del cobre
 
 1. En el menú, entra a **Ajustes**.
 2. Actualiza los valores que cambiaron, solo con números:
@@ -11,9 +11,6 @@ Solo para cuentas con rol **Administrador**. Estas opciones aparecen en el menú
      productos con moneda USD.
    - **Precio del cobre ($/kg)**: p. ej. `145.30`. Se usa en los productos que se
      cotizan por peso (Cable CCS & AC).
-   - **Margen por defecto**: como fracción, `0.35` = 35 %. Se usa en los productos que
-     se cotizan con costo (Cable CCA). Es margen sobre el precio de venta: el precio es
-     costo ÷ (1 − margen), así que con `0.35` un costo de $65.00 se cotiza a $100.00.
 3. Haz clic en **Guardar**.
 
 Efecto de un cambio:
@@ -25,6 +22,47 @@ Efecto de un cambio:
 
 > Avisa a los vendedores cuando cambies estos valores: los precios de sus borradores van
 > a cambiar. Ver [cómo se calcula el precio de un producto](productos.md#cómo-se-calcula-el-precio-de-un-producto).
+
+## Márgenes
+
+Los [[margen|márgenes]] son una lista de opciones con nombre (p. ej. *Estándar (12.34%)*).
+Cada cotización se calcula con **una** de ellas, que el vendedor elige al armarla. Solo
+un administrador puede cambiar la lista. Están abajo en **Ajustes**, en **Márgenes**.
+
+El margen es sobre el precio de venta: el precio es costo ÷ (1 − margen). Con 35 %, un
+costo de $65.00 se cotiza a $100.00. Hoy solo afecta a los productos que se cotizan con
+costo (Cable CCA).
+
+**Agregar un margen**
+
+1. En **Nuevo margen**, escribe el **Nombre** (p. ej. `Distribuidor`) y el
+   **Margen (%)** como porcentaje, sin el signo: `12.34` = 12.34 %. Acepta hasta 4
+   decimales y debe ser menor que 100.
+2. Haz clic en **Agregar**.
+
+**Cambiar el nombre o el porcentaje**
+
+1. En la fila del margen, cambia el nombre o el porcentaje.
+2. Haz clic en **Guardar** de esa fila.
+
+> **Los borradores siguen al margen.** Si cambias el porcentaje, todos los borradores
+> que usan ese margen se recalculan con el nuevo valor la próxima vez que se abren. Las
+> cotizaciones emitidas no cambian: guardan el nombre y el porcentaje con que se
+> emitieron.
+
+**Margen predeterminado**
+
+Las cotizaciones nuevas empiezan con el margen **Predeterminado**. Para cambiarlo, haz
+clic en **Hacer predeterminado** en otro margen.
+
+**Retirar o restaurar un margen**
+
+- **Retirar** quita el margen de la lista que ven los vendedores. No se borra: las
+  cotizaciones emitidas con él lo siguen mostrando. Un borrador que lo tenía elegido
+  muestra *"El margen elegido ya no está disponible; elige otro."* y no se puede emitir
+  hasta elegir otro.
+- No se puede retirar el predeterminado; primero haz predeterminado otro.
+- **Restaurar** lo vuelve a poner en la lista.
 
 ## Cambiar el rol de un usuario
 

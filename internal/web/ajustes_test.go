@@ -36,9 +36,8 @@ func TestAjustesSaveAndReload(t *testing.T) {
 	}
 
 	form := url.Values{
-		"fx_rate":        {"18.50"},
-		"copper_price":   {"145.30"},
-		"default_margin": {"0.35"},
+		"fx_rate":      {"18.50"},
+		"copper_price": {"145.30"},
 	}
 	req = withAuthCookie(t, a, adminID, httptest.NewRequest("POST", "/ajustes", strings.NewReader(form.Encode())))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -59,7 +58,7 @@ func TestAjustesSaveAndReload(t *testing.T) {
 		t.Fatalf("Page after save status = %d, want 200", rec.Code)
 	}
 	body := rec.Body.String()
-	for _, want := range []string{"18.5", "145.3", "0.35"} {
+	for _, want := range []string{"18.5", "145.3"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("reloaded page missing value %q: %s", want, body)
 		}
@@ -72,9 +71,8 @@ func TestAjustesValidationError(t *testing.T) {
 	adminID := createTestUser(t, a, "ana", "admin", "hunter2")
 
 	form := url.Values{
-		"fx_rate":        {"no-es-numero"},
-		"copper_price":   {"145.30"},
-		"default_margin": {"0.35"},
+		"fx_rate":      {"no-es-numero"},
+		"copper_price": {"145.30"},
 	}
 	req := withAuthCookie(t, a, adminID, httptest.NewRequest("POST", "/ajustes", strings.NewReader(form.Encode())))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

@@ -93,6 +93,11 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 
 	mux.Handle("GET /ajustes", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.Page))))
 	mux.Handle("POST /ajustes", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.Submit))))
+	mux.Handle("POST /ajustes/margenes", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.CreateMargen))))
+	mux.Handle("POST /ajustes/margenes/{id}", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.UpdateMargen))))
+	mux.Handle("POST /ajustes/margenes/{id}/predeterminado", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.PredeterminarMargen))))
+	mux.Handle("POST /ajustes/margenes/{id}/retirar", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.RetirarMargen))))
+	mux.Handle("POST /ajustes/margenes/{id}/restaurar", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.RestaurarMargen))))
 
 	mux.Handle("GET /unidades", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(units.List))))
 	mux.Handle("POST /unidades", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(units.Create))))

@@ -18,14 +18,18 @@ import (
 // workbook's own hardcoded formula (subtotal*0.16). Not admin-configurable.
 const IVARate = money.Micros(160_000)
 
-// Settings are the admin-configurable knobs this package needs from the settings
-// table (fx_rate, copper_price, default_margin), already parsed to Micros — this
-// package never touches the database.
+// Settings are the inputs this package needs beyond the product itself, already parsed
+// to Micros — this package never touches the database. FXRate and CopperPrice come from
+// the settings table; Margin is the quote's chosen margin option, nil when the quote
+// has none it can use (see ErrNoMargin).
 type Settings struct {
-	FXRate        money.Micros // USD -> MXN
-	CopperPrice   money.Micros // MXN per kg
-	DefaultMargin money.Micros // fraction of the sale price, e.g. 123_400 == 12.34%
+	FXRate      money.Micros  // USD -> MXN
+	CopperPrice money.Micros  // MXN per kg
+	Margin      *money.Micros // fraction of the sale price, e.g. 123_400 == 12.34%
 }
+
+// ErrNoMargin is returned for a cost-priced product when Settings carries no margin.
+var ErrNoMargin = errors.New("pricing: cost-priced product needs a margin")
 
 // Product is the subset of store.Product the pricing engine reads. Exactly one of
 // UnitPriceMicros, CostMicros, or KgPerMMicros is expected to be set in practice — see
@@ -83,10 +87,14 @@ func basePrice(p Product, s Settings) (money.Micros, error) {
 	case p.UnitPriceMicros != nil:
 		return *p.UnitPriceMicros, nil
 	case p.CostMicros != nil:
-		if s.DefaultMargin < 0 || s.DefaultMargin >= 1_000_000 {
-			return 0, fmt.Errorf("pricing: margin %v out of range [0, 1_000_000)", s.DefaultMargin)
+		if s.Margin == nil {
+			return 0, ErrNoMargin
 		}
-		complement := 1_000_000 - int64(s.DefaultMargin)
+		margin := *s.Margin
+		if margin < 0 || margin >= 1_000_000 {
+			return 0, fmt.Errorf("pricing: margin %v out of range [0, 1_000_000)", margin)
+		}
+		complement := 1_000_000 - int64(margin)
 		return money.Micros(money.RoundHalfUp(int64(*p.CostMicros)*1_000_000, complement)), nil
 	case p.KgPerMMicros != nil:
 		if s.CopperPrice <= 0 {

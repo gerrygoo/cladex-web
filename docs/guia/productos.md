@@ -21,14 +21,15 @@ Cada producto se cotiza de una de tres formas, según cuál de estos campos teng
 | Campo lleno | Precio en la cotización | Típico de |
 |---|---|---|
 | **Precio unitario** | Ese precio, tal cual | Alumbrado |
-| **Costo** | Costo ÷ (1 − [[margen]]) | Cable CCA |
+| **Costo** | Costo ÷ (1 − [[margen]] de la cotización) | Cable CCA |
 | **Peso (kg/m)** | Peso × [[precio del cobre]] | Cable CCS & AC |
 
 Si la **Moneda** del producto es USD, el resultado se multiplica por el [[tipo de cambio]].
-El margen, el precio del cobre y el tipo de cambio los captura un administrador en
-[Ajustes](administracion.md#actualizar-tipo-de-cambio-precio-del-cobre-y-margen).
+El precio del cobre y el tipo de cambio los captura un administrador en
+[Ajustes](administracion.md#actualizar-tipo-de-cambio-y-precio-del-cobre). El margen lo
+elige el vendedor en cada cotización, de la [lista de márgenes](administracion.md#márgenes).
 
-*Ejemplo:* un producto con costo `45.00` y margen `0.30` se cotiza a
+*Ejemplo:* un producto con costo `45.00` en una cotización con margen de 30 % se cotiza a
 45.00 ÷ 0.70 = **$64.29**.
 
 > **Llena solo uno de los tres campos.** Si hay más de uno, el sistema usa el primero en

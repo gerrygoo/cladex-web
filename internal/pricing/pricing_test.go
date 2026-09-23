@@ -1,6 +1,7 @@
 package pricing
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
@@ -13,7 +14,9 @@ func micros(f float64) *money.Micros {
 
 // ccaSettings matches the workbook's own snapshot values at the time these reference
 // prices were captured (TIPO DE CAMBIO!C1048562, "Margen CCA (%)").
-var ccaSettings = Settings{DefaultMargin: money.MicrosFromFloat(0.1234)}
+var ccaSettings = Settings{Margin: marginPtr(money.MicrosFromFloat(0.1234))}
+
+func marginPtr(m money.Micros) *money.Micros { return &m }
 
 // ccsSettings matches TIPO DE CAMBIO!C1048566, "Precio por Kilo" — the CCS & AC family
 // prices out to exactly kg/m * copper price; see basePrice's doc comment for why the
@@ -168,10 +171,21 @@ func TestUnitPrice_NoPricingDataErrors(t *testing.T) {
 func TestUnitPrice_MarginOutOfRangeErrors(t *testing.T) {
 	p := Product{CostMicros: micros(10)}
 	for _, margin := range []float64{1.0, 1.5, -0.1} {
-		s := Settings{DefaultMargin: money.MicrosFromFloat(margin)}
+		s := Settings{Margin: marginPtr(money.MicrosFromFloat(margin))}
 		if _, err := UnitPrice(p, money.MilliFromFloat(1), nil, s); err == nil {
 			t.Errorf("UnitPrice(margin=%v) = nil error, want error", margin)
 		}
+	}
+}
+
+// A quote whose margin option is gone can't price a cost product, but its flat and
+// weight-priced lines don't need a margin and still price.
+func TestUnitPrice_NoMargin(t *testing.T) {
+	if _, err := UnitPrice(Product{CostMicros: micros(10)}, money.MilliFromFloat(1), nil, Settings{}); !errors.Is(err, ErrNoMargin) {
+		t.Errorf("UnitPrice(cost, no margin) error = %v, want ErrNoMargin", err)
+	}
+	if _, err := UnitPrice(Product{UnitPriceMicros: micros(10)}, money.MilliFromFloat(1), nil, Settings{}); err != nil {
+		t.Errorf("UnitPrice(flat, no margin) error = %v, want nil", err)
 	}
 }
 

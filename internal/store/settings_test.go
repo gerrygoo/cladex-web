@@ -37,7 +37,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 		t.Fatalf("updated_by = %d, want %d", updatedBy, adminID)
 	}
 
-	values, err := s.SettingValues(ctx, []string{"fx_rate", "copper_price", "default_margin"})
+	values, err := s.SettingValues(ctx, []string{"fx_rate", "copper_price"})
 	if err != nil {
 		t.Fatalf("SettingValues: %v", err)
 	}

@@ -282,10 +282,15 @@ templ quoteLineRow(folio string, line QuoteLineView) {
 // of the full QuoteBuilder page and as the direct htmx response from Recalcular. It
 // carries line_keys, the ordered list of currently-present row keys that
 // parseQuoteLineInputs reads back on the next submit; nothing here writes to the
-// database.
-templ QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricing.Totals) {
+// database. marginError is the margin dropdown's error, rendered here rather than next
+// to the dropdown so that picking another option (which swaps only this fragment)
+// clears it.
+templ QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, marginError string) {
 	<div id="quote-lines-fragment">
 		<input type="hidden" name="line_keys" value={ lineKeysValue(lines) }/>
+		if marginError != "" {
+			<p class="error">{ marginError }</p>
+		}
 		<table>
 			<thead>
 				<tr>
@@ -468,7 +473,7 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
 // read-only summary instead: QuoteLinesReadOnly, the frozen issue metadata, and either
 // a "Revisar" button (emitida — the active version) or a note pointing at whichever
 // revision superseded it (revisada).
-templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, successMsg string, picker ProductPicker, user *NavUser) {
+templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, picker ProductPicker, user *NavUser) {
 	@Layout("Cotización "+quote.Folio, user) {
 		<h1>
 			Cotización { quote.Folio }
@@ -502,6 +507,23 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 				>
 					Recalcular
 				</button>
+				<label>
+					Margen
+					<select
+						name="margin_option_id"
+						hx-post={ recalcularPath(quote.Folio) }
+						hx-trigger="change"
+						hx-target="#quote-lines-fragment"
+						hx-swap="outerHTML"
+					>
+						if margin.NoneChosen {
+							<option value="" selected>— Elige un margen —</option>
+						}
+						for _, c := range margin.Choices {
+							<option value={ marginChoiceValue(c.ID) } selected?={ c.Selected }>{ c.Label }</option>
+						}
+					</select>
+				</label>
 				<div class="toolbar">
 					<input
 						type="search"
@@ -544,7 +566,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 					</button>
 				</div>
 				@ProductSearchResults(picker)
-				@QuoteLinesFragment(quote, lines, totals)
+				@QuoteLinesFragment(quote, lines, totals, margin.Error)
 				<button type="submit" formaction={ guardarPath(quote.Folio) }>
 					Guardar borrador
 				</button>
@@ -560,6 +582,9 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 				}
 				if quote.ValidUntil != nil {
 					Vigencia: { *quote.ValidUntil } ·
+				}
+				if quote.MarginNameSnapshot != nil && quote.MarginSnapshotMicros != nil {
+					Margen: { MarginLabel(*quote.MarginNameSnapshot, *quote.MarginSnapshotMicros) } ·
 				}
 				if quote.FxRateUsedMicros != nil {
 					Tipo de cambio usado: { quote.FxRateUsedMicros.String() }
