@@ -25,8 +25,7 @@ const (
 	HelpProductoMateriales HelpTopic = "/ayuda/productos#materiales-de-un-producto"
 
 	// Admin-only screens link to the admin-only guide page.
-	HelpAjustes    HelpTopic = "/ayuda/administracion#actualizar-el-tipo-de-cambio"
-	HelpMargenes   HelpTopic = "/ayuda/administracion#márgenes"
+	HelpAjustes    HelpTopic = "/ayuda/administracion#márgenes"
 	HelpMateriales HelpTopic = "/ayuda/administracion#materiales"
 	HelpUsuarios   HelpTopic = "/ayuda/administracion#cambiar-el-rol-de-un-usuario"
 	HelpUnidades   HelpTopic = "/ayuda/administracion#unidades"
@@ -50,7 +49,6 @@ var HelpTopics = map[HelpTopic]bool{
 	HelpConversiones:       false,
 	HelpProductoMateriales: false,
 	HelpAjustes:            true,
-	HelpMargenes:           true,
 	HelpMateriales:         true,
 	HelpUsuarios:           true,
 	HelpUnidades:           true,

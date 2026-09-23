@@ -6,20 +6,18 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-// productPriceDisplay renders a product's price for the list table: its flat unit
-// price, or its pre-margin cost, marked "+ materiales" when materials add to it, or
-// just "materiales" for a product costed only from what it's made of — see
-// migrations/0002_add_product_cost.sql and 0008_materials.sql.
+// productPriceDisplay renders a product's pre-margin cost for the list table: its flat
+// cost, marked "+ materiales" when materials add to it, or just "materiales" for a
+// product costed only from what it's made of — see migrations/0002_add_product_cost.sql
+// and 0008_materials.sql. The quote's margin goes on top of either.
 func productPriceDisplay(p store.Product) string {
 	switch {
-	case p.UnitPriceMicros != nil:
-		return p.UnitPriceMicros.ToCentavosHalfUp().String()
 	case p.CostMicros != nil && p.HasMaterials:
-		return p.CostMicros.ToCentavosHalfUp().String() + " (costo + materiales)"
+		return p.CostMicros.ToCentavosHalfUp().String() + " + materiales"
 	case p.CostMicros != nil:
-		return p.CostMicros.ToCentavosHalfUp().String() + " (costo)"
+		return p.CostMicros.ToCentavosHalfUp().String()
 	case p.HasMaterials:
-		return "(materiales)"
+		return "materiales"
 	default:
 		return "—"
 	}
@@ -79,8 +77,7 @@ templ ProductsList(products []store.Product, query string, sort string, dir stri
 					@productsSortHeader("SKU", "sku", query, sort, dir)
 					@productsSortHeader("Descripción", "description", query, sort, dir)
 					@productsSortHeader("Familia", "familia", query, sort, dir)
-					@productsSortHeader("Precio", "precio", query, sort, dir)
-					@productsSortHeader("Moneda", "moneda", query, sort, dir)
+					@productsSortHeader("Costo", "costo", query, sort, dir)
 					@productsSortHeader("Unidad", "unidad", query, sort, dir)
 					<th></th>
 				</tr>
@@ -94,7 +91,7 @@ templ ProductsTableBody(products []store.Product) {
 	<tbody id="productos-tbody">
 		if len(products) == 0 {
 			<tr>
-				<td colspan="7">No se encontraron productos.</td>
+				<td colspan="6">No se encontraron productos.</td>
 			</tr>
 		}
 		for _, p := range products {
@@ -103,7 +100,6 @@ templ ProductsTableBody(products []store.Product) {
 				<td>{ p.Description }</td>
 				<td>{ p.FamilyName }</td>
 				<td>{ productPriceDisplay(p) }</td>
-				<td>{ p.Currency }</td>
 				<td>{ p.UnitCode }</td>
 				<td>
 					<a href={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10)) }>Editar</a>
@@ -126,8 +122,6 @@ type ProductFormValues struct {
 	FamilyID    string
 	SKU         string
 	Description string
-	Currency    string
-	UnitPrice   string
 	Cost        string
 	KgPerM      string
 	UnitID      string
@@ -181,26 +175,7 @@ templ ProductForm(title string, action string, values ProductFormValues, fieldEr
 				<p class="error">{ fieldErrors["family_id"] }</p>
 			}
 			<label>
-				Moneda
-				<select name="currency">
-					if values.Currency == "USD" {
-						<option value="MXN">MXN</option>
-						<option value="USD" selected>USD</option>
-					} else {
-						<option value="MXN" selected>MXN</option>
-						<option value="USD">USD</option>
-					}
-				</select>
-			</label>
-			<label>
-				Precio unitario (pesos, opcional)
-				<input type="text" name="unit_price" value={ values.UnitPrice } placeholder="p. ej. 6.319872"/>
-			</label>
-			if fieldErrors["unit_price"] != "" {
-				<p class="error">{ fieldErrors["unit_price"] }</p>
-			}
-			<label>
-				Costo (pesos, opcional — se le suma el de sus materiales y se cotiza con margen)
+				Costo (pesos, sin margen — opcional si el producto tiene materiales)
 				<input type="text" name="cost" value={ values.Cost } placeholder="p. ej. 45.00"/>
 			</label>
 			if fieldErrors["cost"] != "" {

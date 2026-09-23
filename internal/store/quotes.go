@@ -14,7 +14,7 @@ import (
 
 // Quote is a quotes row. CustomerName, UserName, and SupersededByFolio are populated by
 // the CRUD read paths (joins, so always the current names), left zero elsewhere.
-// FxRateUsedMicros, TermsSnapshot, IssuedAt, ValidUntil, CustomerNameSnapshot,
+// TermsSnapshot, IssuedAt, ValidUntil, CustomerNameSnapshot,
 // VendedorSnapshot, and PDFSHA256 are nil until IssueQuote freezes the row.
 // SupersedesQuoteID is set only on a revision (a quote created by CreateRevision).
 // MarginOptionID is the margin a draft is priced with, read live (drafts follow edits to
@@ -29,11 +29,9 @@ type Quote struct {
 	UserID               int64
 	UserName             string
 	Status               string // borrador | emitida | revisada
-	Currency             string
 	Subtotal             money.Centavos
 	IVA                  money.Centavos
 	Total                money.Centavos
-	FxRateUsedMicros     *money.Micros
 	TermsSnapshot        *string
 	CreatedAt            string
 	IssuedAt             *string
@@ -93,8 +91,8 @@ func (s *Store) CreateDraftQuote(ctx context.Context, customerID, userID int64, 
 		return nil, fmt.Errorf("store: create draft quote: %w", err)
 	}
 	res, err := s.exec(ctx, `
-		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, currency, margin_option_id)
-		VALUES (?, ?, ?, ?, 'borrador', 'MXN',
+		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, margin_option_id)
+		VALUES (?, ?, ?, ?, 'borrador',
 			(SELECT id FROM margin_options WHERE is_default = 1 AND retired_at IS NULL))`,
 		folio, prefix, customerID, userID,
 	)
@@ -109,8 +107,8 @@ func (s *Store) CreateDraftQuote(ctx context.Context, customerID, userID int64, 
 }
 
 const quoteSelectCols = `
-	q.id, q.folio, q.prefix, q.customer_id, c.name, q.user_id, u.name, q.status, q.currency,
-	q.subtotal, q.iva, q.total, q.fx_rate_used_micros, q.terms_snapshot, q.created_at,
+	q.id, q.folio, q.prefix, q.customer_id, c.name, q.user_id, u.name, q.status,
+	q.subtotal, q.iva, q.total, q.terms_snapshot, q.created_at,
 	q.issued_at, q.valid_until, q.supersedes_quote_id, q.customer_name_snapshot,
 	q.vendedor_snapshot, q.pdf_sha256, q.margin_option_id, q.margin_name_snapshot,
 	q.margin_snapshot_micros,
@@ -124,13 +122,12 @@ const quoteFrom = `
 
 func scanQuote(row interface{ Scan(...any) error }) (*Quote, error) {
 	var q Quote
-	var fxRate sql.NullInt64
 	var termsSnapshot, issuedAt, validUntil, customerNameSnapshot, vendedorSnapshot, pdfSHA256 sql.NullString
 	var supersedesFolio, supersededByFolio sql.NullString
 	var supersedesQuoteID, marginOptionID, marginSnapshotMicros sql.NullInt64
 	var marginNameSnapshot sql.NullString
 	err := row.Scan(&q.ID, &q.Folio, &q.Prefix, &q.CustomerID, &q.CustomerName, &q.UserID, &q.UserName,
-		&q.Status, &q.Currency, &q.Subtotal, &q.IVA, &q.Total, &fxRate, &termsSnapshot, &q.CreatedAt,
+		&q.Status, &q.Subtotal, &q.IVA, &q.Total, &termsSnapshot, &q.CreatedAt,
 		&issuedAt, &validUntil, &supersedesQuoteID, &customerNameSnapshot, &vendedorSnapshot, &pdfSHA256,
 		&marginOptionID, &marginNameSnapshot, &marginSnapshotMicros,
 		&supersedesFolio, &supersededByFolio)
@@ -139,10 +136,6 @@ func scanQuote(row interface{ Scan(...any) error }) (*Quote, error) {
 	}
 	if err != nil {
 		return nil, err
-	}
-	if fxRate.Valid {
-		m := money.Micros(fxRate.Int64)
-		q.FxRateUsedMicros = &m
 	}
 	if termsSnapshot.Valid {
 		q.TermsSnapshot = &termsSnapshot.String
@@ -370,7 +363,6 @@ var ErrQuoteNotDraft = errors.New("store: quote is not a draft")
 // issued_at; see Quotes.Emitir.
 type Issue struct {
 	IssuedAt             string // ISO-8601 UTC, same shape as strftime('%Y-%m-%dT%H:%M:%fZ')
-	FxRateUsed           money.Micros
 	TermsSnapshot        string
 	ValidUntil           *string
 	CustomerNameSnapshot string
@@ -380,7 +372,7 @@ type Issue struct {
 	PDFSHA256            string
 }
 
-// IssueQuote freezes a draft quote: locks the FX rate, margin, terms text, and the
+// IssueQuote freezes a draft quote: locks the margin, terms text, and the
 // customer and salesperson names actually used, records the rendered PDF's SHA-256, sets an
 // optional expiry, and flips status to 'emitida'. The PDF itself is not stored; it
 // is regenerated from this frozen row on every request. Only succeeds against a
@@ -396,7 +388,6 @@ func (s *Store) IssueQuote(ctx context.Context, quoteID int64, is Issue) error {
 		UPDATE quotes SET
 			status = 'emitida',
 			issued_at = ?,
-			fx_rate_used_micros = ?,
 			terms_snapshot = ?,
 			valid_until = ?,
 			customer_name_snapshot = ?,
@@ -405,7 +396,7 @@ func (s *Store) IssueQuote(ctx context.Context, quoteID int64, is Issue) error {
 			margin_snapshot_micros = ?,
 			pdf_sha256 = ?
 		WHERE id = ? AND status = 'borrador'`,
-		is.IssuedAt, int64(is.FxRateUsed), is.TermsSnapshot, validUntilArg,
+		is.IssuedAt, is.TermsSnapshot, validUntilArg,
 		is.CustomerNameSnapshot, is.VendedorSnapshot, is.MarginName, int64(is.MarginMicros),
 		is.PDFSHA256, quoteID,
 	)
@@ -468,7 +459,7 @@ func nextRevisionNumber(ctx context.Context, tx *sql.Tx, base string) (int, erro
 
 // CreateRevision makes an editable copy of an issued quote as a new draft: a new
 // folio (<base>-R<n>, e.g. QA0105-R1, or QA0105-R2 if revising a quote that's already
-// a revision), sharing customer/prefix/currency/margin option and starting from the original's
+// a revision), sharing customer/prefix/margin option and starting from the original's
 // lines — and marks the original 'revisada'. Nothing about the original's own row is
 // changed beyond that one status flip: its lines, totals, and snapshots (and so its PDF)
 // stay exactly as issued, per docs/PLAN.md's "original untouched" revision design. Only the
@@ -511,9 +502,9 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 		return nil, fmt.Errorf("store: create revision of quote %d: %w", originalID, err)
 	}
 	res, err := tx.ExecContext(ctx, `
-		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, currency, supersedes_quote_id, margin_option_id)
-		VALUES (?, ?, ?, ?, 'borrador', ?, ?, ?)`,
-		newFolio, original.Prefix, original.CustomerID, userID, original.Currency, originalID,
+		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, supersedes_quote_id, margin_option_id)
+		VALUES (?, ?, ?, ?, 'borrador', ?, ?)`,
+		newFolio, original.Prefix, original.CustomerID, userID, originalID,
 		original.MarginOptionID,
 	)
 	if err != nil {

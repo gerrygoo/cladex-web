@@ -47,34 +47,6 @@ const defaultValidityDays = 30
 // series label, not a restriction on which products a quote can contain.
 var validPrefixes = map[string]bool{"QA": true, "QS": true, "QI": true}
 
-// loadPricingSettings reads the one admin-configurable knob internal/pricing still
-// takes from the settings table, the FX rate (internal/web/ajustes.go stores it as raw
-// micros integer text — not a decimal string — so this parses with strconv.ParseInt,
-// not money.ParseMicros), plus the quote's resolved margin. An unset FX rate parses as
-// zero; internal/pricing itself rejects a zero FX rate, or a missing margin, with a
-// clear error only when a line actually needs it.
-func (q *Quotes) loadPricingSettings(ctx context.Context, margin draftMargin) (pricing.Settings, error) {
-	raw, err := q.store.SettingValues(ctx, []string{"fx_rate"})
-	if err != nil {
-		return pricing.Settings{}, fmt.Errorf("load pricing settings: %w", err)
-	}
-	parse := func(key string) money.Micros {
-		v, ok := raw[key]
-		if !ok {
-			return 0
-		}
-		n, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			return 0
-		}
-		return money.Micros(n)
-	}
-	return pricing.Settings{
-		FXRate: parse("fx_rate"),
-		Margin: margin.value(),
-	}, nil
-}
-
 // draftMargin is the margin option a draft is priced with: the quote's own
 // margin_option_id, or the one the builder form just submitted. Drafts follow the
 // option live, so its current value is what prices them. option is nil when neither
@@ -91,7 +63,7 @@ func (m draftMargin) usable() bool {
 }
 
 // value is the margin to price with, or nil when unusable — internal/pricing then fails
-// only the lines that need a margin, with ErrNoMargin.
+// every catalog line with ErrNoMargin (free lines don't need one).
 func (m draftMargin) value() *money.Micros {
 	if !m.usable() {
 		return nil
@@ -137,20 +109,6 @@ func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, submitte
 		m.picker.Error = "El margen elegido ya no está disponible; elige otro."
 	}
 	return m, nil
-}
-
-// draftPricing resolves a draft's margin and the settings to price it with, in one
-// step, since every draft handler needs both.
-func (q *Quotes) draftPricing(ctx context.Context, quote *store.Quote, submittedMargin string) (draftMargin, pricing.Settings, error) {
-	margin, err := q.resolveMargin(ctx, quote, submittedMargin)
-	if err != nil {
-		return draftMargin{}, pricing.Settings{}, err
-	}
-	settings, err := q.loadPricingSettings(ctx, margin)
-	if err != nil {
-		return draftMargin{}, pricing.Settings{}, err
-	}
-	return margin, settings, nil
 }
 
 // List renders /cotizaciones: the full page normally, or just the table body when
@@ -332,14 +290,10 @@ func inputsFromPersisted(lines []store.QuoteLine) []quoteLineInput {
 // friendlyPricingError maps internal/pricing's plain-English errors to a Spanish
 // message pointing at the fix, matching the rest of the UI's language.
 func friendlyPricingError(err error) string {
-	if errors.Is(err, pricing.ErrNoMargin) {
-		return "Elige un margen disponible para esta cotización."
-	}
-	msg := err.Error()
 	switch {
-	case strings.Contains(msg, "FX rate"):
-		return "Falta configurar el tipo de cambio en Ajustes."
-	case strings.Contains(msg, "no pricing data"):
+	case errors.Is(err, pricing.ErrNoMargin):
+		return "Elige un margen disponible para esta cotización."
+	case errors.Is(err, pricing.ErrNoCost):
 		return "Este producto no tiene datos de precio configurados."
 	default:
 		return "No se pudo calcular el precio de esta línea."
@@ -348,15 +302,12 @@ func friendlyPricingError(err error) string {
 
 // pricingInputsSnapshot is the JSON shape stored in quote_lines.pricing_inputs — the
 // inputs that produced a product line's price, per docs/PLAN.md's "Quote persistence"
-// design: a flat price, or a flat cost and/or materials with the margin applied, plus
-// FX for a USD product.
+// design: its flat cost and/or materials, and the margin applied to them.
 type pricingInputsSnapshot struct {
-	FXRate       string                   `json:"fx_rate,omitempty"`
-	Margin       string                   `json:"margin,omitempty"`
-	MarginOption string                   `json:"margin_option,omitempty"`
+	Margin       string                   `json:"margin"`
+	MarginOption string                   `json:"margin_option"`
 	Cost         string                   `json:"cost,omitempty"`
 	Materials    []materialInputsSnapshot `json:"materials,omitempty"`
-	UnitPrice    string                   `json:"unit_price,omitempty"`
 }
 
 // materialInputsSnapshot is one material behind a line's cost, as it stood when priced.
@@ -367,31 +318,20 @@ type materialInputsSnapshot struct {
 	Price      string `json:"price"`
 }
 
-// buildPricingInputsJSON records what produced a product line's price. marginName is
-// the quote's margin option, recorded by name alongside its value for cost-priced lines.
-func buildPricingInputsJSON(p *store.Product, materials []store.ProductMaterial, s pricing.Settings, marginName string) *string {
-	snap := pricingInputsSnapshot{}
-	if p.Currency == "USD" {
-		snap.FXRate = s.FXRate.String()
+// buildPricingInputsJSON records what produced a product line's price: the product's
+// flat cost and materials, and the quote's margin option by name and value.
+func buildPricingInputsJSON(p *store.Product, materials []store.ProductMaterial, margin money.Micros, marginName string) *string {
+	snap := pricingInputsSnapshot{Margin: margin.String(), MarginOption: marginName}
+	if p.CostMicros != nil {
+		snap.Cost = p.CostMicros.String()
 	}
-	if p.UnitPriceMicros != nil {
-		snap.UnitPrice = p.UnitPriceMicros.String()
-	} else {
-		if p.CostMicros != nil {
-			snap.Cost = p.CostMicros.String()
-		}
-		for _, m := range materials {
-			snap.Materials = append(snap.Materials, materialInputsSnapshot{
-				Material:   m.Material.Name,
-				QtyPerUnit: m.QtyPerUnitMicros.String(),
-				Unit:       m.Material.UnitCode,
-				Price:      m.Material.PriceMicros.String(),
-			})
-		}
-		if s.Margin != nil {
-			snap.Margin = s.Margin.String()
-			snap.MarginOption = marginName
-		}
+	for _, m := range materials {
+		snap.Materials = append(snap.Materials, materialInputsSnapshot{
+			Material:   m.Material.Name,
+			QtyPerUnit: m.QtyPerUnitMicros.String(),
+			Unit:       m.Material.UnitCode,
+			Price:      m.Material.PriceMicros.String(),
+		})
 	}
 	b, err := json.Marshal(snap)
 	if err != nil {
@@ -405,9 +345,9 @@ func buildPricingInputsJSON(p *store.Product, materials []store.ProductMaterial,
 // manually entered price (free lines) — the same code path whether this is a live
 // htmx recalculation or the final "Guardar borrador" save, so nothing saved ever
 // differs from what was last shown on screen. A bad line (invalid qty, unknown
-// product, missing FX rate, no usable margin) gets a row-level Error instead of failing the
+// product, no cost, no usable margin) gets a row-level Error instead of failing the
 // whole request.
-func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput, settings pricing.Settings, margin draftMargin) []views.QuoteLineView {
+func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput, margin draftMargin) []views.QuoteLineView {
 	result := make([]views.QuoteLineView, len(inputs))
 	for i, in := range inputs {
 		v := views.QuoteLineView{Key: in.Key, IsFree: in.Kind == "free", QtyRaw: in.Qty}
@@ -452,12 +392,6 @@ func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput,
 			result[i] = v
 			continue
 		}
-		breaks, err := q.store.ListPriceBreaks(ctx, productID)
-		if err != nil {
-			v.Error = "Error al cargar el producto."
-			result[i] = v
-			continue
-		}
 		materials, err := q.store.ListProductMaterials(ctx, productID)
 		if err != nil {
 			v.Error = "Error al cargar el producto."
@@ -471,18 +405,12 @@ func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput,
 		v.Description = product.Description
 		v.UnitCode = product.UnitCode
 
-		pp := pricing.Product{
-			UnitPriceMicros: product.UnitPriceMicros,
-			CostMicros:      product.CostMicros,
-			Currency:        product.Currency,
+		pp := pricing.Product{CostMicros: product.CostMicros}
+		for _, m := range materials {
+			pp.Materials = append(pp.Materials, pricing.MaterialContent{QtyPerUnit: m.QtyPerUnitMicros, Price: m.Material.PriceMicros})
+			v.Materials = append(v.Materials, m.Material)
 		}
-		if product.UnitPriceMicros == nil {
-			for _, m := range materials {
-				pp.Materials = append(pp.Materials, pricing.MaterialContent{QtyPerUnit: m.QtyPerUnitMicros, Price: m.Material.PriceMicros})
-				v.Materials = append(v.Materials, m.Material)
-			}
-		}
-		unitPrice, err := pricing.UnitPrice(pp, qty, breaks, settings)
+		unitPrice, err := pricing.UnitPrice(pp, margin.value())
 		if err != nil {
 			v.Error = friendlyPricingError(err)
 			result[i] = v
@@ -494,7 +422,7 @@ func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput,
 		if margin.option != nil {
 			marginName = margin.option.Name
 		}
-		v.PricingInputsJSON = buildPricingInputsJSON(product, materials, settings, marginName)
+		v.PricingInputsJSON = buildPricingInputsJSON(product, materials, *margin.value(), marginName)
 		result[i] = v
 	}
 	return result
@@ -621,13 +549,12 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 	var totals pricing.Totals
 	var margin draftMargin
 	if quote.Status == "borrador" {
-		var settings pricing.Settings
-		margin, settings, err = q.draftPricing(ctx, quote, "")
+		margin, err = q.resolveMargin(ctx, quote, "")
 		if err != nil {
 			http.Error(w, "error interno", http.StatusInternalServerError)
 			return
 		}
-		lines = q.computeQuoteLines(ctx, inputsFromPersisted(persisted), settings, margin)
+		lines = q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin)
 		totals = computeQuoteTotals(lines)
 	} else {
 		lines = frozenQuoteLines(persisted)
@@ -684,12 +611,12 @@ func (q *Quotes) Recalcular(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "solicitud inválida", http.StatusBadRequest)
 		return
 	}
-	margin, settings, err := q.draftPricing(ctx, quote, r.FormValue("margin_option_id"))
+	margin, err := q.resolveMargin(ctx, quote, r.FormValue("margin_option_id"))
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
-	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), settings, margin)
+	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin)
 	totals := computeQuoteTotals(lines)
 
 	if r.Header.Get("HX-Request") == "true" {
@@ -734,12 +661,12 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "solicitud inválida", http.StatusBadRequest)
 		return
 	}
-	margin, settings, err := q.draftPricing(ctx, quote, r.FormValue("margin_option_id"))
+	margin, err := q.resolveMargin(ctx, quote, r.FormValue("margin_option_id"))
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
-	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), settings, margin)
+	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin)
 	totals := computeQuoteTotals(lines)
 
 	for _, l := range lines {
@@ -878,12 +805,12 @@ func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
 
 	var doc pdf.QuoteDocument
 	if quote.Status == "borrador" {
-		margin, settings, err := q.draftPricing(ctx, quote, "")
+		margin, err := q.resolveMargin(ctx, quote, "")
 		if err != nil {
 			http.Error(w, "error interno", http.StatusInternalServerError)
 			return
 		}
-		lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), settings, margin)
+		lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin)
 		doc = draftQuoteDocument(*quote, lines, computeQuoteTotals(lines))
 	} else {
 		doc, err = issuedQuoteDocument(*quote, persisted)
@@ -916,7 +843,7 @@ func sha256Hex(b []byte) string {
 // Emitir handles POST /cotizaciones/{folio}/emitir: the "Emitir cotización" button on
 // the builder form, which submits the same full line set Guardar does. It saves that
 // state (so issuing also captures any not-yet-saved edit) and then freezes the quote:
-// locks the FX rate, margin, terms text, and customer and salesperson names actually used,
+// locks the margin, terms text, and customer and salesperson names actually used,
 // renders the PDF once to record its SHA-256, and flips status to 'emitida' via
 // store.IssueQuote. The PDF isn't stored; PDF regenerates it from the frozen row. Only
 // valid on a draft; re-renders the builder with row-level errors, without writing
@@ -936,12 +863,12 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "solicitud inválida", http.StatusBadRequest)
 		return
 	}
-	margin, settings, err := q.draftPricing(ctx, quote, r.FormValue("margin_option_id"))
+	margin, err := q.resolveMargin(ctx, quote, r.FormValue("margin_option_id"))
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
-	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), settings, margin)
+	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin)
 	totals := computeQuoteTotals(lines)
 
 	if len(lines) == 0 || !margin.usable() {
@@ -977,7 +904,6 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		// Whole seconds: that's the resolution Typst embeds, and the one reprints
 		// parse back out of issued_at.
 		IssuedAt:             time.Now().UTC().Truncate(time.Second).Format("2006-01-02T15:04:05.000Z"),
-		FxRateUsed:           settings.FXRate,
 		TermsSnapshot:        strings.Join(pdf.QuoteTerms[quote.Prefix], "\n"),
 		ValidUntil:           &validUntil,
 		CustomerNameSnapshot: quote.CustomerName,

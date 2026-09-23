@@ -12,16 +12,16 @@ func micros(f float64) *money.Micros {
 	return &m
 }
 
-// ccaSettings matches the workbook's own snapshot values at the time these reference
+// ccaMargin matches the workbook's own snapshot values at the time these reference
 // prices were captured (TIPO DE CAMBIO!C1048562, "Margen CCA (%)").
-var ccaSettings = Settings{Margin: marginPtr(money.MicrosFromFloat(0.1234))}
+var ccaMargin = marginPtr(money.MicrosFromFloat(0.1234))
 
 func marginPtr(m money.Micros) *money.Micros { return &m }
 
-// ccsSettings is the 29.55% margin option that stands in for CCS & AC's old
+// ccsMargin is the 29.55% margin option that stands in for CCS & AC's old
 // copper-derived margin ((220 - 155) / 220 ≈ 29.5455%) once the family is costed from
 // its CCS 30% content at $155/kg ('CCS & AC'!D4) instead of priced at kg/m × 220.
-var ccsSettings = Settings{Margin: marginPtr(money.MicrosFromFloat(0.2955))}
+var ccsMargin = marginPtr(money.MicrosFromFloat(0.2955))
 
 // ccsMaterial is 'CCS & AC'!D4: the family's material cost per kg.
 var ccsMaterial = money.MicrosFromFloat(155)
@@ -58,7 +58,7 @@ func TestUnitPrice_CCA(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
 			p := Product{CostMicros: micros(c.costMXN)}
-			got, err := UnitPrice(p, money.MilliFromFloat(1), nil, ccaSettings)
+			got, err := UnitPrice(p, ccaMargin)
 			if err != nil {
 				t.Fatalf("UnitPrice: %v", err)
 			}
@@ -95,7 +95,7 @@ func TestUnitPrice_CCSAndAC(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
 			p := Product{Materials: []MaterialContent{{QtyPerUnit: money.MicrosFromFloat(c.kgPerM), Price: ccsMaterial}}}
-			got, err := UnitPrice(p, money.MilliFromFloat(1), nil, ccsSettings)
+			got, err := UnitPrice(p, ccsMargin)
 			if err != nil {
 				t.Fatalf("UnitPrice: %v", err)
 			}
@@ -120,7 +120,7 @@ func TestUnitPrice_FlatCostPlusMaterials(t *testing.T) {
 			{QtyPerUnit: money.MicrosFromFloat(2), Price: money.MicrosFromFloat(15)},   // $30
 		},
 	}
-	got, err := UnitPrice(p, money.MilliFromFloat(1), nil, Settings{Margin: marginPtr(money.MicrosFromFloat(0.2))})
+	got, err := UnitPrice(p, marginPtr(money.MicrosFromFloat(0.2)))
 	if err != nil {
 		t.Fatalf("UnitPrice: %v", err)
 	}
@@ -129,91 +129,25 @@ func TestUnitPrice_FlatCostPlusMaterials(t *testing.T) {
 	}
 }
 
-// TestUnitPrice_FlatCatalog covers ABASTILUM-style products: unit_price_micros is
-// already the final MXN price (baked in at import time, FX and margin already
-// applied), so the engine must return it unchanged.
-func TestUnitPrice_FlatCatalog(t *testing.T) {
-	p := Product{UnitPriceMicros: micros(37800)} // "POSTE... 4 MTS", workbook's D7
-	got, err := UnitPrice(p, money.MilliFromFloat(1), nil, Settings{})
-	if err != nil {
-		t.Fatalf("UnitPrice: %v", err)
-	}
-	if want := money.MicrosFromFloat(37800); got != want {
-		t.Errorf("UnitPrice(flat) = %v, want %v", got, want)
-	}
-}
-
-func TestUnitPrice_USDConvertsByFXRate(t *testing.T) {
-	p := Product{UnitPriceMicros: micros(10), Currency: "USD"}
-	s := Settings{FXRate: money.MicrosFromFloat(18.5)}
-	got, err := UnitPrice(p, money.MilliFromFloat(1), nil, s)
-	if err != nil {
-		t.Fatalf("UnitPrice: %v", err)
-	}
-	if want := money.MicrosFromFloat(185); got != want {
-		t.Errorf("UnitPrice(USD) = %v, want %v", got, want)
-	}
-}
-
-func TestUnitPrice_USDWithoutFXRateErrors(t *testing.T) {
-	p := Product{UnitPriceMicros: micros(10), Currency: "USD"}
-	if _, err := UnitPrice(p, money.MilliFromFloat(1), nil, Settings{}); err == nil {
-		t.Error("UnitPrice(USD, no FX rate) = nil error, want error")
-	}
-}
-
-func TestUnitPrice_PriceBreaks(t *testing.T) {
-	p := Product{UnitPriceMicros: micros(100)}
-	breaks := []PriceBreak{
-		{MinQty: money.MilliFromFloat(100), UnitPriceMicros: money.MicrosFromFloat(90)},
-		{MinQty: money.MilliFromFloat(500), UnitPriceMicros: money.MicrosFromFloat(80)},
-	}
-	cases := []struct {
-		qty  float64
-		want float64
-	}{
-		{1, 100},   // below every tier: base price
-		{99, 100},  // just below the first tier
-		{100, 90},  // exactly the first tier's threshold
-		{499, 90},  // between tiers
-		{500, 80},  // exactly the second tier's threshold
-		{1000, 80}, // above every tier: highest still applies
-	}
-	for _, c := range cases {
-		got, err := UnitPrice(p, money.MilliFromFloat(c.qty), breaks, Settings{})
-		if err != nil {
-			t.Fatalf("UnitPrice(qty=%v): %v", c.qty, err)
-		}
-		if want := money.MicrosFromFloat(c.want); got != want {
-			t.Errorf("UnitPrice(qty=%v) = %v, want %v", c.qty, got, want)
-		}
-	}
-}
-
 func TestUnitPrice_NoPricingDataErrors(t *testing.T) {
-	if _, err := UnitPrice(Product{}, money.MilliFromFloat(1), nil, Settings{}); err == nil {
-		t.Error("UnitPrice(no pricing data) = nil error, want error")
+	if _, err := UnitPrice(Product{}, ccaMargin); !errors.Is(err, ErrNoCost) {
+		t.Errorf("UnitPrice(no pricing data) error = %v, want ErrNoCost", err)
 	}
 }
 
 func TestUnitPrice_MarginOutOfRangeErrors(t *testing.T) {
 	p := Product{CostMicros: micros(10)}
 	for _, margin := range []float64{1.0, 1.5, -0.1} {
-		s := Settings{Margin: marginPtr(money.MicrosFromFloat(margin))}
-		if _, err := UnitPrice(p, money.MilliFromFloat(1), nil, s); err == nil {
+		if _, err := UnitPrice(p, marginPtr(money.MicrosFromFloat(margin))); err == nil {
 			t.Errorf("UnitPrice(margin=%v) = nil error, want error", margin)
 		}
 	}
 }
 
-// A quote whose margin option is gone can't price a cost product, but its flat-priced
-// lines don't need a margin and still price.
+// A quote whose margin option is gone can't price anything catalog-priced.
 func TestUnitPrice_NoMargin(t *testing.T) {
-	if _, err := UnitPrice(Product{CostMicros: micros(10)}, money.MilliFromFloat(1), nil, Settings{}); !errors.Is(err, ErrNoMargin) {
+	if _, err := UnitPrice(Product{CostMicros: micros(10)}, nil); !errors.Is(err, ErrNoMargin) {
 		t.Errorf("UnitPrice(cost, no margin) error = %v, want ErrNoMargin", err)
-	}
-	if _, err := UnitPrice(Product{UnitPriceMicros: micros(10)}, money.MilliFromFloat(1), nil, Settings{}); err != nil {
-		t.Errorf("UnitPrice(flat, no margin) error = %v, want nil", err)
 	}
 }
 

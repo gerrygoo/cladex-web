@@ -8,30 +8,27 @@ import (
 	"strings"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
-	"github.com/gerrygoo/cladex-web/internal/pricing"
 )
 
-// Product is a catalog row. KgPerMMicros, UnitPriceMicros, and CostMicros are nil when
-// the corresponding column is NULL — see migrations/0001_init.sql and
-// migrations/0002_add_product_cost.sql for what each means. KgPerMMicros is reference
-// weight only; what a product is made of, for pricing, is its product_materials
-// (HasMaterials, set by the CRUD read paths; see migrations/0008_materials.sql). ID and FamilyName are
+// Product is a catalog row. KgPerMMicros and CostMicros are nil when the column is NULL.
+// CostMicros is the flat, pre-margin MXN cost (migrations/0002_add_product_cost.sql);
+// what a product is made of adds to it through its product_materials (HasMaterials, set
+// by the CRUD read paths; see migrations/0008_materials.sql). KgPerMMicros is reference
+// weight only. ID and FamilyName are
 // populated by the CRUD read paths (ListProducts, ProductByID, ProductBySKU); they're
 // left zero by the import path, which only ever upserts by SKU.
 type Product struct {
-	ID              int64
-	FamilyID        int64
-	FamilyName      string
-	SKU             string
-	Description     string
-	KgPerMMicros    *money.Micros
-	UnitPriceMicros *money.Micros
-	CostMicros      *money.Micros
-	Currency        string // "MXN" or "USD"; defaults to "MXN" if empty
-	UnitID          *int64
-	UnitCode        string // populated by the CRUD read paths when UnitID is set
-	UnitName        string // populated by the CRUD read paths when UnitID is set
-	HasMaterials    bool
+	ID           int64
+	FamilyID     int64
+	FamilyName   string
+	SKU          string
+	Description  string
+	KgPerMMicros *money.Micros
+	CostMicros   *money.Micros
+	UnitID       *int64
+	UnitCode     string // populated by the CRUD read paths when UnitID is set
+	UnitName     string // populated by the CRUD read paths when UnitID is set
+	HasMaterials bool
 }
 
 // ProductFamily is a product_families row, for populating the product form's family
@@ -61,37 +58,6 @@ func (s *Store) UpsertFamily(ctx context.Context, name, sheetName string) (int64
 	return id, nil
 }
 
-// UpsertProduct inserts a product by SKU if it doesn't exist, or updates its
-// description, family, and pricing fields if it does. SKU is the stable identity across
-// re-imports.
-func (s *Store) UpsertProduct(ctx context.Context, p Product) error {
-	currency := p.Currency
-	if currency == "" {
-		currency = "MXN"
-	}
-	_, err := s.exec(ctx, `
-		INSERT INTO products (
-			family_id, sku, description, kg_per_m_micros, unit_price_micros,
-			cost_micros, currency, unit_id
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (sku) DO UPDATE SET
-			family_id          = excluded.family_id,
-			description         = excluded.description,
-			kg_per_m_micros    = excluded.kg_per_m_micros,
-			unit_price_micros  = excluded.unit_price_micros,
-			cost_micros        = excluded.cost_micros,
-			currency            = excluded.currency,
-			unit_id             = excluded.unit_id,
-			updated_at          = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
-		p.FamilyID, p.SKU, p.Description, microsPtr(p.KgPerMMicros),
-		microsPtr(p.UnitPriceMicros), microsPtr(p.CostMicros), currency, idPtr(p.UnitID),
-	)
-	if err != nil {
-		return fmt.Errorf("store: upsert product %q: %w", p.SKU, err)
-	}
-	return nil
-}
-
 func microsPtr(m *money.Micros) any {
 	if m == nil {
 		return nil
@@ -108,7 +74,7 @@ func idPtr(id *int64) any {
 
 const productSelectCols = `
 	p.id, p.family_id, pf.name, p.sku, p.description,
-	p.kg_per_m_micros, p.unit_price_micros, p.cost_micros, p.currency,
+	p.kg_per_m_micros, p.cost_micros,
 	p.unit_id, u.code, u.name,
 	EXISTS (SELECT 1 FROM product_materials pm WHERE pm.product_id = p.id)`
 
@@ -119,10 +85,10 @@ const productFrom = `
 
 func scanProduct(row interface{ Scan(...any) error }) (*Product, error) {
 	var p Product
-	var kgPerM, unitPrice, cost, unitID sql.NullInt64
+	var kgPerM, cost, unitID sql.NullInt64
 	var unitCode, unitName sql.NullString
 	err := row.Scan(&p.ID, &p.FamilyID, &p.FamilyName, &p.SKU, &p.Description,
-		&kgPerM, &unitPrice, &cost, &p.Currency, &unitID, &unitCode, &unitName, &p.HasMaterials)
+		&kgPerM, &cost, &unitID, &unitCode, &unitName, &p.HasMaterials)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -132,10 +98,6 @@ func scanProduct(row interface{ Scan(...any) error }) (*Product, error) {
 	if kgPerM.Valid {
 		m := money.Micros(kgPerM.Int64)
 		p.KgPerMMicros = &m
-	}
-	if unitPrice.Valid {
-		m := money.Micros(unitPrice.Int64)
-		p.UnitPriceMicros = &m
 	}
 	if cost.Valid {
 		m := money.Micros(cost.Int64)
@@ -175,8 +137,7 @@ var productSortColumns = []sortColumn{
 	{"sku", "p.sku"},
 	{"description", "p.description"},
 	{"familia", "pf.name"},
-	{"precio", "COALESCE(p.unit_price_micros, p.cost_micros)"},
-	{"moneda", "p.currency"},
+	{"costo", "p.cost_micros"},
 	{"unidad", "u.code"},
 }
 
@@ -277,17 +238,10 @@ func (s *Store) ProductBySKU(ctx context.Context, sku string) (*Product, error) 
 
 // CreateProduct inserts a new product, returning its id.
 func (s *Store) CreateProduct(ctx context.Context, p Product) (int64, error) {
-	currency := p.Currency
-	if currency == "" {
-		currency = "MXN"
-	}
 	res, err := s.exec(ctx, `
-		INSERT INTO products (
-			family_id, sku, description, kg_per_m_micros, unit_price_micros,
-			cost_micros, currency, unit_id
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		p.FamilyID, p.SKU, p.Description, microsPtr(p.KgPerMMicros),
-		microsPtr(p.UnitPriceMicros), microsPtr(p.CostMicros), currency, idPtr(p.UnitID),
+		INSERT INTO products (family_id, sku, description, kg_per_m_micros, cost_micros, unit_id)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		p.FamilyID, p.SKU, p.Description, microsPtr(p.KgPerMMicros), microsPtr(p.CostMicros), idPtr(p.UnitID),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("store: create product %q: %w", p.SKU, err)
@@ -297,57 +251,22 @@ func (s *Store) CreateProduct(ctx context.Context, p Product) (int64, error) {
 
 // UpdateProduct overwrites an existing product's editable fields, identified by p.ID.
 func (s *Store) UpdateProduct(ctx context.Context, p Product) error {
-	currency := p.Currency
-	if currency == "" {
-		currency = "MXN"
-	}
 	_, err := s.exec(ctx, `
 		UPDATE products SET
 			family_id          = ?,
 			sku                = ?,
 			description        = ?,
 			kg_per_m_micros    = ?,
-			unit_price_micros  = ?,
 			cost_micros        = ?,
-			currency           = ?,
 			unit_id            = ?,
 			updated_at         = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 		WHERE id = ?`,
-		p.FamilyID, p.SKU, p.Description, microsPtr(p.KgPerMMicros),
-		microsPtr(p.UnitPriceMicros), microsPtr(p.CostMicros), currency, idPtr(p.UnitID), p.ID,
+		p.FamilyID, p.SKU, p.Description, microsPtr(p.KgPerMMicros), microsPtr(p.CostMicros), idPtr(p.UnitID), p.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("store: update product %d: %w", p.ID, err)
 	}
 	return nil
-}
-
-// ListPriceBreaks returns a product's quantity-tiered price overrides (see 0001's
-// price_breaks table), for feeding directly into pricing.UnitPrice. Currently unused by
-// any imported product (ELECTRACLEAN, the only real use case, was deferred at import —
-// see docs/PLAN.md's 1.2 footnote) but the quote builder calls this generically rather
-// than assuming an always-empty slice.
-func (s *Store) ListPriceBreaks(ctx context.Context, productID int64) ([]pricing.PriceBreak, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT min_qty_milli, unit_price_micros
-		FROM price_breaks
-		WHERE product_id = ?
-		ORDER BY min_qty_milli`, productID,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("store: list price breaks for product %d: %w", productID, err)
-	}
-	defer rows.Close()
-
-	var breaks []pricing.PriceBreak
-	for rows.Next() {
-		var b pricing.PriceBreak
-		if err := rows.Scan(&b.MinQty, &b.UnitPriceMicros); err != nil {
-			return nil, fmt.Errorf("store: list price breaks for product %d: %w", productID, err)
-		}
-		breaks = append(breaks, b)
-	}
-	return breaks, rows.Err()
 }
 
 // SoftDeleteProduct sets deleted_at, hiding the product from ListProducts/ProductByID.

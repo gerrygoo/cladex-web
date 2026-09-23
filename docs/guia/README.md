@@ -15,7 +15,7 @@ parte de esta guía que la explica.
 | [Cotizaciones](cotizaciones.md) | Crear una cotización, agregar productos por SKU, líneas libres, guardar, emitir, descargar el PDF, revisar |
 | [Productos](productos.md) | Buscar, dar de alta y editar productos; cómo se calcula cada precio; conversiones de unidades |
 :::admin
-| [Administración](administracion.md) | Tipo de cambio; márgenes; materiales; usuarios; unidades (solo administradores) |
+| [Administración](administracion.md) | Márgenes; materiales; usuarios; unidades (solo administradores) |
 :::
 | [Glosario](glosario.md) | Qué significa cada término: folio, serie, estados, margen… |
 

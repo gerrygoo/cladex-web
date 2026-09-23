@@ -94,7 +94,6 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /usuarios/{id}/habilitar", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(users.SetDisabled(false)))))
 
 	mux.Handle("GET /ajustes", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.Page))))
-	mux.Handle("POST /ajustes", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.Submit))))
 	mux.Handle("POST /ajustes/margenes", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.CreateMargen))))
 	mux.Handle("POST /ajustes/margenes/{id}", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.UpdateMargen))))
 	mux.Handle("POST /ajustes/margenes/{id}/predeterminado", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.PredeterminarMargen))))

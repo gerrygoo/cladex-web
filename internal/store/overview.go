@@ -32,8 +32,8 @@ type VendedorSummary struct {
 	MontoEmitido money.Centavos // sum of totals of quotes currently emitida
 }
 
-// Overview is the home page's snapshot of the quote pipeline. Every quote is MXN today
-// (CreateDraftQuote never sets another currency), so totals are summed as-is.
+// Overview is the home page's snapshot of the quote pipeline. Every quote is MXN, so
+// totals are summed as-is.
 type Overview struct {
 	Stages     []StageSummary    // one per QuoteStatuses entry, in order
 	Vendedores []VendedorSummary // ranked by MontoEmitido, then Emitidas, then name

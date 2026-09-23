@@ -52,7 +52,7 @@ func seedQuoteFixtures(t *testing.T, s *Store, ctx context.Context) (customerID,
 	}
 	flatPrice := money.Micros(100_000_000) // $100.00
 	flatProductID, err = s.CreateProduct(ctx, Product{
-		FamilyID: familyID, SKU: "abl-foco", Description: "Foco LED", UnitPriceMicros: &flatPrice,
+		FamilyID: familyID, SKU: "abl-foco", Description: "Foco LED", CostMicros: &flatPrice,
 	})
 	if err != nil {
 		t.Fatalf("CreateProduct(flat): %v", err)
@@ -76,7 +76,7 @@ func TestCreateDraftQuote(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateDraftQuote: %v", err)
 	}
-	if q.Folio != "QI0001" || q.Prefix != "QI" || q.Status != "borrador" || q.Currency != "MXN" {
+	if q.Folio != "QI0001" || q.Prefix != "QI" || q.Status != "borrador" {
 		t.Fatalf("CreateDraftQuote = %+v", q)
 	}
 	if q.CustomerID != customerID || q.CustomerName != "Grupo PEME" || q.UserID != userID {
@@ -181,10 +181,9 @@ func TestIssueQuote(t *testing.T) {
 	}
 
 	validUntil := "2026-09-01"
-	fxRate := money.Micros(18_000_000)
 	issuedAt := "2026-08-02T15:04:05.000Z"
 	if err := s.IssueQuote(ctx, q.ID, Issue{
-		IssuedAt: issuedAt, FxRateUsed: fxRate, TermsSnapshot: "term one\nterm two", ValidUntil: &validUntil,
+		IssuedAt: issuedAt, TermsSnapshot: "term one\nterm two", ValidUntil: &validUntil,
 		CustomerNameSnapshot: "Cliente al emitir", VendedorSnapshot: "Vendedor al emitir", PDFSHA256: "deadbeef",
 	}); err != nil {
 		t.Fatalf("IssueQuote: %v", err)
@@ -199,9 +198,6 @@ func TestIssueQuote(t *testing.T) {
 	}
 	if issued.IssuedAt == nil || *issued.IssuedAt != issuedAt {
 		t.Fatalf("IssuedAt = %v, want %s", issued.IssuedAt, issuedAt)
-	}
-	if issued.FxRateUsedMicros == nil || *issued.FxRateUsedMicros != fxRate {
-		t.Fatalf("FxRateUsedMicros = %v, want %v", issued.FxRateUsedMicros, fxRate)
 	}
 	if issued.TermsSnapshot == nil || *issued.TermsSnapshot != "term one\nterm two" {
 		t.Fatalf("TermsSnapshot = %v", issued.TermsSnapshot)
@@ -226,7 +222,7 @@ func TestIssueQuote(t *testing.T) {
 // testIssue is a minimal valid Issue for tests that only need a quote to be issued.
 func testIssue(sha string) Issue {
 	return Issue{
-		IssuedAt: "2026-08-02T15:04:05.000Z", FxRateUsed: money.Micros(18_000_000), TermsSnapshot: "term",
+		IssuedAt: "2026-08-02T15:04:05.000Z", TermsSnapshot: "term",
 		CustomerNameSnapshot: "Cliente", VendedorSnapshot: "Vendedor", PDFSHA256: sha,
 	}
 }
@@ -263,8 +259,8 @@ func TestCreateRevision(t *testing.T) {
 	if rev.Folio != "QA0001-R1" || rev.Status != "borrador" || rev.SupersedesQuoteID == nil || *rev.SupersedesQuoteID != q.ID {
 		t.Fatalf("revision = %+v", rev)
 	}
-	if rev.CustomerID != customerID || rev.Prefix != "QA" || rev.Currency != "MXN" {
-		t.Fatalf("revision didn't copy customer/prefix/currency: %+v", rev)
+	if rev.CustomerID != customerID || rev.Prefix != "QA" {
+		t.Fatalf("revision didn't copy customer/prefix: %+v", rev)
 	}
 	if rev.Subtotal != totals.Subtotal || rev.Total != totals.Total {
 		t.Fatalf("revision totals = %+v, want copied from original %+v", rev, totals)
@@ -379,35 +375,6 @@ func TestQuotesAreAudited(t *testing.T) {
 		if e.ActorID == nil || *e.ActorID != userID || e.Source != SourceWeb {
 			t.Fatalf("revision entry not attributed to the actor: %+v", e)
 		}
-	}
-}
-
-func TestListPriceBreaks(t *testing.T) {
-	s := newTestStore(t)
-	ctx := context.Background()
-	_, _, flatProductID, _ := seedQuoteFixtures(t, s, ctx)
-
-	breaks, err := s.ListPriceBreaks(ctx, flatProductID)
-	if err != nil {
-		t.Fatalf("ListPriceBreaks(no breaks): %v", err)
-	}
-	if len(breaks) != 0 {
-		t.Fatalf("ListPriceBreaks(no breaks) = %d, want 0", len(breaks))
-	}
-
-	if _, err := s.db.ExecContext(ctx, `
-		INSERT INTO price_breaks (product_id, min_qty_milli, unit_price_micros) VALUES (?, ?, ?)`,
-		flatProductID, 100_000, 90_000_000,
-	); err != nil {
-		t.Fatalf("seed price_breaks: %v", err)
-	}
-
-	breaks, err = s.ListPriceBreaks(ctx, flatProductID)
-	if err != nil || len(breaks) != 1 {
-		t.Fatalf("ListPriceBreaks = %d, %v; want 1, nil", len(breaks), err)
-	}
-	if breaks[0].MinQty != money.Milli(100_000) || breaks[0].UnitPriceMicros != money.Micros(90_000_000) {
-		t.Fatalf("ListPriceBreaks[0] = %+v", breaks[0])
 	}
 }
 

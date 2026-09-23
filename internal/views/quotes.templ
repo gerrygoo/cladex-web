@@ -593,16 +593,13 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 			@QuoteLinesReadOnly(lines, totals)
 			<p>
 				if quote.IssuedAt != nil {
-					Emitida: { *quote.IssuedAt } ·
+					Emitida: { *quote.IssuedAt }
 				}
 				if quote.ValidUntil != nil {
-					Vigencia: { *quote.ValidUntil } ·
+					· Vigencia: { *quote.ValidUntil }
 				}
 				if quote.MarginNameSnapshot != nil && quote.MarginSnapshotMicros != nil {
-					Margen: { MarginLabel(*quote.MarginNameSnapshot, *quote.MarginSnapshotMicros) } ·
-				}
-				if quote.FxRateUsedMicros != nil {
-					Tipo de cambio usado: { quote.FxRateUsedMicros.String() }
+					· Margen: { MarginLabel(*quote.MarginNameSnapshot, *quote.MarginSnapshotMicros) }
 				}
 			</p>
 			if quote.Status == "emitida" {

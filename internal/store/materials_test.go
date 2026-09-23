@@ -120,7 +120,7 @@ func TestMigration0008(t *testing.T) {
 	// added on top of the materials.
 	ccsStaleCost := add(Product{FamilyID: fam("CCS & AC"), SKU: "ccs-7-10", Description: "7#10", KgPerMMicros: micros(303_100), CostMicros: micros(46_980_500)})
 	cca := add(Product{FamilyID: fam("CCA"), SKU: "cca-c14", Description: "THW 14", KgPerMMicros: micros(18_110_000), CostMicros: micros(5_540_000)})
-	abl := add(Product{FamilyID: fam("ABASTILUM"), SKU: "abl-poste", Description: "Poste", KgPerMMicros: micros(2_000_000), UnitPriceMicros: micros(1)})
+	abl := add(Product{FamilyID: fam("ABASTILUM"), SKU: "abl-poste", Description: "Poste", KgPerMMicros: micros(2_000_000), CostMicros: micros(1)})
 	adminID, err := old.CreateUser(ctx, "ana", "Ana", "hash", "admin")
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
@@ -157,5 +157,76 @@ func TestMigration0008(t *testing.T) {
 	}
 	if v, err := s.SettingValue(ctx, "copper_price"); err != nil || v != "" {
 		t.Errorf("copper_price = %q, %v; want deleted", v, err)
+	}
+}
+
+// TestMigration0009 runs 0009 over both catalog shapes it can meet: production's, where
+// ABASTILUM holds the workbook's raw costs (postes in USD), and the old importer's, where
+// it holds flat margin-included prices. Postes become MXN at x18, flat prices are backed
+// out to cost with the margin that produced them, and flat prices, currencies, the FX
+// rate and price breaks are gone.
+func TestMigration0009(t *testing.T) {
+	ctx := context.Background()
+	dsn := filepath.Join(t.TempDir(), "test.db")
+
+	old, err := Open(ctx, dsn, migrationsBefore(t, "0009"))
+	if err != nil {
+		t.Fatalf("open at 0008: %v", err)
+	}
+	fam, err := old.UpsertFamily(ctx, "ABASTILUM", "")
+	if err != nil {
+		t.Fatalf("UpsertFamily: %v", err)
+	}
+	if _, err := old.db.ExecContext(ctx, `
+		INSERT INTO products (id, family_id, sku, description, cost_micros, unit_price_micros, currency) VALUES
+			(1, ?1, 'poste-raw',  'POSTE METÁLICO CÓNICO CIRCULAR DE 4 MTS. PUNTA', 1680000000, NULL, 'MXN'),
+			(2, ?1, 'foco-raw',   'LUMINARIO ROAD FOCUS 35W LED MCA. PHILIPS',      2398000000, NULL, 'MXN'),
+			(3, ?1, 'poste-flat', 'POSTE METÁLICO CÓNICO CIRCULAR DE 5 MTS. PUNTA', NULL, 43425000000, 'MXN'),
+			(4, ?1, 'led-flat',   'LUMINARIO FLOODLIGHT DE 50W MCA LEDVANCE',       NULL, 709559662, 'MXN'),
+			(5, ?1, 'foco-flat',  'REFLECTOR TANGO DE 100W',                        NULL, 3001250000, 'MXN');
+		INSERT INTO price_breaks (product_id, min_qty_milli, unit_price_micros) VALUES (5, 100000, 1);
+		INSERT INTO settings (key, value) VALUES ('fx_rate', '18000000');`, fam); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	old.Close()
+
+	s, err := Open(ctx, dsn, cladex.MigrationsFS)
+	if err != nil {
+		t.Fatalf("open with 0009: %v", err)
+	}
+	t.Cleanup(func() { s.Close() })
+
+	for id, want := range map[int64]money.Micros{
+		1: 30_240_000_000, // raw USD poste cost, x18
+		2: 2_398_000_000,  // raw MXN cost, untouched
+		3: 34_740_000_000, // flat poste price, already MXN: x0.8
+		4: 622_000_000,    // flat LEDVANCE price: x(1 - 12.34%) ≈ 622
+		5: 2_401_000_000,  // other flat price: x0.8
+	} {
+		p, err := s.ProductByID(ctx, id)
+		if err != nil || p == nil || p.CostMicros == nil {
+			t.Fatalf("ProductByID(%d) = %+v, %v", id, p, err)
+		}
+		if diff := *p.CostMicros - want; diff < -1000 || diff > 1000 { // within 0.1 centavo
+			t.Errorf("product %d (%s) cost = %v, want %v", id, p.SKU, *p.CostMicros, want)
+		}
+	}
+	for _, c := range []struct{ table, column string }{
+		{"products", "unit_price_micros"}, {"products", "currency"},
+		{"quotes", "currency"}, {"quotes", "fx_rate_used_micros"},
+	} {
+		var n int
+		if err := s.db.QueryRowContext(ctx,
+			`SELECT count(*) FROM pragma_table_info(?) WHERE name = ?`, c.table, c.column).Scan(&n); err != nil || n != 0 {
+			t.Errorf("%s.%s still present (count %d, err %v)", c.table, c.column, n, err)
+		}
+	}
+	var n int
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT count(*) FROM sqlite_master WHERE name = 'price_breaks'`).Scan(&n); err != nil || n != 0 {
+		t.Errorf("price_breaks still present (count %d, err %v)", n, err)
+	}
+	if v, err := s.SettingValue(ctx, "fx_rate"); err != nil || v != "" {
+		t.Errorf("fx_rate = %q, %v; want deleted", v, err)
 	}
 }

@@ -7,17 +7,6 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-// SettingFieldView is one row of the /ajustes form: a settings.key, its current
-// display value (a plain decimal string, already converted from stored micros), and
-// any validation error for it.
-type SettingFieldView struct {
-	Key         string
-	Label       string
-	Placeholder string
-	Value       string
-	Error       string
-}
-
 func materialFormID(m store.Material) string {
 	return "material-" + strconv.FormatInt(m.ID, 10)
 }
@@ -34,11 +23,10 @@ func marginPath(o store.MarginOption, action string) string {
 	return path
 }
 
-// Ajustes is the admin settings page: the single-value knobs (the FX rate) in one
-// all-or-nothing form, then the margin options, each edited, made default, retired or
-// restored by its own small form, then the materials and their prices. errorMsg is a
-// refused margin or material action.
-templ Ajustes(fields []SettingFieldView, margins []store.MarginOption, materials []store.Material, units []store.Unit, successMsg string, errorMsg string, user *NavUser) {
+// Ajustes is the admin settings page: the margin options, each edited, made default,
+// retired or restored by its own small form, then the materials and their prices.
+// errorMsg is a refused margin or material action.
+templ Ajustes(margins []store.MarginOption, materials []store.Material, units []store.Unit, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Ajustes", user) {
 		<h1>
 			Ajustes
@@ -50,22 +38,7 @@ templ Ajustes(fields []SettingFieldView, margins []store.MarginOption, materials
 		if errorMsg != "" {
 			<p class="error">{ errorMsg }</p>
 		}
-		<form method="post" action="/ajustes">
-			for _, f := range fields {
-				<label>
-					{ f.Label }
-					<input type="text" name={ f.Key } value={ f.Value } placeholder={ f.Placeholder } required/>
-				</label>
-				if f.Error != "" {
-					<p class="error">{ f.Error }</p>
-				}
-			}
-			<button type="submit">Guardar</button>
-		</form>
-		<h2>
-			Márgenes
-			@HelpLink(HelpMargenes)
-		</h2>
+		<h2>Márgenes</h2>
 		<p>Cada cotización se calcula con uno de estos márgenes; el vendedor lo elige al armarla.</p>
 		<table>
 			<thead>

@@ -9,29 +9,30 @@ borradores que incluyen el producto.
 1. En el menú, entra a **Productos**.
 2. Escribe en *"Buscar por SKU o descripción…"*. La lista se filtra mientras escribes.
 3. Para ordenar, haz clic en el encabezado de una columna (**SKU**, **Descripción**,
-   **Familia**, **Precio**, **Moneda**, **Unidad**).
+   **Familia**, **Costo**, **Unidad**).
 
-En la columna **Precio** verás el precio fijo del producto, su costo seguido de
-*"(costo)"* (o *"(costo + materiales)"* si además tiene materiales), o *"(materiales)"*
-si su costo sale solo de sus [materiales](#materiales-de-un-producto) (ver abajo).
+En la columna **Costo** verás el costo del producto, sin margen: su costo fijo, seguido
+de *"+ materiales"* si además tiene materiales, o solo *"materiales"* si su costo sale
+de sus [materiales](#materiales-de-un-producto) (ver abajo).
 
 ## Cómo se calcula el precio de un producto
 
-Un producto se cotiza de una de dos formas:
+Todos los productos se cotizan igual:
 
-| Tiene | Precio en la cotización | Típico de |
-|---|---|---|
-| **Precio unitario** | Ese precio, tal cual | Alumbrado |
-| **Costo** y/o [materiales](#materiales-de-un-producto) | (Costo + costo de sus materiales) ÷ (1 − [[margen]] de la cotización) | Cable CCA (costo), Cable CCS & AC (materiales) |
+> **Precio = (Costo + costo de sus materiales) ÷ (1 − [[margen]] de la cotización)**
+
+| Tiene | Típico de |
+|---|---|
+| **Costo** | Cable CCA, Alumbrado |
+| [Materiales](#materiales-de-un-producto) | Cable CCS & AC |
 
 El costo de los materiales es, por cada [[material]], la cantidad que lleva una unidad
 del producto × el precio del material. Los precios de los materiales los captura un
 administrador en [Ajustes](administracion.md#materiales). El margen lo elige el vendedor
 en cada cotización, de la [lista de márgenes](administracion.md#márgenes).
 
-Si la **Moneda** del producto es USD, el resultado se multiplica por el
-[[tipo de cambio]], que también se captura en
-[Ajustes](administracion.md#actualizar-el-tipo-de-cambio).
+Todo es en pesos mexicanos: si el proveedor cobra en dólares, captura el costo ya
+convertido a pesos.
 
 *Ejemplos:*
 
@@ -40,9 +41,6 @@ Si la **Moneda** del producto es USD, el resultado se multiplica por el
 - El Cable CCS 30% ALAMBRE 4 lleva 0.1723 kg de *CCS 30%* por metro. Con el material a
   $160.00/kg y margen de 29.55 %: 0.1723 × 160 = 27.57 de costo; 27.57 ÷ 0.7045 =
   **$39.13** por metro.
-
-> Si el producto tiene **Precio unitario**, se usa ese precio y se ignoran el costo y
-> los materiales.
 
 > El **Peso (kg/m)** del producto es solo informativo: no cambia el precio. Lo que
 > cuenta para el precio es la cantidad de cada material.
@@ -54,15 +52,14 @@ Si la **Moneda** del producto es USD, el resultado se multiplica por el
 3. Escribe la **Descripción** (obligatoria). Es el texto que aparece en la cotización y
    en el PDF.
 4. Elige la **Familia** (obligatoria; ver [[familia]]).
-5. Elige la **Moneda**: MXN o USD.
-6. Llena el **Precio unitario** o el **Costo**
-   ([¿cuál?](#cómo-se-calcula-el-precio-de-un-producto)), solo con números, sin `$`,
-   p. ej. `6.319872` o `45.00`. Si el producto se cotiza por sus materiales, deja ambos
-   vacíos y agrégale los [materiales](#materiales-de-un-producto) después de guardarlo.
-   Opcional: el **Peso (kg/m)**, solo informativo, p. ej. `0.123`.
-7. Opcional: elige la **Unidad** (p. ej. metro). Aparece junto a la cantidad en las
+5. Escribe el **Costo** en pesos, sin margen, solo con números y sin `$`, p. ej. `45.00`
+   ([¿cómo se usa?](#cómo-se-calcula-el-precio-de-un-producto)). Si el producto se
+   cotiza por sus materiales, déjalo vacío y agrégale los
+   [materiales](#materiales-de-un-producto) después de guardarlo. Opcional: el
+   **Peso (kg/m)**, solo informativo, p. ej. `0.123`.
+6. Opcional: elige la **Unidad** (p. ej. metro). Aparece junto a la cantidad en las
    cotizaciones.
-8. Haz clic en **Guardar**. Verás *"Producto guardado."*
+7. Haz clic en **Guardar**. Verás *"Producto guardado."*
 
 ## Editar un producto
 
@@ -126,6 +123,6 @@ Qué pasa al eliminar:
 |---|---|
 | *El SKU es obligatorio.* / *La descripción es obligatoria.* | Llena el campo. |
 | *Selecciona una familia.* | Elige una familia de la lista. |
-| *Precio inválido; usa un número, p. ej. 123.45.* (y los equivalentes de Costo y Peso) | Escribe solo el número, sin `$` ni comas. |
+| *Costo inválido; usa un número, p. ej. 123.45.* (y el equivalente de Peso) | Escribe solo el número, sin `$` ni comas. |
 | *Cantidad inválida; usa un número positivo, p. ej. 0.1723.* | En Materiales, escribe la cantidad como número mayor que 0. |
 | *Este producto ya tiene ese material; elimínalo y vuelve a agregarlo para cambiar la cantidad.* | Elimina la fila del material y agrégalo con la cantidad nueva. |

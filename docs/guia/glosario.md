@@ -50,7 +50,7 @@ su margen y los ajustes vigentes cada vez que la abres.
 
 ## Emitida
 
-Una cotización congelada: sus precios, margen, tipo de cambio, términos y PDF ya no cambian.
+Una cotización congelada: sus precios, margen, términos y PDF ya no cambian.
 Es la que se envía al cliente.
 
 ## Revisada
@@ -72,11 +72,6 @@ en el PDF.
 
 16 % sobre el subtotal de la cotización.
 
-## Tipo de cambio
-
-Pesos por dólar (USD/MXN). Convierte a pesos el precio de los productos con moneda USD.
-Lo captura un administrador en Ajustes.
-
 ## Material
 
 Una materia prima con su costo por unidad, p. ej. *CCS 30%* a $160.00 por kg. Un
@@ -86,8 +81,7 @@ administrador en Ajustes.
 
 ## Margen
 
-La parte del precio de venta que es utilidad, como porcentaje (35 %). Los productos que
-se cotizan con costo o con materiales (Cable CCA, Cable CCS & AC) cuestan
-costo ÷ (1 − margen). Cada cotización usa uno
+La parte del precio de venta que es utilidad, como porcentaje (35 %). Todo producto del
+catálogo cuesta costo ÷ (1 − margen), donde el costo incluye el de sus materiales. Cada cotización usa uno
 de los márgenes de una lista con nombre (p. ej. *Estándar (12.34%)*) que mantiene un
 administrador en Ajustes; el vendedor lo elige al armar la cotización.

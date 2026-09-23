@@ -22,7 +22,7 @@ func seedProduct(t *testing.T, s *Store, ctx context.Context, sku string) int64 
 	}
 	id, err := s.CreateProduct(ctx, Product{
 		FamilyID: familyID, SKU: sku, Description: "Cable THW 12",
-		CostMicros: micros(5_000_000), Currency: "MXN",
+		CostMicros: micros(5_000_000),
 	})
 	if err != nil {
 		t.Fatalf("CreateProduct: %v", err)
@@ -43,7 +43,7 @@ func TestAuditRecordsActorAndDiff(t *testing.T) {
 	actorCtx := WithActor(ctx, Actor{UserID: userID, Source: SourceWeb})
 	if err := s.UpdateProduct(actorCtx, Product{
 		ID: id, FamilyID: 1, SKU: "cca-thw-12", Description: "Cable THW 12",
-		CostMicros: micros(5_250_000), Currency: "MXN",
+		CostMicros: micros(5_250_000),
 	}); err != nil {
 		t.Fatalf("UpdateProduct: %v", err)
 	}
@@ -102,12 +102,12 @@ func TestAuditActorDoesNotLeakBetweenWrites(t *testing.T) {
 	if err := s.SoftDeleteProduct(attributed, id); err != nil {
 		t.Fatalf("SoftDeleteProduct: %v", err)
 	}
-	// Now an unattributed write, as cmd/import would make.
-	if err := s.UpsertProduct(ctx, Product{
-		FamilyID: 1, SKU: "cca-thw-12", Description: "Cable THW 12 (reimport)",
-		CostMicros: micros(5_500_000), Currency: "MXN",
+	// Now an unattributed write, as a background job or the sqlite3 shell would make.
+	if err := s.UpdateProduct(ctx, Product{
+		ID: id, FamilyID: 1, SKU: "cca-thw-12", Description: "Cable THW 12 (unattributed)",
+		CostMicros: micros(5_500_000),
 	}); err != nil {
-		t.Fatalf("UpsertProduct: %v", err)
+		t.Fatalf("UpdateProduct: %v", err)
 	}
 
 	entries, err := s.AuditLog(ctx, AuditFilter{TableName: "products", RowKey: "1"})
@@ -118,7 +118,7 @@ func TestAuditActorDoesNotLeakBetweenWrites(t *testing.T) {
 		t.Fatalf("got %d audit entries, want 3", len(entries))
 	}
 	if entries[0].ActorID != nil {
-		t.Fatalf("unattributed reimport inherited actor %v", *entries[0].ActorID)
+		t.Fatalf("unattributed write inherited actor %v", *entries[0].ActorID)
 	}
 	if entries[1].ActorID == nil || *entries[1].ActorID != userID {
 		t.Fatalf("soft delete lost its actor: %+v", entries[1])
@@ -228,7 +228,7 @@ func TestAuditRollsBackWithFailedWrite(t *testing.T) {
 	}
 	// Duplicate SKU violates the UNIQUE index.
 	if _, err := s.CreateProduct(ctx, Product{
-		FamilyID: 1, SKU: "cca-thw-12", Description: "duplicate", Currency: "MXN",
+		FamilyID: 1, SKU: "cca-thw-12", Description: "duplicate",
 	}); err == nil {
 		t.Fatal("CreateProduct with duplicate SKU succeeded; want UNIQUE violation")
 	}

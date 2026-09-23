@@ -29,24 +29,16 @@ type ProductForm struct {
 	FamilyID    string
 	SKU         string
 	Description string
-	Currency    string
-	UnitPrice   string
 	Cost        string
 	KgPerM      string
 	UnitID      string
 }
 
 func parseProductForm(r *http.Request) ProductForm {
-	currency := r.FormValue("currency")
-	if currency == "" {
-		currency = "MXN"
-	}
 	return ProductForm{
 		FamilyID:    r.FormValue("family_id"),
 		SKU:         strings.TrimSpace(r.FormValue("sku")),
 		Description: strings.TrimSpace(r.FormValue("description")),
-		Currency:    currency,
-		UnitPrice:   strings.TrimSpace(r.FormValue("unit_price")),
 		Cost:        strings.TrimSpace(r.FormValue("cost")),
 		KgPerM:      strings.TrimSpace(r.FormValue("kg_per_m")),
 		UnitID:      strings.TrimSpace(r.FormValue("unit_id")),
@@ -63,14 +55,6 @@ func (f ProductForm) Validate() map[string]string {
 	}
 	if familyID, err := strconv.ParseInt(f.FamilyID, 10, 64); f.FamilyID == "" || err != nil || familyID <= 0 {
 		errs["family_id"] = "Selecciona una familia."
-	}
-	if f.Currency != "MXN" && f.Currency != "USD" {
-		errs["currency"] = "Moneda inválida."
-	}
-	if f.UnitPrice != "" {
-		if _, err := money.ParseMicros(f.UnitPrice); err != nil {
-			errs["unit_price"] = "Precio inválido; usa un número, p. ej. 123.45."
-		}
 	}
 	if f.Cost != "" {
 		if _, err := money.ParseMicros(f.Cost); err != nil {
@@ -90,8 +74,6 @@ func (f ProductForm) toValues() views.ProductFormValues {
 		FamilyID:    f.FamilyID,
 		SKU:         f.SKU,
 		Description: f.Description,
-		Currency:    f.Currency,
-		UnitPrice:   f.UnitPrice,
 		Cost:        f.Cost,
 		KgPerM:      f.KgPerM,
 		UnitID:      f.UnitID,
@@ -107,11 +89,6 @@ func (f ProductForm) toProduct() store.Product {
 		FamilyID:    familyID,
 		SKU:         f.SKU,
 		Description: f.Description,
-		Currency:    f.Currency,
-	}
-	if f.UnitPrice != "" {
-		m, _ := money.ParseMicros(f.UnitPrice)
-		p.UnitPriceMicros = &m
 	}
 	if f.Cost != "" {
 		m, _ := money.ParseMicros(f.Cost)
@@ -133,10 +110,6 @@ func productToValues(p store.Product) views.ProductFormValues {
 		FamilyID:    strconv.FormatInt(p.FamilyID, 10),
 		SKU:         p.SKU,
 		Description: p.Description,
-		Currency:    p.Currency,
-	}
-	if p.UnitPriceMicros != nil {
-		v.UnitPrice = p.UnitPriceMicros.String()
 	}
 	if p.CostMicros != nil {
 		v.Cost = p.CostMicros.String()
@@ -192,7 +165,7 @@ func (p *Products) NewPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, _ := UserFromContext(ctx)
-	values := views.ProductFormValues{Currency: "MXN"}
+	values := views.ProductFormValues{}
 	views.ProductForm("Nuevo producto", "/productos/nuevo", values, nil, "", families, units, 0, views.ProductEditSections{}, navUserView(user)).Render(ctx, w)
 }
 

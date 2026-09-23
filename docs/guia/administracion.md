@@ -3,22 +3,21 @@
 Solo para cuentas con rol **Administrador**. Estas opciones aparecen en el menú como
 **Usuarios**, **Unidades** y **Ajustes**.
 
-## Actualizar el tipo de cambio
+En **Ajustes** están los dos datos de los que salen los precios, además del costo de
+cada producto: los [márgenes](#márgenes) y los [materiales](#materiales). Ver
+[cómo se calcula el precio de un producto](productos.md#cómo-se-calcula-el-precio-de-un-producto).
 
-1. En el menú, entra a **Ajustes**.
-2. En **Tipo de cambio (USD/MXN)**, escribe los pesos por dólar, solo con números, p. ej.
-   `18.50`. Se usa en los productos con moneda USD.
-3. Haz clic en **Guardar**.
-
-Efecto de un cambio:
+Efecto de cualquier cambio en Ajustes:
 
 - **Inmediato** en las cotizaciones nuevas y en **todos los borradores** (toman los
   valores nuevos la próxima vez que se abren o recalculan).
-- **Ninguno** en las cotizaciones emitidas: conservan el tipo de cambio y los precios
-  con que se emitieron.
+- **Ninguno** en las cotizaciones emitidas: conservan los precios con que se emitieron.
 
-> Avisa a los vendedores cuando cambies el tipo de cambio: los precios de sus borradores
-> van a cambiar. Ver [cómo se calcula el precio de un producto](productos.md#cómo-se-calcula-el-precio-de-un-producto).
+> Avisa a los vendedores cuando cambies un margen o el precio de un material: los precios
+> de sus borradores van a cambiar.
+
+Todos los precios son en pesos mexicanos. Si un proveedor te cobra en dólares, captura
+el costo ya convertido a pesos.
 
 ## Márgenes
 
@@ -27,8 +26,8 @@ Cada cotización se calcula con **una** de ellas, que el vendedor elige al armar
 un administrador puede cambiar la lista. Están abajo en **Ajustes**, en **Márgenes**.
 
 El margen es sobre el precio de venta: el precio es costo ÷ (1 − margen). Con 35 %, un
-costo de $65.00 se cotiza a $100.00. Afecta a los productos que se cotizan con costo o
-con materiales (Cable CCA y Cable CCS & AC).
+costo de $65.00 se cotiza a $100.00. Afecta a todos los productos del catálogo; las
+líneas libres no lo usan.
 
 **Agregar un margen**
 

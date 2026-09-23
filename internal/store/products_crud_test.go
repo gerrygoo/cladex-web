@@ -31,12 +31,11 @@ func TestProductCRUDLifecycle(t *testing.T) {
 	price := money.Micros(6_319_872)
 	weight := money.Micros(123_000)
 	id, err := s.CreateProduct(ctx, Product{
-		FamilyID:        familyID,
-		SKU:             "abl-cable-thw-14",
-		Description:     "Cable THW Cal. 14",
-		UnitPriceMicros: &price,
-		KgPerMMicros:    &weight,
-		Currency:        "MXN",
+		FamilyID:     familyID,
+		SKU:          "abl-cable-thw-14",
+		Description:  "Cable THW Cal. 14",
+		CostMicros:   &price,
+		KgPerMMicros: &weight,
 	})
 	if err != nil {
 		t.Fatalf("CreateProduct: %v", err)
@@ -52,11 +51,11 @@ func TestProductCRUDLifecycle(t *testing.T) {
 	if got.SKU != "abl-cable-thw-14" || got.Description != "Cable THW Cal. 14" || got.FamilyName != "ABASTILUM" {
 		t.Fatalf("ProductByID = %+v", got)
 	}
-	if got.UnitPriceMicros == nil || *got.UnitPriceMicros != price {
-		t.Fatalf("UnitPriceMicros = %v, want %v", got.UnitPriceMicros, price)
+	if got.CostMicros == nil || *got.CostMicros != price {
+		t.Fatalf("CostMicros = %v, want %v", got.CostMicros, price)
 	}
-	if got.CostMicros != nil {
-		t.Fatalf("CostMicros = %v, want nil", got.CostMicros)
+	if got.KgPerMMicros == nil || *got.KgPerMMicros != weight {
+		t.Fatalf("KgPerMMicros = %v, want %v", got.KgPerMMicros, weight)
 	}
 
 	bySKU, err := s.ProductBySKU(ctx, "abl-cable-thw-14")
@@ -67,10 +66,10 @@ func TestProductCRUDLifecycle(t *testing.T) {
 		t.Fatalf("ProductBySKU = %+v, want id %d", bySKU, id)
 	}
 
-	// Update: change description and clear unit price in favor of cost.
+	// Update: change description and cost, and clear the weight.
 	cost := money.Micros(4_500_000)
 	got.Description = "Cable THW Cal. 14 AWG"
-	got.UnitPriceMicros = nil
+	got.KgPerMMicros = nil
 	got.CostMicros = &cost
 	if err := s.UpdateProduct(ctx, *got); err != nil {
 		t.Fatalf("UpdateProduct: %v", err)
@@ -83,8 +82,8 @@ func TestProductCRUDLifecycle(t *testing.T) {
 	if updated.Description != "Cable THW Cal. 14 AWG" {
 		t.Fatalf("Description = %q, want updated", updated.Description)
 	}
-	if updated.UnitPriceMicros != nil {
-		t.Fatalf("UnitPriceMicros = %v, want nil after clearing", updated.UnitPriceMicros)
+	if updated.KgPerMMicros != nil {
+		t.Fatalf("KgPerMMicros = %v, want nil after clearing", updated.KgPerMMicros)
 	}
 	if updated.CostMicros == nil || *updated.CostMicros != cost {
 		t.Fatalf("CostMicros = %v, want %v", updated.CostMicros, cost)

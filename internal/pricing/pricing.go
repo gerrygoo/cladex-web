@@ -1,10 +1,11 @@
-// Package pricing computes quote line unit prices and totals from catalog and settings
-// data. Pure Go, no HTTP, no database — callers pass in already-loaded store.Product
-// fields and settings.Settings values.
+// Package pricing computes quote line unit prices and totals. Pure Go, no HTTP, no
+// database — callers pass in an already-loaded product cost and the quote's margin.
 //
-// Reverse-engineered from the legacy workbook's own formulas (Cotizador CCA, Cotizador
-// CCS, and their CCA/CCS & AC source sheets — see docs/PLAN.md's M2 footnotes), since
-// the workbook has no written spec beyond "the numbers the formulas produce".
+// Every product prices the same way: cost / (1 - margin), the margin-on-sale-price
+// convention reverse-engineered from the legacy workbook's own formulas (Cotizador CCA
+// and its source sheet — see docs/PLAN.md's M2 footnotes), where cost is a flat cost
+// plus the materials one unit contains, and the margin is the quote's chosen option
+// (docs/PLAN.md, M3).
 package pricing
 
 import (
@@ -18,31 +19,22 @@ import (
 // workbook's own hardcoded formula (subtotal*0.16). Not admin-configurable.
 const IVARate = money.Micros(160_000)
 
-// Settings are the inputs this package needs beyond the product itself, already parsed
-// to Micros — this package never touches the database. FXRate comes from the settings
-// table; Margin is the quote's chosen margin option, nil when the quote has none it can
-// use (see ErrNoMargin).
-type Settings struct {
-	FXRate money.Micros  // USD -> MXN
-	Margin *money.Micros // fraction of the sale price, e.g. 123_400 == 12.34%
-}
+// ErrNoMargin is returned when the quote has no margin it can use.
+var ErrNoMargin = errors.New("pricing: product needs a margin")
 
-// ErrNoMargin is returned for a cost-priced product when Settings carries no margin.
-var ErrNoMargin = errors.New("pricing: cost-priced product needs a margin")
+// ErrNoCost is returned for a product with neither a flat cost nor materials.
+var ErrNoCost = errors.New("pricing: product has no pricing data (cost or materials)")
 
-// Product is the subset of store.Product the pricing engine reads: a flat price
-// (UnitPriceMicros), or a cost made of a flat part (CostMicros) plus the materials one
-// unit contains. See migrations/0001_init.sql, 0002_add_product_cost.sql and
-// 0008_materials.sql.
+// Product is the subset of store.Product the pricing engine reads: a flat cost
+// (CostMicros) plus the materials one unit contains. See migrations/0002_add_product_cost.sql
+// and 0008_materials.sql.
 type Product struct {
-	UnitPriceMicros *money.Micros
-	CostMicros      *money.Micros
-	Materials       []MaterialContent
-	Currency        string // "MXN" or "USD"; "" is treated as MXN
+	CostMicros *money.Micros
+	Materials  []MaterialContent
 }
 
 // MaterialContent is how much of one material a unit of a product holds, and that
-// material's pure-cost price per its own unit (e.g. 0.1723 kg at $155/kg).
+// material's pure-cost price per its own unit (e.g. 0.1723 kg at $160/kg).
 type MaterialContent struct {
 	QtyPerUnit money.Micros
 	Price      money.Micros
@@ -50,7 +42,7 @@ type MaterialContent struct {
 
 // Cost is a product's pre-margin cost per unit: its flat cost plus each material's
 // qty x price, each product rounded half up to the micro. ok is false when the product
-// has neither, i.e. isn't cost-priced.
+// has neither.
 func (p Product) Cost() (cost money.Micros, ok bool) {
 	if p.CostMicros != nil {
 		cost, ok = *p.CostMicros, true
@@ -62,85 +54,32 @@ func (p Product) Cost() (cost money.Micros, ok bool) {
 	return cost, ok
 }
 
-// PriceBreak is one price_breaks row: at qty >= MinQty, UnitPriceMicros overrides the
-// product's base price outright — already a final MXN price, with no margin or FX
-// applied to it. Breaks need not be pre-sorted; UnitPrice picks the highest threshold
-// the quantity clears.
-type PriceBreak struct {
-	MinQty          money.Milli
-	UnitPriceMicros money.Micros
-}
-
-// UnitPrice computes a product's per-unit price in MXN micros for the given quantity:
-// the product's base price (flat, or cost+margin), converted from
-// USD if needed, then overridden by the best price break the quantity clears, if any.
-func UnitPrice(p Product, qty money.Milli, breaks []PriceBreak, s Settings) (money.Micros, error) {
-	base, err := basePrice(p, s)
-	if err != nil {
-		return 0, err
-	}
-
-	if p.Currency == "USD" {
-		if s.FXRate <= 0 {
-			return 0, errors.New("pricing: USD product needs a positive FX rate")
-		}
-		base = money.Micros(money.RoundHalfUp(int64(base)*int64(s.FXRate), 1_000_000))
-	}
-
-	if tier, ok := bestPriceBreak(breaks, qty); ok {
-		return tier, nil
-	}
-	return base, nil
-}
-
-// basePrice applies the product's pricing rule, in priority order:
-//  1. UnitPriceMicros set: a flat catalog price (e.g. ABASTILUM) — used as-is, already
-//     final MXN (or USD, converted by the caller above).
-//  2. A cost (flat cost and/or materials, see Product.Cost): cost / (1 - margin) —
-//     e.g. CCA from its flat cost, CCS & AC from its CCS 30% content. This is a
-//     margin-on-sale-price convention, matching the workbook's own formula exactly (not
-//     cost*(1+margin)); using the plan's shorthand convention here would compute
-//     different numbers for the same nominal margin fraction.
-func basePrice(p Product, s Settings) (money.Micros, error) {
-	if p.UnitPriceMicros != nil {
-		return *p.UnitPriceMicros, nil
-	}
+// UnitPrice computes a product's per-unit price in MXN micros: cost / (1 - margin).
+// margin is a fraction of the sale price (123_400 == 12.34%), nil when the quote has
+// none it can use. This matches the workbook's own formula exactly (not cost*(1+margin);
+// using that shorthand would compute different numbers for the same nominal fraction).
+func UnitPrice(p Product, margin *money.Micros) (money.Micros, error) {
 	cost, ok := p.Cost()
 	if !ok {
-		return 0, errors.New("pricing: product has no pricing data (unit price, cost, or materials)")
+		return 0, ErrNoCost
 	}
-	if s.Margin == nil {
+	if margin == nil {
 		return 0, ErrNoMargin
 	}
-	margin := *s.Margin
-	if margin < 0 || margin >= 1_000_000 {
-		return 0, fmt.Errorf("pricing: margin %v out of range [0, 1_000_000)", margin)
+	if *margin < 0 || *margin >= 1_000_000 {
+		return 0, fmt.Errorf("pricing: margin %v out of range [0, 1_000_000)", *margin)
 	}
-	complement := 1_000_000 - int64(margin)
+	complement := 1_000_000 - int64(*margin)
 	return money.Micros(money.RoundHalfUp(int64(cost)*1_000_000, complement)), nil
 }
 
 // ConvertQty converts a quantity from one unit to another, given the rate between
 // them (amount of the target unit per 1 of the source unit — see
 // migrations/0003_add_units_and_conversions.sql). Used to turn a quote line entered
-// in a non-base unit (e.g. "rollos") into the product's own base unit before UnitPrice
-// and ComputeTotals run, which both assume qty is already in that base unit.
+// in a non-base unit (e.g. "rollos") into the product's own base unit before
+// ComputeTotals runs, which assumes qty is already in that base unit.
 func ConvertQty(qty money.Milli, rateMicros money.Micros) money.Milli {
 	return money.Milli(money.RoundHalfUp(int64(qty)*int64(rateMicros), 1_000_000))
-}
-
-func bestPriceBreak(breaks []PriceBreak, qty money.Milli) (money.Micros, bool) {
-	found := false
-	var best money.Micros
-	bestMinQty := money.Milli(-1)
-	for _, b := range breaks {
-		if qty >= b.MinQty && b.MinQty > bestMinQty {
-			best = b.UnitPriceMicros
-			bestMinQty = b.MinQty
-			found = true
-		}
-	}
-	return best, found
 }
 
 // Line pairs a computed unit price with the quantity it applies to — the minimal

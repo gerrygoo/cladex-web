@@ -66,8 +66,7 @@ func TestProductUnitID_RoundTrips(t *testing.T) {
 
 	price := money.Micros(1_000_000)
 	id, err := s.CreateProduct(ctx, Product{
-		FamilyID: familyID, SKU: "sku-1", Description: "desc", Currency: "MXN",
-		UnitPriceMicros: &price, UnitID: &m.ID,
+		FamilyID: familyID, SKU: "sku-1", Description: "desc", CostMicros: &price, UnitID: &m.ID,
 	})
 	if err != nil {
 		t.Fatalf("CreateProduct: %v", err)
@@ -105,8 +104,7 @@ func TestProductUnitConversions(t *testing.T) {
 	}
 	price := money.Micros(1_000_000)
 	productID, err := s.CreateProduct(ctx, Product{
-		FamilyID: familyID, SKU: "sku-1", Description: "desc", Currency: "MXN",
-		UnitPriceMicros: &price,
+		FamilyID: familyID, SKU: "sku-1", Description: "desc", CostMicros: &price,
 	})
 	if err != nil {
 		t.Fatalf("CreateProduct: %v", err)
@@ -168,7 +166,7 @@ func TestListProducts_Sort(t *testing.T) {
 	price := money.Micros(1_000_000)
 	for _, sku := range []string{"b-sku", "a-sku", "c-sku"} {
 		if _, err := s.CreateProduct(ctx, Product{
-			FamilyID: familyID, SKU: sku, Description: sku, Currency: "MXN", UnitPriceMicros: &price,
+			FamilyID: familyID, SKU: sku, Description: sku, CostMicros: &price,
 		}); err != nil {
 			t.Fatalf("CreateProduct(%q): %v", sku, err)
 		}

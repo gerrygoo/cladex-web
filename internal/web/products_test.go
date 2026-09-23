@@ -27,7 +27,7 @@ func seedFamily(t *testing.T, a *Auth, name string) int64 {
 }
 
 func storeProduct(familyID int64, sku, description string) store.Product {
-	return store.Product{FamilyID: familyID, SKU: sku, Description: description, Currency: "MXN"}
+	return store.Product{FamilyID: familyID, SKU: sku, Description: description}
 }
 
 func itoa(n int64) string {
@@ -54,8 +54,7 @@ func TestProductsCreateListEditDelete(t *testing.T) {
 		"family_id":   {itoa(familyID)},
 		"sku":         {"abl-cable-thw-14"},
 		"description": {"Cable THW Cal. 14"},
-		"currency":    {"MXN"},
-		"unit_price":  {"6.319872"},
+		"cost":        {"6.319872"},
 	}
 	req := httptest.NewRequest("POST", "/productos/nuevo", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -102,8 +101,7 @@ func TestProductsCreateListEditDelete(t *testing.T) {
 		"family_id":   {itoa(familyID)},
 		"sku":         {"abl-cable-thw-14"},
 		"description": {"Cable THW Cal. 14 AWG"},
-		"currency":    {"MXN"},
-		"unit_price":  {"6.319872"},
+		"cost":        {"6.319872"},
 	}
 	req = httptest.NewRequest("POST", "/productos/"+id, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -160,8 +158,7 @@ func TestProductsCreateValidationErrors(t *testing.T) {
 		"family_id":   {""},
 		"sku":         {""},
 		"description": {""},
-		"currency":    {"MXN"},
-		"unit_price":  {"no-es-un-numero"},
+		"cost":        {"no-es-un-numero"},
 	}
 	req := httptest.NewRequest("POST", "/productos/nuevo", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -173,7 +170,7 @@ func TestProductsCreateValidationErrors(t *testing.T) {
 		t.Fatalf("status = %d, want 422; body = %s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	for _, want := range []string{"El SKU es obligatorio", "La descripción es obligatoria", "Selecciona una familia", "Precio inválido"} {
+	for _, want := range []string{"El SKU es obligatorio", "La descripción es obligatoria", "Selecciona una familia", "Costo inválido"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("body missing %q: %s", want, body)
 		}
@@ -198,7 +195,6 @@ func TestProductsCreateDuplicateSKU(t *testing.T) {
 		"family_id":   {itoa(familyID)},
 		"sku":         {"abl-dup"},
 		"description": {"Primero"},
-		"currency":    {"MXN"},
 	}
 	req := httptest.NewRequest("POST", "/productos/nuevo", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

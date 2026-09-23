@@ -11,22 +11,9 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
 
-// settingDefs is the fixed set of admin-editable single-value knobs (today only the FX
-// rate). Margins and material prices aren't here: they're lists, managed by the
-// Margen and Material handlers below (docs/PLAN.md, M3). settings is a generic key/value table specifically
-// so a new knob is a one-line addition here, no migration — see
-// migrations/0001_init.sql. Each value is a plain decimal string in the form (e.g.
-// "18.50", "0.35" for a 35% margin), stored as fixed-point micros text via
-// internal/money, same representation as product prices.
-var settingDefs = []struct {
-	Key         string
-	Label       string
-	Placeholder string
-}{
-	{"fx_rate", "Tipo de cambio (USD/MXN)", "p. ej. 18.50"},
-}
-
-// Settings holds the dependencies for the admin-only /ajustes handlers.
+// Settings holds the dependencies for the admin-only /ajustes handlers: the margin
+// options and the materials catalog (docs/PLAN.md, M3). The generic settings table
+// holds no pricing input any more; it's kept for future non-pricing settings.
 type Settings struct {
 	store *store.Store
 }
@@ -38,28 +25,18 @@ func NewSettings(s *store.Store) *Settings {
 func (s *Settings) Page(w http.ResponseWriter, r *http.Request) {
 	successMsg := ""
 	switch {
-	case r.URL.Query().Get("guardado") == "1":
-		successMsg = "Ajustes guardados."
 	case r.URL.Query().Get("margen") == "1":
 		successMsg = "Margen guardado."
 	case r.URL.Query().Get("material") == "1":
 		successMsg = "Material guardado."
 	}
-	s.render(w, r, nil, successMsg, "")
+	s.render(w, r, successMsg, "")
 }
 
-// render draws /ajustes. fields is nil to show the stored values, or the submitted
-// ones (with their errors) after a failed Submit; errorMsg is a failed margin or
-// material action's message. Any error renders with 422.
-func (s *Settings) render(w http.ResponseWriter, r *http.Request, fields []views.SettingFieldView, successMsg, errorMsg string) {
+// render draws /ajustes. errorMsg is a refused margin or material action's message,
+// rendered with 422.
+func (s *Settings) render(w http.ResponseWriter, r *http.Request, successMsg, errorMsg string) {
 	ctx := r.Context()
-	if fields == nil {
-		var err error
-		if fields, err = s.storedFields(r); err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
-			return
-		}
-	}
 	margins, err := s.store.ListMarginOptions(ctx)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
@@ -75,76 +52,11 @@ func (s *Settings) render(w http.ResponseWriter, r *http.Request, fields []views
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
-	hasFieldErrors := false
-	for _, f := range fields {
-		hasFieldErrors = hasFieldErrors || f.Error != ""
-	}
-	if errorMsg != "" || hasFieldErrors {
+	if errorMsg != "" {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 	}
 	authUser, _ := UserFromContext(ctx)
-	views.Ajustes(fields, margins, materials, units, successMsg, errorMsg, navUserView(authUser)).Render(ctx, w)
-}
-
-func (s *Settings) storedFields(r *http.Request) ([]views.SettingFieldView, error) {
-	ctx := r.Context()
-	keys := make([]string, len(settingDefs))
-	for i, d := range settingDefs {
-		keys[i] = d.Key
-	}
-	stored, err := s.store.SettingValues(ctx, keys)
-	if err != nil {
-		return nil, err
-	}
-
-	fields := make([]views.SettingFieldView, len(settingDefs))
-	for i, d := range settingDefs {
-		value := ""
-		if raw, ok := stored[d.Key]; ok {
-			if micros, err := strconv.ParseInt(raw, 10, 64); err == nil {
-				value = money.Micros(micros).String()
-			}
-		}
-		fields[i] = views.SettingFieldView{Key: d.Key, Label: d.Label, Placeholder: d.Placeholder, Value: value}
-	}
-	return fields, nil
-}
-
-func (s *Settings) Submit(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "solicitud inválida", http.StatusBadRequest)
-		return
-	}
-
-	fields := make([]views.SettingFieldView, len(settingDefs))
-	parsed := make(map[string]money.Micros, len(settingDefs))
-	hasErrors := false
-	for i, d := range settingDefs {
-		raw := r.FormValue(d.Key)
-		fields[i] = views.SettingFieldView{Key: d.Key, Label: d.Label, Placeholder: d.Placeholder, Value: raw}
-		m, err := money.ParseMicros(raw)
-		if err != nil {
-			fields[i].Error = "Valor inválido; usa un número, p. ej. 18.50."
-			hasErrors = true
-			continue
-		}
-		parsed[d.Key] = m
-	}
-
-	if hasErrors {
-		s.render(w, r, fields, "", "")
-		return
-	}
-
-	authUser, _ := UserFromContext(ctx)
-	for key, m := range parsed {
-		if err := s.store.SetSetting(ctx, key, strconv.FormatInt(int64(m), 10), authUser.ID); err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
-			return
-		}
-	}
-	http.Redirect(w, r, "/ajustes?guardado=1", http.StatusSeeOther)
+	views.Ajustes(margins, materials, units, successMsg, errorMsg, navUserView(authUser)).Render(ctx, w)
 }
 
 // parseMarginPercent reads a margin as the percentage an admin types ("12.34", "12.34%")
@@ -199,7 +111,7 @@ func (s *Settings) marginAction(w http.ResponseWriter, r *http.Request, act func
 	authUser, _ := UserFromContext(r.Context())
 	if err := act(authUser.ID); err != nil {
 		if msg := marginActionError(err); msg != "" {
-			s.render(w, r, nil, "", msg)
+			s.render(w, r, "", msg)
 			return
 		}
 		http.Error(w, "error interno", http.StatusInternalServerError)
@@ -222,7 +134,7 @@ func (s *Settings) CreateMargen(w http.ResponseWriter, r *http.Request) {
 	}
 	name, value, msg := parseMarginForm(r)
 	if msg != "" {
-		s.render(w, r, nil, "", msg)
+		s.render(w, r, "", msg)
 		return
 	}
 	s.marginAction(w, r, func(adminID int64) error {
@@ -240,7 +152,7 @@ func (s *Settings) UpdateMargen(w http.ResponseWriter, r *http.Request) {
 	}
 	name, value, msg := parseMarginForm(r)
 	if msg != "" {
-		s.render(w, r, nil, "", msg)
+		s.render(w, r, "", msg)
 		return
 	}
 	s.marginAction(w, r, func(adminID int64) error {
@@ -290,9 +202,9 @@ func (s *Settings) materialAction(w http.ResponseWriter, r *http.Request, act fu
 	if err := act(authUser.ID); err != nil {
 		switch {
 		case errors.Is(err, store.ErrDuplicateMaterialName):
-			s.render(w, r, nil, "", "Ya existe un material con ese nombre.")
+			s.render(w, r, "", "Ya existe un material con ese nombre.")
 		case errors.Is(err, store.ErrMaterialNotFound):
-			s.render(w, r, nil, "", "Ese material no existe.")
+			s.render(w, r, "", "Ese material no existe.")
 		default:
 			http.Error(w, "error interno", http.StatusInternalServerError)
 		}
@@ -309,12 +221,12 @@ func (s *Settings) CreateMaterial(w http.ResponseWriter, r *http.Request) {
 	}
 	name, price, msg := parseMaterialForm(r)
 	if msg != "" {
-		s.render(w, r, nil, "", msg)
+		s.render(w, r, "", msg)
 		return
 	}
 	unitID, err := strconv.ParseInt(r.FormValue("unit_id"), 10, 64)
 	if err != nil {
-		s.render(w, r, nil, "", "Selecciona la unidad del material.")
+		s.render(w, r, "", "Selecciona la unidad del material.")
 		return
 	}
 	s.materialAction(w, r, func(adminID int64) error {
@@ -332,7 +244,7 @@ func (s *Settings) UpdateMaterial(w http.ResponseWriter, r *http.Request) {
 	}
 	name, price, msg := parseMaterialForm(r)
 	if msg != "" {
-		s.render(w, r, nil, "", msg)
+		s.render(w, r, "", msg)
 		return
 	}
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)

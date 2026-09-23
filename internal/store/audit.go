@@ -9,16 +9,16 @@ import (
 )
 
 // Audit sources, recorded alongside the actor so a write from the admin CLI is
-// distinguishable from the same write made through the web UI.
+// distinguishable from the same write made through the web UI. Older audit rows may
+// also carry "import", from the since-retired workbook importer (cmd/import).
 const (
-	SourceWeb    = "web"
-	SourceCLI    = "cli"
-	SourceImport = "import"
+	SourceWeb = "web"
+	SourceCLI = "cli"
 )
 
 // Actor identifies who is performing a write, for the audit triggers in
-// migrations/0003_audit_log.sql. UserID is 0 when there is no logged-in user (the CLI
-// and the catalog importer both run unattended), in which case only Source is recorded.
+// migrations/0004_audit_log.sql. UserID is 0 when there is no logged-in user (the CLI
+// runs unattended), in which case only Source is recorded.
 type Actor struct {
 	UserID int64
 	Source string
@@ -27,7 +27,7 @@ type Actor struct {
 type actorCtxKey struct{}
 
 // WithActor returns a context that attributes any subsequent store write to a. The web
-// layer attaches the session user; cmd/cladexctl and cmd/import attach their source.
+// layer attaches the session user; cmd/cladexctl attaches its source.
 func WithActor(ctx context.Context, a Actor) context.Context {
 	return context.WithValue(ctx, actorCtxKey{}, a)
 }

@@ -22,18 +22,11 @@ func newTestQuotes(t *testing.T, a *Auth) *Quotes {
 	return NewQuotes(a.store, nil)
 }
 
+// seedPricingSettings puts the default margin option (the one new drafts start on) at
+// 30%, so the fixtures below price to round numbers: the $70.00-cost Foco LED at
+// $100.00, the $45.00-cost cable at $64.29.
 func seedPricingSettings(t *testing.T, a *Auth, userID int64) {
 	t.Helper()
-	set := func(key, val string) {
-		m, err := money.ParseMicros(val)
-		if err != nil {
-			t.Fatalf("ParseMicros(%q): %v", val, err)
-		}
-		if err := a.store.SetSetting(context.Background(), key, strconv.FormatInt(int64(m), 10), userID); err != nil {
-			t.Fatalf("SetSetting(%s): %v", key, err)
-		}
-	}
-	set("fx_rate", "18.50")
 	setDefaultMarginPercent(t, a, userID, "30")
 }
 
@@ -74,9 +67,9 @@ func seedQuoteBuilderFixtures(t *testing.T, a *Auth) (customerID, flatProductID,
 	if err != nil {
 		t.Fatalf("UpsertFamily: %v", err)
 	}
-	flatPrice := money.Micros(100_000_000) // $100.00
+	flatPrice := money.Micros(70_000_000) // $70.00 cost: $100.00 at the 30% test margin
 	flatProductID, err = a.store.CreateProduct(ctx, store.Product{
-		FamilyID: familyID, SKU: "abl-foco", Description: "Foco LED", UnitPriceMicros: &flatPrice,
+		FamilyID: familyID, SKU: "abl-foco", Description: "Foco LED", CostMicros: &flatPrice,
 	})
 	if err != nil {
 		t.Fatalf("CreateProduct(flat): %v", err)
@@ -174,9 +167,9 @@ func TestQuotesCreateBuildAndSave(t *testing.T) {
 
 	// Fill in the free line and the cost+margin product; compute the expected totals
 	// independently via internal/pricing to check the handler wired everything
-	// correctly (settings load, product lookup, price-break lookup).
-	settings := pricing.Settings{FXRate: money.Micros(18_500_000)}
-	flatUnitPrice, err := pricing.UnitPrice(pricing.Product{UnitPriceMicros: &[]money.Micros{100_000_000}[0], Currency: "MXN"}, money.Milli(2_000), nil, settings)
+	// correctly (margin resolution, product lookup).
+	testMargin := money.Micros(300_000)
+	flatUnitPrice, err := pricing.UnitPrice(pricing.Product{CostMicros: &[]money.Micros{70_000_000}[0]}, &testMargin)
 	if err != nil {
 		t.Fatalf("pricing.UnitPrice(flat): %v", err)
 	}
@@ -369,7 +362,7 @@ func TestQuotesEmitir(t *testing.T) {
 	if issued.Status != "emitida" {
 		t.Fatalf("Status = %q, want emitida", issued.Status)
 	}
-	if issued.IssuedAt == nil || issued.FxRateUsedMicros == nil || issued.TermsSnapshot == nil || issued.ValidUntil == nil {
+	if issued.IssuedAt == nil || issued.MarginNameSnapshot == nil || issued.TermsSnapshot == nil || issued.ValidUntil == nil {
 		t.Fatalf("issue didn't freeze all expected fields: %+v", issued)
 	}
 	if issued.CustomerNameSnapshot == nil || issued.VendedorSnapshot == nil || issued.PDFSHA256 == nil {
@@ -408,17 +401,14 @@ func TestQuotesEmitir(t *testing.T) {
 	}
 
 	// Reprint stays byte-identical after everything live that fed the draft changes:
-	// settings, the quote's margin option, the quoted product's price, the customer's name.
-	if err := a.store.SetSetting(context.Background(), "fx_rate", "99000000", userID); err != nil {
-		t.Fatalf("SetSetting(fx_rate): %v", err)
-	}
+	// the quote's margin option, the quoted product's cost, the customer's name.
 	setDefaultMarginPercent(t, a, userID, "50")
 	product, err := a.store.ProductByID(context.Background(), flatProductID)
 	if err != nil || product == nil {
 		t.Fatalf("ProductByID: %+v, %v", product, err)
 	}
 	newPrice := money.Micros(999_000_000)
-	product.UnitPriceMicros = &newPrice
+	product.CostMicros = &newPrice
 	if err := a.store.UpdateProduct(context.Background(), *product); err != nil {
 		t.Fatalf("UpdateProduct: %v", err)
 	}
@@ -431,7 +421,7 @@ func TestQuotesEmitir(t *testing.T) {
 		t.Fatalf("UpdateCustomer: %v", err)
 	}
 	if reprint() != first {
-		t.Fatal("reprint after changing settings, margin, product price and customer name is not byte-identical")
+		t.Fatal("reprint after changing margin, product cost and customer name is not byte-identical")
 	}
 }
 
