@@ -26,7 +26,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - id: sha
-        run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - uses: docker/build-push-action@v6
         with:
@@ -35,6 +37,7 @@ jobs:
           push: true
           build-args: |
             BUILD_SHA=${{ steps.sha.outputs.short }}
+            BUILD_TIME=${{ steps.sha.outputs.time }}
           tags: |
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ steps.sha.outputs.short }}

@@ -2,7 +2,7 @@ package views
 
 import "fmt"
 
-templ Home(buildSHA string, quoteCount int, user *NavUser) {
+templ Home(buildLabel, buildSHA string, quoteCount int, user *NavUser) {
 	@Layout("Inicio", user) {
 		<h1>
 			Cladex
@@ -13,7 +13,7 @@ templ Home(buildSHA string, quoteCount int, user *NavUser) {
 			Probar htmx
 		</button>
 		<div id="saludo-resultado"></div>
-		<footer><small>{ "compilación " + buildSHA }</small></footer>
+		<footer><small title={ "commit " + buildSHA }>{ buildLabel }</small></footer>
 	}
 }
 

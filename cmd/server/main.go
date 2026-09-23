@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+	_ "time/tzdata" // the home page shows the build time in Mexico City time; don't depend on the image's zoneinfo
 
 	cladex "github.com/gerrygoo/cladex-web"
 	"github.com/gerrygoo/cladex-web/internal/cli"
@@ -18,8 +20,13 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/web"
 )
 
-// buildSHA is set at build time via -ldflags "-X main.buildSHA=...".
-var buildSHA = "dev"
+// buildSHA and buildTime are set at build time via
+// -ldflags "-X main.buildSHA=... -X main.buildTime=...". buildTime is RFC 3339 UTC;
+// it stays empty for a plain `go run`, which the home page shows as a dev build.
+var (
+	buildSHA  = "dev"
+	buildTime = ""
+)
 
 // newLogger builds the process logger. Output goes to stdout, which is where the
 // container runtime collects it: `docker logs cladex`, with rotation configured by the
@@ -124,10 +131,15 @@ func runServer() {
 		os.Exit(1)
 	}
 
-	mux := web.NewMux(buildSHA, staticFS, guide, db, cookieSecure, logger)
+	build := web.Build{SHA: buildSHA}
+	if t, err := time.Parse(time.RFC3339, buildTime); err == nil {
+		build.Time = t
+	}
+
+	mux := web.NewMux(build, staticFS, guide, db, cookieSecure, logger)
 
 	addr := fmt.Sprintf(":%s", port)
-	logger.Info("listening", slog.String("addr", addr), slog.String("build", buildSHA))
+	logger.Info("listening", slog.String("addr", addr), slog.String("build", buildSHA), slog.String("built", buildTime))
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		logger.Error("serve", slog.Any("err", err))
 		os.Exit(1)

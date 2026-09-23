@@ -19,12 +19,20 @@ const sampleTypst = `
 Hello world — Typst render pipeline is up.
 `
 
-// NewMux builds the application router. buildSHA is surfaced on /healthz. cookieSecure
+// Build identifies the running binary: the commit it was built from and when. A zero
+// Time means a local dev build.
+type Build struct {
+	SHA  string
+	Time time.Time
+}
+
+// NewMux builds the application router. build.SHA is surfaced on /healthz; the home
+// page shows build.Time instead. cookieSecure
 // controls the session cookie's Secure flag — true in production (behind the
 // TLS-terminating proxy), false for local plain-HTTP dev. logger receives the access
 // log; pass nil to discard it, as the handler tests do. guide is the pre-rendered
 // user guide served under /ayuda.
-func NewMux(buildSHA string, staticFS fs.FS, guide *guia.Guide, db *store.Store, cookieSecure bool, logger *slog.Logger) http.Handler {
+func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, cookieSecure bool, logger *slog.Logger) http.Handler {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
@@ -42,7 +50,7 @@ func NewMux(buildSHA string, staticFS fs.FS, guide *guia.Guide, db *store.Store,
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		fmt.Fprintf(w, "ok %s", buildSHA)
+		fmt.Fprintf(w, "ok %s", build.SHA)
 	})
 
 	mux.HandleFunc("GET /login", auth.LoginPage)
@@ -99,7 +107,7 @@ func NewMux(buildSHA string, staticFS fs.FS, guide *guia.Guide, db *store.Store,
 			return
 		}
 		user, _ := UserFromContext(r.Context())
-		views.Home(buildSHA, count, navUserView(user)).Render(r.Context(), w)
+		views.Home(views.BuildLabel(build.Time, time.Now()), build.SHA, count, navUserView(user)).Render(r.Context(), w)
 	})))
 
 	mux.HandleFunc("GET /saludo", func(w http.ResponseWriter, r *http.Request) {

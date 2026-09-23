@@ -19,8 +19,9 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 ARG BUILD_SHA=dev
+ARG BUILD_TIME=
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -trimpath -ldflags "-s -w -X main.buildSHA=${BUILD_SHA}" -o /out/cladex ./cmd/server
+    go build -trimpath -ldflags "-s -w -X main.buildSHA=${BUILD_SHA} -X main.buildTime=${BUILD_TIME}" -o /out/cladex ./cmd/server
 
 # ---- final: distroless, no shell. Exec the binary directly for cladexctl-style admin
 # commands (docker compose exec cladex /cladex ...), never `exec ... sh`. Not the
