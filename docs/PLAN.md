@@ -749,6 +749,172 @@ and confirmed it now reads "revisada" with its original qty-5/$36.66 totals comp
 unchanged and a link forward to `-R1` — proving the original truly never moved once a
 newer revision existed.
 
+## M3 — Decoupled market rates and a margin menu — 🧠 BRAINSTORM, not scheduled
+
+Proposed 2026-09-22. Nothing here is decided yet: it lays out the options, recommends a
+direction, and lists the questions to settle before this is split into slices.
+
+**Problem.** Today FX, copper and CCA's margin are three rows in the generic `settings`
+key/value table. They're edited together on one all-or-nothing `/ajustes` form, and each
+key holds exactly one current value, with no history outside `audit_log`. Every draft
+reads all three live on every render (`loadPricingSettings`), so:
+
+- An admin edit reprices every open draft, instantly and without telling anyone.
+- A revision (`-R1`) reprices every catalog line at today's values, even when the seller
+  only meant to change one quantity.
+- There is only one margin. A seller who needs to quote a distributor tighter than a
+  one-off buyer has no option except a free-text line.
+- "What was copper on March 3?" can only be answered by digging through `audit_log` JSON.
+
+These are three different kinds of data that happen to share a table:
+
+| | FX rate | Material price (copper, later aluminum) | Margin |
+|---|---|---|---|
+| Nature | Market data | Market data | Business policy |
+| Changes | Often, set by the market | Often, set by the market | Rarely, by decision |
+| Shape | One value per currency pair | One value per material | A menu of named options |
+| Chosen at quote time by | Nobody; it's whatever is current | Nobody; it's whatever is current | The seller, from the menu |
+| History must answer | "Which rate did we use?" | "Which copper price did we use?" | "Which option, and what % was it then?" |
+
+**Goal.** (1) Split these into separate models, each with its own lifecycle. (2) Turn
+margins into an N-tuple: at any moment, the source of truth is the set of margin options
+currently available, each a specific (name, value) pair. The seller picks one at draft
+time, and the choice is recorded precisely enough to reproduce the price later.
+
+### Market rates (FX, materials)
+
+Recommended: a single append-only time-series table:
+
+```
+market_rates (id, kind TEXT,        -- 'fx_usd_mxn', 'copper', later 'aluminum'
+              value_micros INTEGER, effective_at TEXT, entered_by, note, created_at)
+```
+
+The current value is the latest row per `kind`. Rows are never `UPDATE`d, so history is
+an ordinary query instead of audit-log digging. Adding aluminum means adding a new
+`kind`, a Go-side list the same way `settingDefs` works today. Alternatives considered:
+keeping `settings` and relying on `audit_log` (rejected, because history is the point),
+or one table per kind (more migrations for no benefit).
+
+Possible additions:
+- A staleness hint in the builder ("tipo de cambio capturado hace 4 días").
+- A separate small form per kind, so updating copper doesn't resubmit the margin.
+- A history list or sparkline on `/ajustes`.
+- Later: automatic FX from Banxico's FIX rate. That's an external dependency, so it's
+  backlog material.
+
+### Margin menu (the N-tuple)
+
+An option has a name ("Estándar", "Distribuidor", "Proyecto") and a value. The value is a
+fraction of the sale price, using the same `cost / (1 - m)` convention as today
+(footnote 8). An option may also carry a sort order, the families it applies to, and a
+minimum role.
+
+Three ways the tuple could change over time:
+
+- **A. Mutable rows.** `margin_options (id, name, value, active)`, edited in place.
+  Rejected for the same reason `settings` falls short today: editing an option moves
+  every draft that uses it, and "what % was Distribuidor in March" means audit-log
+  digging again.
+- **B. Versioned sets, where the whole tuple is snapshotted.**
+  `margin_sets (id, published_at, published_by)` plus
+  `margin_set_items (set_id, key, name, value_micros, sort)`. The admin edits the next
+  set and publishes it, and a published set never changes. "The tuple at time t" is
+  literally one row. Quotes reference `(set_id, key)`. Publishing is an explicit act,
+  diffs between sets are easy to show, and it reuses the draft→frozen pattern quotes
+  already follow. It also allows publishing ahead of time ("márgenes vigentes a partir
+  del 1 de octubre").
+- **C. Stable option identity plus versioned values.** `margin_options (id, name, sort,
+  retired_at)` plus `margin_option_values (option_id, value_micros, effective_at)`. It
+  can express the same things as B, and editing one option doesn't create a whole new
+  set, but "the tuple" becomes a derived view rather than a stored object.
+
+**Leaning B.** It matches the mental model of "the source of truth is an N-tuple". Fall
+back to C if edits to single options turn out to be frequent.
+
+**What a quote records:**
+- **Draft:** a reference to the chosen option. The key decision is *pin or follow*:
+  - *Follow* stores only `key` and resolves it against the current set, so a raised
+    "Estándar" moves open drafts. This is today's behavior, just per option.
+  - *Pin* stores `(set_id, key)`, so a draft keeps its % until the seller clicks
+    "Actualizar a márgenes vigentes". A banner says so whenever a newer set exists.
+  - The recommendation is to pin (see pricing context below).
+- **Issued:** `pricing_inputs` already snapshots the numbers. It should also record the
+  set id and the option's key and name, so the trail reads "Distribuidor @ 8% (set #4)"
+  and not just `0.08`.
+- **Granularity:** a quote-level dropdown, optionally with a per-line override. The
+  workbook has one margin per Cotizador sheet, so a quote-level choice covers today's
+  behavior. A per-line override is the escape hatch for mixed quotes.
+- **PDF:** the margin is never printed; the customer sees only prices. Keep it that way.
+
+**Where margins actually apply.** Only CCA (cost-based) uses a margin today:
+- CCS & AC has no margin setting; its price reduces to `kg/m × copper` (footnote 8).
+- ABASTILUM's flat price already had margin and FX applied when it was imported (1.2).
+
+So as things stand, the menu would only affect QA quotes. Two ways decoupling could
+extend it, both changing which prices match the workbook, so the user has to decide:
+- Store imported lines as USD cost, then apply live FX and the chosen margin at quote
+  time.
+- Allow an optional margin on top of copper for CCS.
+
+### Pricing context: pinning drafts (connects both halves)
+
+A draft carries a **pricing context**: the `market_rates` row id for each kind it uses,
+plus `(margin_set_id, margin_key)`. It's set when the draft is created, and every
+recomputation uses the context rather than "latest".
+
+- **Refresh:** an "Actualizar precios" button moves the context to the current values
+  and shows a per-line before/after diff.
+- **Emitir:** freezes the context as it stands. Optionally, it could refuse or warn when
+  the context is older than N days (a policy question).
+- **Revisions:** `CreateRevision` copies the original's context, so `-R1` reprices
+  nothing until the seller explicitly refreshes. "Keep the original prices" versus
+  "update to today" becomes a visible choice instead of an accident.
+- **Storage:** FK columns on `quotes` (`margin_set_id`, `margin_key`, `fx_rate_id`,
+  `copper_rate_id`), rather than a JSON blob. They're referential and queryable ("every
+  quote issued under set #4").
+
+### Permissions (ties into the RBAC backlog item)
+
+- Publishing margin sets stays admin-only.
+- Entering market rates could open up to vendedores. It's market data, it's low risk,
+  and they're the ones on the phone with suppliers. This is a question for the user.
+- A per-option `min_role` could allow, for example, "Proyecto 5%" to be picked only by an
+  admin. The later version of that is "selectable, but issuing needs approval", which is
+  the backlog's approval workflow. Don't build approval here; just leave room for it with
+  a flag on the option.
+
+### Migration from today
+
+- Seed `market_rates` with one row each from the current `fx_rate` and `copper_price`.
+- Seed margin set #1 with one item, `estandar`, set to the current `default_margin`.
+- Give existing drafts a context pointing at those seed rows, so no price moves on
+  deploy. Issued quotes are already frozen and aren't touched.
+- Drop the three keys from `settingDefs`. Keep the `settings` table for future
+  non-pricing settings (e.g. a quote validity other than 30 days).
+- Update `docs/guia/administracion.md` and `cotizaciones.md` in the same commits.
+
+### Open questions
+
+1. Margin per quote, per line, or both?
+2. Pin or follow for drafts, and does the same answer apply to FX and copper?
+3. Should margins reach beyond CCA: ABASTILUM as USD cost plus live FX plus the chosen
+   margin, or a margin over copper for CCS?
+4. Is the tuple global, or does each family (QA / QS / QI) have its own menu?
+5. Who may enter market rates? Can a vendedor pick every option?
+6. Staleness policy at issue time: block or warn when rates are older than N days?
+7. Is publishing with a future effective date needed, or is publishing always immediate?
+
+### Tentative slices (once the questions are settled)
+
+| # | Slice | Owner | Done when |
+|---|---|---|---|
+| 3.1 | `market_rates` table seeded from `settings`; pricing reads the latest per kind; `/ajustes` splits into per-kind forms with a history list | me | Entering a new copper price adds a row and leaves the old one intact; every existing quote prices identically before and after the deploy |
+| 3.2 | `margin_sets` / `margin_set_items` seeded with "Estándar"; admin UI to edit and publish a set | me | Publishing set #2 leaves set #1 unchanged and still resolvable |
+| 3.3 | Quote-level margin picker in the builder; quote stores `(set_id, key)`; `pricing_inputs` records the option | me | Two drafts with different options price CCA differently; neither PDF shows a margin |
+| 3.4 | Pinned pricing context on drafts, "Actualizar precios" with a diff, revisions copy the context | me | Changing FX after creating a draft leaves it unchanged until refreshed; a new `-R1` reprices nothing until refreshed |
+| 3.5 | Optional: per-line override, staleness warnings, per-option role restriction | me | Per the answers to the open questions |
+
 ---
 
 # Backlog — deprioritized, not scheduled
