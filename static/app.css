@@ -276,3 +276,40 @@ a.help-link:hover,
 a.help-link:focus-visible {
   opacity: 1;
 }
+
+div.overview-stages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+}
+
+section.overview-stage {
+  border: 1px solid light-dark(#ddd, #333);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+}
+
+section.overview-stage h3 {
+  margin: 0;
+}
+
+section.overview-stage ol {
+  padding-left: 1.25rem;
+  margin: 0;
+}
+
+section.overview-stage li {
+  margin-bottom: 0.4rem;
+}
+
+p.overview-figure strong {
+  font-size: 1.5rem;
+}
+
+footer.build-footer {
+  margin-top: 2rem;
+}
+
+div.table-scroll {
+  overflow-x: auto;
+}

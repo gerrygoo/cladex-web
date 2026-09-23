@@ -64,13 +64,6 @@ func orderByClause(allowed []sortColumn, col, dir string) string {
 	return "ORDER BY " + expr + " ASC"
 }
 
-// QuoteCount returns the number of rows in quotes, for the M0 walking-skeleton home page.
-func (s *Store) QuoteCount(ctx context.Context) (int, error) {
-	var n int
-	err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM quotes`).Scan(&n)
-	return n, err
-}
-
 func migrate(ctx context.Context, db *sql.DB, migrationsFS fs.FS) error {
 	if _, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (

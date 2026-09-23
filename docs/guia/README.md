@@ -39,6 +39,22 @@ parte de esta guía que la explica.
 
 Si no ves **Usuarios**, **Unidades** o **Ajustes** en el menú, tu cuenta es de vendedor.
 
+## La página de inicio
+
+Al entrar ves un resumen de todas las cotizaciones (de todos los vendedores, no solo
+las tuyas):
+
+- **Cotizaciones por etapa**: cuántas hay en [[borrador]], [[emitida]] y [[revisada]], la
+  suma de sus totales y las 3 de mayor total en cada etapa. Haz clic en un folio para
+  abrirla. El botón **Nueva cotización** lleva a [crear una](cotizaciones.md#crear-una-cotización).
+- **Vendedores**: una fila por cada persona que ha creado cotizaciones, ordenadas por
+  **Monto emitido** (la suma de sus cotizaciones emitidas vigentes). Cuenta a quien creó
+  la cotización, sea vendedor o administrador. Una revisada ya no suma al monto emitido:
+  su lugar lo toma la revisión cuando se emite.
+- Abajo, **Compilado el …** indica cuándo se instaló la versión actual de la app.
+
+Todos los montos están en pesos (MXN) con IVA incluido.
+
 ## Conceptos
 
 [[Folio]], [[serie]], [[borrador]], [[emitida]], [[vigencia]]… Todos los términos

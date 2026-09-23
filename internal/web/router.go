@@ -101,13 +101,13 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("GET /ayuda/{pagina}", auth.RequireAuth(http.HandlerFunc(help.Page)))
 
 	mux.Handle("GET /{$}", auth.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		count, err := db.QuoteCount(r.Context())
+		ov, err := db.QuoteOverview(r.Context())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		user, _ := UserFromContext(r.Context())
-		views.Home(views.BuildLabel(build.Time, time.Now()), build.SHA, count, navUserView(user)).Render(r.Context(), w)
+		views.Home(views.BuildLabel(build.Time, time.Now()), build.SHA, ov, navUserView(user)).Render(r.Context(), w)
 	})))
 
 	mux.HandleFunc("GET /saludo", func(w http.ResponseWriter, r *http.Request) {

@@ -1,19 +1,85 @@
 package views
 
-import "fmt"
+import (
+	"strconv"
 
-templ Home(buildLabel, buildSHA string, quoteCount int, user *NavUser) {
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// stageLabels names each lifecycle stage as a heading on the home overview.
+var stageLabels = map[string]string{
+	"borrador": "Borradores",
+	"emitida":  "Emitidas",
+	"revisada": "Revisadas",
+}
+
+templ Home(buildLabel, buildSHA string, ov *store.Overview, user *NavUser) {
 	@Layout("Inicio", user) {
 		<h1>
 			Cladex
 			@HelpLink(HelpInicio)
 		</h1>
-		<p>{ fmt.Sprintf("%d cotizaciones", quoteCount) }</p>
-		<button hx-get="/saludo" hx-target="#saludo-resultado" hx-swap="innerHTML">
-			Probar htmx
-		</button>
-		<div id="saludo-resultado"></div>
-		<footer><small title={ "commit " + buildSHA }>{ buildLabel }</small></footer>
+		<div class="toolbar">
+			<h2>Cotizaciones por etapa</h2>
+			<a href="/cotizaciones/nueva"><button type="button">Nueva cotización</button></a>
+		</div>
+		<div class="overview-stages">
+			for _, st := range ov.Stages {
+				<section class="overview-stage">
+					<h3>{ stageLabels[st.Status] }</h3>
+					<p class="overview-figure"><strong>{ strconv.Itoa(st.Count) }</strong> · { st.Total.String() }</p>
+					if len(st.Top) == 0 {
+						<p><small>Ninguna.</small></p>
+					} else {
+						<ol>
+							for _, q := range st.Top {
+								<li>
+									<a href={ templ.URL("/cotizaciones/" + q.Folio) }>{ q.Folio }</a>
+									{ q.Total.String() }
+									<br/>
+									<small>{ q.CustomerName } · { q.UserName }</small>
+								</li>
+							}
+						</ol>
+					}
+				</section>
+			}
+		</div>
+		<h2>Vendedores</h2>
+		if len(ov.Vendedores) == 0 {
+			<p>Aún no hay cotizaciones.</p>
+		} else {
+			<p><small>Ordenados por monto emitido. Cuenta a quien creó cada cotización, sea vendedor o administrador.</small></p>
+			<div class="table-scroll">
+				<table>
+					<thead>
+						<tr>
+							<th>#</th>
+							<th>Vendedor</th>
+							<th>Monto emitido</th>
+							<th>Emitidas</th>
+							<th>Borradores</th>
+							<th>Monto en borrador</th>
+							<th>Revisadas</th>
+						</tr>
+					</thead>
+					<tbody>
+						for i, v := range ov.Vendedores {
+							<tr>
+								<td>{ strconv.Itoa(i + 1) }</td>
+								<td>{ v.Name }</td>
+								<td>{ v.MontoEmitido.String() }</td>
+								<td>{ strconv.Itoa(v.Emitidas) }</td>
+								<td>{ strconv.Itoa(v.Borradores) }</td>
+								<td>{ v.MontoBorrador.String() }</td>
+								<td>{ strconv.Itoa(v.Revisadas) }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		<footer class="build-footer"><small title={ "commit " + buildSHA }>{ buildLabel }</small></footer>
 	}
 }
 

@@ -8,7 +8,7 @@ package views
 type HelpTopic string
 
 const (
-	HelpInicio             HelpTopic = "/ayuda"
+	HelpInicio             HelpTopic = "/ayuda#la-página-de-inicio"
 	HelpMiCuenta           HelpTopic = "/ayuda/acceso#cambiar-tu-contraseña"
 	HelpClientes           HelpTopic = "/ayuda/clientes"
 	HelpClienteNuevo       HelpTopic = "/ayuda/clientes#dar-de-alta-un-cliente"
