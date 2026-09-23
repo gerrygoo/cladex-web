@@ -897,8 +897,13 @@ quotes.margin_option_id → margin_options
   against production first, and cross-check against the workbook's `B` column.
 - **CCA weights:** `kg_per_m_micros / 1000` on CCA products (dividing keeps any hand
   edit). No price moves, because CCA prices from flat cost.
-- **The 3 production drafts** get `margin_option_id` by prefix: QA → 12.34%,
-  QS → 29.55%, and QI → 20.28% (the closest to lighting's old 20%). Issued quotes aren't touched beyond the column drops above.
+- **Production quotes are test data (user, 2026-09-22).** All 9 quotes (3 drafts, 6
+  issued) are mock data, so no migration has to preserve them. Default: the 3 drafts get
+  `margin_option_id` by prefix (QA → 12.34%, QS → 29.55%, QI → 20.28%). If carrying
+  quotes forward complicates any slice, wiping `quotes`, `quote_lines`, their stored PDFs
+  and the folio sequences is acceptable instead. That's still a production delete, so it
+  needs the user's go-ahead when it happens. The products catalog is real data and is
+  always preserved. Issued quotes aren't touched beyond the column drops above.
 - **Accepted consequence:** a mixed quote (e.g. postes at 20.28% plus LEDVANCE at 12.34%)
   can't reproduce today's per-product mix, because one quote now has one margin. That's
   intended.
