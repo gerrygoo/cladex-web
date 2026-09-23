@@ -22,12 +22,14 @@ const (
 	HelpProductoNuevo      HelpTopic = "/ayuda/productos#dar-de-alta-un-producto"
 	HelpProductoEditar     HelpTopic = "/ayuda/productos#editar-un-producto"
 	HelpConversiones       HelpTopic = "/ayuda/productos#conversiones-de-unidades"
+	HelpProductoMateriales HelpTopic = "/ayuda/productos#materiales-de-un-producto"
 
 	// Admin-only screens link to the admin-only guide page.
-	HelpAjustes  HelpTopic = "/ayuda/administracion#actualizar-tipo-de-cambio-y-precio-del-cobre"
-	HelpMargenes HelpTopic = "/ayuda/administracion#márgenes"
-	HelpUsuarios HelpTopic = "/ayuda/administracion#cambiar-el-rol-de-un-usuario"
-	HelpUnidades HelpTopic = "/ayuda/administracion#unidades"
+	HelpAjustes    HelpTopic = "/ayuda/administracion#actualizar-el-tipo-de-cambio"
+	HelpMargenes   HelpTopic = "/ayuda/administracion#márgenes"
+	HelpMateriales HelpTopic = "/ayuda/administracion#materiales"
+	HelpUsuarios   HelpTopic = "/ayuda/administracion#cambiar-el-rol-de-un-usuario"
+	HelpUnidades   HelpTopic = "/ayuda/administracion#unidades"
 )
 
 // HelpTopics lists every topic with whether it is only linked from admin screens.
@@ -46,8 +48,10 @@ var HelpTopics = map[HelpTopic]bool{
 	HelpProductoNuevo:      false,
 	HelpProductoEditar:     false,
 	HelpConversiones:       false,
+	HelpProductoMateriales: false,
 	HelpAjustes:            true,
 	HelpMargenes:           true,
+	HelpMateriales:         true,
 	HelpUsuarios:           true,
 	HelpUnidades:           true,
 }

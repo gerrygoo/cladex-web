@@ -19,27 +19,47 @@ import (
 const IVARate = money.Micros(160_000)
 
 // Settings are the inputs this package needs beyond the product itself, already parsed
-// to Micros — this package never touches the database. FXRate and CopperPrice come from
-// the settings table; Margin is the quote's chosen margin option, nil when the quote
-// has none it can use (see ErrNoMargin).
+// to Micros — this package never touches the database. FXRate comes from the settings
+// table; Margin is the quote's chosen margin option, nil when the quote has none it can
+// use (see ErrNoMargin).
 type Settings struct {
-	FXRate      money.Micros  // USD -> MXN
-	CopperPrice money.Micros  // MXN per kg
-	Margin      *money.Micros // fraction of the sale price, e.g. 123_400 == 12.34%
+	FXRate money.Micros  // USD -> MXN
+	Margin *money.Micros // fraction of the sale price, e.g. 123_400 == 12.34%
 }
 
 // ErrNoMargin is returned for a cost-priced product when Settings carries no margin.
 var ErrNoMargin = errors.New("pricing: cost-priced product needs a margin")
 
-// Product is the subset of store.Product the pricing engine reads. Exactly one of
-// UnitPriceMicros, CostMicros, or KgPerMMicros is expected to be set in practice — see
-// migrations/0001_init.sql and 0002_add_product_cost.sql for what each column means
-// and which product families populate it.
+// Product is the subset of store.Product the pricing engine reads: a flat price
+// (UnitPriceMicros), or a cost made of a flat part (CostMicros) plus the materials one
+// unit contains. See migrations/0001_init.sql, 0002_add_product_cost.sql and
+// 0008_materials.sql.
 type Product struct {
 	UnitPriceMicros *money.Micros
 	CostMicros      *money.Micros
-	KgPerMMicros    *money.Micros
+	Materials       []MaterialContent
 	Currency        string // "MXN" or "USD"; "" is treated as MXN
+}
+
+// MaterialContent is how much of one material a unit of a product holds, and that
+// material's pure-cost price per its own unit (e.g. 0.1723 kg at $155/kg).
+type MaterialContent struct {
+	QtyPerUnit money.Micros
+	Price      money.Micros
+}
+
+// Cost is a product's pre-margin cost per unit: its flat cost plus each material's
+// qty x price, each product rounded half up to the micro. ok is false when the product
+// has neither, i.e. isn't cost-priced.
+func (p Product) Cost() (cost money.Micros, ok bool) {
+	if p.CostMicros != nil {
+		cost, ok = *p.CostMicros, true
+	}
+	for _, m := range p.Materials {
+		cost += money.Micros(money.RoundHalfUp(int64(m.QtyPerUnit)*int64(m.Price), 1_000_000))
+		ok = true
+	}
+	return cost, ok
 }
 
 // PriceBreak is one price_breaks row: at qty >= MinQty, UnitPriceMicros overrides the
@@ -52,7 +72,7 @@ type PriceBreak struct {
 }
 
 // UnitPrice computes a product's per-unit price in MXN micros for the given quantity:
-// the product's base price (flat, cost+margin, or weight*metal price), converted from
+// the product's base price (flat, or cost+margin), converted from
 // USD if needed, then overridden by the best price break the quantity clears, if any.
 func UnitPrice(p Product, qty money.Milli, breaks []PriceBreak, s Settings) (money.Micros, error) {
 	base, err := basePrice(p, s)
@@ -76,34 +96,28 @@ func UnitPrice(p Product, qty money.Milli, breaks []PriceBreak, s Settings) (mon
 // basePrice applies the product's pricing rule, in priority order:
 //  1. UnitPriceMicros set: a flat catalog price (e.g. ABASTILUM) — used as-is, already
 //     final MXN (or USD, converted by the caller above).
-//  2. CostMicros set: cost / (1 - margin) — e.g. CCA. This is a margin-on-sale-price
-//     convention, matching the workbook's own formula exactly (not cost*(1+margin));
-//     using the plan's shorthand convention here would compute different numbers for
-//     the same nominal margin fraction.
-//  3. KgPerMMicros set: kg/m * copper price — e.g. CCS & AC, where the workbook's own
-//     margin math reduces algebraically to exactly this (see PLAN.md footnote).
+//  2. A cost (flat cost and/or materials, see Product.Cost): cost / (1 - margin) —
+//     e.g. CCA from its flat cost, CCS & AC from its CCS 30% content. This is a
+//     margin-on-sale-price convention, matching the workbook's own formula exactly (not
+//     cost*(1+margin)); using the plan's shorthand convention here would compute
+//     different numbers for the same nominal margin fraction.
 func basePrice(p Product, s Settings) (money.Micros, error) {
-	switch {
-	case p.UnitPriceMicros != nil:
+	if p.UnitPriceMicros != nil {
 		return *p.UnitPriceMicros, nil
-	case p.CostMicros != nil:
-		if s.Margin == nil {
-			return 0, ErrNoMargin
-		}
-		margin := *s.Margin
-		if margin < 0 || margin >= 1_000_000 {
-			return 0, fmt.Errorf("pricing: margin %v out of range [0, 1_000_000)", margin)
-		}
-		complement := 1_000_000 - int64(margin)
-		return money.Micros(money.RoundHalfUp(int64(*p.CostMicros)*1_000_000, complement)), nil
-	case p.KgPerMMicros != nil:
-		if s.CopperPrice <= 0 {
-			return 0, errors.New("pricing: weight-priced product needs a positive copper price")
-		}
-		return money.Micros(money.RoundHalfUp(int64(*p.KgPerMMicros)*int64(s.CopperPrice), 1_000_000)), nil
-	default:
-		return 0, errors.New("pricing: product has no pricing data (unit price, cost, or weight)")
 	}
+	cost, ok := p.Cost()
+	if !ok {
+		return 0, errors.New("pricing: product has no pricing data (unit price, cost, or materials)")
+	}
+	if s.Margin == nil {
+		return 0, ErrNoMargin
+	}
+	margin := *s.Margin
+	if margin < 0 || margin >= 1_000_000 {
+		return 0, fmt.Errorf("pricing: margin %v out of range [0, 1_000_000)", margin)
+	}
+	complement := 1_000_000 - int64(margin)
+	return money.Micros(money.RoundHalfUp(int64(cost)*1_000_000, complement)), nil
 }
 
 // ConvertQty converts a quantity from one unit to another, given the rate between

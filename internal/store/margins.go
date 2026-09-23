@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
 )
@@ -89,17 +88,12 @@ func (s *Store) MarginOptionByID(ctx context.Context, id int64) (*MarginOption, 
 	return o, nil
 }
 
-// isUniqueNameViolation reports whether err is margin_options.name's UNIQUE constraint.
-func isUniqueNameViolation(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed: margin_options.name")
-}
-
 // CreateMarginOption inserts a new, active, non-default option and returns its id.
 func (s *Store) CreateMarginOption(ctx context.Context, name string, value money.Micros, updatedBy int64) (int64, error) {
 	res, err := s.exec(ctx, `
 		INSERT INTO margin_options (name, value_micros, updated_by) VALUES (?, ?, ?)`,
 		name, int64(value), nullIfZero(updatedBy))
-	if isUniqueNameViolation(err) {
+	if isUniqueViolation(err, "margin_options.name") {
 		return 0, ErrDuplicateMarginName
 	}
 	if err != nil {
@@ -117,7 +111,7 @@ func (s *Store) UpdateMarginOption(ctx context.Context, id int64, name string, v
 			updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 		WHERE id = ?`,
 		name, int64(value), nullIfZero(updatedBy), id)
-	if isUniqueNameViolation(err) {
+	if isUniqueViolation(err, "margin_options.name") {
 		return ErrDuplicateMarginName
 	}
 	if err != nil {

@@ -34,7 +34,6 @@ func seedPricingSettings(t *testing.T, a *Auth, userID int64) {
 		}
 	}
 	set("fx_rate", "18.50")
-	set("copper_price", "145.30")
 	setDefaultMarginPercent(t, a, userID, "30")
 }
 
@@ -176,7 +175,7 @@ func TestQuotesCreateBuildAndSave(t *testing.T) {
 	// Fill in the free line and the cost+margin product; compute the expected totals
 	// independently via internal/pricing to check the handler wired everything
 	// correctly (settings load, product lookup, price-break lookup).
-	settings := pricing.Settings{FXRate: money.Micros(18_500_000), CopperPrice: money.Micros(145_300_000)}
+	settings := pricing.Settings{FXRate: money.Micros(18_500_000)}
 	flatUnitPrice, err := pricing.UnitPrice(pricing.Product{UnitPriceMicros: &[]money.Micros{100_000_000}[0], Currency: "MXN"}, money.Milli(2_000), nil, settings)
 	if err != nil {
 		t.Fatalf("pricing.UnitPrice(flat): %v", err)
@@ -409,13 +408,11 @@ func TestQuotesEmitir(t *testing.T) {
 	}
 
 	// Reprint stays byte-identical after everything live that fed the draft changes:
-	// settings, the quoted product's price, the customer's name.
+	// settings, the quote's margin option, the quoted product's price, the customer's name.
 	if err := a.store.SetSetting(context.Background(), "fx_rate", "99000000", userID); err != nil {
 		t.Fatalf("SetSetting(fx_rate): %v", err)
 	}
-	if err := a.store.SetSetting(context.Background(), "copper_price", "999000000", userID); err != nil {
-		t.Fatalf("SetSetting(copper_price): %v", err)
-	}
+	setDefaultMarginPercent(t, a, userID, "50")
 	product, err := a.store.ProductByID(context.Background(), flatProductID)
 	if err != nil || product == nil {
 		t.Fatalf("ProductByID: %+v, %v", product, err)
@@ -434,7 +431,7 @@ func TestQuotesEmitir(t *testing.T) {
 		t.Fatalf("UpdateCustomer: %v", err)
 	}
 	if reprint() != first {
-		t.Fatal("reprint after changing settings, product price and customer name is not byte-identical")
+		t.Fatal("reprint after changing settings, margin, product price and customer name is not byte-identical")
 	}
 }
 

@@ -47,14 +47,14 @@ const defaultValidityDays = 30
 // series label, not a restriction on which products a quote can contain.
 var validPrefixes = map[string]bool{"QA": true, "QS": true, "QI": true}
 
-// loadPricingSettings reads the two admin-configurable knobs internal/pricing still
-// takes from the settings table (internal/web/ajustes.go defines and stores these same
-// keys, as raw micros integers — not decimal strings — so this parses with
-// strconv.ParseInt, not money.ParseMicros), plus the quote's resolved margin. An unset
-// key parses as zero; internal/pricing itself rejects a zero FX rate or copper price,
-// or a missing margin, with a clear error only when a line actually needs it.
+// loadPricingSettings reads the one admin-configurable knob internal/pricing still
+// takes from the settings table, the FX rate (internal/web/ajustes.go stores it as raw
+// micros integer text — not a decimal string — so this parses with strconv.ParseInt,
+// not money.ParseMicros), plus the quote's resolved margin. An unset FX rate parses as
+// zero; internal/pricing itself rejects a zero FX rate, or a missing margin, with a
+// clear error only when a line actually needs it.
 func (q *Quotes) loadPricingSettings(ctx context.Context, margin draftMargin) (pricing.Settings, error) {
-	raw, err := q.store.SettingValues(ctx, []string{"fx_rate", "copper_price"})
+	raw, err := q.store.SettingValues(ctx, []string{"fx_rate"})
 	if err != nil {
 		return pricing.Settings{}, fmt.Errorf("load pricing settings: %w", err)
 	}
@@ -70,9 +70,8 @@ func (q *Quotes) loadPricingSettings(ctx context.Context, margin draftMargin) (p
 		return money.Micros(n)
 	}
 	return pricing.Settings{
-		FXRate:      parse("fx_rate"),
-		CopperPrice: parse("copper_price"),
-		Margin:      margin.value(),
+		FXRate: parse("fx_rate"),
+		Margin: margin.value(),
 	}, nil
 }
 
@@ -340,8 +339,6 @@ func friendlyPricingError(err error) string {
 	switch {
 	case strings.Contains(msg, "FX rate"):
 		return "Falta configurar el tipo de cambio en Ajustes."
-	case strings.Contains(msg, "copper price"):
-		return "Falta configurar el precio del cobre en Ajustes."
 	case strings.Contains(msg, "no pricing data"):
 		return "Este producto no tiene datos de precio configurados."
 	default:
@@ -351,36 +348,50 @@ func friendlyPricingError(err error) string {
 
 // pricingInputsSnapshot is the JSON shape stored in quote_lines.pricing_inputs — the
 // inputs that produced a product line's price, per docs/PLAN.md's "Quote persistence"
-// design (kg/m, margin, metal price, FX, whichever applied).
+// design: a flat price, or a flat cost and/or materials with the margin applied, plus
+// FX for a USD product.
 type pricingInputsSnapshot struct {
-	FXRate       string `json:"fx_rate,omitempty"`
-	CopperPrice  string `json:"copper_price,omitempty"`
-	Margin       string `json:"margin,omitempty"`
-	MarginOption string `json:"margin_option,omitempty"`
-	KgPerM       string `json:"kg_per_m,omitempty"`
-	Cost         string `json:"cost,omitempty"`
-	UnitPrice    string `json:"unit_price,omitempty"`
+	FXRate       string                   `json:"fx_rate,omitempty"`
+	Margin       string                   `json:"margin,omitempty"`
+	MarginOption string                   `json:"margin_option,omitempty"`
+	Cost         string                   `json:"cost,omitempty"`
+	Materials    []materialInputsSnapshot `json:"materials,omitempty"`
+	UnitPrice    string                   `json:"unit_price,omitempty"`
+}
+
+// materialInputsSnapshot is one material behind a line's cost, as it stood when priced.
+type materialInputsSnapshot struct {
+	Material   string `json:"material"`
+	QtyPerUnit string `json:"qty_per_unit"`
+	Unit       string `json:"unit"`
+	Price      string `json:"price"`
 }
 
 // buildPricingInputsJSON records what produced a product line's price. marginName is
 // the quote's margin option, recorded by name alongside its value for cost-priced lines.
-func buildPricingInputsJSON(p *store.Product, s pricing.Settings, marginName string) *string {
+func buildPricingInputsJSON(p *store.Product, materials []store.ProductMaterial, s pricing.Settings, marginName string) *string {
 	snap := pricingInputsSnapshot{}
 	if p.Currency == "USD" {
 		snap.FXRate = s.FXRate.String()
 	}
-	switch {
-	case p.UnitPriceMicros != nil:
+	if p.UnitPriceMicros != nil {
 		snap.UnitPrice = p.UnitPriceMicros.String()
-	case p.CostMicros != nil:
-		snap.Cost = p.CostMicros.String()
+	} else {
+		if p.CostMicros != nil {
+			snap.Cost = p.CostMicros.String()
+		}
+		for _, m := range materials {
+			snap.Materials = append(snap.Materials, materialInputsSnapshot{
+				Material:   m.Material.Name,
+				QtyPerUnit: m.QtyPerUnitMicros.String(),
+				Unit:       m.Material.UnitCode,
+				Price:      m.Material.PriceMicros.String(),
+			})
+		}
 		if s.Margin != nil {
 			snap.Margin = s.Margin.String()
 			snap.MarginOption = marginName
 		}
-	case p.KgPerMMicros != nil:
-		snap.KgPerM = p.KgPerMMicros.String()
-		snap.CopperPrice = s.CopperPrice.String()
 	}
 	b, err := json.Marshal(snap)
 	if err != nil {
@@ -394,7 +405,7 @@ func buildPricingInputsJSON(p *store.Product, s pricing.Settings, marginName str
 // manually entered price (free lines) — the same code path whether this is a live
 // htmx recalculation or the final "Guardar borrador" save, so nothing saved ever
 // differs from what was last shown on screen. A bad line (invalid qty, unknown
-// product, missing FX/copper settings, no usable margin) gets a row-level Error instead of failing the
+// product, missing FX rate, no usable margin) gets a row-level Error instead of failing the
 // whole request.
 func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput, settings pricing.Settings, margin draftMargin) []views.QuoteLineView {
 	result := make([]views.QuoteLineView, len(inputs))
@@ -447,6 +458,12 @@ func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput,
 			result[i] = v
 			continue
 		}
+		materials, err := q.store.ListProductMaterials(ctx, productID)
+		if err != nil {
+			v.Error = "Error al cargar el producto."
+			result[i] = v
+			continue
+		}
 
 		pid := productID
 		v.ProductID = &pid
@@ -454,12 +471,18 @@ func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput,
 		v.Description = product.Description
 		v.UnitCode = product.UnitCode
 
-		unitPrice, err := pricing.UnitPrice(pricing.Product{
+		pp := pricing.Product{
 			UnitPriceMicros: product.UnitPriceMicros,
 			CostMicros:      product.CostMicros,
-			KgPerMMicros:    product.KgPerMMicros,
 			Currency:        product.Currency,
-		}, qty, breaks, settings)
+		}
+		if product.UnitPriceMicros == nil {
+			for _, m := range materials {
+				pp.Materials = append(pp.Materials, pricing.MaterialContent{QtyPerUnit: m.QtyPerUnitMicros, Price: m.Material.PriceMicros})
+				v.Materials = append(v.Materials, m.Material)
+			}
+		}
+		unitPrice, err := pricing.UnitPrice(pp, qty, breaks, settings)
 		if err != nil {
 			v.Error = friendlyPricingError(err)
 			result[i] = v
@@ -471,7 +494,7 @@ func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput,
 		if margin.option != nil {
 			marginName = margin.option.Name
 		}
-		v.PricingInputsJSON = buildPricingInputsJSON(product, settings, marginName)
+		v.PricingInputsJSON = buildPricingInputsJSON(product, materials, settings, marginName)
 		result[i] = v
 	}
 	return result

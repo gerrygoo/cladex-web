@@ -67,6 +67,8 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /productos/{id}/eliminar", auth.RequireAuth(http.HandlerFunc(products.Delete)))
 	mux.Handle("POST /productos/{id}/conversiones", auth.RequireAuth(http.HandlerFunc(products.CreateConversion)))
 	mux.Handle("POST /productos/{id}/conversiones/{cid}/eliminar", auth.RequireAuth(http.HandlerFunc(products.DeleteConversion)))
+	mux.Handle("POST /productos/{id}/materiales", auth.RequireAuth(http.HandlerFunc(products.AddMaterial)))
+	mux.Handle("POST /productos/{id}/materiales/{mid}/eliminar", auth.RequireAuth(http.HandlerFunc(products.DeleteMaterial)))
 
 	mux.Handle("GET /clientes", auth.RequireAuth(http.HandlerFunc(customers.List)))
 	mux.Handle("GET /clientes/nuevo", auth.RequireAuth(http.HandlerFunc(customers.NewPage)))
@@ -98,6 +100,8 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /ajustes/margenes/{id}/predeterminado", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.PredeterminarMargen))))
 	mux.Handle("POST /ajustes/margenes/{id}/retirar", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.RetirarMargen))))
 	mux.Handle("POST /ajustes/margenes/{id}/restaurar", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.RestaurarMargen))))
+	mux.Handle("POST /ajustes/materiales", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.CreateMaterial))))
+	mux.Handle("POST /ajustes/materiales/{id}", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.UpdateMaterial))))
 
 	mux.Handle("GET /unidades", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(units.List))))
 	mux.Handle("POST /unidades", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(units.Create))))

@@ -3,6 +3,7 @@ package views
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
 	"github.com/gerrygoo/cladex-web/internal/pricing"
@@ -27,6 +28,7 @@ type QuoteLineView struct {
 	LineTotal         money.Centavos
 	PricingInputsJSON *string
 	Error             string
+	Materials         []store.Material // the materials a cost-priced product line was priced from
 }
 
 // quotesSortHeader is a plain full-page link, not htmx — see productsSortHeader's doc
@@ -317,6 +319,17 @@ templ QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricin
 			<p>IVA (16%): { totals.IVA.String() }</p>
 			<p><strong>Total: { totals.Total.String() }</strong></p>
 		</div>
+		if used := materialsInUse(lines); len(used) > 0 {
+			<p class="hint">
+				Precios de materiales:
+				for i, m := range used {
+					if i > 0 {
+						{ " · " }
+					}
+					{ m.Name } { MaterialPrice(m) } ({ MaterialAge(m.UpdatedAt, time.Now()) })
+				}
+			</p>
+		}
 	</div>
 }
 

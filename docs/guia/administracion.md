@@ -3,14 +3,11 @@
 Solo para cuentas con rol **Administrador**. Estas opciones aparecen en el menú como
 **Usuarios**, **Unidades** y **Ajustes**.
 
-## Actualizar tipo de cambio y precio del cobre
+## Actualizar el tipo de cambio
 
 1. En el menú, entra a **Ajustes**.
-2. Actualiza los valores que cambiaron, solo con números:
-   - **Tipo de cambio (USD/MXN)**: pesos por dólar, p. ej. `18.50`. Se usa en los
-     productos con moneda USD.
-   - **Precio del cobre ($/kg)**: p. ej. `145.30`. Se usa en los productos que se
-     cotizan por peso (Cable CCS & AC).
+2. En **Tipo de cambio (USD/MXN)**, escribe los pesos por dólar, solo con números, p. ej.
+   `18.50`. Se usa en los productos con moneda USD.
 3. Haz clic en **Guardar**.
 
 Efecto de un cambio:
@@ -20,8 +17,8 @@ Efecto de un cambio:
 - **Ninguno** en las cotizaciones emitidas: conservan el tipo de cambio y los precios
   con que se emitieron.
 
-> Avisa a los vendedores cuando cambies estos valores: los precios de sus borradores van
-> a cambiar. Ver [cómo se calcula el precio de un producto](productos.md#cómo-se-calcula-el-precio-de-un-producto).
+> Avisa a los vendedores cuando cambies el tipo de cambio: los precios de sus borradores
+> van a cambiar. Ver [cómo se calcula el precio de un producto](productos.md#cómo-se-calcula-el-precio-de-un-producto).
 
 ## Márgenes
 
@@ -30,8 +27,8 @@ Cada cotización se calcula con **una** de ellas, que el vendedor elige al armar
 un administrador puede cambiar la lista. Están abajo en **Ajustes**, en **Márgenes**.
 
 El margen es sobre el precio de venta: el precio es costo ÷ (1 − margen). Con 35 %, un
-costo de $65.00 se cotiza a $100.00. Hoy solo afecta a los productos que se cotizan con
-costo (Cable CCA).
+costo de $65.00 se cotiza a $100.00. Afecta a los productos que se cotizan con costo o
+con materiales (Cable CCA y Cable CCS & AC).
 
 **Agregar un margen**
 
@@ -63,6 +60,36 @@ clic en **Hacer predeterminado** en otro margen.
   hasta elegir otro.
 - No se puede retirar el predeterminado; primero haz predeterminado otro.
 - **Restaurar** lo vuelve a poner en la lista.
+
+## Materiales
+
+Los [[material|materiales]] (p. ej. *CCS 30%*) y su precio. Los productos hechos de un
+material se cotizan con la cantidad que llevan × el precio del material, más el margen
+de la cotización. Ver [materiales de un producto](productos.md#materiales-de-un-producto).
+Están abajo en **Ajustes**, en **Materiales**.
+
+El precio es el **costo** del material, sin margen: el margen lo pone cada cotización.
+
+**Actualizar el precio de un material**
+
+1. En la fila del material, cambia el **Precio** (pesos por unidad, p. ej. `160.00`
+   por kg).
+2. Haz clic en **Guardar** de esa fila.
+
+La columna **Actualizado** dice cuándo cambió por última vez (p. ej. *actualizado hace
+3 días*). Los vendedores ven lo mismo debajo de los totales de sus cotizaciones.
+
+> Todos los borradores con productos hechos de ese material se recalculan con el precio
+> nuevo la próxima vez que se abren. Las cotizaciones emitidas no cambian.
+
+**Agregar un material**
+
+1. En **Nuevo material**, escribe el **Nombre**, elige la **Unidad** en que se mide
+   (p. ej. Kilogramo) y escribe el **Precio** por esa unidad.
+2. Haz clic en **Agregar**.
+
+La unidad no se puede cambiar después, porque las cantidades de los productos están
+escritas en ella. Los materiales no se pueden eliminar.
 
 ## Cambiar el rol de un usuario
 

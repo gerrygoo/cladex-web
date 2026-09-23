@@ -809,8 +809,10 @@ baked into a cost, the FX rate, or a flat price. Traced from the workbook's own 
    there are no USD lines on any quote (checked 2026-09-22 against the nightly backup).
    If a supplier bills in USD, the admin enters the MXN cost. YAGNI: support can be
    added back if a real USD product ever appears.
-6. **N materials, each with an MXN price per unit** (e.g. CCS 30% at $155/kg; later
-   copper, aluminum, ...). Material prices are pure cost, with no margin.
+6. **N materials, each with an MXN price per unit** (e.g. CCS 30% at $160/kg; later
+   copper, aluminum, ...). Material prices are pure cost, with no margin. CCS 30% is
+   **$160/kg** (user, 2026-09-22: production's copper_price of $160 is the material
+   cost and unlikely to change this year), not the workbook's $155.
 7. **Conversions are unit conversions only:** how much of a material one unit of a
    product contains (kg per m, the workbook's "Peso kg/m"). There is no
    material-to-material pricing relation.
@@ -880,14 +882,15 @@ quotes.margin_option_id → margin_options
 - **Seed the menu with exactly four options (user, 2026-09-22):** 12.34% (default;
   today's CCA margin), 16.56%, 20.28% (the workbook's other two CCA columns), and 29.55%.
   Names are set at 3.1. Two price effects are accepted, not special-cased:
-  - **CCS & AC at 29.55%** instead of the exact 65/220 ≈ 29.5455% that reproduces
-    today's `kg/m × 220`. With material cost $155, 6 of the 9 products move up 1–2
-    centavos per m (e.g. 19#9 LC DSA $229.15 → $229.17), and 3 are unchanged.
+  - **CCS & AC now carries a margin.** Production priced it at `kg/m × copper_price`
+    ($160) with no margin; it now prices at `kg/m × 160 / (1 − margin)`, e.g. ALAMBRE 4
+    $27.57 → $39.13 at 29.55%. (Against the workbook's `kg/m × 220`, a $155 cost at
+    29.55% would have landed within 2 centavos; the engine test still checks that.)
   - **ABASTILUM has no 20% option.** Its costs are backed out at the margin that
     actually produced them (below), so the stored costs are true costs. Lighting quotes
     then price at whichever option is picked: at 20.28% about 0.35% above today (a
     $2,100.00 poste → $2,107.38), and at 12.34% well below.
-- **CCS & AC:** create the material "CCS 30%" at $155/kg, and one `product_materials`
+- **CCS & AC:** create the material "CCS 30%" at $160/kg, and one `product_materials`
   row per product from its current `kg_per_m_micros`.
 - **ABASTILUM:** back out `cost_micros` from each stored flat price with the margin that
   produced it: `price × (1 − 20%)`, or `× (1 − 12.34%)` for LEDVANCE. Postes keep the
@@ -917,9 +920,9 @@ None blocking. The seeded options' display names are the user's call at 3.1.
 | # | Slice | Owner | Done when |
 |---|---|---|---|
 | 3.1 | `margin_options` (seeded) + `quotes.margin_option_id`; margin dropdown in the builder header; CCA prices from the quote's option; admin "Márgenes" list on `/ajustes`; retire flow | me | Two QA drafts with different options price differently; editing an option reprices a draft that follows it; production drafts unchanged on deploy — ✅¹² |
-| 3.2 | `materials` + `product_materials`; CCS & AC costed from material × kg/m and priced through the quote margin; `copper_price` setting removed; admin "Materiales" list with staleness hint; CCA weights ÷ 1000 | me | Under the 29.55% option, every CCS & AC unit price equals `kg/m × 155 / 0.7045` (within 2 centavos of today's); changing the CCS 30% price reprices CCS drafts |
+| 3.2 | `materials` + `product_materials`; CCS & AC costed from material × kg/m and priced through the quote margin; `copper_price` setting removed; admin "Materiales" list with staleness hint; CCA weights ÷ 1000 | me | Under the 29.55% option, every CCS & AC unit price equals `kg/m × 160 / 0.7045`; changing the CCS 30% price reprices CCS drafts — ✅¹³ |
 | 3.3 | ABASTILUM backed out to `cost_micros`; drop `unit_price_micros`, currencies, FX, `price_breaks`, and `pricing.Settings`; retire `cmd/import` | me | Every ABASTILUM `cost_micros` equals the workbook's `B` column (postes × 18); `grep -ri "usd\|fx_rate\|price_break"` finds only migrations; issued quotes still reprint byte-identically |
-| 3.4 | Products CRUD edits flat cost + material composition; `pricing_inputs` snapshot extended | me | An admin can recost a CCS product by editing its kg/m or the material price, and a freshly issued quote's `pricing_inputs` names the option and material prices used |
+| 3.4 | Products CRUD edits flat cost + material composition; `pricing_inputs` snapshot extended | me | Folded into 3.2 (¹³): once CCS priced from materials, the product page had to show and edit them in the same slice |
 
 Each slice updates `docs/guia/` (administración, cotizaciones, productos) in the same
 commit.
@@ -953,7 +956,44 @@ Estándar, Medio and Alto priced at $6.32, $6.64 and $6.95, exactly the workbook
 "Cladex 12.34% / 16.56% / 20.28%" columns. Revaluing Alto to 25% moved the saved draft to
 $7.39. Retiring it showed the error and the "— retirado" entry. Switching back to Estándar
 cleared the error in place, and the issued quote shows "Margen: Estándar (12.34%)". Its
-PDF has no margin in it. Each migration that touches production data gets a dry run against production
+PDF has no margin in it.
+
+¹³ `migrations/0008_materials.sql` adds `materials` (name, fixed `unit_id`, pure-cost
+`price_micros`, `updated_at` for the staleness hint) and `product_materials` (product,
+material, `qty_per_unit_micros`, unique per product and material), both audited. It
+seeds **CCS 30%** at $160/kg (decision 6) and gives every CCS & AC product its kg/m as
+CCS 30% content. It clears any `cost_micros` left on those products: that's the stale
+pre-M2.3 "cost before margin", which would otherwise now count the material twice.
+Production had none, but the old local dev DB did, and that's how this turned up. It
+also divides CCA `kg_per_m_micros` by 1000 and deletes `copper_price`.
+
+`pricing.Product` loses `KgPerMMicros` and gains `Materials`, and `Settings` loses
+`CopperPrice`. `Product.Cost()` is the flat cost plus each material's qty × price, and
+anything with a cost prices at cost / (1 − margin). `products.kg_per_m_micros` stays as
+reference weight only ("solo informativo" in the form). `computeQuoteLines` loads each
+product's materials. `pricing_inputs` now records `cost`, a `materials` array (name,
+qty per unit, unit, price), `margin` and `margin_option`, replacing `kg_per_m` and
+`copper_price`. The builder fragment lists the materials its lines use, with price and
+age ("CCS 30% $160.00/kg (actualizado hoy)"). `/ajustes` drops the copper field and gains
+a Materiales list, admin-only (`POST /ajustes/materiales[/{id}]`): rename, reprice, add.
+There's no delete, and the unit can't change after creation. The product edit page gains
+a Materiales section (`POST /productos/{id}/materiales[/{mid}/eliminar]`, same permission
+as the rest of the product page). Its sections now travel as one
+`views.ProductEditSections` rather than more positional arguments.
+
+Before pushing this time, the migration was dry-run against a `.backup` copy of the
+**live** production DB (the nightly backup predated 0007). That dry run is how the
+production copper_price of $160 surfaced, which led to decision 6. It applied cleanly:
+9 CCS & AC products got content, integrity and foreign-key checks passed, and the copy
+was deleted afterwards.
+
+Verified with `go test ./...` (engine: materials, flat + materials, CCS against the
+workbook; store: CRUD, product scoping, the 0008 migration over pre-0008 data including
+a stale CCS cost; web: a CCS draft at $39.13 with the hint, following a material price
+change to $48.91, the issue-time materials snapshot, the admin and product-page actions
+with their errors). Also smoke-tested against a fresh copy of the local dev DB: CCS
+ALAMBRE 4 at $39.13, CCA c14 unchanged at $6.32, and CCA weight 0.01811. The two new
+sections were checked visually in the browser. Each migration that touches production data gets a dry run against production
 and the user's go-ahead before it runs for real (see `docs/NAS_OPERATIONS.md`).
 
 ---

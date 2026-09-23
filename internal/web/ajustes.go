@@ -11,9 +11,9 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
 
-// settingDefs is the fixed set of admin-editable single-value knobs (FX rate, metal
-// prices). Margins aren't here: they're a list of named options, managed by the
-// Margenes handlers below (docs/PLAN.md, M3). settings is a generic key/value table specifically
+// settingDefs is the fixed set of admin-editable single-value knobs (today only the FX
+// rate). Margins and material prices aren't here: they're lists, managed by the
+// Margen and Material handlers below (docs/PLAN.md, M3). settings is a generic key/value table specifically
 // so a new knob is a one-line addition here, no migration — see
 // migrations/0001_init.sql. Each value is a plain decimal string in the form (e.g.
 // "18.50", "0.35" for a 35% margin), stored as fixed-point micros text via
@@ -24,7 +24,6 @@ var settingDefs = []struct {
 	Placeholder string
 }{
 	{"fx_rate", "Tipo de cambio (USD/MXN)", "p. ej. 18.50"},
-	{"copper_price", "Precio del cobre ($/kg)", "p. ej. 145.30"},
 }
 
 // Settings holds the dependencies for the admin-only /ajustes handlers.
@@ -43,13 +42,15 @@ func (s *Settings) Page(w http.ResponseWriter, r *http.Request) {
 		successMsg = "Ajustes guardados."
 	case r.URL.Query().Get("margen") == "1":
 		successMsg = "Margen guardado."
+	case r.URL.Query().Get("material") == "1":
+		successMsg = "Material guardado."
 	}
 	s.render(w, r, nil, successMsg, "")
 }
 
 // render draws /ajustes. fields is nil to show the stored values, or the submitted
-// ones (with their errors) after a failed Submit; errorMsg is a failed margin action's
-// message. Any error renders with 422.
+// ones (with their errors) after a failed Submit; errorMsg is a failed margin or
+// material action's message. Any error renders with 422.
 func (s *Settings) render(w http.ResponseWriter, r *http.Request, fields []views.SettingFieldView, successMsg, errorMsg string) {
 	ctx := r.Context()
 	if fields == nil {
@@ -64,6 +65,16 @@ func (s *Settings) render(w http.ResponseWriter, r *http.Request, fields []views
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
+	materials, err := s.store.ListMaterials(ctx)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	units, err := s.store.ListUnits(ctx)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
 	hasFieldErrors := false
 	for _, f := range fields {
 		hasFieldErrors = hasFieldErrors || f.Error != ""
@@ -72,7 +83,7 @@ func (s *Settings) render(w http.ResponseWriter, r *http.Request, fields []views
 		w.WriteHeader(http.StatusUnprocessableEntity)
 	}
 	authUser, _ := UserFromContext(ctx)
-	views.Ajustes(fields, margins, successMsg, errorMsg, navUserView(authUser)).Render(ctx, w)
+	views.Ajustes(fields, margins, materials, units, successMsg, errorMsg, navUserView(authUser)).Render(ctx, w)
 }
 
 func (s *Settings) storedFields(r *http.Request) ([]views.SettingFieldView, error) {
@@ -255,5 +266,77 @@ func (s *Settings) RetirarMargen(w http.ResponseWriter, r *http.Request) {
 func (s *Settings) RestaurarMargen(w http.ResponseWriter, r *http.Request) {
 	s.marginAction(w, r, func(adminID int64) error {
 		return s.store.RestoreMarginOption(r.Context(), marginID(r), adminID)
+	})
+}
+
+// parseMaterialForm reads the name and price shared by the material create and edit
+// forms. The price is pure cost per the material's unit, e.g. 155 for $155/kg.
+func parseMaterialForm(r *http.Request) (name string, price money.Micros, errorMsg string) {
+	name = strings.TrimSpace(r.FormValue("name"))
+	if name == "" {
+		return "", 0, "El nombre del material es obligatorio."
+	}
+	price, err := money.ParseMicros(strings.TrimSpace(r.FormValue("price")))
+	if err != nil || price < 0 {
+		return "", 0, "Precio de material inválido; usa un número, p. ej. 160.00."
+	}
+	return name, price, ""
+}
+
+// materialAction runs one material change and redirects back to /ajustes, or
+// re-renders it with the reason the change was refused.
+func (s *Settings) materialAction(w http.ResponseWriter, r *http.Request, act func(adminID int64) error) {
+	authUser, _ := UserFromContext(r.Context())
+	if err := act(authUser.ID); err != nil {
+		switch {
+		case errors.Is(err, store.ErrDuplicateMaterialName):
+			s.render(w, r, nil, "", "Ya existe un material con ese nombre.")
+		case errors.Is(err, store.ErrMaterialNotFound):
+			s.render(w, r, nil, "", "Ese material no existe.")
+		default:
+			http.Error(w, "error interno", http.StatusInternalServerError)
+		}
+		return
+	}
+	http.Redirect(w, r, "/ajustes?material=1", http.StatusSeeOther)
+}
+
+// CreateMaterial handles POST /ajustes/materiales.
+func (s *Settings) CreateMaterial(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "solicitud inválida", http.StatusBadRequest)
+		return
+	}
+	name, price, msg := parseMaterialForm(r)
+	if msg != "" {
+		s.render(w, r, nil, "", msg)
+		return
+	}
+	unitID, err := strconv.ParseInt(r.FormValue("unit_id"), 10, 64)
+	if err != nil {
+		s.render(w, r, nil, "", "Selecciona la unidad del material.")
+		return
+	}
+	s.materialAction(w, r, func(adminID int64) error {
+		_, err := s.store.CreateMaterial(r.Context(), name, unitID, price, adminID)
+		return err
+	})
+}
+
+// UpdateMaterial handles POST /ajustes/materiales/{id}: renames or reprices a material.
+// Drafts quoting products made of it reprice; issued quotes keep theirs.
+func (s *Settings) UpdateMaterial(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "solicitud inválida", http.StatusBadRequest)
+		return
+	}
+	name, price, msg := parseMaterialForm(r)
+	if msg != "" {
+		s.render(w, r, nil, "", msg)
+		return
+	}
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	s.materialAction(w, r, func(adminID int64) error {
+		return s.store.UpdateMaterial(r.Context(), id, name, price, adminID)
 	})
 }

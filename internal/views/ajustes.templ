@@ -2,6 +2,7 @@ package views
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
@@ -17,6 +18,10 @@ type SettingFieldView struct {
 	Error       string
 }
 
+func materialFormID(m store.Material) string {
+	return "material-" + strconv.FormatInt(m.ID, 10)
+}
+
 func marginFormID(o store.MarginOption) string {
 	return "margen-" + strconv.FormatInt(o.ID, 10)
 }
@@ -29,10 +34,11 @@ func marginPath(o store.MarginOption, action string) string {
 	return path
 }
 
-// Ajustes is the admin settings page: the single-value knobs (FX rate, copper price)
-// in one all-or-nothing form, then the margin options, each edited, made default,
-// retired or restored by its own small form. errorMsg is a refused margin action.
-templ Ajustes(fields []SettingFieldView, margins []store.MarginOption, successMsg string, errorMsg string, user *NavUser) {
+// Ajustes is the admin settings page: the single-value knobs (the FX rate) in one
+// all-or-nothing form, then the margin options, each edited, made default, retired or
+// restored by its own small form, then the materials and their prices. errorMsg is a
+// refused margin or material action.
+templ Ajustes(fields []SettingFieldView, margins []store.MarginOption, materials []store.Material, units []store.Unit, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Ajustes", user) {
 		<h1>
 			Ajustes
@@ -120,6 +126,66 @@ templ Ajustes(fields []SettingFieldView, margins []store.MarginOption, successMs
 			<label>
 				Margen (%)
 				<input type="text" name="value" placeholder="p. ej. 12.34" required/>
+			</label>
+			<button type="submit">Agregar</button>
+		</form>
+		<h2>
+			Materiales
+			@HelpLink(HelpMateriales)
+		</h2>
+		<p>Costo de cada material, sin margen. Los productos hechos de un material se cotizan con su contenido × este precio, más el margen de la cotización.</p>
+		<table>
+			<thead>
+				<tr>
+					<th>Nombre</th>
+					<th>Precio (pesos por unidad)</th>
+					<th>Unidad</th>
+					<th>Actualizado</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				if len(materials) == 0 {
+					<tr>
+						<td colspan="5">No hay materiales.</td>
+					</tr>
+				}
+				for _, m := range materials {
+					<tr>
+						<td>
+							<input type="text" form={ materialFormID(m) } name="name" value={ m.Name } aria-label="Nombre" required/>
+						</td>
+						<td>
+							<input type="text" form={ materialFormID(m) } name="price" value={ m.PriceMicros.String() } size="10" aria-label="Precio" required/>
+						</td>
+						<td>{ m.UnitCode }</td>
+						<td>{ MaterialAge(m.UpdatedAt, time.Now()) }</td>
+						<td>
+							<form id={ materialFormID(m) } method="post" action={ templ.URL("/ajustes/materiales/" + strconv.FormatInt(m.ID, 10)) } style="display:inline">
+								<button type="submit">Guardar</button>
+							</form>
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+		<h3>Nuevo material</h3>
+		<form method="post" action="/ajustes/materiales">
+			<label>
+				Nombre
+				<input type="text" name="name" placeholder="p. ej. Cobre" required/>
+			</label>
+			<label>
+				Unidad
+				<select name="unit_id" required>
+					for _, u := range units {
+						<option value={ strconv.FormatInt(u.ID, 10) } selected?={ u.Code == "kg" }>{ u.Name } ({ u.Code })</option>
+					}
+				</select>
+			</label>
+			<label>
+				Precio (pesos por unidad)
+				<input type="text" name="price" placeholder="p. ej. 160.00" required/>
 			</label>
 			<button type="submit">Agregar</button>
 		</form>

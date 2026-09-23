@@ -18,10 +18,13 @@ var ccaSettings = Settings{Margin: marginPtr(money.MicrosFromFloat(0.1234))}
 
 func marginPtr(m money.Micros) *money.Micros { return &m }
 
-// ccsSettings matches TIPO DE CAMBIO!C1048566, "Precio por Kilo" — the CCS & AC family
-// prices out to exactly kg/m * copper price; see basePrice's doc comment for why the
-// workbook's own margin math reduces to that.
-var ccsSettings = Settings{CopperPrice: money.MicrosFromFloat(220)}
+// ccsSettings is the 29.55% margin option that stands in for CCS & AC's old
+// copper-derived margin ((220 - 155) / 220 ≈ 29.5455%) once the family is costed from
+// its CCS 30% content at $155/kg ('CCS & AC'!D4) instead of priced at kg/m × 220.
+var ccsSettings = Settings{Margin: marginPtr(money.MicrosFromFloat(0.2955))}
+
+// ccsMaterial is 'CCS & AC'!D4: the family's material cost per kg.
+var ccsMaterial = money.MicrosFromFloat(155)
 
 // TestUnitPrice_CCA reproduces every THW-2-LS and CABLE DESNUDO price from the
 // workbook's "CCA" sheet (hidden X:Y mirror block, the same range the "Cotizador CCA"
@@ -67,37 +70,62 @@ func TestUnitPrice_CCA(t *testing.T) {
 	}
 }
 
-// TestUnitPrice_CCSAndAC reproduces every price from the workbook's "CCS & AC" sheet
-// (hidden P:S mirror block) exactly, from the weight the importer already stores in
-// products.kg_per_m_micros.
+// TestUnitPrice_CCSAndAC prices every CCS & AC product from its CCS 30% content and the
+// 29.55% margin option, and checks it against the workbook's "CCS & AC" sheet (hidden
+// P:S mirror block, kg/m × 220). 29.55% is a rounding of the workbook's repeating
+// 65/220, so the unit prices come out a hair high: equal to the centavo for three
+// products and 1–2 centavos above for the other six, which docs/PLAN.md (M3) accepts.
 func TestUnitPrice_CCSAndAC(t *testing.T) {
 	cases := []struct {
-		desc      string
-		kgPerM    float64
-		wantPrice float64
+		desc       string
+		kgPerM     float64
+		wantMicros money.Micros // exact, from cost / (1 - 0.2955)
+		workbook   float64      // the workbook's own price, kg/m × 220
 	}{
-		{"ALAMBRE 4 (4 AWG)", 0.1723, 37.905999999999999},
-		{"7#10 LC DSA (2 AWG)", 0.3031, 66.682000000000002},
-		{"7#9 LC DSA (1 AWG)", 0.3823, 84.105999999999995},
-		{"7#8 LC DSA (1/0 AWG)", 0.482, 106.03999999999999},
-		{"7#7 LC DSA (2/0 AWG)", 0.6078, 133.71600000000001},
-		{"7#6 LC DSA (3/0 AWG)", 0.7664, 168.608},
-		{"7#5 LC DSA (4/0 AWG)", 0.9664, 212.608},
-		{"19#9 LC DSA (3/0 AWG)", 1.0416, 229.15199999999999},
-		{"19#8 LC DSA (4/0 AWG)", 1.3135, 288.96999999999997},
+		{"ALAMBRE 4 (4 AWG)", 0.1723, 37_908_446, 37.906},
+		{"7#10 LC DSA (2 AWG)", 0.3031, 66_686_302, 66.682},
+		{"7#9 LC DSA (1 AWG)", 0.3823, 84_111_427, 84.106},
+		{"7#8 LC DSA (1/0 AWG)", 0.482, 106_046_842, 106.04},
+		{"7#7 LC DSA (2/0 AWG)", 0.6078, 133_724_627, 133.716},
+		{"7#6 LC DSA (3/0 AWG)", 0.7664, 168_618_879, 168.608},
+		{"7#5 LC DSA (4/0 AWG)", 0.9664, 212_621_718, 212.608},
+		{"19#9 LC DSA (3/0 AWG)", 1.0416, 229_166_785, 229.152},
+		{"19#8 LC DSA (4/0 AWG)", 1.3135, 288_988_644, 288.97},
 	}
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			p := Product{KgPerMMicros: micros(c.kgPerM)}
+			p := Product{Materials: []MaterialContent{{QtyPerUnit: money.MicrosFromFloat(c.kgPerM), Price: ccsMaterial}}}
 			got, err := UnitPrice(p, money.MilliFromFloat(1), nil, ccsSettings)
 			if err != nil {
 				t.Fatalf("UnitPrice: %v", err)
 			}
-			want := money.MicrosFromFloat(c.wantPrice)
-			if got != want {
-				t.Errorf("UnitPrice(kg/m=%v) = %v, want %v", c.kgPerM, got, want)
+			if got != c.wantMicros {
+				t.Errorf("UnitPrice(kg/m=%v) = %v, want %v", c.kgPerM, got, c.wantMicros)
+			}
+			drift := got.ToCentavosHalfUp() - money.MicrosFromFloat(c.workbook).ToCentavosHalfUp()
+			if drift < 0 || drift > 2 {
+				t.Errorf("UnitPrice(kg/m=%v) = %v, %d centavos from the workbook's %v; want 0-2", c.kgPerM, got, drift, c.workbook)
 			}
 		})
+	}
+}
+
+// A product's cost is its flat cost plus its materials, and the margin applies to the
+// whole.
+func TestUnitPrice_FlatCostPlusMaterials(t *testing.T) {
+	p := Product{
+		CostMicros: micros(10),
+		Materials: []MaterialContent{
+			{QtyPerUnit: money.MicrosFromFloat(0.5), Price: money.MicrosFromFloat(20)}, // $10
+			{QtyPerUnit: money.MicrosFromFloat(2), Price: money.MicrosFromFloat(15)},   // $30
+		},
+	}
+	got, err := UnitPrice(p, money.MilliFromFloat(1), nil, Settings{Margin: marginPtr(money.MicrosFromFloat(0.2))})
+	if err != nil {
+		t.Fatalf("UnitPrice: %v", err)
+	}
+	if want := money.MicrosFromFloat(62.5); got != want { // $50 / 0.80
+		t.Errorf("UnitPrice = %v, want %v", got, want)
 	}
 }
 
@@ -178,21 +206,14 @@ func TestUnitPrice_MarginOutOfRangeErrors(t *testing.T) {
 	}
 }
 
-// A quote whose margin option is gone can't price a cost product, but its flat and
-// weight-priced lines don't need a margin and still price.
+// A quote whose margin option is gone can't price a cost product, but its flat-priced
+// lines don't need a margin and still price.
 func TestUnitPrice_NoMargin(t *testing.T) {
 	if _, err := UnitPrice(Product{CostMicros: micros(10)}, money.MilliFromFloat(1), nil, Settings{}); !errors.Is(err, ErrNoMargin) {
 		t.Errorf("UnitPrice(cost, no margin) error = %v, want ErrNoMargin", err)
 	}
 	if _, err := UnitPrice(Product{UnitPriceMicros: micros(10)}, money.MilliFromFloat(1), nil, Settings{}); err != nil {
 		t.Errorf("UnitPrice(flat, no margin) error = %v, want nil", err)
-	}
-}
-
-func TestUnitPrice_ZeroCopperPriceErrors(t *testing.T) {
-	p := Product{KgPerMMicros: micros(1)}
-	if _, err := UnitPrice(p, money.MilliFromFloat(1), nil, Settings{}); err == nil {
-		t.Error("UnitPrice(copper price=0) = nil error, want error")
 	}
 }
 

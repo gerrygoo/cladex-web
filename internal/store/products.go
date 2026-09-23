@@ -13,7 +13,9 @@ import (
 
 // Product is a catalog row. KgPerMMicros, UnitPriceMicros, and CostMicros are nil when
 // the corresponding column is NULL — see migrations/0001_init.sql and
-// migrations/0002_add_product_cost.sql for what each means. ID and FamilyName are
+// migrations/0002_add_product_cost.sql for what each means. KgPerMMicros is reference
+// weight only; what a product is made of, for pricing, is its product_materials
+// (HasMaterials, set by the CRUD read paths; see migrations/0008_materials.sql). ID and FamilyName are
 // populated by the CRUD read paths (ListProducts, ProductByID, ProductBySKU); they're
 // left zero by the import path, which only ever upserts by SKU.
 type Product struct {
@@ -29,6 +31,7 @@ type Product struct {
 	UnitID          *int64
 	UnitCode        string // populated by the CRUD read paths when UnitID is set
 	UnitName        string // populated by the CRUD read paths when UnitID is set
+	HasMaterials    bool
 }
 
 // ProductFamily is a product_families row, for populating the product form's family
@@ -106,7 +109,8 @@ func idPtr(id *int64) any {
 const productSelectCols = `
 	p.id, p.family_id, pf.name, p.sku, p.description,
 	p.kg_per_m_micros, p.unit_price_micros, p.cost_micros, p.currency,
-	p.unit_id, u.code, u.name`
+	p.unit_id, u.code, u.name,
+	EXISTS (SELECT 1 FROM product_materials pm WHERE pm.product_id = p.id)`
 
 const productFrom = `
 	FROM products p
@@ -118,7 +122,7 @@ func scanProduct(row interface{ Scan(...any) error }) (*Product, error) {
 	var kgPerM, unitPrice, cost, unitID sql.NullInt64
 	var unitCode, unitName sql.NullString
 	err := row.Scan(&p.ID, &p.FamilyID, &p.FamilyName, &p.SKU, &p.Description,
-		&kgPerM, &unitPrice, &cost, &p.Currency, &unitID, &unitCode, &unitName)
+		&kgPerM, &unitPrice, &cost, &p.Currency, &unitID, &unitCode, &unitName, &p.HasMaterials)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

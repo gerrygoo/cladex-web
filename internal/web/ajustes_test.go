@@ -36,8 +36,7 @@ func TestAjustesSaveAndReload(t *testing.T) {
 	}
 
 	form := url.Values{
-		"fx_rate":      {"18.50"},
-		"copper_price": {"145.30"},
+		"fx_rate": {"18.50"},
 	}
 	req = withAuthCookie(t, a, adminID, httptest.NewRequest("POST", "/ajustes", strings.NewReader(form.Encode())))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -58,7 +57,7 @@ func TestAjustesSaveAndReload(t *testing.T) {
 		t.Fatalf("Page after save status = %d, want 200", rec.Code)
 	}
 	body := rec.Body.String()
-	for _, want := range []string{"18.5", "145.3"} {
+	for _, want := range []string{"18.5"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("reloaded page missing value %q: %s", want, body)
 		}
@@ -71,8 +70,7 @@ func TestAjustesValidationError(t *testing.T) {
 	adminID := createTestUser(t, a, "ana", "admin", "hunter2")
 
 	form := url.Values{
-		"fx_rate":      {"no-es-numero"},
-		"copper_price": {"145.30"},
+		"fx_rate": {"no-es-numero"},
 	}
 	req := withAuthCookie(t, a, adminID, httptest.NewRequest("POST", "/ajustes", strings.NewReader(form.Encode())))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -83,8 +81,8 @@ func TestAjustesValidationError(t *testing.T) {
 		t.Fatalf("status = %d, want 422; body = %s", rec.Code, rec.Body.String())
 	}
 
-	// Nothing should have been persisted — not even the valid fields (all-or-nothing).
-	if v, err := a.store.SettingValue(req.Context(), "copper_price"); err != nil || v != "" {
-		t.Fatalf("copper_price = %q, %v; want unset after a failed submit", v, err)
+	// Nothing should have been persisted.
+	if v, err := a.store.SettingValue(req.Context(), "fx_rate"); err != nil || v != "" {
+		t.Fatalf("fx_rate = %q, %v; want unset after a failed submit", v, err)
 	}
 }

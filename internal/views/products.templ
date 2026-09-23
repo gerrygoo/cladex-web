@@ -6,18 +6,34 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-// productPriceDisplay renders a product's price for the list table. A product has a
-// flat unit price or a pre-margin cost, in practice never both — see
-// migrations/0002_add_product_cost.sql.
+// productPriceDisplay renders a product's price for the list table: its flat unit
+// price, or its pre-margin cost, marked "+ materiales" when materials add to it, or
+// just "materiales" for a product costed only from what it's made of — see
+// migrations/0002_add_product_cost.sql and 0008_materials.sql.
 func productPriceDisplay(p store.Product) string {
 	switch {
 	case p.UnitPriceMicros != nil:
 		return p.UnitPriceMicros.ToCentavosHalfUp().String()
+	case p.CostMicros != nil && p.HasMaterials:
+		return p.CostMicros.ToCentavosHalfUp().String() + " (costo + materiales)"
 	case p.CostMicros != nil:
 		return p.CostMicros.ToCentavosHalfUp().String() + " (costo)"
+	case p.HasMaterials:
+		return "(materiales)"
 	default:
 		return "—"
 	}
+}
+
+// ProductEditSections is what the edit form shows below the product's own fields: its
+// unit conversions and its materials, each with the error of a refused change to it.
+// The create form leaves it zero, since those sections need an existing product.
+type ProductEditSections struct {
+	Conversions      []store.ProductUnitConversion
+	ConversionsError string
+	Materials        []store.ProductMaterial
+	AllMaterials     []store.Material
+	MaterialsError   string
 }
 
 // productsSortHeader renders one sortable <th> for the products table: a click-to-sort
@@ -120,7 +136,7 @@ type ProductFormValues struct {
 // ProductForm renders the create/edit form. productID is 0 for the create form, which
 // omits the unit-conversions section below it — conversions reference an existing
 // product, so they only make sense once one exists (see ProductConversionsSection).
-templ ProductForm(title string, action string, values ProductFormValues, fieldErrors map[string]string, successMsg string, families []store.ProductFamily, units []store.Unit, productID int64, conversions []store.ProductUnitConversion, conversionsErrorMsg string, user *NavUser) {
+templ ProductForm(title string, action string, values ProductFormValues, fieldErrors map[string]string, successMsg string, families []store.ProductFamily, units []store.Unit, productID int64, sections ProductEditSections, user *NavUser) {
 	@Layout(title, user) {
 		<h1>
 			{ title }
@@ -184,14 +200,14 @@ templ ProductForm(title string, action string, values ProductFormValues, fieldEr
 				<p class="error">{ fieldErrors["unit_price"] }</p>
 			}
 			<label>
-				Costo (pesos, opcional — para productos con margen)
+				Costo (pesos, opcional — se le suma el de sus materiales y se cotiza con margen)
 				<input type="text" name="cost" value={ values.Cost } placeholder="p. ej. 45.00"/>
 			</label>
 			if fieldErrors["cost"] != "" {
 				<p class="error">{ fieldErrors["cost"] }</p>
 			}
 			<label>
-				Peso (kg/m, opcional)
+				Peso (kg/m, opcional — solo informativo, no cambia el precio)
 				<input type="text" name="kg_per_m" value={ values.KgPerM } placeholder="p. ej. 0.123"/>
 			</label>
 			if fieldErrors["kg_per_m"] != "" {
@@ -214,7 +230,8 @@ templ ProductForm(title string, action string, values ProductFormValues, fieldEr
 			<a href="/productos">Cancelar</a>
 		</form>
 		if productID != 0 {
-			@ProductConversionsSection(productID, conversions, units, conversionsErrorMsg)
+			@ProductMaterialsSection(productID, sections.Materials, sections.AllMaterials, sections.MaterialsError)
+			@ProductConversionsSection(productID, sections.Conversions, units, sections.ConversionsError)
 		}
 	}
 }
@@ -286,4 +303,67 @@ templ ProductConversionsSection(productID int64, conversions []store.ProductUnit
 		</label>
 		<button type="submit">Agregar conversión</button>
 	</form>
+}
+
+// ProductMaterialsSection lists what one unit of the product is made of, and offers a
+// form to add another material. A product's cost is its Costo field plus each
+// material's quantity x current price; see internal/pricing.
+templ ProductMaterialsSection(productID int64, materials []store.ProductMaterial, all []store.Material, errorMsg string) {
+	<h2>
+		Materiales
+		@HelpLink(HelpProductoMateriales)
+	</h2>
+	if errorMsg != "" {
+		<p class="error">{ errorMsg }</p>
+	}
+	<table>
+		<thead>
+			<tr>
+				<th>Material</th>
+				<th>Cantidad por unidad del producto</th>
+				<th>Precio del material</th>
+				<th></th>
+			</tr>
+		</thead>
+		<tbody>
+			if len(materials) == 0 {
+				<tr>
+					<td colspan="4">Sin materiales registrados.</td>
+				</tr>
+			}
+			for _, m := range materials {
+				<tr>
+					<td>{ m.Material.Name }</td>
+					<td>{ m.QtyPerUnitMicros.String() } { m.Material.UnitCode }</td>
+					<td>{ MaterialPrice(m.Material) }</td>
+					<td>
+						<form
+							method="post"
+							action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/materiales/" + strconv.FormatInt(m.ID, 10) + "/eliminar") }
+							style="display:inline"
+						>
+							<button type="submit" hx-confirm="¿Quitar este material?">Eliminar</button>
+						</form>
+					</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+	if len(all) > 0 {
+		<form method="post" action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/materiales") }>
+			<label>
+				Material
+				<select name="material_id" required>
+					for _, m := range all {
+						<option value={ strconv.FormatInt(m.ID, 10) }>{ m.Name } ({ m.UnitCode })</option>
+					}
+				</select>
+			</label>
+			<label>
+				Cantidad por unidad del producto
+				<input type="text" name="qty" placeholder="p. ej. 0.1723" required/>
+			</label>
+			<button type="submit">Agregar material</button>
+		</form>
+	}
 }

@@ -77,14 +77,17 @@ en el PDF.
 Pesos por dólar (USD/MXN). Convierte a pesos el precio de los productos con moneda USD.
 Lo captura un administrador en Ajustes.
 
-## Precio del cobre
+## Material
 
-Pesos por kilo de cobre. Los productos que se cotizan por peso (Cable CCS & AC) cuestan
-peso × precio del cobre. Lo captura un administrador en Ajustes.
+Una materia prima con su costo por unidad, p. ej. *CCS 30%* a $160.00 por kg. Un
+producto hecho de materiales (Cable CCS & AC) cuesta, por cada material, la cantidad que
+lleva × su precio, y a ese costo se le aplica el margen. Los precios los captura un
+administrador en Ajustes.
 
 ## Margen
 
 La parte del precio de venta que es utilidad, como porcentaje (35 %). Los productos que
-se cotizan con costo (Cable CCA) cuestan costo ÷ (1 − margen). Cada cotización usa uno
+se cotizan con costo o con materiales (Cable CCA, Cable CCS & AC) cuestan
+costo ÷ (1 − margen). Cada cotización usa uno
 de los márgenes de una lista con nombre (p. ej. *Estándar (12.34%)*) que mantiene un
 administrador en Ajustes; el vendedor lo elige al armar la cotización.

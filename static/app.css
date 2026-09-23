@@ -53,6 +53,12 @@ p.noscript-banner {
   border-bottom: 1px solid light-dark(#e8cf8a, #6b5518);
 }
 
+/* Secondary context under a table, e.g. the builder's material prices and their age. */
+p.hint {
+  color: light-dark(#666, #aaa);
+  font-size: 0.9rem;
+}
+
 p.success {
   color: light-dark(#0a7a2f, #4ade80);
 }
