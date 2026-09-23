@@ -22,11 +22,9 @@ Hello world — Typst render pipeline is up.
 // NewMux builds the application router. buildSHA is surfaced on /healthz. cookieSecure
 // controls the session cookie's Secure flag — true in production (behind the
 // TLS-terminating proxy), false for local plain-HTTP dev. logger receives the access
-// log; pass nil to discard it, as the handler tests do. dataDir is the app's data
-// directory (alongside the SQLite file) — issued quote PDFs are written under
-// <dataDir>/quotes/, matching docs/PLAN.md's "Quote persistence" design. guide is the
-// pre-rendered user guide served under /ayuda.
-func NewMux(buildSHA string, staticFS fs.FS, guide *guia.Guide, db *store.Store, cookieSecure bool, logger *slog.Logger, dataDir string) http.Handler {
+// log; pass nil to discard it, as the handler tests do. guide is the pre-rendered
+// user guide served under /ayuda.
+func NewMux(buildSHA string, staticFS fs.FS, guide *guia.Guide, db *store.Store, cookieSecure bool, logger *slog.Logger) http.Handler {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
@@ -34,7 +32,7 @@ func NewMux(buildSHA string, staticFS fs.FS, guide *guia.Guide, db *store.Store,
 	auth := NewAuth(db, cookieSecure)
 	products := NewProducts(db)
 	customers := NewCustomers(db)
-	quotes := NewQuotes(db, dataDir)
+	quotes := NewQuotes(db, logger)
 	users := NewUsers(db)
 	settings := NewSettings(db)
 	units := NewUnits(db)
@@ -110,7 +108,7 @@ func NewMux(buildSHA string, staticFS fs.FS, guide *guia.Guide, db *store.Store,
 	})
 
 	mux.HandleFunc("GET /sample.pdf", func(w http.ResponseWriter, r *http.Request) {
-		bytes, err := pdf.Render(r.Context(), sampleTypst)
+		bytes, err := pdf.Render(r.Context(), sampleTypst, time.Now())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

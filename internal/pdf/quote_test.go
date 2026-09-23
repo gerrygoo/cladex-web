@@ -1,9 +1,11 @@
 package pdf
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestTypstStringLiteralEscaping(t *testing.T) {
@@ -66,5 +68,25 @@ func TestRenderQuoteEscapesUntrustedContent(t *testing.T) {
 	}
 	if !strings.HasPrefix(string(bytes), "%PDF") {
 		t.Fatalf("output doesn't look like a PDF")
+	}
+}
+
+// TestRenderQuoteIsDeterministic is what lets issued quotes be regenerated instead of
+// stored: with Created pinned, two renders of the same document are byte-identical
+// (Typst would otherwise stamp the render time into the PDF metadata).
+func TestRenderQuoteIsDeterministic(t *testing.T) {
+	doc := sampleDoc()
+	doc.Created = time.Date(2026, 8, 2, 15, 4, 5, 0, time.UTC)
+	first, err := RenderQuote(context.Background(), doc)
+	if err != nil {
+		t.Fatalf("RenderQuote: %v", err)
+	}
+	time.Sleep(1100 * time.Millisecond) // cross a second boundary, Typst's timestamp resolution
+	second, err := RenderQuote(context.Background(), doc)
+	if err != nil {
+		t.Fatalf("RenderQuote: %v", err)
+	}
+	if !bytes.Equal(first, second) {
+		t.Fatal("two renders of the same document with the same Created differ")
 	}
 }

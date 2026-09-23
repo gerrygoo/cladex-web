@@ -157,19 +157,25 @@ answer "what exactly did we send Grupo PEME in March, and at what copper price?"
    `metal_price`, `fx_rate`) as JSON. Nothing reads live prices when reprinting.
 2. **Revisions are new rows.** A changed quantity creates a new quote with
    `supersedes_quote_id` and folio suffix (`QA0105-R1`). The original is untouched.
-3. **The rendered PDF is stored, not regenerated.** Bytes to
-   `/volume1/docker/cladex/data/quotes/<folio>.pdf`, SHA-256 in the row. The Typst template
-   *will* change; this is the only way a reprint years later is byte-identical to what the
-   customer received.
+3. **The PDF is regenerated, not stored.** Everything it prints is frozen on the row at
+   issue time (lines, totals, terms, `valid_until`, and the customer and salesperson names
+   as `customer_name_snapshot`/`vendedor_snapshot`), and Typst renders byte-identically
+   once its creation timestamp is pinned to `issued_at`. So a reprint always carries
+   exactly the numbers, names and terms the customer received. The layout is *not*
+   frozen: a template or Typst upgrade restyles old quotes too, a deliberate trade
+   (decided 2026-09-22) over storing files and keeping every old template alive.
+   `pdf_sha256` records the hash as issued; `Quotes.PDF` logs a warning when a reprint
+   no longer matches it.
 
 **Tables**: `quotes` (`folio` unique, `prefix` QA/QS/QI, `customer_id`, `user_id`, `status`,
 `currency`, `fx_rate_used`, `subtotal`, `iva`, `total`, `terms_snapshot`, `created_at`,
-`issued_at`, `valid_until`, `supersedes_quote_id`, `pdf_path`, `pdf_sha256`) and
+`issued_at`, `valid_until`, `supersedes_quote_id`, `customer_name_snapshot`,
+`vendedor_snapshot`, `pdf_sha256`) and
 `quote_lines` (`quote_id`, `line_no`, `product_id` **nullable** — the "Cotizador libre"
 sheet proves free-text lines are real — `description_snapshot`, `qty`,
 `unit_price_micros`, `line_total`, `pricing_inputs` JSON, `source`, `rfp_extraction_id`).
 
-Drafts are mutable; setting `issued_at` freezes the row and writes the PDF.
+Drafts are mutable; setting `issued_at` freezes the row and records the PDF's hash.
 
 ## Observability and auditing
 
@@ -502,7 +508,7 @@ Products CRUD (1.5) exists, per the user.
 | 2.2 | Quote builder UI — htmx shell + vanilla-JS island for live line editing and totals | me | Build a 5-line quote end to end; totals match 2.1 — ✅⁹ |
 | 2.3 | Typst cotización template + render pipeline; per-family terms blocks | me | Generated PDF matches the current Excel output for the same input — ✅¹⁰ |
 | 2.4 | Folio sequences, issue flow (freeze row, write PDF + SHA), status, revisions | me | Issue, change FX and copper, reprint → byte-identical PDF. Revise → `-R1`, original untouched — ✅¹¹ |
-| 2.5 | Quote history: list, filter by customer/vendedor/status, re-download stored PDF | me | Every quote ever issued is findable and re-downloadable |
+| 2.5 | Quote history: list, filter by customer/vendedor/status, re-download its PDF | me | Every quote ever issued is findable and re-downloadable |
 
 **2.1 before 2.2, without exception.** The engine is testable against the spreadsheet's own
 numbers; the UI is not. Prove the engine first and later UI bugs can never be mistaken for
@@ -749,6 +755,21 @@ and confirmed it now reads "revisada" with its original qty-5/$36.66 totals comp
 unchanged and a link forward to `-R1` — proving the original truly never moved once a
 newer revision existed.
 
+*Superseded 2026-09-22 — PDFs are regenerated, not stored* (migration
+`0006_regenerate_quote_pdfs.sql`). The stored-file design above had a hole: the PDF's
+customer and salesperson names came from live joins, so they were frozen only by
+accident of the file existing. And the files needed their own backup path outside
+Litestream. Now `Emitir` freezes those names into `customer_name_snapshot`/
+`vendedor_snapshot`, picks `issued_at` in Go (whole seconds), renders once through
+`issuedQuoteDocument` to record `pdf_sha256`, and writes nothing to disk; `Quotes.PDF`
+re-renders issued quotes through the same function, with `pdf.Render` passing
+`--creation-timestamp` = `issued_at` so the output is byte-identical. `pdf_path`,
+`quotesDir` and the `dataDir` plumbing are gone; the migration backfilled snapshots for
+the (mock) quotes already issued and cleared their old, unreproducible hashes. Guarded
+by `TestRenderQuoteIsDeterministic`, `TestQuotesEmitir` (reprint matches the issue-time
+hash after settings, product price and customer name change) and
+`TestMigration0006BackfillsNameSnapshots`.
+
 ## M3 — Standardized margins and a materials catalog — 📐 DESIGN, not scheduled
 
 Brainstormed 2026-09-22; the user settled the direction the same day. A few questions
@@ -925,5 +946,4 @@ CRUD/quoting patterns are actually solid enough to extend.
 **Email intake** for RFPs (IMAP polling on the Cladex domain). Depends on the above.
 
 **Other**: htmx round-trip limits on the quote builder → JS island, decided in 2.2. TLS
-terminates on the VPS; fix if ever needed is FRP raw-TCP passthrough. Stored PDFs grow
-`data/quotes/` unboundedly — harmless for years, but 1.1's backup must cover it.
+terminates on the VPS; fix if ever needed is FRP raw-TCP passthrough.

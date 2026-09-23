@@ -127,8 +127,9 @@ Qué pasa al emitir:
 - Se congelan los precios, el tipo de cambio y los términos y condiciones. La
   cotización ya no se puede editar; aunque después cambien los ajustes o el catálogo,
   lo que ves en la página y en el PDF sigue siendo lo que se emitió.
-- Se genera el PDF definitivo y se guarda. Cada vez que lo descargues obtendrás
-  exactamente el mismo archivo.
+- El PDF queda definitivo. Cada vez que lo descargues tendrá los mismos precios,
+  cliente, vendedor, fechas y términos con que se emitió, aunque después cambien los
+  ajustes, el catálogo o los datos del cliente.
 - La [[vigencia]] es de 30 días a partir de hoy; aparece en el PDF y en la página.
 
 > Para emitir, la cotización necesita al menos una línea y ninguna línea con error.

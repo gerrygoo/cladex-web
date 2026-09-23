@@ -52,7 +52,8 @@ found, so don't rediscover this the hard way again.
 - Compose, `network_mode: host` (not bridged — simplifies port handling on a box
   already juggling several services' ports).
 - App configs and data live under `/volume1/docker/[service]/`, e.g.
-  `/volume1/docker/cladex/data/quotes/<folio>.pdf` for stored quote PDFs.
+  `/volume1/docker/cladex/data/cladex.db`. Quote PDFs are regenerated on request, not
+  stored, so the database is the only state.
 - `PUID=1000` / `PGID=10` — match these in any compose file touching NAS-mounted
   volumes, or file ownership breaks.
 - **Ports already taken on this box**: 8080 (FRP), 8081, 8096, 8191, 8282, 5055, 7878,
@@ -122,14 +123,13 @@ it before swapping anything into place.
 
 Two caveats worth knowing before relying on this. Litestream v0.5 **dropped age
 encryption**, so the replica is plaintext; that's acceptable while it stays on the NAS
-under `backups/`, but not if it's ever pointed at S3. And Litestream only sees the
-database file — the stored quote PDFs under `data/quotes/` are invisible to it, which
-is why `backup.sh` still runs.
+under `backups/`, but not if it's ever pointed at S3. `backup.sh` still runs alongside
+it for a self-contained nightly tarball that restores without Litestream.
 
 ## Backups
 
-`backup.sh` runs nightly on the NAS: `sqlite3 .backup` + integrity check, plus the
-`data/quotes/` PDF directory, into a 14-day-retention tarball under
+`backup.sh` runs nightly on the NAS: `sqlite3 .backup` + integrity check, into a
+14-day-retention tarball under
 `/volume1/docker/cladex/backups/`. Restore-tested by extracting into a scratch dir and
 opening the DB — do this after any schema-shape change, before trusting new data lands
 on top of it. Offsite copy is deferred to UGREEN's own NAS-to-cloud sync pointed at that

@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"fmt"
 	"strings"
+	"time"
 )
 
 //go:embed assets/cladex-logo.png
@@ -33,6 +34,9 @@ type QuoteDocument struct {
 	IVA          string
 	Total        string
 	Terms        []string
+	// Created is the PDF's embedded creation date: issued_at for an issued quote, so
+	// every reprint is byte-identical; zero (render time) for a draft preview.
+	Created time.Time
 }
 
 // QuoteTerms holds each folio prefix's "Términos y condiciones" block, transcribed
@@ -77,7 +81,7 @@ var QuoteTerms = map[string][]string{
 // sheets: letterhead, folio/cliente/fecha header, a line-item table, subtotal/IVA/
 // total, and the family's terms block.
 func RenderQuote(ctx context.Context, doc QuoteDocument) ([]byte, error) {
-	return Render(ctx, buildQuoteTypst(doc))
+	return Render(ctx, buildQuoteTypst(doc), doc.Created)
 }
 
 // buildQuoteTypst generates the Typst source for doc. Every dynamic value (customer

@@ -7,9 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -22,16 +21,20 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
 
-// Quotes holds the dependencies for the /cotizaciones handlers. quotesDir is where
-// issued quotes' rendered PDFs are written and re-read from — <dataDir>/quotes/, per
-// docs/PLAN.md's "Quote persistence" design.
+// Quotes holds the dependencies for the /cotizaciones handlers. logger receives the
+// warning PDF logs when an issued quote no longer renders to the hash it was issued
+// with.
 type Quotes struct {
-	store     *store.Store
-	quotesDir string
+	store  *store.Store
+	logger *slog.Logger
 }
 
-func NewQuotes(s *store.Store, dataDir string) *Quotes {
-	return &Quotes{store: s, quotesDir: filepath.Join(dataDir, "quotes")}
+// NewQuotes builds the /cotizaciones handlers; a nil logger discards.
+func NewQuotes(s *store.Store, logger *slog.Logger) *Quotes {
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
+	return &Quotes{store: s, logger: logger}
 }
 
 // defaultValidityDays is how long an issued quote is valid for when no other input
@@ -663,37 +666,61 @@ func docLinesFrom(lines []views.QuoteLineView) []pdf.QuoteLineDoc {
 	return docLines
 }
 
-// buildQuoteDocument assembles the pdf package's input from a quote, its computed
-// lines/totals, and a resolved terms block (the caller decides live QuoteTerms vs. a
-// frozen terms_snapshot — see PDF and Emitir below) and vencimiento display string.
-func buildQuoteDocument(quote store.Quote, lines []views.QuoteLineView, totals pricing.Totals, terms []string, vencimiento string) pdf.QuoteDocument {
+// draftQuoteDocument assembles a draft's live PDF preview from its freshly computed
+// lines and totals: current customer and salesperson names, current per-prefix terms,
+// no vencimiento yet.
+func draftQuoteDocument(quote store.Quote, lines []views.QuoteLineView, totals pricing.Totals) pdf.QuoteDocument {
 	return pdf.QuoteDocument{
 		Folio:        quote.Folio,
 		CustomerName: quote.CustomerName,
 		Vendedor:     quote.UserName,
 		Fecha:        formatFecha(quote.CreatedAt),
-		Vencimiento:  vencimiento,
 		Lines:        docLinesFrom(lines),
 		Subtotal:     totals.Subtotal.String(),
 		IVA:          totals.IVA.String(),
 		Total:        totals.Total.String(),
-		Terms:        terms,
+		Terms:        pdf.QuoteTerms[quote.Prefix],
 	}
 }
 
-// resolveTerms returns a quote's frozen terms_snapshot (newline-joined, per
-// IssueQuote) if it has one, else the live per-prefix terms — a draft has no snapshot
-// yet, so its PDF preview always reflects the current terms text.
-func resolveTerms(quote store.Quote) []string {
-	if quote.TermsSnapshot != nil {
-		return strings.Split(*quote.TermsSnapshot, "\n")
+// issuedQuoteDocument assembles an issued or revised quote's PDF purely from what
+// IssueQuote froze: stored lines and totals, name and terms snapshots, valid_until, and
+// issued_at as the embedded creation date. Nothing live (catalog, settings, current
+// names) is read, so the same frozen row always renders the same bytes, for a given
+// template and Typst version. Emitir and PDF both go through here, which is what
+// makes a reprint match the hash recorded at issue time.
+func issuedQuoteDocument(quote store.Quote, persisted []store.QuoteLine) (pdf.QuoteDocument, error) {
+	if quote.IssuedAt == nil || quote.TermsSnapshot == nil || quote.CustomerNameSnapshot == nil || quote.VendedorSnapshot == nil {
+		return pdf.QuoteDocument{}, fmt.Errorf("quote %s is missing its issue-time snapshot", quote.Folio)
 	}
-	return pdf.QuoteTerms[quote.Prefix]
+	issuedAt, err := time.Parse(time.RFC3339Nano, *quote.IssuedAt)
+	if err != nil {
+		return pdf.QuoteDocument{}, fmt.Errorf("quote %s: parse issued_at: %w", quote.Folio, err)
+	}
+	vencimiento := ""
+	if quote.ValidUntil != nil {
+		vencimiento = formatFechaDate(*quote.ValidUntil)
+	}
+	return pdf.QuoteDocument{
+		Folio:        quote.Folio,
+		CustomerName: *quote.CustomerNameSnapshot,
+		Vendedor:     *quote.VendedorSnapshot,
+		Fecha:        formatFecha(quote.CreatedAt),
+		Vencimiento:  vencimiento,
+		Lines:        docLinesFrom(frozenQuoteLines(persisted)),
+		Subtotal:     quote.Subtotal.String(),
+		IVA:          quote.IVA.String(),
+		Total:        quote.Total.String(),
+		Terms:        strings.Split(*quote.TermsSnapshot, "\n"),
+		Created:      issuedAt,
+	}, nil
 }
 
-// PDF handles GET /cotizaciones/{folio}/pdf. An issued or revised quote serves the
-// exact bytes written at issue time (guaranteeing a byte-identical reprint no matter
-// how the template or settings change afterward); a draft renders a live preview
+// PDF handles GET /cotizaciones/{folio}/pdf. Nothing is stored on disk: an issued or
+// revised quote is re-rendered from its frozen row via issuedQuoteDocument, so its
+// numbers, names and terms never change however settings, the catalog or customer
+// records change afterward (a template or Typst change can still alter the layout;
+// that shows up as a hash mismatch, logged here). A draft renders a live preview
 // through the same computeQuoteLines path as the builder and Guardar, so it always
 // matches what's on screen.
 func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
@@ -702,50 +729,57 @@ func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
 	if quote == nil {
 		return
 	}
-
-	if quote.PDFPath != nil {
-		bytes, err := os.ReadFile(filepath.Join(q.quotesDir, filepath.Base(*quote.PDFPath)))
-		if err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/pdf")
-		w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s.pdf"`, quote.Folio))
-		w.Write(bytes)
-		return
-	}
-
 	persisted, err := q.store.ListQuoteLines(ctx, quote.ID)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
-	settings, err := q.loadPricingSettings(ctx)
-	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
-		return
-	}
-	lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), settings)
-	totals := computeQuoteTotals(lines)
 
-	doc := buildQuoteDocument(*quote, lines, totals, resolveTerms(*quote), "")
+	var doc pdf.QuoteDocument
+	if quote.Status == "borrador" {
+		settings, err := q.loadPricingSettings(ctx)
+		if err != nil {
+			http.Error(w, "error interno", http.StatusInternalServerError)
+			return
+		}
+		lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), settings)
+		doc = draftQuoteDocument(*quote, lines, computeQuoteTotals(lines))
+	} else {
+		doc, err = issuedQuoteDocument(*quote, persisted)
+		if err != nil {
+			q.logger.Error("issued quote pdf", slog.Any("err", err))
+			http.Error(w, "error interno", http.StatusInternalServerError)
+			return
+		}
+	}
+
 	bytes, err := pdf.RenderQuote(ctx, doc)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
+	}
+	if quote.PDFSHA256 != nil && sha256Hex(bytes) != *quote.PDFSHA256 {
+		q.logger.Warn("issued quote pdf differs from the one issued; template or typst changed since",
+			slog.String("folio", quote.Folio))
 	}
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s.pdf"`, quote.Folio))
 	w.Write(bytes)
 }
 
+func sha256Hex(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
 // Emitir handles POST /cotizaciones/{folio}/emitir: the "Emitir cotización" button on
 // the builder form, which submits the same full line set Guardar does. It saves that
 // state (so issuing also captures any not-yet-saved edit) and then freezes the quote:
-// locks the FX rate and terms text actually used, renders and writes the PDF to disk,
-// and flips status to 'emitida' via store.IssueQuote. Only valid on a draft; re-renders
-// the builder with row-level errors, without writing anything, if a line is invalid —
-// the same rule Guardar follows.
+// locks the FX rate, terms text, and customer and salesperson names actually used,
+// renders the PDF once to record its SHA-256, and flips status to 'emitida' via
+// store.IssueQuote. The PDF isn't stored; PDF regenerates it from the frozen row. Only
+// valid on a draft; re-renders the builder with row-level errors, without writing
+// anything, if a line is invalid — the same rule Guardar follows.
 func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	quote := q.loadQuoteOrNotFound(w, r)
@@ -800,29 +834,40 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	terms := pdf.QuoteTerms[quote.Prefix]
 	validUntil := time.Now().AddDate(0, 0, defaultValidityDays).Format("2006-01-02")
-	doc := buildQuoteDocument(*quote, lines, totals, terms, formatFechaDate(validUntil))
+	issue := store.Issue{
+		// Whole seconds: that's the resolution Typst embeds, and the one reprints
+		// parse back out of issued_at.
+		IssuedAt:             time.Now().UTC().Truncate(time.Second).Format("2006-01-02T15:04:05.000Z"),
+		FxRateUsed:           settings.FXRate,
+		TermsSnapshot:        strings.Join(pdf.QuoteTerms[quote.Prefix], "\n"),
+		ValidUntil:           &validUntil,
+		CustomerNameSnapshot: quote.CustomerName,
+		VendedorSnapshot:     quote.UserName,
+	}
 
+	// Render from the quote exactly as it's about to be frozen, through the same
+	// issuedQuoteDocument path reprints use, so the recorded hash is a reprint's hash.
+	frozen := *quote
+	frozen.IssuedAt = &issue.IssuedAt
+	frozen.TermsSnapshot = &issue.TermsSnapshot
+	frozen.ValidUntil = issue.ValidUntil
+	frozen.CustomerNameSnapshot = &issue.CustomerNameSnapshot
+	frozen.VendedorSnapshot = &issue.VendedorSnapshot
+	frozen.Subtotal, frozen.IVA, frozen.Total = totals.Subtotal, totals.IVA, totals.Total
+	doc, err := issuedQuoteDocument(frozen, storeLines)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
 	pdfBytes, err := pdf.RenderQuote(ctx, doc)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
-	sum := sha256.Sum256(pdfBytes)
-	sha := hex.EncodeToString(sum[:])
-	fileName := quote.Folio + ".pdf"
-	if err := os.MkdirAll(q.quotesDir, 0o755); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
-		return
-	}
-	if err := os.WriteFile(filepath.Join(q.quotesDir, fileName), pdfBytes, 0o644); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
-		return
-	}
+	issue.PDFSHA256 = sha256Hex(pdfBytes)
 
-	termsSnapshot := strings.Join(terms, "\n")
-	if err := q.store.IssueQuote(ctx, quote.ID, settings.FXRate, termsSnapshot, &validUntil, "quotes/"+fileName, sha); err != nil {
+	if err := q.store.IssueQuote(ctx, quote.ID, issue); err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}

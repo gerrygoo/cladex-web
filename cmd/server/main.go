@@ -124,7 +124,7 @@ func runServer() {
 		os.Exit(1)
 	}
 
-	mux := web.NewMux(buildSHA, staticFS, guide, db, cookieSecure, logger, filepath.Dir(dbPath()))
+	mux := web.NewMux(buildSHA, staticFS, guide, db, cookieSecure, logger)
 
 	addr := fmt.Sprintf(":%s", port)
 	logger.Info("listening", slog.String("addr", addr), slog.String("build", buildSHA))

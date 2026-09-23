@@ -1,15 +1,15 @@
 #!/bin/sh
 set -eu
 
-# Nightly local backup of the Cladex SQLite DB and stored quote PDFs.
+# Nightly local backup of the Cladex SQLite DB.
 # Runs on the NAS via cron. Point NAS-level cloud sync at $BACKUP_DIR once
 # that's set up, for an offsite copy.
 #
 # This is the archival copy, not the recovery window: the litestream service in
 # compose.yaml replicates the DB continuously into $BACKUP_DIR/litestream, so a lost
-# disk costs seconds rather than up to a day. What this script still uniquely covers is
-# the quote PDFs, which are files on disk and invisible to Litestream, plus a
-# self-contained tarball that restores without any tooling.
+# disk costs seconds rather than up to a day. What this script adds is a
+# self-contained tarball that restores without any tooling. Quote PDFs aren't stored
+# (they're regenerated from the DB), so the DB is everything.
 
 APP_DIR=/volume1/docker/cladex
 DATA_DIR="$APP_DIR/data"
@@ -26,10 +26,6 @@ mkdir -p "$STAGE"
 
 sqlite3 "$DATA_DIR/cladex.db" ".backup '$STAGE/cladex.db'"
 sqlite3 "$STAGE/cladex.db" "PRAGMA integrity_check;" | grep -qx ok
-
-if [ -d "$DATA_DIR/quotes" ]; then
-    cp -r "$DATA_DIR/quotes" "$STAGE/quotes"
-fi
 
 tar -C "$STAGE" -czf "$ARCHIVE" .
 rm -rf "$STAGE"

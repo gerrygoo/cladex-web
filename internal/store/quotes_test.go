@@ -3,9 +3,13 @@ package store
 import (
 	"context"
 	"errors"
+	"io/fs"
+	"path/filepath"
 	"strconv"
 	"testing"
+	"testing/fstest"
 
+	cladex "github.com/gerrygoo/cladex-web"
 	"github.com/gerrygoo/cladex-web/internal/money"
 	"github.com/gerrygoo/cladex-web/internal/pricing"
 )
@@ -177,7 +181,11 @@ func TestIssueQuote(t *testing.T) {
 
 	validUntil := "2026-09-01"
 	fxRate := money.Micros(18_000_000)
-	if err := s.IssueQuote(ctx, q.ID, fxRate, "term one\nterm two", &validUntil, "quotes/QA0001.pdf", "deadbeef"); err != nil {
+	issuedAt := "2026-08-02T15:04:05.000Z"
+	if err := s.IssueQuote(ctx, q.ID, Issue{
+		IssuedAt: issuedAt, FxRateUsed: fxRate, TermsSnapshot: "term one\nterm two", ValidUntil: &validUntil,
+		CustomerNameSnapshot: "Cliente al emitir", VendedorSnapshot: "Vendedor al emitir", PDFSHA256: "deadbeef",
+	}); err != nil {
 		t.Fatalf("IssueQuote: %v", err)
 	}
 
@@ -188,8 +196,8 @@ func TestIssueQuote(t *testing.T) {
 	if issued.Status != "emitida" {
 		t.Fatalf("Status = %q, want emitida", issued.Status)
 	}
-	if issued.IssuedAt == nil || *issued.IssuedAt == "" {
-		t.Fatal("IssuedAt not set")
+	if issued.IssuedAt == nil || *issued.IssuedAt != issuedAt {
+		t.Fatalf("IssuedAt = %v, want %s", issued.IssuedAt, issuedAt)
 	}
 	if issued.FxRateUsedMicros == nil || *issued.FxRateUsedMicros != fxRate {
 		t.Fatalf("FxRateUsedMicros = %v, want %v", issued.FxRateUsedMicros, fxRate)
@@ -200,13 +208,25 @@ func TestIssueQuote(t *testing.T) {
 	if issued.ValidUntil == nil || *issued.ValidUntil != validUntil {
 		t.Fatalf("ValidUntil = %v, want %v", issued.ValidUntil, validUntil)
 	}
-	if issued.PDFPath == nil || *issued.PDFPath != "quotes/QA0001.pdf" || issued.PDFSHA256 == nil || *issued.PDFSHA256 != "deadbeef" {
-		t.Fatalf("PDF fields = %+v", issued)
+	if issued.CustomerNameSnapshot == nil || *issued.CustomerNameSnapshot != "Cliente al emitir" ||
+		issued.VendedorSnapshot == nil || *issued.VendedorSnapshot != "Vendedor al emitir" {
+		t.Fatalf("name snapshots = %v, %v", issued.CustomerNameSnapshot, issued.VendedorSnapshot)
+	}
+	if issued.PDFSHA256 == nil || *issued.PDFSHA256 != "deadbeef" {
+		t.Fatalf("PDFSHA256 = %v", issued.PDFSHA256)
 	}
 
 	// Issuing an already-issued quote fails — not a thing.
-	if err := s.IssueQuote(ctx, q.ID, fxRate, "x", nil, "y", "z"); !errors.Is(err, ErrQuoteNotDraft) {
+	if err := s.IssueQuote(ctx, q.ID, Issue{IssuedAt: issuedAt, TermsSnapshot: "x"}); !errors.Is(err, ErrQuoteNotDraft) {
 		t.Fatalf("IssueQuote(already issued) = %v, want ErrQuoteNotDraft", err)
+	}
+}
+
+// testIssue is a minimal valid Issue for tests that only need a quote to be issued.
+func testIssue(sha string) Issue {
+	return Issue{
+		IssuedAt: "2026-08-02T15:04:05.000Z", FxRateUsed: money.Micros(18_000_000), TermsSnapshot: "term",
+		CustomerNameSnapshot: "Cliente", VendedorSnapshot: "Vendedor", PDFSHA256: sha,
 	}
 }
 
@@ -231,7 +251,7 @@ func TestCreateRevision(t *testing.T) {
 	if err := s.ReplaceQuoteLines(ctx, q.ID, lines, totals); err != nil {
 		t.Fatalf("ReplaceQuoteLines: %v", err)
 	}
-	if err := s.IssueQuote(ctx, q.ID, money.Micros(18_000_000), "term", nil, "quotes/QA0001.pdf", "sha1"); err != nil {
+	if err := s.IssueQuote(ctx, q.ID, testIssue("sha1")); err != nil {
 		t.Fatalf("IssueQuote: %v", err)
 	}
 
@@ -264,8 +284,8 @@ func TestCreateRevision(t *testing.T) {
 	if original.SupersededByFolio != "QA0001-R1" {
 		t.Fatalf("original.SupersededByFolio = %q, want QA0001-R1", original.SupersededByFolio)
 	}
-	if original.PDFPath == nil || *original.PDFPath != "quotes/QA0001.pdf" {
-		t.Fatalf("original.PDFPath changed: %+v", original.PDFPath)
+	if original.PDFSHA256 == nil || *original.PDFSHA256 != "sha1" {
+		t.Fatalf("original.PDFSHA256 changed: %+v", original.PDFSHA256)
 	}
 
 	// Revising an already-revised (revisada) quote directly should fail — only the
@@ -278,7 +298,7 @@ func TestCreateRevision(t *testing.T) {
 	if err := s.ReplaceQuoteLines(ctx, rev.ID, lines, totals); err != nil {
 		t.Fatalf("ReplaceQuoteLines(rev): %v", err)
 	}
-	if err := s.IssueQuote(ctx, rev.ID, money.Micros(18_500_000), "term", nil, "quotes/QA0001-R1.pdf", "sha2"); err != nil {
+	if err := s.IssueQuote(ctx, rev.ID, testIssue("sha2")); err != nil {
 		t.Fatalf("IssueQuote(rev): %v", err)
 	}
 	rev2, err := s.CreateRevision(ctx, rev.ID, userID)
@@ -320,7 +340,7 @@ func TestQuotesAreAudited(t *testing.T) {
 	if err := s.ReplaceQuoteLines(actorCtx, q.ID, lines, totals); err != nil {
 		t.Fatalf("ReplaceQuoteLines: %v", err)
 	}
-	if err := s.IssueQuote(actorCtx, q.ID, money.Micros(18_000_000), "term", nil, "quotes/QA0001.pdf", "sha1"); err != nil {
+	if err := s.IssueQuote(actorCtx, q.ID, testIssue("sha1")); err != nil {
 		t.Fatalf("IssueQuote: %v", err)
 	}
 	rev, err := s.CreateRevision(actorCtx, q.ID, userID)
@@ -387,5 +407,74 @@ func TestListPriceBreaks(t *testing.T) {
 	}
 	if breaks[0].MinQty != money.Milli(100_000) || breaks[0].UnitPriceMicros != money.Micros(90_000_000) {
 		t.Fatalf("ListPriceBreaks[0] = %+v", breaks[0])
+	}
+}
+
+// TestMigration0006BackfillsNameSnapshots runs 0006 against a database that already
+// has quotes (all migrations up to 0005, then the rest): issued quotes get their name
+// snapshots backfilled and their old, unreproducible hashes cleared; drafts are left
+// alone; pdf_path is gone.
+func TestMigration0006BackfillsNameSnapshots(t *testing.T) {
+	ctx := context.Background()
+	dsn := filepath.Join(t.TempDir(), "test.db")
+
+	before := fstest.MapFS{}
+	entries, err := fs.ReadDir(cladex.MigrationsFS, "migrations")
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	for _, e := range entries {
+		if e.Name() >= "0006" {
+			continue
+		}
+		data, err := fs.ReadFile(cladex.MigrationsFS, "migrations/"+e.Name())
+		if err != nil {
+			t.Fatalf("ReadFile: %v", err)
+		}
+		before["migrations/"+e.Name()] = &fstest.MapFile{Data: data}
+	}
+	old, err := Open(ctx, dsn, before)
+	if err != nil {
+		t.Fatalf("open at 0005: %v", err)
+	}
+	customerID, userID, _, _ := seedQuoteFixtures(t, old, ctx)
+	if _, err := old.db.ExecContext(ctx, `
+		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, issued_at, pdf_path, pdf_sha256)
+		VALUES ('QA0001', 'QA', ?, ?, 'emitida', '2026-08-02T15:04:05.123Z', 'quotes/QA0001.pdf', 'old'),
+		       ('QA0002', 'QA', ?, ?, 'borrador', NULL, NULL, NULL)`,
+		customerID, userID, customerID, userID); err != nil {
+		t.Fatalf("seed quotes: %v", err)
+	}
+	old.Close()
+
+	s, err := Open(ctx, dsn, cladex.MigrationsFS)
+	if err != nil {
+		t.Fatalf("open with 0006: %v", err)
+	}
+	t.Cleanup(func() { s.Close() })
+
+	issued, err := s.QuoteByFolio(ctx, "QA0001")
+	if err != nil || issued == nil {
+		t.Fatalf("QuoteByFolio(QA0001): %+v, %v", issued, err)
+	}
+	if issued.CustomerNameSnapshot == nil || *issued.CustomerNameSnapshot != issued.CustomerName ||
+		issued.VendedorSnapshot == nil || *issued.VendedorSnapshot != issued.UserName {
+		t.Fatalf("issued snapshots = %v, %v; want %q, %q",
+			issued.CustomerNameSnapshot, issued.VendedorSnapshot, issued.CustomerName, issued.UserName)
+	}
+	if issued.PDFSHA256 != nil {
+		t.Fatalf("issued PDFSHA256 = %q, want cleared", *issued.PDFSHA256)
+	}
+	draft, err := s.QuoteByFolio(ctx, "QA0002")
+	if err != nil || draft == nil {
+		t.Fatalf("QuoteByFolio(QA0002): %+v, %v", draft, err)
+	}
+	if draft.CustomerNameSnapshot != nil || draft.VendedorSnapshot != nil {
+		t.Fatalf("draft got snapshots: %+v", draft)
+	}
+	var n int
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT count(*) FROM pragma_table_info('quotes') WHERE name = 'pdf_path'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("pdf_path still present (count %d, err %v)", n, err)
 	}
 }

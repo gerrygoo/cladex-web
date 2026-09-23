@@ -13,33 +13,35 @@ import (
 )
 
 // Quote is a quotes row. CustomerName, UserName, and SupersededByFolio are populated by
-// the CRUD read paths (joins), left zero elsewhere. FxRateUsedMicros, TermsSnapshot,
-// IssuedAt, ValidUntil, PDFPath, and PDFSHA256 are nil until IssueQuote freezes the row.
+// the CRUD read paths (joins, so always the current names), left zero elsewhere.
+// FxRateUsedMicros, TermsSnapshot, IssuedAt, ValidUntil, CustomerNameSnapshot,
+// VendedorSnapshot, and PDFSHA256 are nil until IssueQuote freezes the row.
 // SupersedesQuoteID is set only on a revision (a quote created by CreateRevision). See
 // migrations/0001_init.sql.
 type Quote struct {
-	ID                int64
-	Folio             string
-	Prefix            string
-	CustomerID        int64
-	CustomerName      string
-	UserID            int64
-	UserName          string
-	Status            string // borrador | emitida | revisada
-	Currency          string
-	Subtotal          money.Centavos
-	IVA               money.Centavos
-	Total             money.Centavos
-	FxRateUsedMicros  *money.Micros
-	TermsSnapshot     *string
-	CreatedAt         string
-	IssuedAt          *string
-	ValidUntil        *string
-	SupersedesQuoteID *int64
-	SupersedesFolio   string // folio of the quote this one revises, if this is a revision
-	SupersededByFolio string // folio of the revision that supersedes this quote, if any
-	PDFPath           *string
-	PDFSHA256         *string
+	ID                   int64
+	Folio                string
+	Prefix               string
+	CustomerID           int64
+	CustomerName         string
+	UserID               int64
+	UserName             string
+	Status               string // borrador | emitida | revisada
+	Currency             string
+	Subtotal             money.Centavos
+	IVA                  money.Centavos
+	Total                money.Centavos
+	FxRateUsedMicros     *money.Micros
+	TermsSnapshot        *string
+	CreatedAt            string
+	IssuedAt             *string
+	ValidUntil           *string
+	SupersedesQuoteID    *int64
+	SupersedesFolio      string  // folio of the quote this one revises, if this is a revision
+	SupersededByFolio    string  // folio of the revision that supersedes this quote, if any
+	CustomerNameSnapshot *string // customer name as printed on the issued PDF
+	VendedorSnapshot     *string // salesperson name as printed on the issued PDF
+	PDFSHA256            *string // hash of the PDF as issued; reprints are compared to it
 }
 
 // QuoteLine is a quote_lines row. ProductID is nil for a free-text ("Cotizador libre")
@@ -103,7 +105,8 @@ func (s *Store) CreateDraftQuote(ctx context.Context, customerID, userID int64, 
 const quoteSelectCols = `
 	q.id, q.folio, q.prefix, q.customer_id, c.name, q.user_id, u.name, q.status, q.currency,
 	q.subtotal, q.iva, q.total, q.fx_rate_used_micros, q.terms_snapshot, q.created_at,
-	q.issued_at, q.valid_until, q.supersedes_quote_id, q.pdf_path, q.pdf_sha256,
+	q.issued_at, q.valid_until, q.supersedes_quote_id, q.customer_name_snapshot,
+	q.vendedor_snapshot, q.pdf_sha256,
 	(SELECT o.folio FROM quotes o WHERE o.id = q.supersedes_quote_id),
 	(SELECT r.folio FROM quotes r WHERE r.supersedes_quote_id = q.id)`
 
@@ -115,12 +118,13 @@ const quoteFrom = `
 func scanQuote(row interface{ Scan(...any) error }) (*Quote, error) {
 	var q Quote
 	var fxRate sql.NullInt64
-	var termsSnapshot, issuedAt, validUntil, pdfPath, pdfSHA256 sql.NullString
+	var termsSnapshot, issuedAt, validUntil, customerNameSnapshot, vendedorSnapshot, pdfSHA256 sql.NullString
 	var supersedesFolio, supersededByFolio sql.NullString
 	var supersedesQuoteID sql.NullInt64
 	err := row.Scan(&q.ID, &q.Folio, &q.Prefix, &q.CustomerID, &q.CustomerName, &q.UserID, &q.UserName,
 		&q.Status, &q.Currency, &q.Subtotal, &q.IVA, &q.Total, &fxRate, &termsSnapshot, &q.CreatedAt,
-		&issuedAt, &validUntil, &supersedesQuoteID, &pdfPath, &pdfSHA256, &supersedesFolio, &supersededByFolio)
+		&issuedAt, &validUntil, &supersedesQuoteID, &customerNameSnapshot, &vendedorSnapshot, &pdfSHA256,
+		&supersedesFolio, &supersededByFolio)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -143,8 +147,11 @@ func scanQuote(row interface{ Scan(...any) error }) (*Quote, error) {
 	if supersedesQuoteID.Valid {
 		q.SupersedesQuoteID = &supersedesQuoteID.Int64
 	}
-	if pdfPath.Valid {
-		q.PDFPath = &pdfPath.String
+	if customerNameSnapshot.Valid {
+		q.CustomerNameSnapshot = &customerNameSnapshot.String
+	}
+	if vendedorSnapshot.Valid {
+		q.VendedorSnapshot = &vendedorSnapshot.String
 	}
 	if pdfSHA256.Valid {
 		q.PDFSHA256 = &pdfSHA256.String
@@ -319,28 +326,45 @@ func (s *Store) ReplaceQuoteLines(ctx context.Context, quoteID int64, lines []Qu
 // already-issued quote afterward.
 var ErrQuoteNotDraft = errors.New("store: quote is not a draft")
 
-// IssueQuote freezes a draft quote: locks the FX rate and terms text actually used,
-// records where the rendered PDF was written and its SHA-256, sets an optional
-// expiry, and flips status to 'emitida'. Only succeeds against a quote currently
-// 'borrador' (checked and enforced in the same statement, so two concurrent issue
-// attempts can't both succeed) — the caller is expected to have already saved the
-// final line set (e.g. via ReplaceQuoteLines) before calling this.
-func (s *Store) IssueQuote(ctx context.Context, quoteID int64, fxRateUsed money.Micros, termsSnapshot string, validUntil *string, pdfPath, pdfSHA256 string) error {
+// Issue is everything IssueQuote freezes onto a draft. IssuedAt is supplied by the
+// caller rather than taken from SQLite's clock because the PDF (whose hash is
+// PDFSHA256) is rendered before the row is written, and it prints and embeds
+// issued_at; see Quotes.Emitir.
+type Issue struct {
+	IssuedAt             string // ISO-8601 UTC, same shape as strftime('%Y-%m-%dT%H:%M:%fZ')
+	FxRateUsed           money.Micros
+	TermsSnapshot        string
+	ValidUntil           *string
+	CustomerNameSnapshot string
+	VendedorSnapshot     string
+	PDFSHA256            string
+}
+
+// IssueQuote freezes a draft quote: locks the FX rate, terms text, and the customer
+// and salesperson names actually used, records the rendered PDF's SHA-256, sets an
+// optional expiry, and flips status to 'emitida'. The PDF itself is not stored; it
+// is regenerated from this frozen row on every request. Only succeeds against a
+// quote currently 'borrador' (checked and enforced in the same statement, so two
+// concurrent issue attempts can't both succeed) — the caller is expected to have
+// already saved the final line set (e.g. via ReplaceQuoteLines) before calling this.
+func (s *Store) IssueQuote(ctx context.Context, quoteID int64, is Issue) error {
 	var validUntilArg any
-	if validUntil != nil {
-		validUntilArg = *validUntil
+	if is.ValidUntil != nil {
+		validUntilArg = *is.ValidUntil
 	}
 	res, err := s.exec(ctx, `
 		UPDATE quotes SET
 			status = 'emitida',
-			issued_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+			issued_at = ?,
 			fx_rate_used_micros = ?,
 			terms_snapshot = ?,
 			valid_until = ?,
-			pdf_path = ?,
+			customer_name_snapshot = ?,
+			vendedor_snapshot = ?,
 			pdf_sha256 = ?
 		WHERE id = ? AND status = 'borrador'`,
-		int64(fxRateUsed), termsSnapshot, validUntilArg, pdfPath, pdfSHA256, quoteID,
+		is.IssuedAt, int64(is.FxRateUsed), is.TermsSnapshot, validUntilArg,
+		is.CustomerNameSnapshot, is.VendedorSnapshot, is.PDFSHA256, quoteID,
 	)
 	if err != nil {
 		return fmt.Errorf("store: issue quote %d: %w", quoteID, err)
@@ -403,8 +427,8 @@ func nextRevisionNumber(ctx context.Context, tx *sql.Tx, base string) (int, erro
 // folio (<base>-R<n>, e.g. QA0105-R1, or QA0105-R2 if revising a quote that's already
 // a revision), sharing customer/prefix/currency and starting from the original's
 // lines — and marks the original 'revisada'. Nothing about the original's own row is
-// changed beyond that one status flip: its lines, totals, terms_snapshot, and PDF stay
-// exactly as issued, per docs/PLAN.md's "original untouched" revision design. Only the
+// changed beyond that one status flip: its lines, totals, and snapshots (and so its PDF)
+// stay exactly as issued, per docs/PLAN.md's "original untouched" revision design. Only the
 // currently-active issued quote in a lineage can be revised (see ErrQuoteNotIssued) —
 // revise the latest revision, not a superseded one. Stamps the actor once, via
 // stampActor, before this transaction's first write to quotes (an audited table) —

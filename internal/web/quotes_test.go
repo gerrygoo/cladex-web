@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -20,7 +18,7 @@ import (
 
 func newTestQuotes(t *testing.T, a *Auth) *Quotes {
 	t.Helper()
-	return NewQuotes(a.store, t.TempDir())
+	return NewQuotes(a.store, nil)
 }
 
 func seedPricingSettings(t *testing.T, a *Auth, userID int64) {
@@ -350,20 +348,25 @@ func TestQuotesEmitir(t *testing.T) {
 	if issued.IssuedAt == nil || issued.FxRateUsedMicros == nil || issued.TermsSnapshot == nil || issued.ValidUntil == nil {
 		t.Fatalf("issue didn't freeze all expected fields: %+v", issued)
 	}
-	if issued.PDFPath == nil || issued.PDFSHA256 == nil {
-		t.Fatalf("issue didn't record PDF path/hash: %+v", issued)
+	if issued.CustomerNameSnapshot == nil || issued.VendedorSnapshot == nil || issued.PDFSHA256 == nil {
+		t.Fatalf("issue didn't record name snapshots/hash: %+v", issued)
 	}
 
-	pdfBytes, err := os.ReadFile(filepath.Join(q.quotesDir, filepath.Base(*issued.PDFPath)))
-	if err != nil {
-		t.Fatalf("stored PDF not found: %v", err)
+	// Nothing is stored; the PDF is regenerated, and the first reprint already hashes to
+	// what Emitir recorded.
+	reprint := func() string {
+		t.Helper()
+		rec := doForm(t, a, userID, q.PDF, "GET", "/cotizaciones/"+quote.Folio+"/pdf",
+			map[string]string{"folio": quote.Folio}, nil, false)
+		if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Body.String(), "%PDF") {
+			t.Fatalf("reprint status = %d, body doesn't look like a PDF", rec.Code)
+		}
+		return rec.Body.String()
 	}
-	if !strings.HasPrefix(string(pdfBytes), "%PDF") {
-		t.Fatal("stored file doesn't look like a PDF")
-	}
-	sum := sha256.Sum256(pdfBytes)
+	first := reprint()
+	sum := sha256.Sum256([]byte(first))
 	if hex.EncodeToString(sum[:]) != *issued.PDFSHA256 {
-		t.Fatal("stored PDF's SHA-256 doesn't match the recorded hash")
+		t.Fatal("regenerated PDF's SHA-256 doesn't match the hash recorded at issue")
 	}
 
 	// Once issued, Guardar refuses to touch it (immutability).
@@ -380,20 +383,33 @@ func TestQuotesEmitir(t *testing.T) {
 		t.Fatalf("Emitir(already issued) status = %d, want 409", rec.Code)
 	}
 
-	// Reprint is byte-identical even after settings change — it serves the stored
-	// bytes, not a fresh live render.
-	rec1 := doForm(t, a, userID, q.PDF, "GET", "/cotizaciones/"+quote.Folio+"/pdf",
-		map[string]string{"folio": quote.Folio}, nil, false)
+	// Reprint stays byte-identical after everything live that fed the draft changes:
+	// settings, the quoted product's price, the customer's name.
 	if err := a.store.SetSetting(context.Background(), "fx_rate", "99000000", userID); err != nil {
 		t.Fatalf("SetSetting(fx_rate): %v", err)
 	}
 	if err := a.store.SetSetting(context.Background(), "copper_price", "999000000", userID); err != nil {
 		t.Fatalf("SetSetting(copper_price): %v", err)
 	}
-	rec2 := doForm(t, a, userID, q.PDF, "GET", "/cotizaciones/"+quote.Folio+"/pdf",
-		map[string]string{"folio": quote.Folio}, nil, false)
-	if rec1.Body.String() != rec2.Body.String() {
-		t.Fatal("reprint after changing FX/copper settings is not byte-identical")
+	product, err := a.store.ProductByID(context.Background(), flatProductID)
+	if err != nil || product == nil {
+		t.Fatalf("ProductByID: %+v, %v", product, err)
+	}
+	newPrice := money.Micros(999_000_000)
+	product.UnitPriceMicros = &newPrice
+	if err := a.store.UpdateProduct(context.Background(), *product); err != nil {
+		t.Fatalf("UpdateProduct: %v", err)
+	}
+	customer, err := a.store.CustomerByID(context.Background(), customerID)
+	if err != nil || customer == nil {
+		t.Fatalf("CustomerByID: %+v, %v", customer, err)
+	}
+	customer.Name = "Nombre Nuevo S.A."
+	if err := a.store.UpdateCustomer(context.Background(), *customer); err != nil {
+		t.Fatalf("UpdateCustomer: %v", err)
+	}
+	if reprint() != first {
+		t.Fatal("reprint after changing settings, product price and customer name is not byte-identical")
 	}
 }
 
