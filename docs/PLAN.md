@@ -27,7 +27,7 @@ Two pinned constraints:
 | Stack | **Go + templ + htmx** | Minimal deps, no npm churn, ~20 MB image, ~25 MB idle on a shared 8 GB box |
 | DB | **SQLite** via `modernc.org/sqlite` (pure Go) | No cgo → static binary → distroless |
 | PDF | **Typst** (static musl binary in image) | Chromium idles ~400 MB, spikes >1 GB/render — untenable beside Jellyfin |
-| Registry | **Public GHCR** image | Repo is public; no auth needed on the NAS |
+| Registry | **Public GHCR** image | GHCR package set to public (separate from the private repo); no auth needed on the NAS |
 | Deploy | Actions build+push → NAS cron pulls every 5 min | NAS is behind NAT; the pull must be outbound |
 | Auth | **Username + password, admin-provisioned** | No self-service surface; OAuth/2FA deferred |
 
