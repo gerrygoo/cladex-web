@@ -41,6 +41,7 @@ templ Layout(title string, user *NavUser) {
 				</div>
 				if user != nil {
 					<div class="nav-user">
+						<a href="/ayuda">Ayuda</a>
 						<a href="/mi-cuenta">{ user.Username }</a>
 						<form method="post" action="/logout">
 							<button type="submit">Salir</button>

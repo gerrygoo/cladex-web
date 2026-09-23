@@ -1,7 +1,5 @@
 # Acceso y cuenta
 
-[← Índice](README.md)
-
 ## Iniciar sesión
 
 1. Abre <https://cotizador.cladex.com.mx>.

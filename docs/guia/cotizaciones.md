@@ -1,15 +1,13 @@
 # Cotizaciones
 
-[← Índice](README.md)
-
 El flujo completo, de principio a fin:
 
-1. [Crear la cotización](#crear-una-cotización): eliges cliente y serie; queda en
-   **borrador** con su folio.
+1. [Crear la cotización](#crear-una-cotización): eliges cliente y [[serie]]; queda en
+   [[borrador]] con su [[folio]].
 2. Agregar líneas: [productos del catálogo](#agregar-productos-por-sku) y/o
    [líneas libres](#agregar-una-línea-libre).
 3. [Ajustar cantidades](#cambiar-la-cantidad-de-una-línea); el sistema calcula precios,
-   IVA y total.
+   [[IVA]] y total.
 4. [Guardar el borrador](#guardar-el-borrador), cuantas veces quieras.
 5. [Emitir](#emitir-la-cotización): se congela y se genera el PDF definitivo.
 6. [Descargar el PDF](#descargar-y-enviar-el-pdf) y enviarlo al cliente.
@@ -31,7 +29,7 @@ El flujo completo, de principio a fin:
 Llegas a la página de la cotización (p. ej. *"Cotización QS0007"*) con
 **Estado: borrador**. El folio ya quedó reservado.
 
-> **¿Qué serie elijo?** La serie hace dos cosas: define el folio (cada serie lleva su
+> **¿Qué serie elijo?** La [[serie]] hace dos cosas: define el folio (cada serie lleva su
 > propia numeración: QA0001, QA0002…) y el bloque de **Términos y condiciones** que se
 > imprime en el PDF (moneda, tiempo de entrega, empaque, flete). Elige la serie cuyos
 > términos correspondan a lo que vendes. La serie **no** limita los productos: una
@@ -57,7 +55,7 @@ Con la cotización en borrador:
 4. Repite para cada producto.
 
 > El precio de una línea **lo calcula el sistema** a partir del catálogo y de los
-> ajustes vigentes (tipo de cambio, precio del cobre, margen). No se captura a mano. Ver
+> ajustes vigentes ([[tipo de cambio]], [[precio del cobre]], [[margen]]). No se captura a mano. Ver
 > [cómo se calcula el precio de un producto](productos.md#cómo-se-calcula-el-precio-de-un-producto).
 > El precio que aparece entre paréntesis en los resultados es el dato del catálogo, no
 > necesariamente el precio final de la línea.
@@ -131,7 +129,7 @@ Qué pasa al emitir:
   lo que ves en la página y en el PDF sigue siendo lo que se emitió.
 - Se genera el PDF definitivo y se guarda. Cada vez que lo descargues obtendrás
   exactamente el mismo archivo.
-- La vigencia es de 30 días a partir de hoy; aparece en el PDF y en la página.
+- La [[vigencia]] es de 30 días a partir de hoy; aparece en el PDF y en la página.
 
 > Para emitir, la cotización necesita al menos una línea y ninguna línea con error.
 
@@ -159,7 +157,7 @@ no se modifica: se crea una revisión.
 
 Qué pasa al revisar:
 
-- La original pasa a **revisada**. Queda intacta, con su PDF original, y muestra un
+- La original pasa a [[revisada]]. Queda intacta, con su PDF original, y muestra un
   enlace a la revisión.
 - Una revisión de la `-R1` (ya emitida) será `-R2`, y así sucesivamente. Solo se puede
   revisar la versión emitida más reciente.

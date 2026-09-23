@@ -13,6 +13,7 @@ import (
 
 	cladex "github.com/gerrygoo/cladex-web"
 	"github.com/gerrygoo/cladex-web/internal/cli"
+	"github.com/gerrygoo/cladex-web/internal/guia"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/web"
 )
@@ -112,7 +113,18 @@ func runServer() {
 		os.Exit(1)
 	}
 
-	mux := web.NewMux(buildSHA, staticFS, db, cookieSecure, logger, filepath.Dir(dbPath()))
+	guiaFS, err := fs.Sub(cladex.GuiaFS, "docs/guia")
+	if err != nil {
+		logger.Error("guia assets", slog.Any("err", err))
+		os.Exit(1)
+	}
+	guide, err := guia.New(guiaFS)
+	if err != nil {
+		logger.Error("render guia", slog.Any("err", err))
+		os.Exit(1)
+	}
+
+	mux := web.NewMux(buildSHA, staticFS, guide, db, cookieSecure, logger, filepath.Dir(dbPath()))
 
 	addr := fmt.Sprintf(":%s", port)
 	logger.Info("listening", slog.String("addr", addr), slog.String("build", buildSHA))

@@ -1,7 +1,5 @@
 # Clientes
 
-[← Índice](README.md)
-
 Toda cotización se hace para un cliente de esta lista, así que el cliente tiene que
 existir antes de cotizarle.
 

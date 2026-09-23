@@ -1,7 +1,5 @@
 # Productos
 
-[← Índice](README.md)
-
 El catálogo del que salen los precios de las cotizaciones. Vendedores y administradores
 pueden editarlo, así que cualquier cambio aquí afecta los precios de **todos** los
 borradores que incluyen el producto.
@@ -23,10 +21,10 @@ Cada producto se cotiza de una de tres formas, según cuál de estos campos teng
 | Campo lleno | Precio en la cotización | Típico de |
 |---|---|---|
 | **Precio unitario** | Ese precio, tal cual | Alumbrado |
-| **Costo** | Costo ÷ (1 − Margen por defecto) | Cable CCA |
-| **Peso (kg/m)** | Peso × Precio del cobre | Cable CCS & AC |
+| **Costo** | Costo ÷ (1 − [[margen]]) | Cable CCA |
+| **Peso (kg/m)** | Peso × [[precio del cobre]] | Cable CCS & AC |
 
-Si la **Moneda** del producto es USD, el resultado se multiplica por el tipo de cambio.
+Si la **Moneda** del producto es USD, el resultado se multiplica por el [[tipo de cambio]].
 El margen, el precio del cobre y el tipo de cambio los captura un administrador en
 [Ajustes](administracion.md#actualizar-tipo-de-cambio-precio-del-cobre-y-margen).
 
@@ -39,10 +37,10 @@ El margen, el precio del cobre y el tipo de cambio los captura un administrador 
 ## Dar de alta un producto
 
 1. Entra a **Productos** y haz clic en **Nuevo producto**.
-2. Escribe el **SKU** (obligatorio).
+2. Escribe el **SKU** (obligatorio; ver [[SKU]]).
 3. Escribe la **Descripción** (obligatoria). Es el texto que aparece en la cotización y
    en el PDF.
-4. Elige la **Familia** (obligatoria).
+4. Elige la **Familia** (obligatoria; ver [[familia]]).
 5. Elige la **Moneda**: MXN o USD.
 6. Llena **uno** de estos campos ([¿cuál?](#cómo-se-calcula-el-precio-de-un-producto)),
    solo con números, sin `$`:

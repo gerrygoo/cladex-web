@@ -1,7 +1,5 @@
 # Administración
 
-[← Índice](README.md)
-
 Solo para cuentas con rol **Administrador**. Estas opciones aparecen en el menú como
 **Usuarios**, **Unidades** y **Ajustes**.
 

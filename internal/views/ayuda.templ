@@ -1,0 +1,34 @@
+package views
+
+// GuiaNavItem is one entry in the user guide's page list.
+type GuiaNavItem struct {
+	Title   string
+	URL     string
+	Current bool
+}
+
+// Guia renders one user-guide page. html comes pre-rendered from internal/guia, which
+// builds it from our own Markdown at startup, so it is trusted.
+templ Guia(title string, html string, nav []GuiaNavItem, user *NavUser) {
+	@Layout(title, user) {
+		<div class="guia">
+			<nav class="guia-nav" aria-label="Guía de uso">
+				<ul>
+					for _, item := range nav {
+						<li>
+							if item.Current {
+								<a href={ templ.SafeURL(item.URL) } aria-current="page">{ item.Title }</a>
+							} else {
+								<a href={ templ.SafeURL(item.URL) }>{ item.Title }</a>
+							}
+						</li>
+					}
+				</ul>
+			</nav>
+			<article class="guia-page">
+				@templ.Raw(html)
+			</article>
+		</div>
+		<script src="/static/guia.js" defer></script>
+	}
+}

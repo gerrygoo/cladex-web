@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gerrygoo/cladex-web/internal/guia"
 	"github.com/gerrygoo/cladex-web/internal/pdf"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/views"
@@ -23,8 +24,9 @@ Hello world — Typst render pipeline is up.
 // TLS-terminating proxy), false for local plain-HTTP dev. logger receives the access
 // log; pass nil to discard it, as the handler tests do. dataDir is the app's data
 // directory (alongside the SQLite file) — issued quote PDFs are written under
-// <dataDir>/quotes/, matching docs/PLAN.md's "Quote persistence" design.
-func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool, logger *slog.Logger, dataDir string) http.Handler {
+// <dataDir>/quotes/, matching docs/PLAN.md's "Quote persistence" design. guide is the
+// pre-rendered user guide served under /ayuda.
+func NewMux(buildSHA string, staticFS fs.FS, guide *guia.Guide, db *store.Store, cookieSecure bool, logger *slog.Logger, dataDir string) http.Handler {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
@@ -36,6 +38,7 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool,
 	users := NewUsers(db)
 	settings := NewSettings(db)
 	units := NewUnits(db)
+	help := NewHelp(guide)
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
 
@@ -87,6 +90,9 @@ func NewMux(buildSHA string, staticFS fs.FS, db *store.Store, cookieSecure bool,
 
 	mux.Handle("GET /unidades", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(units.List))))
 	mux.Handle("POST /unidades", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(units.Create))))
+
+	mux.Handle("GET /ayuda", auth.RequireAuth(http.HandlerFunc(help.Page)))
+	mux.Handle("GET /ayuda/{pagina}", auth.RequireAuth(http.HandlerFunc(help.Page)))
 
 	mux.Handle("GET /{$}", auth.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		count, err := db.QuoteCount(r.Context())
