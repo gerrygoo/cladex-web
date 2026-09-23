@@ -916,13 +916,44 @@ None blocking. The seeded options' display names are the user's call at 3.1.
 
 | # | Slice | Owner | Done when |
 |---|---|---|---|
-| 3.1 | `margin_options` (seeded) + `quotes.margin_option_id`; margin dropdown in the builder header; CCA prices from the quote's option; admin "Márgenes" list on `/ajustes`; retire flow | me | Two QA drafts with different options price differently; editing an option reprices a draft that follows it; production drafts unchanged on deploy |
+| 3.1 | `margin_options` (seeded) + `quotes.margin_option_id`; margin dropdown in the builder header; CCA prices from the quote's option; admin "Márgenes" list on `/ajustes`; retire flow | me | Two QA drafts with different options price differently; editing an option reprices a draft that follows it; production drafts unchanged on deploy — ✅¹² |
 | 3.2 | `materials` + `product_materials`; CCS & AC costed from material × kg/m and priced through the quote margin; `copper_price` setting removed; admin "Materiales" list with staleness hint; CCA weights ÷ 1000 | me | Under the 29.55% option, every CCS & AC unit price equals `kg/m × 155 / 0.7045` (within 2 centavos of today's); changing the CCS 30% price reprices CCS drafts |
 | 3.3 | ABASTILUM backed out to `cost_micros`; drop `unit_price_micros`, currencies, FX, `price_breaks`, and `pricing.Settings`; retire `cmd/import` | me | Every ABASTILUM `cost_micros` equals the workbook's `B` column (postes × 18); `grep -ri "usd\|fx_rate\|price_break"` finds only migrations; issued quotes still reprint byte-identically |
 | 3.4 | Products CRUD edits flat cost + material composition; `pricing_inputs` snapshot extended | me | An admin can recost a CCS product by editing its kg/m or the material price, and a freshly issued quote's `pricing_inputs` names the option and material prices used |
 
 Each slice updates `docs/guia/` (administración, cotizaciones, productos) in the same
-commit. Each migration that touches production data gets a dry run against production
+commit.
+
+¹² `migrations/0007_margin_options.sql` adds `margin_options` (name, `value_micros`,
+`is_default` with a partial unique index, `retired_at`), audit triggers for it, and
+`quotes.margin_option_id` plus `margin_name_snapshot`/`margin_snapshot_micros`. It
+recreates the three quotes audit triggers so a margin change is audited. It seeds the four
+options without the percentage in their names (**Estándar** 12.34% as default, **Medio**
+16.56%, **Alto** 20.28%, **CCS & AC** 29.55%), since a name like "12.34%" goes stale the
+first time an admin edits the value; the UI always prints the value next to the name. It
+also backfills drafts by series and deletes `default_margin`. `pricing.Settings.Margin` is
+now a pointer, and a nil margin fails only cost-priced lines (`pricing.ErrNoMargin`); flat
+and weight-priced lines still price. The web layer resolves a draft's margin
+(`resolveMargin`) from the submitted dropdown value, falling back to the saved option, so
+changing the dropdown reprices through htmx before anything is saved. The margin error
+renders inside the swapped line fragment, so picking a valid option clears it. `Guardar`
+and `Emitir` save the option with the lines (`ReplaceQuoteLines` gained a
+`marginOptionID` argument). `Emitir` refuses (422) a missing or retired option. `IssueQuote`
+freezes the option's name and value, and `pricing_inputs` records `margin` and
+`margin_option` for cost lines. Admins add, rename/revalue, make default, retire and
+restore options on `/ajustes` (`POST /ajustes/margenes[/{id}[/predeterminado|retirar|restaurar]]`).
+The default can't be retired, and a retired option can't be the default. Percentages are
+entered as typed (`12.34` or `12.34%`, at most 4 decimals, < 100).
+
+Verified with `go test ./...` (store lifecycle, audit attribution, migration backfill over
+pre-0007 data, and web tests for per-draft pricing, following an edited option, a retired
+option blocking issue, and the issue-time freeze) and end to end in a real browser against
+a copy of the old local dev DB, which ran 0003–0007 cleanly. On `cca-c14` (cost $5.54),
+Estándar, Medio and Alto priced at $6.32, $6.64 and $6.95, exactly the workbook's three
+"Cladex 12.34% / 16.56% / 20.28%" columns. Revaluing Alto to 25% moved the saved draft to
+$7.39. Retiring it showed the error and the "— retirado" entry. Switching back to Estándar
+cleared the error in place, and the issued quote shows "Margen: Estándar (12.34%)". Its
+PDF has no margin in it. Each migration that touches production data gets a dry run against production
 and the user's go-ahead before it runs for real (see `docs/NAS_OPERATIONS.md`).
 
 ---
