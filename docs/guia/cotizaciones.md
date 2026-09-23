@@ -42,17 +42,21 @@ Llegas a la página de la cotización (p. ej. *"Cotización QS0007"*) con
 
 Con la cotización en borrador:
 
-1. En el cuadro *"Buscar producto por SKU o descripción…"*, escribe el SKU o parte de
-   la descripción (p. ej. `THW`).
-2. Aparecen hasta 20 resultados, cada uno como botón:
-   `SKU — Descripción (precio)`. Si no ves el que buscas, escribe algo más específico.
+1. Debajo del buscador ya aparece la lista de productos de la familia de la serie, en
+   orden de SKU, 10 por página, cada uno como botón:
+   `SKU — Descripción (precio)`. No hace falta escribir nada para verlos.
+   - Usa **« Anterior** y **Siguiente »** para moverte entre páginas; la línea
+     *"Página 1 de 3 · 23 productos"* te dice cuántos hay.
+   - Para acotar la lista, escribe el SKU o parte de la descripción (p. ej. `THW`) en
+     el cuadro *"Buscar producto por SKU o descripción…"*. La lista se filtra
+     mientras escribes y vuelve a la página 1.
    - Junto al buscador está la casilla *"Solo productos de la familia …"* (CCA para
      serie QA, CCS & AC para QS, ABASTILUM para QI), **marcada de inicio**: solo
-     aparecen productos de la familia de la serie. Desmárcala para buscar en todo el
-     catálogo; cualquier producto se puede agregar a cualquier cotización.
-3. Haz clic en el producto. Se agrega como una línea nueva, con cantidad 1 y su precio
-   ya calculado.
-4. Repite para cada producto.
+     aparecen productos de la familia de la serie. Desmárcala para ver o buscar en todo
+     el catálogo; cualquier producto se puede agregar a cualquier cotización.
+2. Haz clic en el producto. Se agrega como una línea nueva, con cantidad 1 y su precio
+   ya calculado. La lista se queda en la misma página.
+3. Repite para cada producto.
 
 > El precio de una línea **lo calcula el sistema** a partir del catálogo y de los
 > ajustes vigentes ([[tipo de cambio]], [[precio del cobre]], [[margen]]). No se captura a mano. Ver

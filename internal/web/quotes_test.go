@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -654,6 +655,70 @@ func TestQuotesBuscarProductosFamilyFilter(t *testing.T) {
 	body := search("q=cable&solo_familia=0")
 	if !strings.Contains(body, "cca-c12") || !strings.Contains(body, "cca-c14") {
 		t.Fatalf("BuscarProductos with the toggle off should show every family: %s", body)
+	}
+}
+
+// TestQuotesProductPickerBrowsesFamily covers the picker's browse mode: with nothing
+// typed, the builder and BuscarProductos list the series family's products (never
+// other families) 10 per page, and ?pagina= pages through them, clamped to range.
+func TestQuotesProductPickerBrowsesFamily(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	ctx := context.Background()
+	ccaFamilyID, err := a.store.UpsertFamily(ctx, "CCA", "CCA")
+	if err != nil {
+		t.Fatalf("UpsertFamily(CCA): %v", err)
+	}
+	cost := money.Micros(45_000_000)
+	for i := 1; i <= 12; i++ {
+		if _, err := a.store.CreateProduct(ctx, store.Product{
+			FamilyID: ccaFamilyID, SKU: fmt.Sprintf("cca-b%02d", i), Description: fmt.Sprintf("Cable CCA %02d", i), CostMicros: &cost,
+		}); err != nil {
+			t.Fatalf("CreateProduct(cca %d): %v", i, err)
+		}
+	}
+	quote, err := a.store.CreateDraftQuote(ctx, customerID, userID, "QA")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+
+	get := func(handler http.HandlerFunc, path string, hx bool) string {
+		t.Helper()
+		rec := doForm(t, a, userID, handler, "GET", path, map[string]string{"folio": quote.Folio}, nil, hx)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET %s status = %d, want 200; body = %s", path, rec.Code, rec.Body.String())
+		}
+		return rec.Body.String()
+	}
+
+	// The builder page opens on page 1 of the family without any search.
+	body := get(q.Builder, "/cotizaciones/"+quote.Folio, false)
+	if !strings.Contains(body, "cca-b01") || !strings.Contains(body, "cca-b10") || strings.Contains(body, "cca-b11") {
+		t.Fatalf("builder should list the first 10 CCA products: %s", body)
+	}
+	if strings.Contains(body, "abl-foco") || strings.Contains(body, "cca-c14") {
+		t.Fatalf("builder should not list other families while browsing: %s", body)
+	}
+	if !strings.Contains(body, "Página 1 de 2") || !strings.Contains(body, "Siguiente") || strings.Contains(body, "Anterior") {
+		t.Fatalf("builder should show page 1 of 2 with only a next button: %s", body)
+	}
+
+	for _, path := range []string{"/productos?pagina=2", "/productos?pagina=99"} {
+		body = get(q.BuscarProductos, "/cotizaciones/"+quote.Folio+path, true)
+		if !strings.Contains(body, "cca-b11") || !strings.Contains(body, "cca-b12") || strings.Contains(body, "cca-b10") {
+			t.Fatalf("BuscarProductos(%s) should list the last 2 CCA products: %s", path, body)
+		}
+		if !strings.Contains(body, "Página 2 de 2") || !strings.Contains(body, "Anterior") || strings.Contains(body, "Siguiente") {
+			t.Fatalf("BuscarProductos(%s) should show page 2 of 2 with only a previous button: %s", path, body)
+		}
+	}
+
+	// A search that fits on one page has no pager.
+	body = get(q.BuscarProductos, "/cotizaciones/"+quote.Folio+"/productos?q=b12", true)
+	if !strings.Contains(body, "cca-b12") || strings.Contains(body, "Página") {
+		t.Fatalf("single-page search should list its match without a pager: %s", body)
 	}
 }
 

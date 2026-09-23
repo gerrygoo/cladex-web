@@ -315,24 +315,85 @@ templ QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricin
 	</div>
 }
 
-// ProductSearchResults is the "add line" picker's search results — each result is a
+// ProductPicker is the view-model for the builder's "add line" picker: one page of
+// matching products plus what the pager needs. An empty Query means browsing — every
+// product in the series family (or the whole catalog with SoloFamilia off).
+type ProductPicker struct {
+	Folio       string
+	Query       string
+	SoloFamilia bool
+	Products    []store.Product
+	Page        int
+	TotalPages  int
+	Total       int
+}
+
+// productPickerPath is the htmx endpoint behind the picker's search box, family toggle
+// and pager.
+func productPickerPath(folio string) string {
+	return "/cotizaciones/" + folio + "/productos"
+}
+
+// ProductSearchResults is the "add line" picker's current page of products — each one a
 // submit button that appends that product as a new line via add_product_id, priced by
-// Recalcular server-side (never a client-supplied price). Not scoped to the quote's own
-// folio prefix; any product may be added to any quote.
-templ ProductSearchResults(products []store.Product) {
+// Recalcular server-side (never a client-supplied price). htmx swaps only the lines
+// fragment, so the picker stays on the same page for adding several products in a row.
+// Not scoped to the quote's own folio prefix; any product may be added to any quote.
+templ ProductSearchResults(picker ProductPicker) {
 	<div id="product-search-results">
-		if len(products) > 0 {
+		if len(picker.Products) > 0 {
 			<ul>
-				for _, p := range products {
+				for _, p := range picker.Products {
 					<li>
-						<button type="submit" name="add_product_id" value={ strconv.FormatInt(p.ID, 10) }>
+						<button
+							type="submit"
+							name="add_product_id"
+							value={ strconv.FormatInt(p.ID, 10) }
+							hx-post={ recalcularPath(picker.Folio) }
+							hx-target="#quote-lines-fragment"
+							hx-swap="outerHTML"
+						>
 							{ p.SKU } — { p.Description } ({ productPriceDisplay(p) })
 						</button>
 					</li>
 				}
 			</ul>
+			if picker.TotalPages > 1 {
+				<nav class="pager" aria-label="Páginas de productos">
+					if picker.Page > 1 {
+						@productPickerPageButton(picker, picker.Page-1, "« Anterior")
+					}
+					<span>Página { strconv.Itoa(picker.Page) } de { strconv.Itoa(picker.TotalPages) } · { strconv.Itoa(picker.Total) } productos</span>
+					if picker.Page < picker.TotalPages {
+						@productPickerPageButton(picker, picker.Page+1, "Siguiente »")
+					}
+				</nav>
+			}
+		} else if picker.Query != "" {
+			<p>Ningún producto coincide con «{ picker.Query }».</p>
+		} else {
+			<p>No hay productos en esta familia.</p>
 		}
 	</div>
+}
+
+// productPickerPageButton jumps the picker to another page. With htmx it re-fetches only
+// the results fragment, keeping the current search and family toggle; without JS it's a
+// GET reload of the builder with ?pagina= (like "Buscar", that reload drops unsaved lines).
+templ productPickerPageButton(picker ProductPicker, page int, label string) {
+	<button
+		type="submit"
+		formmethod="get"
+		formaction={ "/cotizaciones/" + picker.Folio }
+		name="pagina"
+		value={ strconv.Itoa(page) }
+		hx-get={ productPickerPath(picker.Folio) }
+		hx-include="#linea-form [name='q'], #linea-form [name='solo_familia']"
+		hx-target="#product-search-results"
+		hx-swap="outerHTML"
+	>
+		{ label }
+	</button>
 }
 
 // emitirPath is the formaction the "Emitir cotización" button overrides to — saves the
@@ -398,15 +459,16 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
 // full editable form: every mutating control lives inside the one
 // <form id="linea-form">, whose default action is Recalcular (a pure recompute, never
 // persisted); "Guardar borrador" and "Emitir cotización" are the only two buttons that
-// override their own formaction to actually write. searchQuery/searchResults are the
-// no-JS fallback for the product picker (a real page reload with ?q=) — htmx otherwise
-// enhances the same input into a live, in-place search against BuscarProductos.
+// override their own formaction to actually write. The product picker is rendered
+// server-side (browsing the series family until something is typed); ?q=/?pagina= page
+// reloads are its no-JS fallback — htmx otherwise enhances the same controls into
+// in-place requests against BuscarProductos.
 //
 // An issued ('emitida') or revised ('revisada') quote is immutable, so it renders a
 // read-only summary instead: QuoteLinesReadOnly, the frozen issue metadata, and either
 // a "Revisar" button (emitida — the active version) or a note pointing at whichever
 // revision superseded it (revisada).
-templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, successMsg string, searchQuery string, soloFamilia bool, searchResults []store.Product, user *NavUser) {
+templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, successMsg string, picker ProductPicker, user *NavUser) {
 	@Layout("Cotización "+quote.Folio, user) {
 		<h1>
 			Cotización { quote.Folio }
@@ -445,8 +507,8 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 						type="search"
 						name="q"
 						placeholder="Buscar producto por SKU o descripción…"
-						value={ searchQuery }
-						hx-get={ "/cotizaciones/" + quote.Folio + "/productos" }
+						value={ picker.Query }
+						hx-get={ productPickerPath(quote.Folio) }
 						hx-trigger="keyup changed delay:400ms, search"
 						hx-include="#linea-form [name='solo_familia']"
 						hx-target="#product-search-results"
@@ -460,8 +522,8 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 								type="checkbox"
 								name="solo_familia"
 								value="1"
-								checked?={ soloFamilia }
-								hx-get={ "/cotizaciones/" + quote.Folio + "/productos" }
+								checked?={ picker.SoloFamilia }
+								hx-get={ productPickerPath(quote.Folio) }
 								hx-trigger="change"
 								hx-include="#linea-form [name='q'], #linea-form [name='solo_familia']"
 								hx-target="#product-search-results"
@@ -481,7 +543,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 						Línea libre
 					</button>
 				</div>
-				@ProductSearchResults(searchResults)
+				@ProductSearchResults(picker)
 				@QuoteLinesFragment(quote, lines, totals)
 				<button type="submit" formaction={ guardarPath(quote.Folio) }>
 					Guardar borrador

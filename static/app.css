@@ -82,6 +82,14 @@ div.toolbar form {
   gap: 0.5rem;
 }
 
+nav.pager {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
 label {
   display: block;
   margin-top: 0.75rem;
