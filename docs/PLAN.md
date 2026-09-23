@@ -749,171 +749,146 @@ and confirmed it now reads "revisada" with its original qty-5/$36.66 totals comp
 unchanged and a link forward to `-R1` — proving the original truly never moved once a
 newer revision existed.
 
-## M3 — Decoupled market rates and a margin menu — 🧠 BRAINSTORM, not scheduled
+## M3 — Standardized margins and a materials catalog — 📐 DESIGN, not scheduled
 
-Proposed 2026-09-22. Nothing here is decided yet: it lays out the options, recommends a
-direction, and lists the questions to settle before this is split into slices.
+Brainstormed 2026-09-22; the user settled the direction the same day. A few questions
+remain open (end of section) before this is split into final slices.
 
-**Problem.** Today FX, copper and CCA's margin are three rows in the generic `settings`
-key/value table. They're edited together on one all-or-nothing `/ajustes` form, and each
-key holds exactly one current value, with no history outside `audit_log`. Every draft
-reads all three live on every render (`loadPricingSettings`), so:
+### Why: margin is hidden inside costs and the FX rate today
 
-- An admin edit reprices every open draft, instantly and without telling anyone.
-- A revision (`-R1`) reprices every catalog line at today's values, even when the seller
-  only meant to change one quantity.
-- There is only one margin. A seller who needs to quote a distributor tighter than a
-  one-off buyer has no option except a free-text line.
-- "What was copper on March 3?" can only be answered by digging through `audit_log` JSON.
+Every family *does* have a margin, but only CCA's is an explicit input. The others are
+baked into a cost, the FX rate, or a flat price. Traced from the workbook's own formulas
+(`Cladex catalogo precios.xlsx`):
 
-These are three different kinds of data that happen to share a table:
+| Family | Workbook formula | Where the margin actually lives today |
+|---|---|---|
+| CCA | `cost / (1 − 12.34%)` (`CCA!J4`) | The `default_margin` setting (explicit). The sheet also shows three price columns, "Cladex 12.34% / 16.56% / 20.28%": a margin menu the workbook already has, hardcoded. |
+| CCS & AC | `kg/m × $155/kg / (1 − "Margen CCS")`, where Margen CCS = `(220 − 155) / 220` | Inside the `copper_price` setting. The 220 is a *sale* price per kg; the real material cost is $155/kg (`CCS & AC!D4`). The ≈29.55% margin cancels out algebraically (footnote 8), so it's invisible. |
+| ABASTILUM, postes | `cost / (1 − 20%) × FX 18` | Baked into the imported flat `unit_price_micros`, along with the FX rate. The sheet's own header asks "USD?". |
+| ABASTILUM, LEDVANCE | `cost / (1 − 12.34%)` | Baked into the flat price. It reuses **CCA's** margin cell, which is almost certainly an accident. |
+| ABASTILUM, PHILIPS and the rest | `cost / (1 − 20%)`, MXN, no FX | Baked into the flat price ("Margen iluminación"). |
 
-| | FX rate | Material price (copper, later aluminum) | Margin |
-|---|---|---|---|
-| Nature | Market data | Market data | Business policy |
-| Changes | Often, set by the market | Often, set by the market | Rarely, by decision |
-| Shape | One value per currency pair | One value per material | A menu of named options |
-| Chosen at quote time by | Nobody; it's whatever is current | Nobody; it's whatever is current | The seller, from the menu |
-| History must answer | "Which rate did we use?" | "Which copper price did we use?" | "Which option, and what % was it then?" |
+`TIPO DE CAMBIO` also holds unused "Margen electraclean 20%" and "Margen Fire Blanket
+25%" cells.
 
-**Goal.** (1) Split these into separate models, each with its own lifecycle. (2) Turn
-margins into an N-tuple: at any moment, the source of truth is the set of margin options
-currently available, each a specific (name, value) pair. The seller picks one at draft
-time, and the choice is recorded precisely enough to reproduce the price later.
+### Decisions (user, 2026-09-22)
 
-### Market rates (FX, materials)
+1. **One pricing formula for every family:** `price = cost / (1 − margin)`, the same
+   margin-on-sale-price convention CCA already uses. Margin is never again part of a
+   cost, a material price, or a flat price.
+2. **Margins are a menu, an N-tuple of named options.** At any moment the source of
+   truth is the set of options currently defined. There is **one global menu** (not per
+   family), and it is admin-maintained.
+3. **The margin is chosen per quote**, not per line. Vendedores can pick any option;
+   they cannot edit options, materials, or any other setting.
+4. **Drafts follow.** A draft references an option, not a frozen value, so editing an
+   option reprices every open draft that uses it. The number freezes only at `Emitir`.
+5. **The FX rate is removed entirely.** All costs are stored in MXN. This drops
+   `products.currency`, the USD branch in `internal/pricing`, and the `fx_rate` setting.
+   If a supplier bills in USD, the admin re-enters the MXN cost.
+6. **N materials, each with a price per unit** (copper, CCS 30%, later aluminum, ...).
+   Material prices are pure cost, with no margin.
+7. **No scheduled/future-dated publishing.** An edit takes effect when it's saved.
 
-Recommended: a single append-only time-series table:
+### Model
 
 ```
-market_rates (id, kind TEXT,        -- 'fx_usd_mxn', 'copper', later 'aluminum'
-              value_micros INTEGER, effective_at TEXT, entered_by, note, created_at)
+margin_options   (id, name, value_micros, sort, is_default, retired_at,
+                  created_at, updated_at, updated_by)       -- audited
+materials        (id, name, unit_id → units, price_micros,  -- e.g. "CCS 30%", kg, 155
+                  updated_at, updated_by)                    -- audited
+product_materials(product_id, material_id, qty_per_unit_micros)
+                  -- conversion constant: amount of material per 1 product unit,
+                  -- e.g. 0.1723 kg of CCS 30% per m of ALAMBRE 4
+quotes.margin_option_id → margin_options
 ```
 
-The current value is the latest row per `kind`. Rows are never `UPDATE`d, so history is
-an ordinary query instead of audit-log digging. Adding aluminum means adding a new
-`kind`, a Go-side list the same way `settingDefs` works today. Alternatives considered:
-keeping `settings` and relying on `audit_log` (rejected, because history is the point),
-or one table per kind (more migrations for no benefit).
+- **Product cost** = `cost_micros` (flat MXN, e.g. CCA, ABASTILUM) + Σ over
+  `product_materials` of `qty_per_unit × material.price` (e.g. CCS & AC). Most products
+  use only one of the two terms; allowing both covers "material + labor" later without a
+  schema change.
+- **Units:** `product_materials` quantities are per the product's own base unit
+  (`products.unit_id`). A line entered in another unit (rollo) is already converted to
+  the base unit by `product_unit_conversions` before pricing, so the two conversions
+  compose without special cases.
+- **Retiring an option:** set `retired_at` instead of deleting, since issued quotes'
+  snapshots and `audit_log` still name it. A draft whose option was retired shows a
+  line-level error ("El margen elegido ya no está disponible; elige otro") and can't be
+  issued until a new option is picked.
+- **Default option:** new quotes start on the option flagged `is_default`, and the
+  vendedor can change it in the builder header.
+- **Revisions:** `CreateRevision` copies `margin_option_id` from the original. Because
+  drafts follow, a revision reprices live at the current option value and material
+  prices, same as today.
+- **Freezing at `Emitir`:** `pricing_inputs` records the option id, name, and value; each
+  material's id, name, price, and qty-per-unit; and the flat cost. That makes "which
+  margin and what copper price did we send in March" answerable from the quote alone.
+  The PDF still never shows a margin.
+- **Settings table:** it no longer holds any pricing inputs. Keep it for future
+  non-pricing settings (e.g. default validity days). `/ajustes` becomes two admin-only
+  lists: Márgenes and Materiales.
+- **Being dropped:** `products.unit_price_micros`, `products.currency`,
+  `pricing.Settings.FXRate`/`CopperPrice`, and the `fx_rate`/`copper_price`/
+  `default_margin` keys. `quotes.fx_rate_used_micros` stays on already-issued rows (it's
+  historical fact) but is no longer written.
+- **`price_breaks`:** today these are final-price overrides. They've never been used
+  (ELECTRACLEAN was skipped at 1.2) and they contradict decision 1. Proposed: drop them
+  now, and reintroduce them later as *cost* breaks if ELECTRACLEAN comes back.
 
-Possible additions:
-- A staleness hint in the builder ("tipo de cambio capturado hace 4 días").
-- A separate small form per kind, so updating copper doesn't resubmit the margin.
-- A history list or sparkline on `/ajustes`.
-- Later: automatic FX from Banxico's FIX rate. That's an external dependency, so it's
-  backlog material.
+### Migrating current data without silently moving prices
 
-### Margin menu (the N-tuple)
-
-An option has a name ("Estándar", "Distribuidor", "Proyecto") and a value. The value is a
-fraction of the sale price, using the same `cost / (1 - m)` convention as today
-(footnote 8). An option may also carry a sort order, the families it applies to, and a
-minimum role.
-
-Three ways the tuple could change over time:
-
-- **A. Mutable rows.** `margin_options (id, name, value, active)`, edited in place.
-  Rejected for the same reason `settings` falls short today: editing an option moves
-  every draft that uses it, and "what % was Distribuidor in March" means audit-log
-  digging again.
-- **B. Versioned sets, where the whole tuple is snapshotted.**
-  `margin_sets (id, published_at, published_by)` plus
-  `margin_set_items (set_id, key, name, value_micros, sort)`. The admin edits the next
-  set and publishes it, and a published set never changes. "The tuple at time t" is
-  literally one row. Quotes reference `(set_id, key)`. Publishing is an explicit act,
-  diffs between sets are easy to show, and it reuses the draft→frozen pattern quotes
-  already follow. It also allows publishing ahead of time ("márgenes vigentes a partir
-  del 1 de octubre").
-- **C. Stable option identity plus versioned values.** `margin_options (id, name, sort,
-  retired_at)` plus `margin_option_values (option_id, value_micros, effective_at)`. It
-  can express the same things as B, and editing one option doesn't create a whole new
-  set, but "the tuple" becomes a derived view rather than a stored object.
-
-**Leaning B.** It matches the mental model of "the source of truth is an N-tuple". Fall
-back to C if edits to single options turn out to be frequent.
-
-**What a quote records:**
-- **Draft:** a reference to the chosen option. The key decision is *pin or follow*:
-  - *Follow* stores only `key` and resolves it against the current set, so a raised
-    "Estándar" moves open drafts. This is today's behavior, just per option.
-  - *Pin* stores `(set_id, key)`, so a draft keeps its % until the seller clicks
-    "Actualizar a márgenes vigentes". A banner says so whenever a newer set exists.
-  - The recommendation is to pin (see pricing context below).
-- **Issued:** `pricing_inputs` already snapshots the numbers. It should also record the
-  set id and the option's key and name, so the trail reads "Distribuidor @ 8% (set #4)"
-  and not just `0.08`.
-- **Granularity:** a quote-level dropdown, optionally with a per-line override. The
-  workbook has one margin per Cotizador sheet, so a quote-level choice covers today's
-  behavior. A per-line override is the escape hatch for mixed quotes.
-- **PDF:** the margin is never printed; the customer sees only prices. Keep it that way.
-
-**Where margins actually apply.** Only CCA (cost-based) uses a margin today:
-- CCS & AC has no margin setting; its price reduces to `kg/m × copper` (footnote 8).
-- ABASTILUM's flat price already had margin and FX applied when it was imported (1.2).
-
-So as things stand, the menu would only affect QA quotes. Two ways decoupling could
-extend it, both changing which prices match the workbook, so the user has to decide:
-- Store imported lines as USD cost, then apply live FX and the chosen margin at quote
-  time.
-- Allow an optional margin on top of copper for CCS.
-
-### Pricing context: pinning drafts (connects both halves)
-
-A draft carries a **pricing context**: the `market_rates` row id for each kind it uses,
-plus `(margin_set_id, margin_key)`. It's set when the draft is created, and every
-recomputation uses the context rather than "latest".
-
-- **Refresh:** an "Actualizar precios" button moves the context to the current values
-  and shows a per-line before/after diff.
-- **Emitir:** freezes the context as it stands. Optionally, it could refuse or warn when
-  the context is older than N days (a policy question).
-- **Revisions:** `CreateRevision` copies the original's context, so `-R1` reprices
-  nothing until the seller explicitly refreshes. "Keep the original prices" versus
-  "update to today" becomes a visible choice instead of an accident.
-- **Storage:** FK columns on `quotes` (`margin_set_id`, `margin_key`, `fx_rate_id`,
-  `copper_rate_id`), rather than a JSON blob. They're referential and queryable ("every
-  quote issued under set #4").
-
-### Permissions (ties into the RBAC backlog item)
-
-- Publishing margin sets stays admin-only.
-- Entering market rates could open up to vendedores. It's market data, it's low risk,
-  and they're the ones on the phone with suppliers. This is a question for the user.
-- A per-option `min_role` could allow, for example, "Proyecto 5%" to be picked only by an
-  admin. The later version of that is "selectable, but issuing needs approval", which is
-  the backlog's approval workflow. Don't build approval here; just leave room for it with
-  a flag on the option.
-
-### Migration from today
-
-- Seed `market_rates` with one row each from the current `fx_rate` and `copper_price`.
-- Seed margin set #1 with one item, `estandar`, set to the current `default_margin`.
-- Give existing drafts a context pointing at those seed rows, so no price moves on
-  deploy. Issued quotes are already frozen and aren't touched.
-- Drop the three keys from `settingDefs`. Keep the `settings` table for future
-  non-pricing settings (e.g. a quote validity other than 30 days).
-- Update `docs/guia/administracion.md` and `cotizaciones.md` in the same commits.
+- **Seed the menu from the workbook's own numbers:** 12.34% (default; today's CCA
+  margin), 16.56%, 20.28%, 20% (iluminación), and 65/220 ≈ 29.5455% (reproduces today's
+  CCS & AC prices with material cost $155). The user names them; the admin can prune
+  later. 65/220 is a repeating decimal, so at micros precision (29.5455%) the unit price
+  comes out ≈0.0001% high: $37.906024/m instead of $37.906000/m for ALAMBRE 4. That's the
+  same to the centavo per unit, but it can move a line total by a centavo at thousands
+  of meters. This is accepted rather than special-cased.
+- **CCS & AC:** create the material "CCS 30%" at $155/kg, and one `product_materials`
+  row per product from its current `kg_per_m_micros`.
+- **ABASTILUM:** back out `cost_micros` from each stored flat price with the margin that
+  produced it: `price × (1 − 20%)`, or `× (1 − 12.34%)` for LEDVANCE. Postes also get ×1
+  (their FX is already inside the stored MXN price, so the result is the MXN cost,
+  1680 × 18). Do this in SQL rather than re-importing, for the same reason as the
+  CCS/AC spot-fix in footnote 10: hand edits since import must survive. Cross-check the
+  results against the workbook's `B` column before running it for real.
+- **Existing drafts:** get `margin_option_id` = the option that reproduces their family's
+  current price where unambiguous (QA → 12.34%, QS → 29.55%, QI → 20%), otherwise the
+  default. Issued quotes aren't touched.
+- **Accepted consequence:** a mixed quote (e.g. postes at 20% plus LEDVANCE at 12.34%)
+  can't reproduce today's per-product mix, because one quote now has one margin. That's
+  intended.
 
 ### Open questions
 
-1. Margin per quote, per line, or both?
-2. Pin or follow for drafts, and does the same answer apply to FX and copper?
-3. Should margins reach beyond CCA: ABASTILUM as USD cost plus live FX plus the chosen
-   margin, or a margin over copper for CCS?
-4. Is the tuple global, or does each family (QA / QS / QI) have its own menu?
-5. Who may enter market rates? Can a vendedor pick every option?
-6. Staleness policy at issue time: block or warn when rates are older than N days?
-7. Is publishing with a future effective date needed, or is publishing always immediate?
+1. **Postes: USD or MXN?** The workbook's own header says "USD?". If the $1,680 is USD,
+   the MXN cost after migration is $30,240 at today's 18, and from then on the admin
+   maintains it in MXN.
+2. **LEDVANCE at 12.34%:** confirm this was an accident. Once margin is per quote it
+   stops mattering either way, but it decides which seed option QI drafts map to.
+3. **"Conversion rates between materials":** this is modeled as per-product material
+   content (kg of material per m of product; the workbook's "Peso kg/m" column). Is there
+   also a real material↔material relation in mind, e.g. CCS 30% priced as a fixed
+   fraction of copper? If so, `materials` would need an optional
+   `derived_from_material_id` plus a factor.
+4. **CCA's weight column appears to be kg/km, not kg/m** (18.11 for 14 AWG matches
+   copper at ≈18.5 kg/km). It's harmless today because CCA prices from flat cost, but it
+   must be fixed before any CCA product is costed from materials.
+5. **Staleness hint:** show "actualizado hace N días" next to each material price on
+   `/ajustes` and in the builder, or skip it? A warning only, never a block.
+6. Is dropping `price_breaks` OK?
 
-### Tentative slices (once the questions are settled)
+### Tentative slices
 
 | # | Slice | Owner | Done when |
 |---|---|---|---|
-| 3.1 | `market_rates` table seeded from `settings`; pricing reads the latest per kind; `/ajustes` splits into per-kind forms with a history list | me | Entering a new copper price adds a row and leaves the old one intact; every existing quote prices identically before and after the deploy |
-| 3.2 | `margin_sets` / `margin_set_items` seeded with "Estándar"; admin UI to edit and publish a set | me | Publishing set #2 leaves set #1 unchanged and still resolvable |
-| 3.3 | Quote-level margin picker in the builder; quote stores `(set_id, key)`; `pricing_inputs` records the option | me | Two drafts with different options price CCA differently; neither PDF shows a margin |
-| 3.4 | Pinned pricing context on drafts, "Actualizar precios" with a diff, revisions copy the context | me | Changing FX after creating a draft leaves it unchanged until refreshed; a new `-R1` reprices nothing until refreshed |
-| 3.5 | Optional: per-line override, staleness warnings, per-option role restriction | me | Per the answers to the open questions |
+| 3.1 | `margin_options` (seeded) + `quotes.margin_option_id`; margin dropdown in the builder header; CCA prices from the quote's option; admin "Márgenes" list on `/ajustes`; retire flow | me | Two QA drafts with different options price differently; editing an option reprices a draft that follows it; existing drafts unchanged on deploy |
+| 3.2 | `materials` + `product_materials`; CCS & AC costed from material × kg/m and priced through the quote margin; `copper_price` setting removed; admin "Materiales" list | me | Every CCS & AC unit price matches before and after deploy, to the centavo, under the 29.55% option; changing the CCS 30% price reprices CCS drafts |
+| 3.3 | ABASTILUM backed out to `cost_micros`; drop `unit_price_micros`, `currency`, the FX path, the `fx_rate` setting, and `price_breaks` | me | Every ABASTILUM price is identical under its mapped option; `grep -r FXRate` is empty; issued quotes still reprint byte-identically |
+| 3.4 | Products CRUD edits cost + material composition; `cmd/import` imports raw costs (`B` columns) and materials instead of margin-adjusted prices; `pricing_inputs` snapshot extended | me | A fresh import + seed reproduces the workbook's prices with the matching option |
+
+Each slice updates `docs/guia/` (administración, cotizaciones, productos) in the same
+commit.
 
 ---
 
