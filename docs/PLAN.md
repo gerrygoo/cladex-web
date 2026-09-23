@@ -804,12 +804,27 @@ baked into a cost, the FX rate, or a flat price. Traced from the workbook's own 
    they cannot edit options, materials, or any other setting.
 4. **Drafts follow.** A draft references an option, not a frozen value, so editing an
    option reprices every open draft that uses it. The number freezes only at `Emitir`.
-5. **The FX rate is removed entirely.** All costs are stored in MXN. This drops
-   `products.currency`, the USD branch in `internal/pricing`, and the `fx_rate` setting.
-   If a supplier bills in USD, the admin re-enters the MXN cost.
+5. **The FX rate comes from a public source, not a number an admin types.** A product's
+   cost can be in USD: `products.currency` stays, now meaning *the currency of the
+   cost*. The rate is fetched from a public API. The only stored FX setting is
+   `fx_spread_micros`, a constant amount added on top (e.g. +$0.30), so the effective
+   rate is `published rate + spread`. The `fx_rate` setting goes away. Nothing in
+   production needs FX today: all 69 products are MXN (checked 2026-09-22 against the
+   nightly backup). The postes become the first USD products (see 8).
 6. **N materials, each with a price per unit** (copper, CCS 30%, later aluminum, ...).
    Material prices are pure cost, with no margin.
 7. **No scheduled/future-dated publishing.** An edit takes effect when it's saved.
+8. **Postes are USD.** The workbook's own "USD?" header is taken as yes: their cost is
+   stored in USD and priced through the live rate.
+9. **LEDVANCE's 12.34%** is irrelevant under per-quote margins, so it isn't
+   investigated further.
+10. **Conversions are only unit conversions** (kg of material per m of product). There
+    is no material-to-material pricing relation.
+11. **Fix CCA's weight column.** It holds kg/km (18.11 for 14 AWG matches copper at
+    ≈18.5 kg/km) in a column that means kg/m.
+12. **Staleness hint:** show "actualizado hace N días" next to each material price and
+    the FX rate, on `/ajustes` and in the builder. It's a warning only and never blocks
+    issuing.
 
 ### Model
 
@@ -822,6 +837,9 @@ product_materials(product_id, material_id, qty_per_unit_micros)
                   -- conversion constant: amount of material per 1 product unit,
                   -- e.g. 0.1723 kg of CCS 30% per m of ALAMBRE 4
 quotes.margin_option_id → margin_options
+fx_rates         (id, source, rate_micros, published_for DATE, fetched_at)
+                  -- append-only; one row per published rate
+settings: fx_spread_micros                                   -- the one FX knob
 ```
 
 - **Product cost** = `cost_micros` (flat MXN, e.g. CCA, ABASTILUM) + Σ over
@@ -845,16 +863,32 @@ quotes.margin_option_id → margin_options
   material's id, name, price, and qty-per-unit; and the flat cost. That makes "which
   margin and what copper price did we send in March" answerable from the quote alone.
   The PDF still never shows a margin.
-- **Settings table:** it no longer holds any pricing inputs. Keep it for future
-  non-pricing settings (e.g. default validity days). `/ajustes` becomes two admin-only
-  lists: Márgenes and Materiales.
-- **Being dropped:** `products.unit_price_micros`, `products.currency`,
-  `pricing.Settings.FXRate`/`CopperPrice`, and the `fx_rate`/`copper_price`/
-  `default_margin` keys. `quotes.fx_rate_used_micros` stays on already-issued rows (it's
-  historical fact) but is no longer written.
-- **`price_breaks`:** today these are final-price overrides. They've never been used
-  (ELECTRACLEAN was skipped at 1.2) and they contradict decision 1. Proposed: drop them
-  now, and reintroduce them later as *cost* breaks if ELECTRACLEAN comes back.
+- **FX fetch:**
+  - A background job fetches the rate on startup and then daily, never on the request
+    path. Proposed source: Banxico's SIE API, series SF43718 (the FIX rate published in
+    the DOF, the one Mexican suppliers invoice against). It needs a free API token, held
+    in a `BANXICO_TOKEN` env var on the NAS. If the token is a hassle, Frankfurter (ECB
+    cross rate, no key) is the fallback, but it's less authoritative for Mexican
+    business use.
+  - Each newly published rate is appended to `fx_rates`. Pricing uses the latest row
+    plus the spread.
+  - A failed fetch keeps the last row, and the staleness hint shows its date. If no row
+    exists at all, USD lines get a line-level error ("Tipo de cambio no disponible"),
+    the same way a missing setting errors today.
+  - The spread is an explicit, admin-edited FX-risk buffer, shown next to the rate on
+    `/ajustes`. It's the one markup that lives outside the margin options, so it stays
+    labeled as FX, never as margin.
+- **FX at `Emitir`:** `quotes.fx_rate_used_micros` keeps being written (published rate +
+  spread). For USD lines, `pricing_inputs` also records the published rate, its date,
+  and the spread.
+- **Settings table:** its only pricing input is `fx_spread_micros`. Keep it for that and
+  for future non-pricing settings (e.g. default validity days). `/ajustes` becomes a
+  Márgenes list, a Materiales list, and the FX rate (read-only) with its spread
+  (editable).
+- **Being dropped:** `products.unit_price_micros`, `pricing.Settings.CopperPrice`, and the
+  `fx_rate`/`copper_price`/`default_margin` keys.
+- **`price_breaks`:** today these are final-price overrides, which contradicts decision 1.
+  The table is empty in production. See open question 1.
 
 ### Migrating current data without silently moving prices
 
@@ -868,11 +902,16 @@ quotes.margin_option_id → margin_options
 - **CCS & AC:** create the material "CCS 30%" at $155/kg, and one `product_materials`
   row per product from its current `kg_per_m_micros`.
 - **ABASTILUM:** back out `cost_micros` from each stored flat price with the margin that
-  produced it: `price × (1 − 20%)`, or `× (1 − 12.34%)` for LEDVANCE. Postes also get ×1
-  (their FX is already inside the stored MXN price, so the result is the MXN cost,
-  1680 × 18). Do this in SQL rather than re-importing, for the same reason as the
-  CCS/AC spot-fix in footnote 10: hand edits since import must survive. Cross-check the
-  results against the workbook's `B` column before running it for real.
+  produced it: `price × (1 − 20%)`, or `× (1 − 12.34%)` for LEDVANCE. Postes are also
+  divided by the 18 baked into them, giving a USD cost (`× 0.8 / 18` = $1,680), and get
+  `currency = 'USD'`. Do this in SQL rather than re-importing, for the same reason as
+  the CCS/AC spot-fix in footnote 10: hand edits since import must survive. Cross-check
+  the results against the workbook's `B` column before running it for real.
+- **Postes will move on deploy:** from the frozen 18 to the live rate + spread. That's
+  intended, since it's the point of decision 5.
+- **CCA weights:** `kg_per_m_micros / 1000` on CCA products (dividing keeps any hand
+  edit), and `cmd/import` fixed to match. No price moves, because CCA prices from flat
+  cost.
 - **Existing drafts:** get `margin_option_id` = the option that reproduces their family's
   current price where unambiguous (QA → 12.34%, QS → 29.55%, QI → 20%), otherwise the
   default. Issued quotes aren't touched.
@@ -882,30 +921,28 @@ quotes.margin_option_id → margin_options
 
 ### Open questions
 
-1. **Postes: USD or MXN?** The workbook's own header says "USD?". If the $1,680 is USD,
-   the MXN cost after migration is $30,240 at today's 18, and from then on the admin
-   maintains it in MXN.
-2. **LEDVANCE at 12.34%:** confirm this was an accident. Once margin is per quote it
-   stops mattering either way, but it decides which seed option QI drafts map to.
-3. **"Conversion rates between materials":** this is modeled as per-product material
-   content (kg of material per m of product; the workbook's "Peso kg/m" column). Is there
-   also a real material↔material relation in mind, e.g. CCS 30% priced as a fixed
-   fraction of copper? If so, `materials` would need an optional
-   `derived_from_material_id` plus a factor.
-4. **CCA's weight column appears to be kg/km, not kg/m** (18.11 for 14 AWG matches
-   copper at ≈18.5 kg/km). It's harmless today because CCA prices from flat cost, but it
-   must be fixed before any CCA product is costed from materials.
-5. **Staleness hint:** show "actualizado hace N días" next to each material price on
-   `/ajustes` and in the builder, or skip it? A warning only, never a block.
-6. Is dropping `price_breaks` OK?
+1. **Price breaks: drop them, or turn them into cost breaks?** The one real use is
+   ELECTRACLEAN, skipped at import. Its sheet has three *cost* columns per product
+   ("Costo Base", "Costo x 12 Latas", "Costo x 18 Latas", e.g. $2,963 / $2,890 /
+   $2,822), with the 20% margin applied to each. So a break is naturally a supplier
+   volume discount on cost, with the quote's margin on top. Recommended: turn the
+   existing (empty) table into `(product_id, min_qty_milli, cost_micros)`, where the
+   highest threshold a line's quantity clears replaces the product's cost before the
+   margin is applied. It costs almost nothing now, and it's ready when ELECTRACLEAN is
+   imported.
+2. **Banxico FIX with a free token, or a keyless source?** And what should the spread
+   start at?
+3. When ELECTRACLEAN is imported: its costs are labeled "USD", but the sheet's own "Precio
+   MXN" never multiplies by the rate. Either the labels or the formula are wrong.
 
 ### Tentative slices
 
 | # | Slice | Owner | Done when |
 |---|---|---|---|
 | 3.1 | `margin_options` (seeded) + `quotes.margin_option_id`; margin dropdown in the builder header; CCA prices from the quote's option; admin "Márgenes" list on `/ajustes`; retire flow | me | Two QA drafts with different options price differently; editing an option reprices a draft that follows it; existing drafts unchanged on deploy |
-| 3.2 | `materials` + `product_materials`; CCS & AC costed from material × kg/m and priced through the quote margin; `copper_price` setting removed; admin "Materiales" list | me | Every CCS & AC unit price matches before and after deploy, to the centavo, under the 29.55% option; changing the CCS 30% price reprices CCS drafts |
-| 3.3 | ABASTILUM backed out to `cost_micros`; drop `unit_price_micros`, `currency`, the FX path, the `fx_rate` setting, and `price_breaks` | me | Every ABASTILUM price is identical under its mapped option; `grep -r FXRate` is empty; issued quotes still reprint byte-identically |
+| 3.2 | `materials` + `product_materials`; CCS & AC costed from material × kg/m and priced through the quote margin; `copper_price` setting removed; admin "Materiales" list with staleness hint; CCA weights ÷ 1000 | me | Every CCS & AC unit price matches before and after deploy, to the centavo, under the 29.55% option; changing the CCS 30% price reprices CCS drafts |
+| 3.3 | ABASTILUM backed out to `cost_micros` (postes → USD); drop `unit_price_micros`; price breaks → cost breaks (pending Q1) | me | Every non-poste ABASTILUM price is identical under its mapped option; issued quotes still reprint byte-identically |
+| 3.3b | `fx_rates` + daily fetch job + `fx_spread_micros`; `fx_rate` setting removed; rate, date and spread shown on `/ajustes` and in the builder | me | A poste prices at `1680 / 0.8 × (published rate + spread)`; a failed fetch keeps the last rate and shows its date; no rate at all gives a line error, not a 500 |
 | 3.4 | Products CRUD edits cost + material composition; `cmd/import` imports raw costs (`B` columns) and materials instead of margin-adjusted prices; `pricing_inputs` snapshot extended | me | A fresh import + seed reproduces the workbook's prices with the matching option |
 
 Each slice updates `docs/guia/` (administración, cotizaciones, productos) in the same
