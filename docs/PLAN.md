@@ -877,14 +877,16 @@ quotes.margin_option_id → margin_options
 
 ### Migrating production data without silently moving prices
 
-- **Seed the menu from the margins the data actually uses:** 12.34% (default; today's
-  CCA margin and LEDVANCE's), 20% (the rest of ABASTILUM), and 65/220 ≈ 29.5455%
-  (reproduces today's CCS & AC prices with material cost $155). Optionally also the
-  workbook's other CCA columns, 16.56% and 20.28%. The user names them; the admin can
-  prune later. 65/220 is a repeating decimal, so at micros precision (29.5455%) the
-  unit price comes out ≈0.0001% high: $37.906024/m instead of $37.906000/m for ALAMBRE
-  4. That's the same to the centavo per unit, but it can move a line total by a centavo
-  at thousands of meters. This is accepted rather than special-cased.
+- **Seed the menu with exactly four options (user, 2026-09-22):** 12.34% (default;
+  today's CCA margin), 16.56%, 20.28% (the workbook's other two CCA columns), and 29.55%.
+  Names are set at 3.1. Two price effects are accepted, not special-cased:
+  - **CCS & AC at 29.55%** instead of the exact 65/220 ≈ 29.5455% that reproduces
+    today's `kg/m × 220`. With material cost $155, 6 of the 9 products move up 1–2
+    centavos per m (e.g. 19#9 LC DSA $229.15 → $229.17), and 3 are unchanged.
+  - **ABASTILUM has no 20% option.** Its costs are backed out at the margin that
+    actually produced them (below), so the stored costs are true costs. Lighting quotes
+    then price at whichever option is picked: at 20.28% about 0.35% above today (a
+    $2,100.00 poste → $2,107.38), and at 12.34% well below.
 - **CCS & AC:** create the material "CCS 30%" at $155/kg, and one `product_materials`
   row per product from its current `kg_per_m_micros`.
 - **ABASTILUM:** back out `cost_micros` from each stored flat price with the margin that
@@ -895,24 +897,23 @@ quotes.margin_option_id → margin_options
   against production first, and cross-check against the workbook's `B` column.
 - **CCA weights:** `kg_per_m_micros / 1000` on CCA products (dividing keeps any hand
   edit). No price moves, because CCA prices from flat cost.
-- **The 3 production drafts** get `margin_option_id` = the option that reproduces their
-  family's current price where unambiguous (QA → 12.34%, QS → 29.55%, QI → 20%),
-  otherwise the default. Issued quotes aren't touched beyond the column drops above.
-- **Accepted consequence:** a mixed quote (e.g. postes at 20% plus LEDVANCE at 12.34%)
+- **The 3 production drafts** get `margin_option_id` by prefix: QA → 12.34%,
+  QS → 29.55%, and QI → 20.28% (the closest to lighting's old 20%). Issued quotes aren't touched beyond the column drops above.
+- **Accepted consequence:** a mixed quote (e.g. postes at 20.28% plus LEDVANCE at 12.34%)
   can't reproduce today's per-product mix, because one quote now has one margin. That's
   intended.
 
 ### Open questions
 
-None blocking. The option names for the seeded margins are the user's call at 3.1.
+None blocking. The seeded options' display names are the user's call at 3.1.
 
 ### Slices
 
 | # | Slice | Owner | Done when |
 |---|---|---|---|
 | 3.1 | `margin_options` (seeded) + `quotes.margin_option_id`; margin dropdown in the builder header; CCA prices from the quote's option; admin "Márgenes" list on `/ajustes`; retire flow | me | Two QA drafts with different options price differently; editing an option reprices a draft that follows it; production drafts unchanged on deploy |
-| 3.2 | `materials` + `product_materials`; CCS & AC costed from material × kg/m and priced through the quote margin; `copper_price` setting removed; admin "Materiales" list with staleness hint; CCA weights ÷ 1000 | me | Every CCS & AC unit price matches before and after deploy, to the centavo, under the 29.55% option; changing the CCS 30% price reprices CCS drafts |
-| 3.3 | ABASTILUM backed out to `cost_micros`; drop `unit_price_micros`, currencies, FX, `price_breaks`, and `pricing.Settings`; retire `cmd/import` | me | Every ABASTILUM price is identical under its mapped option; `grep -ri "usd\|fx_rate\|price_break"` finds only migrations; issued quotes still reprint byte-identically |
+| 3.2 | `materials` + `product_materials`; CCS & AC costed from material × kg/m and priced through the quote margin; `copper_price` setting removed; admin "Materiales" list with staleness hint; CCA weights ÷ 1000 | me | Under the 29.55% option, every CCS & AC unit price equals `kg/m × 155 / 0.7045` (within 2 centavos of today's); changing the CCS 30% price reprices CCS drafts |
+| 3.3 | ABASTILUM backed out to `cost_micros`; drop `unit_price_micros`, currencies, FX, `price_breaks`, and `pricing.Settings`; retire `cmd/import` | me | Every ABASTILUM `cost_micros` equals the workbook's `B` column (postes × 18); `grep -ri "usd\|fx_rate\|price_break"` finds only migrations; issued quotes still reprint byte-identically |
 | 3.4 | Products CRUD edits flat cost + material composition; `pricing_inputs` snapshot extended | me | An admin can recost a CCS product by editing its kg/m or the material price, and a freshly issued quote's `pricing_inputs` names the option and material prices used |
 
 Each slice updates `docs/guia/` (administración, cotizaciones, productos) in the same
