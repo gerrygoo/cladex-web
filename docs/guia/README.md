@@ -84,5 +84,7 @@ están en el [glosario](glosario.md).
 Mantenimiento de esta guía: cualquier cambio a una pantalla o flujo de la app actualiza
 la página correspondiente en el mismo commit. Los nombres de botones, campos y mensajes
 se citan exactamente como aparecen en la app. La app sirve estas páginas en /ayuda; ver
-internal/guia para las convenciones ([[término]], :::admin).
+internal/guia para las convenciones ([[término]], :::admin). Hay pruebas que verifican
+que los textos citados sigan coincidiendo con la app (internal/web/guia_test.go, ver
+docs/TESTING.md).
 -->

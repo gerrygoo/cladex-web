@@ -236,6 +236,9 @@ func TestPriceMarginRoundTrip(t *testing.T) {
 	if _, err := MarginFromPrice(cost, cost-1); err == nil {
 		t.Error("MarginFromPrice below cost: want error")
 	}
+	if _, err := MarginFromPrice(0, cost); err == nil {
+		t.Error("MarginFromPrice with zero cost (a 100% margin): want error")
+	}
 	if _, err := PriceFromMargin(cost, 1_000_000); err == nil {
 		t.Error("PriceFromMargin at 100%: want error")
 	}
