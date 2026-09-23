@@ -6,7 +6,10 @@ import (
 
 templ UnitsList(units []store.Unit, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Unidades", user) {
-		<h1>Unidades</h1>
+		<h1>
+			Unidades
+			@HelpLink(HelpUnidades)
+		</h1>
 		if successMsg != "" {
 			<p class="success">{ successMsg }</p>
 		}

@@ -24,6 +24,20 @@ func TestRealGuideBuilds(t *testing.T) {
 	if strings.Contains(idx.HTML, "/ayuda/administracion") {
 		t.Error("vendedor index links to the admin page")
 	}
+	for url, want := range map[string]bool{
+		"/ayuda": true,
+		"/ayuda/cotizaciones#emitir-la-cotización": true,
+		"/ayuda/cotizaciones#no-existe":            false,
+		"/ayuda/administracion":                    false, // vendedor
+		"/clientes":                                false,
+	} {
+		if got := g.Resolves(url, false); got != want {
+			t.Errorf("Resolves(%q, vendedor) = %v, want %v", url, got, want)
+		}
+	}
+	if !g.Resolves("/ayuda/administracion#unidades", true) {
+		t.Error("admin cannot resolve /ayuda/administracion#unidades")
+	}
 	cot, _ := g.Page("cotizaciones", false)
 	if !strings.Contains(cot.HTML, `id="emitir-la-cotización"`) {
 		t.Error("cotizaciones is missing GitHub-style accented heading ids")

@@ -39,7 +39,10 @@ templ quotesSortHeader(label, col, query, sort, dir string) {
 
 templ QuotesList(quotes []store.Quote, query string, sort string, dir string, successMsg string, user *NavUser) {
 	@Layout("Cotizaciones", user) {
-		<h1>Cotizaciones</h1>
+		<h1>
+			Cotizaciones
+			@HelpLink(HelpCotizaciones)
+		</h1>
 		if successMsg != "" {
 			<p class="success">{ successMsg }</p>
 		}
@@ -126,7 +129,10 @@ func QuotePrefixFamily(prefix string) string {
 
 templ QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldErrors map[string]string, user *NavUser) {
 	@Layout("Nueva cotización", user) {
-		<h1>Nueva cotización</h1>
+		<h1>
+			Nueva cotización
+			@HelpLink(HelpCotizacionNueva)
+		</h1>
 		<form method="post" action={ templ.URL("/cotizaciones/nueva") }>
 			<label>
 				Cliente
@@ -402,7 +408,10 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
 // revision superseded it (revisada).
 templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, successMsg string, searchQuery string, soloFamilia bool, searchResults []store.Product, user *NavUser) {
 	@Layout("Cotización "+quote.Folio, user) {
-		<h1>Cotización { quote.Folio }</h1>
+		<h1>
+			Cotización { quote.Folio }
+			@HelpLink(quoteHelpTopic(quote.Status))
+		</h1>
 		<p>
 			Cliente: { quote.CustomerName } ·
 			Serie: { quote.Prefix } ·

@@ -253,3 +253,26 @@ div.estados span.flecha {
   color: light-dark(#666, #aaa);
   font-size: 0.9rem;
 }
+
+/* "?" next to a screen's heading, opening its section of the user guide. */
+a.help-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  opacity: 0.6;
+}
+
+a.help-link:hover,
+a.help-link:focus-visible {
+  opacity: 1;
+}

@@ -33,7 +33,10 @@ templ productsSortHeader(label, col, query, sort, dir string) {
 
 templ ProductsList(products []store.Product, query string, sort string, dir string, successMsg string, user *NavUser) {
 	@Layout("Productos", user) {
-		<h1>Productos</h1>
+		<h1>
+			Productos
+			@HelpLink(HelpProductos)
+		</h1>
 		if successMsg != "" {
 			<p class="success">{ successMsg }</p>
 		}
@@ -119,7 +122,14 @@ type ProductFormValues struct {
 // product, so they only make sense once one exists (see ProductConversionsSection).
 templ ProductForm(title string, action string, values ProductFormValues, fieldErrors map[string]string, successMsg string, families []store.ProductFamily, units []store.Unit, productID int64, conversions []store.ProductUnitConversion, conversionsErrorMsg string, user *NavUser) {
 	@Layout(title, user) {
-		<h1>{ title }</h1>
+		<h1>
+			{ title }
+			if productID == 0 {
+				@HelpLink(HelpProductoNuevo)
+			} else {
+				@HelpLink(HelpProductoEditar)
+			}
+		</h1>
 		if successMsg != "" {
 			<p class="success">{ successMsg }</p>
 		}
@@ -213,7 +223,10 @@ templ ProductForm(title string, action string, values ProductFormValues, fieldEr
 // to add another. rate_micros is displayed and entered as a plain decimal (the amount
 // of "A" per 1 "De" — see migrations/0003_add_units_and_conversions.sql).
 templ ProductConversionsSection(productID int64, conversions []store.ProductUnitConversion, units []store.Unit, errorMsg string) {
-	<h2>Conversiones de unidades</h2>
+	<h2>
+		Conversiones de unidades
+		@HelpLink(HelpConversiones)
+	</h2>
 	if errorMsg != "" {
 		<p class="error">{ errorMsg }</p>
 	}

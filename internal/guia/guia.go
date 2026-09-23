@@ -66,6 +66,8 @@ type Page struct {
 	NavTitle string
 	URL      string
 	HTML     string
+
+	ids map[string]bool // heading ids, for Resolves
 }
 
 // Guide holds every page rendered for both roles.
@@ -87,6 +89,17 @@ func (g *Guide) Page(slug string, isAdmin bool) (*Page, bool) {
 // Pages returns the pages the given role can see, in navigation order.
 func (g *Guide) Pages(isAdmin bool) []*Page {
 	return g.pages[isAdmin]
+}
+
+// Resolves reports whether url (/ayuda/<página>[#<sección>]) names a page and heading
+// the given role can see. The app's "?" help links are checked with it.
+func (g *Guide) Resolves(url string, isAdmin bool) bool {
+	pagePart, frag, _ := strings.Cut(url, "#")
+	if pagePart != "/ayuda" && !strings.HasPrefix(pagePart, "/ayuda/") {
+		return false
+	}
+	p, ok := g.Page(strings.TrimPrefix(strings.TrimPrefix(pagePart, "/ayuda"), "/"), isAdmin)
+	return ok && (frag == "" || p.ids[frag])
 }
 
 func pageURL(slug string) string {
@@ -213,7 +226,7 @@ func renderVariant(sources map[string][]byte, terms map[string]string, isAdmin b
 		if err := md.Renderer().Render(&buf, p.src, p.doc); err != nil {
 			return nil, fmt.Errorf("%s: %w", p.def.file, err)
 		}
-		pages = append(pages, &Page{Slug: p.def.slug, Title: p.title, NavTitle: p.def.navTitle, URL: pageURL(p.def.slug), HTML: buf.String()})
+		pages = append(pages, &Page{Slug: p.def.slug, Title: p.title, NavTitle: p.def.navTitle, URL: pageURL(p.def.slug), HTML: buf.String(), ids: p.ids})
 	}
 	return pages, nil
 }

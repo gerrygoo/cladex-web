@@ -17,7 +17,10 @@ templ customersSortHeader(label, col, query, sort, dir string) {
 
 templ CustomersList(customers []store.Customer, query string, sort string, dir string, successMsg string, user *NavUser) {
 	@Layout("Clientes", user) {
-		<h1>Clientes</h1>
+		<h1>
+			Clientes
+			@HelpLink(HelpClientes)
+		</h1>
 		if successMsg != "" {
 			<p class="success">{ successMsg }</p>
 		}
@@ -99,7 +102,14 @@ type CustomerFormValues struct {
 
 templ CustomerForm(title string, action string, values CustomerFormValues, fieldErrors map[string]string, successMsg string, user *NavUser) {
 	@Layout(title, user) {
-		<h1>{ title }</h1>
+		<h1>
+			{ title }
+			if action == "/clientes/nuevo" {
+				@HelpLink(HelpClienteNuevo)
+			} else {
+				@HelpLink(HelpClienteEditar)
+			}
+		</h1>
 		if successMsg != "" {
 			<p class="success">{ successMsg }</p>
 		}

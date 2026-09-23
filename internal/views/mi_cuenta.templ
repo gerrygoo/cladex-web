@@ -2,7 +2,10 @@ package views
 
 templ MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) {
 	@Layout("Mi cuenta", user) {
-		<h1>Mi cuenta</h1>
+		<h1>
+			Mi cuenta
+			@HelpLink(HelpMiCuenta)
+		</h1>
 		if successMsg != "" {
 			<p class="success">{ successMsg }</p>
 		}

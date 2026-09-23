@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gerrygoo/cladex-web/internal/guia"
+	"github.com/gerrygoo/cladex-web/internal/views"
 )
 
 func TestHelpPageByRole(t *testing.T) {
@@ -53,5 +54,19 @@ func TestHelpPageByRole(t *testing.T) {
 	}
 	if rec := get("/ayuda/no-existe", admin); rec.Code != http.StatusNotFound {
 		t.Errorf("/ayuda/no-existe = %d, want 404", rec.Code)
+	}
+}
+
+// TestHelpTopicsResolve checks every screen's "?" link against the rendered guide, as
+// the role that sees that screen — admin screens may point at admin-only sections.
+func TestHelpTopicsResolve(t *testing.T) {
+	guide, err := guia.New(os.DirFS("../../docs/guia"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for topic, adminOnly := range views.HelpTopics {
+		if !guide.Resolves(string(topic), adminOnly) {
+			t.Errorf("help topic %s does not resolve to a guide page and heading", topic)
+		}
 	}
 }

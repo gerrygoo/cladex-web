@@ -3,6 +3,9 @@
 Instrucciones paso a paso para usar el cotizador. Cada página cubre los flujos completos de una
 sección de la app, en el orden en que normalmente se hacen.
 
+En cada pantalla de la app, el botón **?** junto al título abre en otra pestaña la
+parte de esta guía que la explica.
+
 ## Contenido
 
 | Página | Qué cubre |

@@ -13,7 +13,10 @@ type SettingFieldView struct {
 
 templ Ajustes(fields []SettingFieldView, successMsg string, user *NavUser) {
 	@Layout("Ajustes", user) {
-		<h1>Ajustes</h1>
+		<h1>
+			Ajustes
+			@HelpLink(HelpAjustes)
+		</h1>
 		if successMsg != "" {
 			<p class="success">{ successMsg }</p>
 		}

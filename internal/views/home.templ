@@ -4,7 +4,10 @@ import "fmt"
 
 templ Home(buildSHA string, quoteCount int, user *NavUser) {
 	@Layout("Inicio", user) {
-		<h1>Cladex</h1>
+		<h1>
+			Cladex
+			@HelpLink(HelpInicio)
+		</h1>
 		<p>{ fmt.Sprintf("%d cotizaciones", quoteCount) }</p>
 		<button hx-get="/saludo" hx-target="#saludo-resultado" hx-swap="innerHTML">
 			Probar htmx

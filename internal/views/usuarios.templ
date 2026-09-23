@@ -22,7 +22,10 @@ templ usersSortHeader(label, col, sort, dir string) {
 
 templ UsersList(users []store.User, currentUserID int64, sort string, dir string, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Usuarios", user) {
-		<h1>Usuarios</h1>
+		<h1>
+			Usuarios
+			@HelpLink(HelpUsuarios)
+		</h1>
 		if successMsg != "" {
 			<p class="success">{ successMsg }</p>
 		}
