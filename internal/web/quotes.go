@@ -159,12 +159,7 @@ func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url
 		}
 		m.custom = custom
 		if custom != nil {
-			m.picker.CustomPct = views.MarginPercent(*custom)
-			if copper != nil {
-				if price, err := pricing.PriceFromMargin(copper.PriceMicros, *custom); err == nil {
-					m.picker.CopperPrice = views.CopperPriceText(price)
-				}
-			}
+			m.picker.SetMarginDisplay(*custom, copper)
 		} else {
 			m.picker.CustomPct, m.picker.CopperPrice = pctRaw, copperRaw
 			if errMsg == "" {
@@ -186,6 +181,11 @@ func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url
 		m.picker.HasCopper = true
 		m.picker.CopperName = copper.Name
 		m.picker.CopperCost = views.CopperPriceText(copper.PriceMicros)
+	}
+	// The fields show the chosen option's margin read-only, so the copper price it
+	// implies is always in view.
+	if m.option != nil {
+		m.picker.SetMarginDisplay(m.option.ValueMicros, copper)
 	}
 	return m, nil
 }

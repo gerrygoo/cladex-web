@@ -88,8 +88,9 @@ El margen aplica a todos los productos del catálogo en la cotización; las
 
 ### Usar un margen propio
 
-Si ninguno de la lista te sirve, elige **Personalizado…** en **Margen**. Aparecen dos
-campos que siempre muestran lo mismo de dos maneras:
+Junto a **Margen** siempre ves el margen elegido de dos maneras (con un margen de la
+lista, solo de lectura). Si ninguno te sirve, elige **Personalizado…** y los dos campos
+se desbloquean:
 
 - **Margen (%)**: cualquier porcentaje de 0 a 99.9999, p. ej. `31.5`.
 - **Precio CCS 30% ($/kg)**: el precio de venta por kilo del cobre que ese margen

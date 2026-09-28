@@ -330,6 +330,12 @@ func TestQuoteCustomMargin(t *testing.T) {
 		t.Errorf("custom margin survived picking an option: %v", *saved.CustomMarginMicros)
 	}
 
+	// On a menu option the fields still show its margin and the copper price it implies
+	// ($160 / (1 - 0.1234) = $182.53), read-only.
+	if body := builderBody(t, a, q, userID, draft.Folio); !strings.Contains(body, `value="182.53"`) || !strings.Contains(body, `value="12.34"`) || !strings.Contains(body, "readonly") {
+		t.Errorf("preset margin doesn't show its percentage and copper price read-only: %s", body)
+	}
+
 	// Issuing freezes it as Personalizado.
 	rec = doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+draft.Folio+"/emitir",
 		map[string]string{"folio": draft.Folio}, customForm(url.Values{"margin_pct": {"50"}}), false)

@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
+	"github.com/gerrygoo/cladex-web/internal/pricing"
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
@@ -68,6 +69,18 @@ func NewMarginPicker(opts []store.MarginOption, selectedID *int64) MarginPicker 
 	}
 	p.NoneChosen = !found
 	return p
+}
+
+// SetMarginDisplay fills the percentage field with margin and, when the catalog has the
+// copper material, the price per kg that margin implies.
+func (p *MarginPicker) SetMarginDisplay(margin money.Micros, copper *store.Material) {
+	p.CustomPct = MarginPercent(margin)
+	if copper == nil {
+		return
+	}
+	if price, err := pricing.PriceFromMargin(copper.PriceMicros, margin); err == nil {
+		p.CopperPrice = CopperPriceText(price)
+	}
 }
 
 // CustomMarginValue is the margin dropdown's value for "Personalizado".

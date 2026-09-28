@@ -538,7 +538,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 							<option value={ CustomMarginValue } selected?={ margin.Custom }>Personalizado…</option>
 						</select>
 					</label>
-					<span id="margin-custom" hidden?={ !margin.Custom }>
+					<span id="margin-custom">
 						<input type="hidden" name="margin_edited" id="margin-edited" value=""/>
 						<label>
 							Margen (%)
@@ -547,6 +547,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 								inputmode="decimal"
 								name="margin_pct"
 								id="margin-pct"
+								readonly?={ !margin.Custom }
 								value={ margin.CustomPct }
 								hx-post={ recalcularPath(quote.Folio) }
 								hx-trigger="change"
@@ -562,6 +563,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 									inputmode="decimal"
 									name="copper_price"
 									id="copper-price"
+									readonly?={ !margin.Custom }
 									value={ margin.CopperPrice }
 									hx-post={ recalcularPath(quote.Folio) }
 									hx-trigger="change"

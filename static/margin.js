@@ -6,12 +6,10 @@
   var box = document.getElementById("margin-controls");
   if (!box) return;
   var select = document.getElementById("margin-select");
-  var custom = document.getElementById("margin-custom");
   var pct = document.getElementById("margin-pct");
   var price = document.getElementById("copper-price");
   var edited = document.getElementById("margin-edited");
   var cost = parseFloat(box.dataset.copperCost);
-  var lastOption = select.options[select.selectedIndex];
 
   function num(el) {
     var v = parseFloat(el.value.replace("$", "").trim());
@@ -47,17 +45,18 @@
     });
   }
 
-  // Switching to "Personalizado" starts from the option it replaces, so the fields
-  // show that option's margin instead of an empty (invalid) one.
+  // Both fields always show the selected margin. A menu option fills them in read-only;
+  // "Personalizado" keeps what's there and unlocks them.
   select.addEventListener("change", function () {
     var opt = select.options[select.selectedIndex];
     var isCustom = opt.value === "custom";
-    custom.hidden = !isCustom;
-    if (isCustom && pct.value === "" && lastOption && lastOption.dataset.pct) {
-      pct.value = lastOption.dataset.pct;
+    pct.readOnly = !isCustom;
+    if (price) price.readOnly = !isCustom;
+    if (isCustom) {
       edited.value = "pct";
+    } else {
+      pct.value = opt.dataset.pct || "";
       pctToPrice();
     }
-    if (!isCustom) lastOption = opt;
   }, true);
 })();
