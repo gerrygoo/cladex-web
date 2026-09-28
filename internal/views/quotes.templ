@@ -490,11 +490,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 			Cotización { quote.Folio }
 			@HelpLink(quoteHelpTopic(quote.Status))
 		</h1>
-		<p>
-			Cliente: { quote.CustomerName } ·
-			Serie: { quote.Prefix } ·
-			Estado: { quote.Status }
-		</p>
+		<p>Cliente: { quote.CustomerName }</p>
 		if quote.SupersedesFolio != "" {
 			<p>Esta es una revisión de <a href={ templ.URL("/cotizaciones/" + quote.SupersedesFolio) }>{ quote.SupersedesFolio }</a>.</p>
 		}
@@ -629,8 +625,8 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 				</button>
 			</form>
 		} else {
-			@QuoteLinesReadOnly(lines, totals)
 			@QuoteInfo(quote, lines)
+			@QuoteLinesReadOnly(lines, totals)
 			if quote.Status == "emitida" {
 				<form method="post" action={ templ.URL(revisarPath(quote.Folio)) }>
 					<button type="submit">Revisar</button>

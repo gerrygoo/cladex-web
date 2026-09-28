@@ -27,7 +27,7 @@ El flujo completo, de principio a fin:
 4. Haz clic en **Crear cotización**.
 
 Llegas a la página de la cotización (p. ej. *"Cotización QS0007"*) con
-**Estado: borrador**. El folio ya quedó reservado.
+el nombre de la cotización arriba y el cliente debajo. Es un [[borrador]]: lo reconoces porque puedes editar las líneas. El folio ya quedó reservado.
 
 > **¿Qué serie elijo?** La [[serie]] hace dos cosas: define el folio (cada serie lleva su
 > propia numeración: QA0001, QA0002…) y el bloque de **Términos y condiciones** que se
@@ -165,7 +165,7 @@ Cuando la cotización está lista para enviarse al cliente:
 2. Haz clic en **Emitir cotización**. Guarda las líneas que están en pantalla y emite en
    un solo paso: no hace falta guardar antes. **No hay paso de confirmación**: al hacer
    clic, se emite.
-3. Verás *"Cotización emitida."* y **Estado: emitida**.
+3. Verás *"Cotización emitida."* y, en el resumen debajo del cliente, **Estado** *emitida*.
 
 Qué pasa al emitir:
 
@@ -218,7 +218,7 @@ Qué pasa al revisar:
 ## Ver el detalle de una cotización
 
 Desde **Cotizaciones**, haz clic en el folio de cualquier cotización que no sea
-[[borrador]]. Debajo de las líneas y los totales verás:
+[[borrador]]. Debajo del nombre de la cotización y del cliente verás este resumen, y luego las líneas y los totales:
 
 - **Estado** de la cotización.
 - **Emitió**: quién la emitió.

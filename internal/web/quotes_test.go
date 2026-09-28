@@ -839,6 +839,12 @@ func TestQuotesComments(t *testing.T) {
 			t.Errorf("issued page missing %q", want)
 		}
 	}
+	if strings.Contains(body, "Serie:") || strings.Contains(body, "Estado: emitida") {
+		t.Error("issued page header still shows Serie / Estado")
+	}
+	if strings.Index(body, "Utilidad") > strings.Index(body, "Precio unitario") {
+		t.Error("info block is not above the quote lines")
+	}
 	// Newest first, and the box sits below the download / back links.
 	if strings.Index(body, "Cliente pidió otro precio") > strings.Index(body, "Llamar al cliente el lunes") {
 		t.Error("comments are not newest first")
