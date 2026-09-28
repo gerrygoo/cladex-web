@@ -555,8 +555,8 @@ func (q *Quotes) productPicker(ctx context.Context, r *http.Request, quote *stor
 		SoloFamilia: soloFamilia,
 		Page:        1,
 	}
-	// SKU order, sorted naturally (see store.ListProducts), matching the Productos page.
-	products, err := q.store.ListProducts(ctx, picker.Query, "sku", "asc")
+	// Gauge (AWG) order, matching the Productos page default (see store.ListProducts).
+	products, err := q.store.ListProducts(ctx, picker.Query, "awg", "asc")
 	if err != nil {
 		return views.ProductPicker{}, err
 	}

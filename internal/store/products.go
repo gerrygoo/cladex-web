@@ -183,17 +183,18 @@ var productSortColumns = []sortColumn{
 // ListProducts returns non-deleted products, optionally filtered by a case-insensitive
 // substring match on SKU or description, and sorted per sort/dir (see
 // productSortColumns for the allowed sort column names; dir is "asc" or "desc"). The
-// "sku" column — including the default when sort doesn't match a known column — sorts
+// default sort ("awg", also what an empty sort means) orders by wire gauge — see
+// awgLess. The "sku" column — including when sort doesn't match a known column — sorts
 // naturally (digit runs compare by value, so "SKU-9" < "SKU-10") rather than
 // byte-by-byte, since SQL's ORDER BY has no notion of that — see naturalLess.
 func (s *Store) ListProducts(ctx context.Context, query, sort, dir string) ([]Product, error) {
 	like := "%" + escapeLike(query) + "%"
 	sortCol := sort
 	if sortCol == "" {
-		sortCol = "sku"
+		sortCol = "awg"
 	}
 	orderBy := orderByClause(productSortColumns, sortCol, dir)
-	if sortCol == "sku" {
+	if sortCol == "sku" || sortCol == "awg" {
 		// Re-sorted naturally in Go below; order here only needs to be deterministic.
 		orderBy = "ORDER BY p.id ASC"
 	}
@@ -221,6 +222,11 @@ func (s *Store) ListProducts(ctx context.Context, query, sort, dir string) ([]Pr
 		return nil, err
 	}
 
+	if sortCol == "awg" {
+		stdsort.SliceStable(products, func(i, j int) bool {
+			return awgLess(products[i], products[j], dir == "desc")
+		})
+	}
 	if sortCol == "sku" {
 		stdsort.SliceStable(products, func(i, j int) bool {
 			if dir == "desc" {
