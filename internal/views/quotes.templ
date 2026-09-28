@@ -483,7 +483,7 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
 // read-only summary instead: QuoteLinesReadOnly, the frozen issue metadata, and either
 // a "Revisar" button (emitida — the active version) or a note pointing at whichever
 // revision superseded it (revisada).
-templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, picker ProductPicker, user *NavUser) {
+templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, picker ProductPicker, comments []store.QuoteComment, user *NavUser) {
 	@Layout("Cotización "+quote.Folio, user) {
 		<script src="/static/margin.js" defer></script>
 		<h1>
@@ -630,17 +630,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 			</form>
 		} else {
 			@QuoteLinesReadOnly(lines, totals)
-			<p>
-				if quote.IssuedAt != nil {
-					Emitida: { *quote.IssuedAt }
-				}
-				if quote.ValidUntil != nil {
-					· Vigencia: { *quote.ValidUntil }
-				}
-				if quote.MarginNameSnapshot != nil && quote.MarginSnapshotMicros != nil {
-					· Margen: { MarginLabel(*quote.MarginNameSnapshot, *quote.MarginSnapshotMicros) }
-				}
-			</p>
+			@QuoteInfo(quote, lines)
 			if quote.Status == "emitida" {
 				<form method="post" action={ templ.URL(revisarPath(quote.Folio)) }>
 					<button type="submit">Revisar</button>
@@ -653,5 +643,101 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 			<a href={ templ.URL("/cotizaciones/" + quote.Folio + "/pdf") } target="_blank">Descargar PDF</a> ·
 			<a href="/cotizaciones">Volver a cotizaciones</a>
 		</p>
+		@QuoteComments(quote.Folio, comments)
 	}
+}
+
+// QuoteInfo is the issued quote's summary: who issued it and when, its status, and the
+// margin and profit it was priced with, all from what was frozen at issue.
+templ QuoteInfo(quote store.Quote, lines []QuoteLineView) {
+	<dl class="quote-info">
+		<dt>Estado</dt>
+		<dd>{ quote.Status }</dd>
+		<dt>Emitió</dt>
+		<dd>
+			if quote.VendedorSnapshot != nil {
+				{ *quote.VendedorSnapshot }
+			} else {
+				{ quote.UserName }
+			}
+		</dd>
+		if quote.IssuedAt != nil {
+			<dt>Emitida</dt>
+			<dd>{ *quote.IssuedAt }</dd>
+		}
+		if quote.ValidUntil != nil {
+			<dt>Vigencia</dt>
+			<dd>{ *quote.ValidUntil }</dd>
+		}
+		if quote.MarginNameSnapshot != nil && quote.MarginSnapshotMicros != nil {
+			<dt>Margen</dt>
+			<dd>{ MarginLabel(*quote.MarginNameSnapshot, *quote.MarginSnapshotMicros) }</dd>
+			<dt>Utilidad</dt>
+			<dd>{ QuoteProfit(lines, *quote.MarginSnapshotMicros).String() }</dd>
+		}
+	</dl>
+}
+
+// QuoteProfit is what the quote earns before IVA: each catalog line's total times the
+// margin, which is a fraction of the sale price. Free-text lines carry no cost, so they
+// add nothing.
+func QuoteProfit(lines []QuoteLineView, margin money.Micros) money.Centavos {
+	var priced money.Centavos
+	for _, l := range lines {
+		if !l.IsFree {
+			priced += l.LineTotal
+		}
+	}
+	return money.Centavos(money.RoundHalfUp(int64(priced)*int64(margin), 1_000_000))
+}
+
+func comentarPath(folio string) string {
+	return "/cotizaciones/" + folio + "/comentarios"
+}
+
+// commentTime shortens a stored UTC timestamp to minutes: 2026-09-28T14:03:22.123Z ->
+// 2026-09-28 14:03.
+func commentTime(ts string) string {
+	if len(ts) >= 16 {
+		return strings.Replace(ts[:16], "T", " ", 1)
+	}
+	return ts
+}
+
+// QuoteComments is the follow-up box at the foot of every quote: the form to add a
+// comment, then everyone's comments, newest first.
+templ QuoteComments(folio string, comments []store.QuoteComment) {
+	<section id="comentarios">
+		<h2>Comentarios</h2>
+		<form method="post" action={ templ.URL(comentarPath(folio)) }>
+			<label>
+				Agregar un comentario
+				<textarea name="comment" rows="3" maxlength="2000" required></textarea>
+			</label>
+			<button type="submit">Comentar</button>
+		</form>
+		<table>
+			<thead>
+				<tr>
+					<th>Fecha</th>
+					<th>Usuario</th>
+					<th>Comentario</th>
+				</tr>
+			</thead>
+			<tbody>
+				if len(comments) == 0 {
+					<tr>
+						<td colspan="3">Sin comentarios.</td>
+					</tr>
+				}
+				for _, c := range comments {
+					<tr>
+						<td>{ commentTime(c.CreatedAt) }</td>
+						<td>{ c.UserName }</td>
+						<td class="comment-body">{ c.Body }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</section>
 }

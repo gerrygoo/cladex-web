@@ -170,7 +170,7 @@ func TestQuoteEmitirFreezesMargin(t *testing.T) {
 	}
 
 	body := builderBody(t, a, q, userID, draft.Folio)
-	if !strings.Contains(body, "Margen: Alto (20.28%)") || !strings.Contains(body, "56.45") {
+	if !strings.Contains(body, "<dd>Alto (20.28%)</dd>") || !strings.Contains(body, "56.45") {
 		t.Errorf("issued page lost its frozen margin: %s", body)
 	}
 	lines, err := a.store.ListQuoteLines(ctx, draft.ID)
@@ -342,7 +342,7 @@ func TestQuoteCustomMargin(t *testing.T) {
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("Emitir status = %d; body = %s", rec.Code, rec.Body.String())
 	}
-	if body := builderBody(t, a, q, userID, draft.Folio); !strings.Contains(body, "Margen: Personalizado (50%)") {
+	if body := builderBody(t, a, q, userID, draft.Folio); !strings.Contains(body, "<dd>Personalizado (50%)</dd>") {
 		t.Errorf("issued page lost its custom margin: %s", body)
 	}
 }

@@ -215,6 +215,31 @@ Qué pasa al revisar:
 > y los ajustes **actuales**, no con los de la original. Revisa los precios antes de
 > emitirla.
 
+## Ver el detalle de una cotización
+
+Desde **Cotizaciones**, haz clic en el folio de cualquier cotización que no sea
+[[borrador]]. Debajo de las líneas y los totales verás:
+
+- **Estado** de la cotización.
+- **Emitió**: quién la emitió.
+- **Emitida** y **Vigencia**: las fechas.
+- **Margen**: el margen con el que se cotizó, congelado al emitir.
+- **Utilidad**: cuánto gana la cotización antes de IVA (el margen aplicado a las líneas
+  de catálogo; las líneas libres no cuentan porque no tienen costo).
+
+## Comentar una cotización
+
+Toda cotización, en cualquier estado, tiene una caja de **Comentarios** al final de la
+página, debajo de **Descargar PDF** y **Volver a cotizaciones**. Sirve para dar
+seguimiento (*"el cliente pidió otro precio"*, *"llamar el lunes"*).
+
+1. Abre la cotización.
+2. Escribe en **Agregar un comentario** y haz clic en **Comentar**.
+3. Tu comentario aparece en la tabla de abajo, con tu nombre y la fecha. Los más nuevos
+   van arriba.
+
+Cualquier usuario puede comentar. Los comentarios no se editan ni se borran.
+
 ## Buscar una cotización
 
 1. En el menú, entra a **Cotizaciones**.

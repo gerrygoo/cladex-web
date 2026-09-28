@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
 	"github.com/gerrygoo/cladex-web/internal/pricing"
@@ -579,4 +580,48 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 		return nil, fmt.Errorf("store: create revision of quote %d: %w", originalID, err)
 	}
 	return s.QuoteByID(ctx, newID)
+}
+
+// QuoteComment is a quote_comments row; UserName is the author's current name (join).
+type QuoteComment struct {
+	ID        int64
+	QuoteID   int64
+	UserID    int64
+	UserName  string
+	Body      string
+	CreatedAt string
+}
+
+// AddQuoteComment appends a follow-up note to a quote. The body is stored as given
+// apart from surrounding whitespace; an empty one is refused by the table's CHECK.
+func (s *Store) AddQuoteComment(ctx context.Context, quoteID, userID int64, body string) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`,
+		quoteID, userID, strings.TrimSpace(body))
+	if err != nil {
+		return fmt.Errorf("store: add comment to quote %d: %w", quoteID, err)
+	}
+	return nil
+}
+
+// ListQuoteComments returns a quote's comments, newest first.
+func (s *Store) ListQuoteComments(ctx context.Context, quoteID int64) ([]QuoteComment, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT c.id, c.quote_id, c.user_id, u.name, c.body, c.created_at
+		FROM quote_comments c JOIN users u ON u.id = c.user_id
+		WHERE c.quote_id = ?
+		ORDER BY c.created_at DESC, c.id DESC`, quoteID)
+	if err != nil {
+		return nil, fmt.Errorf("store: list comments of quote %d: %w", quoteID, err)
+	}
+	defer rows.Close()
+	var out []QuoteComment
+	for rows.Next() {
+		var c QuoteComment
+		if err := rows.Scan(&c.ID, &c.QuoteID, &c.UserID, &c.UserName, &c.Body, &c.CreatedAt); err != nil {
+			return nil, fmt.Errorf("store: list comments of quote %d: %w", quoteID, err)
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
 }

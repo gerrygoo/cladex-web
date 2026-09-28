@@ -403,3 +403,7 @@ th.col-header:nth-last-child(-n + 2) form.col-filter-panel {
   left: auto;
   right: 0;
 }
+
+.comment-body {
+  white-space: pre-wrap;
+}

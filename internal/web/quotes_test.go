@@ -782,3 +782,68 @@ func TestQuotesBuilderDefaultSubmitRecalculates(t *testing.T) {
 		t.Errorf("first submit button in #linea-form is not a plain recalcular: %s", firstButton)
 	}
 }
+
+// TestQuotesComments requires the `typst` CLI (it issues a quote).
+func TestQuotesComments(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
+	beto := createTestUser(t, a, "beto", "admin", "hunter2")
+	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, ana) // 30%: $64.29 a unit
+
+	quote, err := a.store.CreateDraftQuote(context.Background(), customerID, ana, "QA")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+	pv := map[string]string{"folio": quote.Folio}
+	path := "/cotizaciones/" + quote.Folio + "/comentarios"
+	comment := func(userID int64, text string) *httptest.ResponseRecorder {
+		return doForm(t, a, userID, q.Comentar, "POST", path, pv, url.Values{"comment": {text}}, false)
+	}
+
+	// Any user can comment, drafts included.
+	if rec := comment(ana, "Llamar al cliente el lunes"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Comentar(draft) status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if rec := comment(ana, "  \n "); rec.Code != http.StatusBadRequest {
+		t.Errorf("Comentar(blank) status = %d, want 400", rec.Code)
+	}
+	if rec := comment(ana, strings.Repeat("x", maxCommentLen+1)); rec.Code != http.StatusBadRequest {
+		t.Errorf("Comentar(too long) status = %d, want 400", rec.Code)
+	}
+	rec := doForm(t, a, ana, q.Comentar, "POST", "/cotizaciones/NOPE/comentarios",
+		map[string]string{"folio": "NOPE"}, url.Values{"comment": {"hola"}}, false)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("Comentar(unknown folio) status = %d, want 404", rec.Code)
+	}
+
+	// Issue it: the comment box and the earlier comment survive, and the info block shows.
+	form := url.Values{
+		"line_keys":            {"0"},
+		"lines[0][kind]":       {"product"},
+		"lines[0][product_id]": {strconv.FormatInt(costProductID, 10)},
+		"lines[0][qty]":        {"1"},
+	}
+	if rec := doForm(t, a, ana, q.Emitir, "POST", "/cotizaciones/"+quote.Folio+"/emitir", pv, form, false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if rec := comment(beto, "Cliente pidió otro precio"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Comentar(issued) status = %d", rec.Code)
+	}
+
+	rec = doForm(t, a, beto, q.Builder, "GET", "/cotizaciones/"+quote.Folio, pv, nil, false)
+	body := rec.Body.String()
+	for _, want := range []string{"Llamar al cliente el lunes", "Cliente pidió otro precio", "emitida", "Utilidad", "19.29"} { // 30% of $64.29
+		if !strings.Contains(body, want) {
+			t.Errorf("issued page missing %q", want)
+		}
+	}
+	// Newest first, and the box sits below the download / back links.
+	if strings.Index(body, "Cliente pidió otro precio") > strings.Index(body, "Llamar al cliente el lunes") {
+		t.Error("comments are not newest first")
+	}
+	if strings.Index(body, "Volver a cotizaciones") > strings.Index(body, `name="comment"`) {
+		t.Error("comment box is not below the download / back links")
+	}
+}
