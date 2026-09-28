@@ -24,6 +24,7 @@ Verás *"Cliente guardado."* y te quedas en la ficha del cliente.
    mientras escribes.
 3. Para ordenar, haz clic en el encabezado de una columna (**Nombre**, **RFC**,
    **Contacto**, **Teléfono**, **Email**). Otro clic invierte el orden.
+4. Para acotar más, [filtra por columna](README.md#filtrar-las-tablas) con el embudo de cada encabezado.
 
 ## Editar un cliente
 

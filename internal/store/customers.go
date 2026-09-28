@@ -55,19 +55,29 @@ var customerSortColumns = []sortColumn{
 	{"email", "email"},
 }
 
+// customerFilterColumns are the per-column filters ListCustomers accepts.
+var customerFilterColumns = []filterColumn{
+	{name: "name", expr: "name", kind: FilterText},
+	{name: "rfc", expr: "rfc", kind: FilterText},
+	{name: "contact_name", expr: "contact_name", kind: FilterText},
+	{name: "phone", expr: "phone", kind: FilterText},
+	{name: "email", expr: "email", kind: FilterText},
+}
+
 // ListCustomers returns non-deleted customers, optionally filtered by a
 // case-insensitive substring match on name, RFC, or contact name, and sorted per
 // sort/dir (see customerSortColumns; dir is "asc" or "desc").
-func (s *Store) ListCustomers(ctx context.Context, query, sort, dir string) ([]Customer, error) {
+func (s *Store) ListCustomers(ctx context.Context, query, sort, dir string, filters Filters) ([]Customer, error) {
 	like := "%" + escapeLike(query) + "%"
+	extra, extraArgs := filterWhere(customerFilterColumns, filters)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+customerSelectCols+`
 		FROM customers
 		WHERE deleted_at IS NULL
 		  AND (? = '' OR name LIKE ? ESCAPE '\' COLLATE NOCASE
 		           OR rfc LIKE ? ESCAPE '\' COLLATE NOCASE
-		           OR contact_name LIKE ? ESCAPE '\' COLLATE NOCASE)
-		`+orderByClause(customerSortColumns, sort, dir), query, like, like, like,
+		           OR contact_name LIKE ? ESCAPE '\' COLLATE NOCASE)`+extra+`
+		`+orderByClause(customerSortColumns, sort, dir), append([]any{query, like, like, like}, extraArgs...)...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: list customers: %w", err)

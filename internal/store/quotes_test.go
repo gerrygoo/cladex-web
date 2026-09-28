@@ -91,14 +91,14 @@ func TestCreateDraftQuote(t *testing.T) {
 		t.Fatalf("QuoteByFolio = %+v, %v", byFolio, err)
 	}
 
-	quotes, err := s.ListQuotes(ctx, "", "", "")
+	quotes, err := s.ListQuotes(ctx, "", "", "", nil)
 	if err != nil || len(quotes) != 1 {
 		t.Fatalf("ListQuotes = %d, %v; want 1, nil", len(quotes), err)
 	}
-	if quotes, err = s.ListQuotes(ctx, "peme", "", ""); err != nil || len(quotes) != 1 {
+	if quotes, err = s.ListQuotes(ctx, "peme", "", "", nil); err != nil || len(quotes) != 1 {
 		t.Fatalf("ListQuotes(customer match) = %d, %v; want 1, nil", len(quotes), err)
 	}
-	if quotes, err = s.ListQuotes(ctx, "no existe", "", ""); err != nil || len(quotes) != 0 {
+	if quotes, err = s.ListQuotes(ctx, "no existe", "", "", nil); err != nil || len(quotes) != 0 {
 		t.Fatalf("ListQuotes(no match) = %d, %v; want 0, nil", len(quotes), err)
 	}
 }
@@ -470,7 +470,7 @@ func TestListQuotesDefaultOrderNewestFirstQILast(t *testing.T) {
 			t.Fatalf("CreateDraftQuote(%s): %v", prefix, err)
 		}
 	}
-	quotes, err := s.ListQuotes(ctx, "", "", "")
+	quotes, err := s.ListQuotes(ctx, "", "", "", nil)
 	if err != nil {
 		t.Fatalf("ListQuotes: %v", err)
 	}

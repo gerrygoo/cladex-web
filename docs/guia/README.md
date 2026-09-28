@@ -55,6 +55,25 @@ las tuyas):
 
 Todos los montos están en pesos (MXN) con IVA incluido.
 
+## Filtrar las tablas
+
+Las listas de **Cotizaciones**, **Productos**, **Clientes** y **Usuarios** se pueden
+filtrar por cualquier columna, además de buscar y ordenar:
+
+1. Haz clic en el embudo junto al nombre de la columna.
+2. Llena el filtro, que depende del tipo de columna:
+   - **Texto** (folio, cliente, nombre, RFC…): escribe una parte; no importan las
+     mayúsculas.
+   - **Elección** (estado, rol, familia, unidad): elige un valor de la lista.
+   - **Número** (total, costo): pon un mínimo, un máximo o ambos.
+   - **Fecha**: pon la fecha *Desde*, *Hasta* o ambas (los dos días cuentan).
+3. Haz clic en **Aplicar**. El embudo de la columna filtrada se pinta de azul.
+
+Puedes combinar filtros de varias columnas, y siguen activos al buscar u ordenar. Para
+quitar uno, abre su embudo y haz clic en **Limpiar**; **Quitar todos** (arriba de la
+tabla) los quita todos. La dirección de la página guarda los filtros, así que puedes
+guardarla o compartirla.
+
 ## Conceptos
 
 [[Folio]], [[serie]], [[borrador]], [[emitida]], [[vigencia]]… Todos los términos

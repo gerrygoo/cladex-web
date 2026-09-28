@@ -172,7 +172,7 @@ func TestListProducts_Sort(t *testing.T) {
 		}
 	}
 
-	asc, err := s.ListProducts(ctx, "", "sku", "asc")
+	asc, err := s.ListProducts(ctx, "", "sku", "asc", nil)
 	if err != nil {
 		t.Fatalf("ListProducts(sort=sku,asc): %v", err)
 	}
@@ -183,7 +183,7 @@ func TestListProducts_Sort(t *testing.T) {
 		}
 	}
 
-	desc, err := s.ListProducts(ctx, "", "sku", "desc")
+	desc, err := s.ListProducts(ctx, "", "sku", "desc", nil)
 	if err != nil {
 		t.Fatalf("ListProducts(sort=sku,desc): %v", err)
 	}
@@ -196,7 +196,7 @@ func TestListProducts_Sort(t *testing.T) {
 
 	// An unrecognized sort column falls back to the default (description) rather
 	// than erroring or building unsafe SQL.
-	if _, err := s.ListProducts(ctx, "", "'; DROP TABLE products; --", "asc"); err != nil {
+	if _, err := s.ListProducts(ctx, "", "'; DROP TABLE products; --", "asc", nil); err != nil {
 		t.Fatalf("ListProducts(unrecognized sort column): %v", err)
 	}
 }

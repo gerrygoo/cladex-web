@@ -201,7 +201,8 @@ Qué pasa al revisar:
 3. Para ordenar, haz clic en el encabezado **Folio**, **Cliente**, **Autor**,
    **Estado**, **Total** o **Fecha**. Otro clic invierte el orden. Sin ordenar, van de la más
    reciente a la más antigua y las cotizaciones de alumbrado (QI) quedan al final.
-4. Haz clic en el folio para abrir la cotización.
+4. Para acotar más, [filtra por columna](README.md#filtrar-las-tablas) con el embudo de cada encabezado.
+5. Haz clic en el folio para abrir la cotización.
 
 ## Problemas comunes
 

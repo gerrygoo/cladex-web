@@ -141,6 +141,16 @@ var productSortColumns = []sortColumn{
 	{"unidad", "u.code"},
 }
 
+// productFilterColumns are the per-column filters ListProducts accepts. The cost
+// filter skips products costed only from their materials.
+var productFilterColumns = []filterColumn{
+	{name: "sku", expr: "p.sku", kind: FilterText},
+	{name: "description", expr: "p.description", kind: FilterText},
+	{name: "familia", expr: "pf.name", kind: FilterEnum},
+	{name: "costo", expr: "p.cost_micros", kind: FilterNumber, scale: 1_000_000},
+	{name: "unidad", expr: "u.code", kind: FilterEnum},
+}
+
 // ListProducts returns non-deleted products, optionally filtered by a case-insensitive
 // substring match on SKU or description, and sorted per sort/dir (see
 // productSortColumns for the allowed sort column names; dir is "asc" or "desc"). The
@@ -148,7 +158,7 @@ var productSortColumns = []sortColumn{
 // awgLess. The "sku" column — including when sort doesn't match a known column — sorts
 // naturally (digit runs compare by value, so "SKU-9" < "SKU-10") rather than
 // byte-by-byte, since SQL's ORDER BY has no notion of that — see naturalLess.
-func (s *Store) ListProducts(ctx context.Context, query, sort, dir string) ([]Product, error) {
+func (s *Store) ListProducts(ctx context.Context, query, sort, dir string, filters Filters) ([]Product, error) {
 	like := "%" + escapeLike(query) + "%"
 	sortCol := sort
 	if sortCol == "" {
@@ -159,12 +169,13 @@ func (s *Store) ListProducts(ctx context.Context, query, sort, dir string) ([]Pr
 		// Re-sorted naturally in Go below; order here only needs to be deterministic.
 		orderBy = "ORDER BY p.id ASC"
 	}
+	extra, extraArgs := filterWhere(productFilterColumns, filters)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+productSelectCols+`
 		`+productFrom+`
 		WHERE p.deleted_at IS NULL
-		  AND (? = '' OR p.sku LIKE ? ESCAPE '\' COLLATE NOCASE OR p.description LIKE ? ESCAPE '\' COLLATE NOCASE)
-		`+orderBy, query, like, like,
+		  AND (? = '' OR p.sku LIKE ? ESCAPE '\' COLLATE NOCASE OR p.description LIKE ? ESCAPE '\' COLLATE NOCASE)`+extra+`
+		`+orderBy, append([]any{query, like, like}, extraArgs...)...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: list products: %w", err)

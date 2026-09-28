@@ -31,15 +31,7 @@ type QuoteLineView struct {
 	Materials         []store.Material // the materials a cost-priced product line was priced from
 }
 
-// quotesSortHeader is a plain full-page link, not htmx — see productsSortHeader's doc
-// comment for why.
-templ quotesSortHeader(label, col, query, sort, dir string) {
-	<th>
-		<a href={ templ.URL(SortHref("/cotizaciones", query, col, sort, dir)) }>{ label } { SortIndicator(col, sort, dir) }</a>
-	</th>
-}
-
-templ QuotesList(quotes []store.Quote, query string, sort string, dir string, successMsg string, user *NavUser) {
+templ QuotesList(quotes []store.Quote, lv ListView, successMsg string, user *NavUser) {
 	@Layout("Cotizaciones", user) {
 		<h1>
 			Cotizaciones
@@ -54,26 +46,29 @@ templ QuotesList(quotes []store.Quote, query string, sort string, dir string, su
 					type="search"
 					name="q"
 					placeholder="Buscar por folio o cliente…"
-					value={ query }
+					value={ lv.Query }
 					hx-get="/cotizaciones"
 					hx-trigger="keyup changed delay:400ms, search"
 					hx-target="#cotizaciones-tbody"
 					hx-swap="outerHTML"
+					hx-include="closest form"
 					hx-push-url="true"
 				/>
+				@listHiddenInputs(lv, "q")
 				<button type="submit">Buscar</button>
 			</form>
 			<a href="/cotizaciones/nueva"><button type="button">Nueva cotización</button></a>
 		</div>
+		@listActiveFilters(lv)
 		<table>
 			<thead>
 				<tr>
-					@quotesSortHeader("Folio", "folio", query, sort, dir)
-					@quotesSortHeader("Cliente", "cliente", query, sort, dir)
-					@quotesSortHeader("Autor", "autor", query, sort, dir)
-					@quotesSortHeader("Estado", "estado", query, sort, dir)
-					@quotesSortHeader("Total", "total", query, sort, dir)
-					@quotesSortHeader("Fecha", "fecha", query, sort, dir)
+					@columnHeader(lv, "Folio", "folio", textFilter)
+					@columnHeader(lv, "Cliente", "cliente", textFilter)
+					@columnHeader(lv, "Autor", "autor", textFilter)
+					@columnHeader(lv, "Estado", "estado", quoteStatusFilter)
+					@columnHeader(lv, "Total", "total", numberFilter)
+					@columnHeader(lv, "Fecha", "fecha", dateFilter)
 				</tr>
 			</thead>
 			@QuotesTableBody(quotes)

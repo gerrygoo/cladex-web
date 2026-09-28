@@ -10,6 +10,7 @@ borradores que incluyen el producto.
 2. Escribe en *"Buscar por SKU o descripción…"*. La lista se filtra mientras escribes.
 3. Para ordenar, haz clic en el encabezado de una columna (**SKU**, **Descripción**,
    **Familia**, **Costo**, **Unidad**).
+4. Para acotar más, [filtra por columna](README.md#filtrar-las-tablas) con el embudo de cada encabezado.
 
 En la columna **Costo** verás el costo del producto, sin margen: su costo fijo, seguido
 de *"+ materiales"* si además tiene materiales, o solo *"materiales"* si su costo sale

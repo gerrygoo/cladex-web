@@ -14,13 +14,7 @@ func roleLabel(role string) string {
 	return "Vendedor"
 }
 
-templ usersSortHeader(label, col, sort, dir string) {
-	<th>
-		<a href={ templ.URL(SortHref("/usuarios", "", col, sort, dir)) }>{ label } { SortIndicator(col, sort, dir) }</a>
-	</th>
-}
-
-templ UsersList(users []store.User, currentUserID int64, sort string, dir string, successMsg string, errorMsg string, user *NavUser) {
+templ UsersList(users []store.User, currentUserID int64, lv ListView, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Usuarios", user) {
 		<h1>
 			Usuarios
@@ -32,13 +26,14 @@ templ UsersList(users []store.User, currentUserID int64, sort string, dir string
 		if errorMsg != "" {
 			<p class="error">{ errorMsg }</p>
 		}
+		@listActiveFilters(lv)
 		<table>
 			<thead>
 				<tr>
-					@usersSortHeader("Usuario", "username", sort, dir)
-					@usersSortHeader("Nombre", "name", sort, dir)
-					@usersSortHeader("Rol", "role", sort, dir)
-					@usersSortHeader("Estado", "status", sort, dir)
+					@columnHeader(lv, "Usuario", "username", textFilter)
+					@columnHeader(lv, "Nombre", "name", textFilter)
+					@columnHeader(lv, "Rol", "role", userRoleFilter)
+					@columnHeader(lv, "Estado", "status", userStatusFilter)
 					<th></th>
 				</tr>
 			</thead>

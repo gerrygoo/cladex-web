@@ -332,3 +332,74 @@ footer.build-footer {
 div.table-scroll {
   overflow-x: auto;
 }
+
+/* Column filters: a funnel in each sortable header that opens a small form. */
+th.col-header {
+  position: relative;
+  white-space: nowrap;
+}
+
+details.col-filter {
+  display: inline-block;
+  margin-left: 0.25rem;
+}
+
+details.col-filter > summary {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+  color: light-dark(#999, #777);
+}
+
+details.col-filter > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.col-filter.active > summary {
+  color: light-dark(#0b57d0, #8ab4f8);
+}
+
+form.col-filter-panel {
+  position: absolute;
+  z-index: 10;
+  top: 100%;
+  left: 0;
+  min-width: 14rem;
+  padding: 0.75rem;
+  font-weight: normal;
+  white-space: normal;
+  background: Canvas;
+  color: CanvasText;
+  border: 1px solid light-dark(#ccc, #444);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.2);
+}
+
+form.col-filter-panel label {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+form.col-filter-panel input,
+form.col-filter-panel select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+div.col-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+p.active-filters {
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+}
+
+/* Keep the last columns' panels inside the viewport. */
+th.col-header:nth-last-child(-n + 2) form.col-filter-panel {
+  left: auto;
+  right: 0;
+}

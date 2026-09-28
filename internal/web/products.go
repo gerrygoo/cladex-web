@@ -129,7 +129,8 @@ func (p *Products) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	sort, dir := sortParams(r)
-	products, err := p.store.ListProducts(ctx, query, sort, dir)
+	filters := filterParams(r)
+	products, err := p.store.ListProducts(ctx, query, sort, dir, filters)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
@@ -147,8 +148,26 @@ func (p *Products) List(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Query().Get("eliminado") == "1":
 		successMsg = "Producto eliminado."
 	}
+	families, err := p.store.ListFamilies(ctx)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	units, err := p.store.ListUnits(ctx)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	var familyOptions, unitOptions []views.FilterOption
+	for _, f := range families {
+		familyOptions = append(familyOptions, views.FilterOption{Value: f.Name, Label: f.Name})
+	}
+	for _, u := range units {
+		unitOptions = append(unitOptions, views.FilterOption{Value: u.Code, Label: u.Code + " — " + u.Name})
+	}
 	user, _ := UserFromContext(ctx)
-	views.ProductsList(products, query, sort, dir, successMsg, navUserView(user)).Render(ctx, w)
+	lv := views.ListView{Base: "/productos", Query: query, Sort: sort, Dir: dir, Filters: filters}
+	views.ProductsList(products, lv, familyOptions, unitOptions, successMsg, navUserView(user)).Render(ctx, w)
 }
 
 // NewPage renders the empty create form at /productos/nuevo.

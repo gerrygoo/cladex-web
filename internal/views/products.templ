@@ -34,18 +34,7 @@ type ProductEditSections struct {
 	MaterialsError   string
 }
 
-// productsSortHeader renders one sortable <th> for the products table: a click-to-sort
-// link that toggles direction, preserving the current search query. A plain full-page
-// link, not htmx — htmx's live search only swaps #productos-tbody, and this header
-// row lives outside it, so an htmx-swapped click would leave the arrow indicator and
-// the link's own next-toggle href stale after the first click.
-templ productsSortHeader(label, col, query, sort, dir string) {
-	<th>
-		<a href={ templ.URL(SortHref("/productos", query, col, sort, dir)) }>{ label } { SortIndicator(col, sort, dir) }</a>
-	</th>
-}
-
-templ ProductsList(products []store.Product, query string, sort string, dir string, successMsg string, user *NavUser) {
+templ ProductsList(products []store.Product, lv ListView, families []FilterOption, units []FilterOption, successMsg string, user *NavUser) {
 	@Layout("Productos", user) {
 		<h1>
 			Productos
@@ -60,25 +49,28 @@ templ ProductsList(products []store.Product, query string, sort string, dir stri
 					type="search"
 					name="q"
 					placeholder="Buscar por SKU o descripción…"
-					value={ query }
+					value={ lv.Query }
 					hx-get="/productos"
 					hx-trigger="keyup changed delay:400ms, search"
 					hx-target="#productos-tbody"
 					hx-swap="outerHTML"
+					hx-include="closest form"
 					hx-push-url="true"
 				/>
+				@listHiddenInputs(lv, "q")
 				<button type="submit">Buscar</button>
 			</form>
 			<a href="/productos/nuevo"><button type="button">Nuevo producto</button></a>
 		</div>
+		@listActiveFilters(lv)
 		<table>
 			<thead>
 				<tr>
-					@productsSortHeader("SKU", "sku", query, sort, dir)
-					@productsSortHeader("Descripción", "description", query, sort, dir)
-					@productsSortHeader("Familia", "familia", query, sort, dir)
-					@productsSortHeader("Costo", "costo", query, sort, dir)
-					@productsSortHeader("Unidad", "unidad", query, sort, dir)
+					@columnHeader(lv, "SKU", "sku", textFilter)
+					@columnHeader(lv, "Descripción", "description", textFilter)
+					@columnHeader(lv, "Familia", "familia", enumFilter(families...))
+					@columnHeader(lv, "Costo", "costo", numberFilter)
+					@columnHeader(lv, "Unidad", "unidad", enumFilter(units...))
 					<th></th>
 				</tr>
 			</thead>

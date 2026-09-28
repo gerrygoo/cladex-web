@@ -1,0 +1,78 @@
+package views
+
+import "github.com/gerrygoo/cladex-web/internal/store"
+
+// listHiddenInputs repeats the page's state (search, sort and the filters of every
+// column except skip) as hidden form fields, so submitting a form keeps it.
+templ listHiddenInputs(lv ListView, skip string) {
+	for k, vals := range lv.values(skip) {
+		<input type="hidden" name={ k } value={ vals[0] }/>
+	}
+}
+
+// listActiveFilters is the notice above a table while column filters are on.
+templ listActiveFilters(lv ListView) {
+	if lv.HasFilters() {
+		<p class="active-filters">
+			Filtros activos en la tabla.
+			<a href={ templ.URL(lv.ClearHref("")) }>Quitar todos</a>
+		</p>
+	}
+}
+
+// columnHeader renders one <th>: a click-to-sort link and a funnel that opens that
+// column's filter, typed after the column (text, choice, number range or date range).
+// Both are plain full-page GETs, not htmx — htmx's live search only swaps the tbody, so
+// a swapped header click would leave the arrows and next-toggle hrefs stale.
+templ columnHeader(lv ListView, label, col string, f ColumnFilter) {
+	<th class="col-header">
+		<a href={ templ.URL(lv.SortHref(col)) }>{ label } { lv.SortIndicator(col) }</a>
+		<details class={ "col-filter", templ.KV("active", lv.FilterActive(col)) }>
+			<summary title={ "Filtrar por " + label } aria-label={ "Filtrar por " + label }>
+				<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M1 2h14l-5.5 6.5V14l-3-1.5V8.5z" fill="currentColor"></path></svg>
+			</summary>
+			<form method="get" action={ templ.URL(lv.Base) } class="col-filter-panel">
+				@listHiddenInputs(lv, col)
+				switch f.Kind {
+					case store.FilterText:
+						<label>
+							{ label } contiene
+							<input type="text" name={ filterParam(col) } value={ lv.FilterValue(col) }/>
+						</label>
+					case store.FilterEnum:
+						<label>
+							{ label }
+							<select name={ filterParam(col) }>
+								<option value="">Todos</option>
+								for _, o := range f.Options {
+									<option value={ o.Value } selected?={ lv.FilterValue(col) == o.Value }>{ o.Label }</option>
+								}
+							</select>
+						</label>
+					case store.FilterNumber:
+						<label>
+							Desde
+							<input type="number" step="any" name={ filterParam(col + ".min") } value={ lv.FilterValue(col + ".min") }/>
+						</label>
+						<label>
+							Hasta
+							<input type="number" step="any" name={ filterParam(col + ".max") } value={ lv.FilterValue(col + ".max") }/>
+						</label>
+					case store.FilterDate:
+						<label>
+							Desde
+							<input type="date" name={ filterParam(col + ".min") } value={ lv.FilterValue(col + ".min") }/>
+						</label>
+						<label>
+							Hasta
+							<input type="date" name={ filterParam(col + ".max") } value={ lv.FilterValue(col + ".max") }/>
+						</label>
+				}
+				<div class="col-filter-actions">
+					<button type="submit">Aplicar</button>
+					<a href={ templ.URL(lv.ClearHref(col)) }>Limpiar</a>
+				</div>
+			</form>
+		</details>
+	</th>
+}

@@ -208,9 +208,20 @@ var quoteSortColumns = []sortColumn{
 // with the QI (alumbrado) family after all the others.
 const quoteDefaultOrder = `ORDER BY (q.prefix = 'QI') ASC, q.created_at DESC, q.id DESC`
 
+// quoteFilterColumns are the per-column filters ListQuotes accepts.
+var quoteFilterColumns = []filterColumn{
+	{name: "folio", expr: "q.folio", kind: FilterText},
+	{name: "cliente", expr: "c.name", kind: FilterText},
+	{name: "autor", expr: "u.name", kind: FilterText},
+	{name: "estado", expr: "q.status", kind: FilterEnum},
+	{name: "total", expr: "q.total", kind: FilterNumber, scale: 100},
+	{name: "fecha", expr: "q.created_at", kind: FilterDate},
+}
+
 // ListQuotes returns quotes, optionally filtered by a case-insensitive substring match
-// on folio or customer name, sorted per sort/dir (see quoteSortColumns).
-func (s *Store) ListQuotes(ctx context.Context, query, sort, dir string) ([]Quote, error) {
+// on folio or customer name and by per-column filters (see quoteFilterColumns), sorted
+// per sort/dir (see quoteSortColumns).
+func (s *Store) ListQuotes(ctx context.Context, query, sort, dir string, filters Filters) ([]Quote, error) {
 	like := "%" + escapeLike(query) + "%"
 	order := quoteDefaultOrder
 	for _, c := range quoteSortColumns {
@@ -219,11 +230,12 @@ func (s *Store) ListQuotes(ctx context.Context, query, sort, dir string) ([]Quot
 			break
 		}
 	}
+	extra, extraArgs := filterWhere(quoteFilterColumns, filters)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+quoteSelectCols+`
 		`+quoteFrom+`
-		WHERE (? = '' OR q.folio LIKE ? ESCAPE '\' COLLATE NOCASE OR c.name LIKE ? ESCAPE '\' COLLATE NOCASE)
-		`+order, query, like, like,
+		WHERE (? = '' OR q.folio LIKE ? ESCAPE '\' COLLATE NOCASE OR c.name LIKE ? ESCAPE '\' COLLATE NOCASE)`+extra+`
+		`+order, append([]any{query, like, like}, extraArgs...)...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: list quotes: %w", err)

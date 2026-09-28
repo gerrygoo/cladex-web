@@ -117,7 +117,8 @@ func (q *Quotes) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	sortCol, dir := sortParams(r)
-	quotes, err := q.store.ListQuotes(ctx, query, sortCol, dir)
+	filters := filterParams(r)
+	quotes, err := q.store.ListQuotes(ctx, query, sortCol, dir, filters)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
@@ -131,7 +132,7 @@ func (q *Quotes) List(w http.ResponseWriter, r *http.Request) {
 		successMsg = "Cotización creada."
 	}
 	user, _ := UserFromContext(ctx)
-	views.QuotesList(quotes, query, sortCol, dir, successMsg, navUserView(user)).Render(ctx, w)
+	views.QuotesList(quotes, views.ListView{Base: "/cotizaciones", Query: query, Sort: sortCol, Dir: dir, Filters: filters}, successMsg, navUserView(user)).Render(ctx, w)
 }
 
 // QuoteNewForm is the /cotizaciones/nueva form.
@@ -161,7 +162,7 @@ func (f QuoteNewForm) Validate() map[string]string {
 // NewPage renders the empty "nueva cotización" form.
 func (q *Quotes) NewPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	customers, err := q.store.ListCustomers(ctx, "", "name", "asc")
+	customers, err := q.store.ListCustomers(ctx, "", "name", "asc", nil)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
@@ -181,7 +182,7 @@ func (q *Quotes) Create(w http.ResponseWriter, r *http.Request) {
 	form := parseQuoteNewForm(r)
 	fieldErrors := form.Validate()
 	if len(fieldErrors) > 0 {
-		customers, err := q.store.ListCustomers(ctx, "", "name", "asc")
+		customers, err := q.store.ListCustomers(ctx, "", "name", "asc", nil)
 		if err != nil {
 			http.Error(w, "error interno", http.StatusInternalServerError)
 			return
@@ -484,7 +485,7 @@ func (q *Quotes) productPicker(ctx context.Context, r *http.Request, quote *stor
 		Page:        1,
 	}
 	// Gauge (AWG) order, matching the Productos page default (see store.ListProducts).
-	products, err := q.store.ListProducts(ctx, picker.Query, "awg", "asc")
+	products, err := q.store.ListProducts(ctx, picker.Query, "awg", "asc", nil)
 	if err != nil {
 		return views.ProductPicker{}, err
 	}

@@ -99,12 +99,23 @@ var userSortColumns = []sortColumn{
 	{"status", "disabled_at"},
 }
 
+// userFilterColumns are the per-column filters ListUsers accepts. Status is "activo" or
+// "deshabilitado".
+var userFilterColumns = []filterColumn{
+	{name: "username", expr: "username", kind: FilterText},
+	{name: "name", expr: "name", kind: FilterText},
+	{name: "role", expr: "role", kind: FilterEnum},
+	{name: "status", expr: "CASE WHEN disabled_at IS NULL THEN 'activo' ELSE 'deshabilitado' END", kind: FilterEnum},
+}
+
 // ListUsers returns all users, sorted per sort/dir (see userSortColumns; dir is "asc"
 // or "desc"), for the admin /usuarios page.
-func (s *Store) ListUsers(ctx context.Context, sort, dir string) ([]User, error) {
+func (s *Store) ListUsers(ctx context.Context, sort, dir string, filters Filters) ([]User, error) {
+	extra, args := filterWhere(userFilterColumns, filters)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, username, name, password_hash, role, disabled_at
-		FROM users `+orderByClause(userSortColumns, sort, dir),
+		FROM users WHERE 1 = 1`+extra+`
+		`+orderByClause(userSortColumns, sort, dir), args...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: list users: %w", err)

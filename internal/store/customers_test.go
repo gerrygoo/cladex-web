@@ -56,20 +56,20 @@ func TestCustomerCRUDLifecycle(t *testing.T) {
 	}
 
 	// List + search.
-	customers, err := s.ListCustomers(ctx, "", "", "")
+	customers, err := s.ListCustomers(ctx, "", "", "", nil)
 	if err != nil {
 		t.Fatalf("ListCustomers(\"\"): %v", err)
 	}
 	if len(customers) != 1 {
 		t.Fatalf("ListCustomers(\"\") = %d customers, want 1", len(customers))
 	}
-	if customers, err = s.ListCustomers(ctx, "peme", "", ""); err != nil || len(customers) != 1 {
+	if customers, err = s.ListCustomers(ctx, "peme", "", "", nil); err != nil || len(customers) != 1 {
 		t.Fatalf("ListCustomers(case-insensitive substring) = %d, %v; want 1, nil", len(customers), err)
 	}
-	if customers, err = s.ListCustomers(ctx, "juan", "", ""); err != nil || len(customers) != 1 {
+	if customers, err = s.ListCustomers(ctx, "juan", "", "", nil); err != nil || len(customers) != 1 {
 		t.Fatalf("ListCustomers(match on contact_name) = %d, %v; want 1, nil", len(customers), err)
 	}
-	if customers, err = s.ListCustomers(ctx, "no existe", "", ""); err != nil || len(customers) != 0 {
+	if customers, err = s.ListCustomers(ctx, "no existe", "", "", nil); err != nil || len(customers) != 0 {
 		t.Fatalf("ListCustomers(no match) = %d, %v; want 0, nil", len(customers), err)
 	}
 
@@ -80,7 +80,7 @@ func TestCustomerCRUDLifecycle(t *testing.T) {
 	if c, err := s.CustomerByID(ctx, id); err != nil || c != nil {
 		t.Fatalf("CustomerByID after delete = %+v, %v; want nil, nil", c, err)
 	}
-	if customers, err := s.ListCustomers(ctx, "", "", ""); err != nil || len(customers) != 0 {
+	if customers, err := s.ListCustomers(ctx, "", "", "", nil); err != nil || len(customers) != 0 {
 		t.Fatalf("ListCustomers after delete = %d, %v; want 0, nil", len(customers), err)
 	}
 	var deletedAt *string

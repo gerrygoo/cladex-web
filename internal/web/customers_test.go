@@ -155,7 +155,7 @@ func TestCustomersCreateValidationErrors(t *testing.T) {
 		}
 	}
 
-	customers, err := a.store.ListCustomers(context.Background(), "", "", "")
+	customers, err := a.store.ListCustomers(context.Background(), "", "", "", nil)
 	if err != nil {
 		t.Fatalf("ListCustomers: %v", err)
 	}
@@ -203,5 +203,37 @@ func TestCustomersRequireAuth(t *testing.T) {
 	}
 	if loc := rec.Header().Get("Location"); loc != "/login" {
 		t.Fatalf("Location = %q, want /login", loc)
+	}
+}
+
+func TestCustomersListColumnFilterKeptAcrossSortAndSearch(t *testing.T) {
+	a := newTestAuth(t)
+	cs := newTestCustomers(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	ctx := context.Background()
+	for _, c := range []store.Customer{
+		{Name: "Grupo PEME", RFC: "PEM010101ABC"},
+		{Name: "Cables del Norte", RFC: "CNO010101XYZ"},
+	} {
+		if _, err := a.store.CreateCustomer(ctx, c); err != nil {
+			t.Fatalf("CreateCustomer: %v", err)
+		}
+	}
+
+	req := httptest.NewRequest("GET", "/clientes?f.rfc=PEM&sort=name&dir=desc", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: mustSessionToken(t, a, userID)})
+	rec := httptest.NewRecorder()
+	a.RequireAuth(http.HandlerFunc(cs.List)).ServeHTTP(rec, req)
+	body := rec.Body.String()
+
+	if rec.Code != http.StatusOK || !strings.Contains(body, "Grupo PEME") || strings.Contains(body, "Cables del Norte") {
+		t.Fatalf("filtered list: status %d, body should hold only Grupo PEME:\n%s", rec.Code, body)
+	}
+	// The sort links and the search form carry the filter along.
+	if !strings.Contains(body, "f.rfc=PEM") || !strings.Contains(body, `name="f.rfc"`) {
+		t.Errorf("filter is not preserved in the page's links and forms")
+	}
+	if !strings.Contains(body, "Quitar todos") {
+		t.Errorf("active-filter notice missing")
 	}
 }

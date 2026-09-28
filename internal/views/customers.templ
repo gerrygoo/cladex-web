@@ -6,16 +6,7 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-// customersSortHeader is a plain full-page link, not htmx — see productsSortHeader's
-// doc comment for why (the header row lives outside the htmx-swapped tbody, so a
-// swapped click would leave the arrow indicator and next-toggle href stale).
-templ customersSortHeader(label, col, query, sort, dir string) {
-	<th>
-		<a href={ templ.URL(SortHref("/clientes", query, col, sort, dir)) }>{ label } { SortIndicator(col, sort, dir) }</a>
-	</th>
-}
-
-templ CustomersList(customers []store.Customer, query string, sort string, dir string, successMsg string, user *NavUser) {
+templ CustomersList(customers []store.Customer, lv ListView, successMsg string, user *NavUser) {
 	@Layout("Clientes", user) {
 		<h1>
 			Clientes
@@ -30,25 +21,28 @@ templ CustomersList(customers []store.Customer, query string, sort string, dir s
 					type="search"
 					name="q"
 					placeholder="Buscar por nombre, RFC o contacto…"
-					value={ query }
+					value={ lv.Query }
 					hx-get="/clientes"
 					hx-trigger="keyup changed delay:400ms, search"
 					hx-target="#clientes-tbody"
 					hx-swap="outerHTML"
+					hx-include="closest form"
 					hx-push-url="true"
 				/>
+				@listHiddenInputs(lv, "q")
 				<button type="submit">Buscar</button>
 			</form>
 			<a href="/clientes/nuevo"><button type="button">Nuevo cliente</button></a>
 		</div>
+		@listActiveFilters(lv)
 		<table>
 			<thead>
 				<tr>
-					@customersSortHeader("Nombre", "name", query, sort, dir)
-					@customersSortHeader("RFC", "rfc", query, sort, dir)
-					@customersSortHeader("Contacto", "contact_name", query, sort, dir)
-					@customersSortHeader("Teléfono", "phone", query, sort, dir)
-					@customersSortHeader("Email", "email", query, sort, dir)
+					@columnHeader(lv, "Nombre", "name", textFilter)
+					@columnHeader(lv, "RFC", "rfc", textFilter)
+					@columnHeader(lv, "Contacto", "contact_name", textFilter)
+					@columnHeader(lv, "Teléfono", "phone", textFilter)
+					@columnHeader(lv, "Email", "email", textFilter)
 					<th></th>
 				</tr>
 			</thead>

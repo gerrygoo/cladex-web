@@ -16,7 +16,7 @@ func TestListUsers(t *testing.T) {
 		t.Fatalf("CreateUser: %v", err)
 	}
 
-	users, err := s.ListUsers(ctx, "", "")
+	users, err := s.ListUsers(ctx, "", "", nil)
 	if err != nil {
 		t.Fatalf("ListUsers: %v", err)
 	}
