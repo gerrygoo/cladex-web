@@ -81,17 +81,18 @@ func isDesnudo(description string) bool {
 }
 
 // awgLess orders insulated products before bare (desnudo) ones, each thinnest to thickest
-// gauge (thickest first when desc), then by natural SKU. Within a group, products with no
-// AWG in their description sort after the gauged ones in either direction.
+// gauge (thickest first when desc), then by natural SKU. Products with no AWG in their
+// description sort after all gauged ones, desnudo or not, in either direction.
 func awgLess(a, b Product, desc bool) bool {
-	da, db := isDesnudo(a.Description), isDesnudo(b.Description)
-	if da != db {
-		return db
-	}
 	ka, oka := awgKey(a.Description)
 	kb, okb := awgKey(b.Description)
 	if oka != okb {
 		return oka
+	}
+	if oka {
+		if da, db := isDesnudo(a.Description), isDesnudo(b.Description); da != db {
+			return db
+		}
 	}
 	if oka && ka != kb {
 		if desc {
