@@ -15,7 +15,7 @@ func TestQuoteOverview(t *testing.T) {
 	if err != nil {
 		t.Fatalf("QuoteOverview(empty): %v", err)
 	}
-	if len(empty.Stages) != 3 || empty.Stages[0].Count != 0 || len(empty.Vendedores) != 0 {
+	if len(empty.Stages) != 2 || empty.Stages[0].Count != 0 || len(empty.Vendedores) != 0 {
 		t.Fatalf("empty overview = %+v", empty)
 	}
 
@@ -62,19 +62,11 @@ func TestQuoteOverview(t *testing.T) {
 		t.Fatalf("QuoteOverview: %v", err)
 	}
 
-	borr := ov.Stages[0]
-	if borr.Status != "borrador" || borr.Count != 4 || borr.Total != money.Centavos(1_100_00) {
-		t.Errorf("borrador stage = %+v", borr)
+	if len(ov.Stages) != 2 || ov.Stages[0].Status != "emitida" || ov.Stages[1].Status != "revisada" {
+		t.Fatalf("stages = %+v, want emitida and revisada only", ov.Stages)
 	}
-	var top []string
-	for _, q := range borr.Top {
-		top = append(top, q.Folio)
-	}
-	if len(top) != 3 || top[0] != "QA0002" || top[1] != "QA0003" || top[2] != "QA0004" {
-		t.Errorf("borrador top = %v, want [QA0002 QA0003 QA0004]", top)
-	}
-	if ov.Stages[1].Count != 2 || ov.Stages[2].Count != 1 || len(ov.Stages[2].Top) != 1 {
-		t.Errorf("emitida/revisada stages = %+v / %+v", ov.Stages[1], ov.Stages[2])
+	if ov.Stages[0].Count != 2 || ov.Stages[1].Count != 1 || len(ov.Stages[1].Top) != 1 {
+		t.Errorf("emitida/revisada stages = %+v / %+v", ov.Stages[0], ov.Stages[1])
 	}
 
 	// The admin quoted too and issued more, so they lead; a user with no quotes is absent.
@@ -82,11 +74,10 @@ func TestQuoteOverview(t *testing.T) {
 		t.Fatalf("vendedores = %+v, want 2 rows", ov.Vendedores)
 	}
 	first, second := ov.Vendedores[0], ov.Vendedores[1]
-	if first.UserID != admin || first.Emitidas != 1 || first.MontoEmitido != money.Centavos(5_000_00) ||
-		first.Borradores != 2 || first.MontoBorrador != money.Centavos(500_00) {
+	if first.UserID != admin || first.Emitidas != 1 || first.MontoEmitido != money.Centavos(5_000_00) {
 		t.Errorf("first vendedor = %+v", first)
 	}
-	if second.UserID != vend || second.Borradores != 2 || second.Emitidas != 1 || second.Revisadas != 1 {
+	if second.UserID != vend || second.Emitidas != 1 || second.Revisadas != 1 {
 		t.Errorf("second vendedor = %+v", second)
 	}
 }

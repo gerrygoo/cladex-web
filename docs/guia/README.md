@@ -44,7 +44,7 @@ Si no ves **Usuarios**, **Unidades** o **Ajustes** en el menú, tu cuenta es de 
 Al entrar ves un resumen de todas las cotizaciones (de todos los vendedores, no solo
 las tuyas):
 
-- **Cotizaciones por etapa**: cuántas hay en [[borrador]], [[emitida]] y [[revisada]], la
+- **Cotizaciones por etapa**: cuántas hay en [[emitida]] y [[revisada]] (los borradores no se cuentan aquí), la
   suma de sus totales y las 3 de mayor total en cada etapa. Haz clic en un folio para
   abrirla. El botón **Nueva cotización** lleva a [crear una](cotizaciones.md#crear-una-cotización).
 - **Vendedores**: una fila por cada persona que ha creado cotizaciones, ordenadas por

@@ -49,7 +49,7 @@ func Layout(title string, user *NavUser) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " · Cladex</title><link rel=\"stylesheet\" href=\"/static/app.css\"><script src=\"/static/htmx.min.js\"></script></head><body><noscript><p class=\"noscript-banner\">JavaScript está desactivado. La aplicación funciona igual, pero cada acción recarga la página completa; actívalo para una experiencia más rápida.</p></noscript><header class=\"app-header\"><div class=\"brand\"><strong>Cladex</strong> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " · Cladex</title><link rel=\"stylesheet\" href=\"/static/app.css\"><script src=\"/static/htmx.min.js\"></script></head><body><noscript><p class=\"noscript-banner\">JavaScript está desactivado. La aplicación funciona igual, pero cada acción recarga la página completa; actívalo para una experiencia más rápida.</p></noscript><header class=\"app-header\"><div class=\"brand\"><a href=\"/\" class=\"brand-link\"><strong>Cladex</strong></a> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

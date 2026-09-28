@@ -8,7 +8,6 @@ import (
 
 // stageLabels names each lifecycle stage as a heading on the home overview.
 var stageLabels = map[string]string{
-	"borrador": "Borradores",
 	"emitida":  "Emitidas",
 	"revisada": "Revisadas",
 }
@@ -58,8 +57,6 @@ templ Home(buildLabel, buildSHA string, ov *store.Overview, user *NavUser) {
 							<th>Vendedor</th>
 							<th>Monto emitido</th>
 							<th>Emitidas</th>
-							<th>Borradores</th>
-							<th>Monto en borrador</th>
 							<th>Revisadas</th>
 						</tr>
 					</thead>
@@ -70,8 +67,6 @@ templ Home(buildLabel, buildSHA string, ov *store.Overview, user *NavUser) {
 								<td>{ v.Name }</td>
 								<td>{ v.MontoEmitido.String() }</td>
 								<td>{ strconv.Itoa(v.Emitidas) }</td>
-								<td>{ strconv.Itoa(v.Borradores) }</td>
-								<td>{ v.MontoBorrador.String() }</td>
 								<td>{ strconv.Itoa(v.Revisadas) }</td>
 							</tr>
 						}

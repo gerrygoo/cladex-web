@@ -7,9 +7,10 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/money"
 )
 
-// QuoteStatuses is the quote lifecycle in order: a draft is issued, and an issued quote
-// becomes revisada once a revision supersedes it.
-var QuoteStatuses = []string{"borrador", "emitida", "revisada"}
+// QuoteStatuses are the lifecycle stages the home overview reports, in order. Drafts
+// (borrador) are work in progress and deliberately left out; an issued quote becomes
+// revisada once a revision supersedes it.
+var QuoteStatuses = []string{"emitida", "revisada"}
 
 // StageSummary is one lifecycle stage on the home overview: how many quotes sit in it,
 // what they add up to, and the largest few by total.
@@ -24,13 +25,11 @@ type StageSummary struct {
 // whoever created the quote (quotes.user_id), whatever their role: admins who quote
 // count the same as vendedores.
 type VendedorSummary struct {
-	UserID        int64
-	Name          string
-	Borradores    int
-	Emitidas      int
-	Revisadas     int
-	MontoEmitido  money.Centavos // sum of totals of quotes currently emitida
-	MontoBorrador money.Centavos // sum of totals of open drafts
+	UserID       int64
+	Name         string
+	Emitidas     int
+	Revisadas    int
+	MontoEmitido money.Centavos // sum of totals of quotes currently emitida
 }
 
 // Overview is the home page's snapshot of the quote pipeline. Every quote is MXN today
@@ -105,20 +104,19 @@ func (s *Store) QuoteOverview(ctx context.Context) (*Overview, error) {
 
 	rows, err = s.db.QueryContext(ctx, `
 		SELECT u.id, u.name,
-			sum(q.status = 'borrador'), sum(q.status = 'emitida'), sum(q.status = 'revisada'),
-			coalesce(sum(CASE WHEN q.status = 'emitida' THEN q.total END), 0),
-			coalesce(sum(CASE WHEN q.status = 'borrador' THEN q.total END), 0)
+			sum(q.status = 'emitida'), sum(q.status = 'revisada'),
+			coalesce(sum(CASE WHEN q.status = 'emitida' THEN q.total END), 0)
 		FROM quotes q
 		JOIN users u ON u.id = q.user_id
 		GROUP BY u.id
-		ORDER BY 6 DESC, 4 DESC, u.name COLLATE NOCASE`)
+		ORDER BY 5 DESC, 3 DESC, u.name COLLATE NOCASE`)
 	if err != nil {
 		return nil, fmt.Errorf("store: overview vendedores: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var v VendedorSummary
-		if err := rows.Scan(&v.UserID, &v.Name, &v.Borradores, &v.Emitidas, &v.Revisadas, &v.MontoEmitido, &v.MontoBorrador); err != nil {
+		if err := rows.Scan(&v.UserID, &v.Name, &v.Emitidas, &v.Revisadas, &v.MontoEmitido); err != nil {
 			return nil, fmt.Errorf("store: overview vendedores: %w", err)
 		}
 		ov.Vendedores = append(ov.Vendedores, v)
