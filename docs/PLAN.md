@@ -770,9 +770,9 @@ by `TestRenderQuoteIsDeterministic`, `TestQuotesEmitir` (reprint matches the iss
 hash after settings, product price and customer name change) and
 `TestMigration0006BackfillsNameSnapshots`.
 
-## M3 — Standardized margins and a materials catalog — 📐 DESIGNED, ready to build
+## M3 — Standardized margins and a materials catalog — ✅ COMPLETE
 
-Brainstormed and settled with the user on 2026-09-22. Ready to build, starting at 3.1.
+Brainstormed and settled with the user on 2026-09-22; shipped 3.1–3.3 by 2026-09-28 (3.4 folded into 3.2). Open follow-up: the QI terms block still prints "Precios en dólares americanos (USD)" and a "$93" percha, though every price is now MXN (see 3.3).
 
 ### Why: margin is hidden inside costs and the FX rate today
 
