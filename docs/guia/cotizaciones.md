@@ -222,7 +222,8 @@ Desde **Cotizaciones**, haz clic en el folio de cualquier cotización que no sea
 
 - **Estado** de la cotización.
 - **Emitió**: quién la emitió.
-- **Emitida** y **Vigencia**: las fechas.
+- **Emitida** y **Vigencia**: las fechas. Todas las fechas se ven como `28/09/2026 - 16:42`,
+  en la zona horaria de tu navegador (la vigencia es solo un día, sin hora).
 - **Margen**: el margen con el que se cotizó, congelado al emitir.
 - **Utilidad**: cuánto gana la cotización antes de IVA (el margen aplicado a las líneas
   de catálogo; las líneas libres no cuentan porque no tienen costo).

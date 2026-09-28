@@ -2,6 +2,7 @@ package views
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
@@ -12,7 +13,7 @@ var stageLabels = map[string]string{
 	"revisada": "Revisadas",
 }
 
-templ Home(buildLabel, buildSHA string, ov *store.Overview, user *NavUser) {
+templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavUser) {
 	@Layout("Inicio", user) {
 		<h1>
 			Cladex
@@ -74,7 +75,17 @@ templ Home(buildLabel, buildSHA string, ov *store.Overview, user *NavUser) {
 				</table>
 			</div>
 		}
-		<footer class="build-footer"><small title={ "commit " + buildSHA }>{ buildLabel }</small></footer>
+		<footer class="build-footer">
+			<small title={ "commit " + buildSHA }>
+				if built.IsZero() {
+					Compilación local (dev)
+				} else {
+					Compilado el
+					@Timestamp(isoTime(built))
+					({ BuildAge(built, now) })
+				}
+			</small>
+		</footer>
 	}
 }
 

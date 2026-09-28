@@ -839,6 +839,9 @@ func TestQuotesComments(t *testing.T) {
 			t.Errorf("issued page missing %q", want)
 		}
 	}
+	if !strings.Contains(body, `<time class="ts" datetime="`) || strings.Contains(body, "T00:00:00") {
+		t.Error("issued page timestamps are not <time> elements for the browser to localize")
+	}
 	if strings.Contains(body, "Serie:") || strings.Contains(body, "Estado: emitida") {
 		t.Error("issued page header still shows Serie / Estado")
 	}

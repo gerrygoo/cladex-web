@@ -5,23 +5,9 @@ import (
 	"time"
 )
 
-// mexicoCity is where every user of the app is; build times render in its wall clock.
-// Falls back to UTC if the zone database is somehow missing.
-var mexicoCity = func() *time.Location {
-	if loc, err := time.LoadLocation("America/Mexico_City"); err == nil {
-		return loc
-	}
-	return time.UTC
-}()
-
-// BuildLabel renders the home page's build footer, e.g.
-// "Compilado el 22/09/2026 14:03 (hace 3 horas)". A zero built means a local build
-// with no timestamp stamped in.
-func BuildLabel(built, now time.Time) string {
-	if built.IsZero() {
-		return "Compilación local (dev)"
-	}
-	return fmt.Sprintf("Compilado el %s (%s)", built.In(mexicoCity).Format("02/01/2006 15:04"), haceCuanto(now.Sub(built)))
+// BuildAge phrases how long ago the build was made, e.g. "hace 3 horas".
+func BuildAge(built, now time.Time) string {
+	return haceCuanto(now.Sub(built))
 }
 
 // haceCuanto phrases an elapsed duration in Spanish at the coarsest sensible unit.

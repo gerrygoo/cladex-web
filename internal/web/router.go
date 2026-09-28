@@ -116,7 +116,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 			return
 		}
 		user, _ := UserFromContext(r.Context())
-		views.Home(views.BuildLabel(build.Time, time.Now()), build.SHA, ov, navUserView(user)).Render(r.Context(), w)
+		views.Home(build.Time, time.Now(), build.SHA, ov, navUserView(user)).Render(r.Context(), w)
 	})))
 
 	mux.HandleFunc("GET /saludo", func(w http.ResponseWriter, r *http.Request) {

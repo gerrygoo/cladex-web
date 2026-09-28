@@ -90,7 +90,7 @@ templ QuotesTableBody(quotes []store.Quote) {
 				<td>{ q.UserName }</td>
 				<td>{ q.Status }</td>
 				<td>{ q.Total.String() }</td>
-				<td>{ q.CreatedAt }</td>
+				<td>@Timestamp(q.CreatedAt)</td>
 			</tr>
 		}
 	</tbody>
@@ -659,11 +659,11 @@ templ QuoteInfo(quote store.Quote, lines []QuoteLineView) {
 		</dd>
 		if quote.IssuedAt != nil {
 			<dt>Emitida</dt>
-			<dd>{ *quote.IssuedAt }</dd>
+			<dd>@Timestamp(*quote.IssuedAt)</dd>
 		}
 		if quote.ValidUntil != nil {
 			<dt>Vigencia</dt>
-			<dd>{ *quote.ValidUntil }</dd>
+			<dd>{ dateText(*quote.ValidUntil) }</dd>
 		}
 		if quote.MarginNameSnapshot != nil && quote.MarginSnapshotMicros != nil {
 			<dt>Margen</dt>
@@ -689,15 +689,6 @@ func QuoteProfit(lines []QuoteLineView, margin money.Micros) money.Centavos {
 
 func comentarPath(folio string) string {
 	return "/cotizaciones/" + folio + "/comentarios"
-}
-
-// commentTime shortens a stored UTC timestamp to minutes: 2026-09-28T14:03:22.123Z ->
-// 2026-09-28 14:03.
-func commentTime(ts string) string {
-	if len(ts) >= 16 {
-		return strings.Replace(ts[:16], "T", " ", 1)
-	}
-	return ts
 }
 
 // QuoteComments is the follow-up box at the foot of every quote: the form to add a
@@ -728,7 +719,7 @@ templ QuoteComments(folio string, comments []store.QuoteComment) {
 				}
 				for _, c := range comments {
 					<tr>
-						<td>{ commentTime(c.CreatedAt) }</td>
+						<td>@Timestamp(c.CreatedAt)</td>
 						<td>{ c.UserName }</td>
 						<td class="comment-body">{ c.Body }</td>
 					</tr>
@@ -736,4 +727,11 @@ templ QuoteComments(folio string, comments []store.QuoteComment) {
 			</tbody>
 		</table>
 	</section>
+}
+
+// Timestamp renders a stored UTC timestamp as 28/09/2026 - 16:42. The server can't know
+// the viewer's time zone, so it writes UTC into a <time> element and /static/time.js
+// rewrites it in the browser's zone.
+templ Timestamp(iso string) {
+	<time class="ts" datetime={ iso }>{ timestampFallback(iso) }</time>
 }

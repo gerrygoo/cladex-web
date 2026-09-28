@@ -407,3 +407,7 @@ th.col-header:nth-last-child(-n + 2) form.col-filter-panel {
 .comment-body {
   white-space: pre-wrap;
 }
+
+.quote-info {
+  margin-bottom: 2rem;
+}
