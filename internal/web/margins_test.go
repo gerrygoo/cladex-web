@@ -331,8 +331,8 @@ func TestQuoteCustomMargin(t *testing.T) {
 	}
 
 	// On a menu option the fields still show its margin and the copper price it implies
-	// ($160 / (1 - 0.1234) = $182.53), read-only.
-	if body := builderBody(t, a, q, userID, draft.Folio); !strings.Contains(body, `value="182.53"`) || !strings.Contains(body, `value="12.34"`) || !strings.Contains(body, "readonly") {
+	// ($160 / (1 - 0.1234) = $182.52), read-only.
+	if body := builderBody(t, a, q, userID, draft.Folio); !strings.Contains(body, `value="182.52"`) || !strings.Contains(body, `value="12.34"`) || !strings.Contains(body, "readonly") {
 		t.Errorf("preset margin doesn't show its percentage and copper price read-only: %s", body)
 	}
 
