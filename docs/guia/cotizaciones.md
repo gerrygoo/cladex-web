@@ -86,7 +86,10 @@ Cada cotización se calcula con un [[margen]] que eliges de una lista, p. ej.
 El margen aplica a todos los productos del catálogo en la cotización; las
 [líneas libres](#agregar-una-línea-libre) no lo usan. El margen no aparece en el PDF.
 
-### Usar un margen propio
+### Usar un margen propio (cotizaciones CCS)
+
+Esto solo está disponible en las cotizaciones de la serie **QS** (CCS y AC); las demás
+series usan únicamente los márgenes de la lista.
 
 Junto a **Margen** siempre ves el margen elegido de dos maneras (con un margen de la
 lista, solo de lectura). Si ninguno te sirve, elige **Personalizado…** y los dos campos

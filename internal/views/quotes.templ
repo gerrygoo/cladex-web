@@ -116,7 +116,7 @@ var quotePrefixOptions = []struct{ Code, Label string }{
 // which the user can switch off, so it never restricts what a quote can contain.
 var quotePrefixFamilies = map[string]string{
 	"QA": "CCA",
-	"QS": "CCS & AC",
+	"QS": CCSFamilyName,
 	"QI": "ABASTILUM",
 }
 
@@ -535,44 +535,48 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 							for _, c := range margin.Choices {
 								<option value={ marginChoiceValue(c.ID) } data-pct={ c.Pct } selected?={ c.Selected }>{ c.Label }</option>
 							}
-							<option value={ CustomMarginValue } selected?={ margin.Custom }>Personalizado…</option>
+							if margin.AllowCustom {
+								<option value={ CustomMarginValue } selected?={ margin.Custom }>Personalizado…</option>
+							}
 						</select>
 					</label>
-					<span id="margin-custom">
-						<input type="hidden" name="margin_edited" id="margin-edited" value=""/>
-						<label>
-							Margen (%)
-							<input
-								type="text"
-								inputmode="decimal"
-								name="margin_pct"
-								id="margin-pct"
-								readonly?={ !margin.Custom }
-								value={ margin.CustomPct }
-								hx-post={ recalcularPath(quote.Folio) }
-								hx-trigger="change"
-								hx-target="#quote-lines-fragment"
-								hx-swap="outerHTML"
-							/>
-						</label>
-						if margin.HasCopper {
+					if margin.AllowCustom {
+						<span id="margin-custom">
+							<input type="hidden" name="margin_edited" id="margin-edited" value=""/>
 							<label>
-								Precio { margin.CopperName } ($/kg)
+								Margen (%)
 								<input
 									type="text"
 									inputmode="decimal"
-									name="copper_price"
-									id="copper-price"
+									name="margin_pct"
+									id="margin-pct"
 									readonly?={ !margin.Custom }
-									value={ margin.CopperPrice }
+									value={ margin.CustomPct }
 									hx-post={ recalcularPath(quote.Folio) }
 									hx-trigger="change"
 									hx-target="#quote-lines-fragment"
 									hx-swap="outerHTML"
 								/>
 							</label>
-						}
-					</span>
+							if margin.HasCopper {
+								<label>
+									Precio { margin.CopperName } ($/kg)
+									<input
+										type="text"
+										inputmode="decimal"
+										name="copper_price"
+										id="copper-price"
+										readonly?={ !margin.Custom }
+										value={ margin.CopperPrice }
+										hx-post={ recalcularPath(quote.Folio) }
+										hx-trigger="change"
+										hx-target="#quote-lines-fragment"
+										hx-swap="outerHTML"
+									/>
+								</label>
+							}
+						</span>
+					}
 				</div>
 				<div class="toolbar">
 					<input

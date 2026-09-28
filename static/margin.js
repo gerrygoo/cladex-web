@@ -9,6 +9,7 @@
   var pct = document.getElementById("margin-pct");
   var price = document.getElementById("copper-price");
   var edited = document.getElementById("margin-edited");
+  if (!pct) return; // not a CCS quote: no custom margin fields
   var cost = parseFloat(box.dataset.copperCost);
 
   function num(el) {

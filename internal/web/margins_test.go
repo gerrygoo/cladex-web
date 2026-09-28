@@ -346,3 +346,35 @@ func TestQuoteCustomMargin(t *testing.T) {
 		t.Errorf("issued page lost its custom margin: %s", body)
 	}
 }
+
+// Only CCS quotes (series QS) can use a margin of their own: other series show neither
+// "Personalizado" nor the copper price, and a submitted custom margin is ignored.
+func TestQuoteCustomMarginOnlyOnCCS(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
+	seedCCSProduct(t, a) // the CCS 30% material exists
+	ctx := context.Background()
+	estandar := marginOption(t, a, "Estándar")
+
+	draft, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QA")
+	body := builderBody(t, a, q, userID, draft.Folio)
+	for _, unwanted := range []string{"Personalizado", "copper_price", "margin_pct"} {
+		if strings.Contains(body, unwanted) {
+			t.Errorf("CCA quote shows %q", unwanted)
+		}
+	}
+
+	f := costLineForm(costProductID, estandar.ID)
+	f.Set("margin_option_id", "custom")
+	f.Set("margin_pct", "50")
+	rec := doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+draft.Folio+"/guardar",
+		map[string]string{"folio": draft.Folio}, f, false)
+	if rec.Code != http.StatusUnprocessableEntity && rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar status = %d", rec.Code)
+	}
+	if saved, _ := a.store.QuoteByID(ctx, draft.ID); saved.CustomMarginMicros != nil {
+		t.Errorf("CCA quote saved a custom margin: %v", *saved.CustomMarginMicros)
+	}
+}

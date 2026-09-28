@@ -37,6 +37,9 @@ type MarginPicker struct {
 	NoneChosen bool
 	Error      string
 
+	// AllowCustom is set on CCS quotes, the only ones that can use a margin of their
+	// own; only then are the "Personalizado" option and the two margin fields shown.
+	AllowCustom bool
 	// Custom is set when the draft is on a margin of its own ("Personalizado") rather
 	// than a menu option; CustomPct holds the percentage typed (or derived) for it.
 	// When the catalog has the copper material (HasCopper), the same margin is also
@@ -82,6 +85,9 @@ func (p *MarginPicker) SetMarginDisplay(margin money.Micros, copper *store.Mater
 		p.CopperPrice = CopperPriceText(price)
 	}
 }
+
+// CCSFamilyName is the product family whose quotes can carry a custom margin.
+const CCSFamilyName = "CCS & AC"
 
 // CustomMarginValue is the margin dropdown's value for "Personalizado".
 const CustomMarginValue = "custom"

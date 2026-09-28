@@ -106,13 +106,18 @@ func (m draftMargin) id() *int64 {
 // the request didn't carry one, e.g. a page load); its margin controls win over the
 // quote's saved margin so an unsaved change in the dropdown prices the lines.
 func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url.Values) (draftMargin, error) {
+	// A margin of its own is only offered on CCS quotes for now.
+	allowCustom := views.QuotePrefixFamily(quote.Prefix) == views.CCSFamilyName
 	selected := quote.MarginOptionID
-	custom := quote.CustomMarginMicros
+	var custom *money.Micros
+	if allowCustom {
+		custom = quote.CustomMarginMicros
+	}
 	customMode := custom != nil
 	submitted := false
 	if v, ok := form["margin_option_id"]; ok && len(v) > 0 {
 		v0 := strings.TrimSpace(v[0])
-		customMode = v0 == views.CustomMarginValue
+		customMode = allowCustom && v0 == views.CustomMarginValue
 		submitted = true
 		custom = nil
 		if id, err := strconv.ParseInt(v0, 10, 64); err == nil {
@@ -124,7 +129,9 @@ func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url
 		return draftMargin{}, fmt.Errorf("resolve margin: %w", err)
 	}
 	var copper *store.Material
-	if materials, err := q.store.ListMaterials(ctx); err != nil {
+	if !allowCustom {
+		// no copper price outside CCS quotes
+	} else if materials, err := q.store.ListMaterials(ctx); err != nil {
 		return draftMargin{}, fmt.Errorf("resolve margin: %w", err)
 	} else {
 		for i := range materials {
@@ -146,6 +153,7 @@ func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url
 	if customMode {
 		m.picker = views.NewMarginPicker(opts, nil)
 		m.picker.NoneChosen = false
+		m.picker.AllowCustom = true
 		m.picker.Custom = true
 		if copper != nil {
 			m.picker.HasCopper = true
@@ -171,6 +179,7 @@ func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url
 	}
 
 	m.picker = views.NewMarginPicker(opts, m.id())
+	m.picker.AllowCustom = allowCustom
 	switch {
 	case m.option == nil:
 		m.picker.Error = "Elige un margen para esta cotización."
@@ -184,7 +193,7 @@ func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url
 	}
 	// The fields show the chosen option's margin read-only, so the copper price it
 	// implies is always in view.
-	if m.option != nil {
+	if allowCustom && m.option != nil {
 		m.picker.SetMarginDisplay(m.option.ValueMicros, copper)
 	}
 	return m, nil
