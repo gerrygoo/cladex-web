@@ -200,25 +200,37 @@ func (s *Store) QuoteByFolio(ctx context.Context, folio string) (*Quote, error) 
 	return q, nil
 }
 
-// quoteSortColumns is the sortable-column whitelist for ListQuotes; the first entry
-// (folio) is the default when sort doesn't match a known column.
+// quoteSortColumns is the sortable-column whitelist for ListQuotes. When sort doesn't
+// match a known column, ListQuotes uses quoteDefaultOrder instead.
 var quoteSortColumns = []sortColumn{
 	{"folio", "q.folio"},
 	{"cliente", "c.name"},
+	{"autor", "u.name COLLATE NOCASE"},
 	{"estado", "q.status"},
 	{"total", "q.total"},
 	{"fecha", "q.created_at"},
 }
 
+// quoteDefaultOrder is the list's order when no sort column is chosen: by folio, with the
+// QI (alumbrado) family after all the others.
+const quoteDefaultOrder = `ORDER BY (q.prefix = 'QI') ASC, q.folio ASC`
+
 // ListQuotes returns quotes, optionally filtered by a case-insensitive substring match
 // on folio or customer name, sorted per sort/dir (see quoteSortColumns).
 func (s *Store) ListQuotes(ctx context.Context, query, sort, dir string) ([]Quote, error) {
 	like := "%" + escapeLike(query) + "%"
+	order := quoteDefaultOrder
+	for _, c := range quoteSortColumns {
+		if c.name == sort {
+			order = orderByClause(quoteSortColumns, sort, dir)
+			break
+		}
+	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+quoteSelectCols+`
 		`+quoteFrom+`
 		WHERE (? = '' OR q.folio LIKE ? ESCAPE '\' COLLATE NOCASE OR c.name LIKE ? ESCAPE '\' COLLATE NOCASE)
-		`+orderByClause(quoteSortColumns, sort, dir), query, like, like,
+		`+order, query, like, like,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: list quotes: %w", err)

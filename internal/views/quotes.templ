@@ -70,6 +70,7 @@ templ QuotesList(quotes []store.Quote, query string, sort string, dir string, su
 				<tr>
 					@quotesSortHeader("Folio", "folio", query, sort, dir)
 					@quotesSortHeader("Cliente", "cliente", query, sort, dir)
+					@quotesSortHeader("Autor", "autor", query, sort, dir)
 					@quotesSortHeader("Estado", "estado", query, sort, dir)
 					@quotesSortHeader("Total", "total", query, sort, dir)
 					@quotesSortHeader("Fecha", "fecha", query, sort, dir)
@@ -84,13 +85,14 @@ templ QuotesTableBody(quotes []store.Quote) {
 	<tbody id="cotizaciones-tbody">
 		if len(quotes) == 0 {
 			<tr>
-				<td colspan="5">No se encontraron cotizaciones.</td>
+				<td colspan="6">No se encontraron cotizaciones.</td>
 			</tr>
 		}
 		for _, q := range quotes {
 			<tr>
 				<td><a href={ templ.URL("/cotizaciones/" + q.Folio) }>{ q.Folio }</a></td>
 				<td>{ q.CustomerName }</td>
+				<td>{ q.UserName }</td>
 				<td>{ q.Status }</td>
 				<td>{ q.Total.String() }</td>
 				<td>{ q.CreatedAt }</td>

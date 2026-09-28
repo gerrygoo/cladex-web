@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"strconv"
@@ -484,4 +485,34 @@ func migrationsBefore(t *testing.T, first string) fstest.MapFS {
 		before["migrations/"+e.Name()] = &fstest.MapFile{Data: data}
 	}
 	return before
+}
+
+func TestListQuotesDefaultOrderPutsQILast(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	customerID, err := s.CreateCustomer(ctx, Customer{Name: "Grupo PEME"})
+	if err != nil {
+		t.Fatalf("CreateCustomer: %v", err)
+	}
+	userID, err := s.CreateUser(ctx, "rfm", "Rodolfo", "hash", "vendedor")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	for _, prefix := range []string{"QI", "QA", "QS", "QA"} {
+		if _, err := s.CreateDraftQuote(ctx, customerID, userID, prefix); err != nil {
+			t.Fatalf("CreateDraftQuote(%s): %v", prefix, err)
+		}
+	}
+	quotes, err := s.ListQuotes(ctx, "", "", "")
+	if err != nil {
+		t.Fatalf("ListQuotes: %v", err)
+	}
+	var got []string
+	for _, q := range quotes {
+		got = append(got, q.Folio)
+	}
+	want := []string{"QA0001", "QA0002", "QS0001", "QI0001"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("default order = %v, want %v", got, want)
+	}
 }
