@@ -3,6 +3,7 @@ package store
 import (
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 // naturalLess reports whether a sorts before b under "natural" order: runs of digits
@@ -73,10 +74,20 @@ func awgKey(description string) (int, bool) {
 	return -n, true
 }
 
-// awgLess orders products thinnest to thickest gauge (thickest first when desc), then by
-// natural SKU. Products with no AWG in their description sort after all gauged ones in
-// either direction.
+// isDesnudo reports whether the product is bare cable ("CABLE DESNUDO ..."), which lists
+// after the insulated products.
+func isDesnudo(description string) bool {
+	return strings.Contains(strings.ToLower(description), "desnudo")
+}
+
+// awgLess orders insulated products before bare (desnudo) ones, each thinnest to thickest
+// gauge (thickest first when desc), then by natural SKU. Within a group, products with no
+// AWG in their description sort after the gauged ones in either direction.
 func awgLess(a, b Product, desc bool) bool {
+	da, db := isDesnudo(a.Description), isDesnudo(b.Description)
+	if da != db {
+		return db
+	}
 	ka, oka := awgKey(a.Description)
 	kb, okb := awgKey(b.Description)
 	if oka != okb {

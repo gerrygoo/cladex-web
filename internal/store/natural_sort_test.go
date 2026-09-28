@@ -32,13 +32,13 @@ func TestNaturalLess(t *testing.T) {
 }
 
 func TestAWGLessOrdersThinToThickThenUngauged(t *testing.T) {
-	descs := []string{"x", "THW 4/0 AWG", "THW 1/0 AWG", "cable (1 AWG)", "THW 14 AWG", "THW 2 AWG", "THW 12 AWG"}
+	descs := []string{"x", "THW 4/0 AWG", "THW 1/0 AWG", "cable (1 AWG)", "THW 14 AWG", "THW 2 AWG", "THW 12 AWG", "CABLE DESNUDO 14 AWG", "CABLE DESNUDO 2 AWG"}
 	var ps []Product
 	for _, d := range descs {
 		ps = append(ps, Product{SKU: d, Description: d})
 	}
 	sort.SliceStable(ps, func(i, j int) bool { return awgLess(ps[i], ps[j], false) })
-	want := []string{"THW 14 AWG", "THW 12 AWG", "THW 2 AWG", "cable (1 AWG)", "THW 1/0 AWG", "THW 4/0 AWG", "x"}
+	want := []string{"THW 14 AWG", "THW 12 AWG", "THW 2 AWG", "cable (1 AWG)", "THW 1/0 AWG", "THW 4/0 AWG", "x", "CABLE DESNUDO 14 AWG", "CABLE DESNUDO 2 AWG"}
 	for i, p := range ps {
 		if p.Description != want[i] {
 			t.Fatalf("asc[%d] = %q, want %q", i, p.Description, want[i])
