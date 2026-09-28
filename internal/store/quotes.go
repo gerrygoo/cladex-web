@@ -237,7 +237,7 @@ func (s *Store) ListQuotes(ctx context.Context, query, sort, dir string, filters
 			break
 		}
 	}
-	extra, extraArgs := filterWhere(quoteFilterColumns, filters)
+	extra, extraArgs := filterWhere(ctx, quoteFilterColumns, filters)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+quoteSelectCols+`
 		`+quoteFrom+`

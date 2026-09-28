@@ -29,6 +29,9 @@ const dummyHash = "$2a$12$u8XiYFJfZ3Ya.zqWtS2Rm.4uKi3dPwA51UNomgbauP3ZUFeo4BhdW"
 // last success) at which the next attempt starts being throttled.
 const rateLimitThreshold = 5
 
+// timeZoneCookieName holds the visitor's IANA time zone, e.g. America/Mexico_City.
+const timeZoneCookieName = "tz"
+
 // rateLimitCap is the maximum backoff delay, reached once failures pile up.
 const rateLimitCap = 5 * time.Minute
 
@@ -87,6 +90,13 @@ func (a *Auth) RequireAuth(next http.Handler) http.Handler {
 			return
 		}
 		ctx := context.WithValue(r.Context(), userContextKey, user)
+		// The browser reports its time zone in a cookie (static/time.js) so date filters
+		// mean the viewer's days.
+		if c, err := r.Cookie(timeZoneCookieName); err == nil {
+			if loc, err := time.LoadLocation(c.Value); err == nil {
+				ctx = store.WithLocation(ctx, loc)
+			}
+		}
 		// Attribute any database write made downstream to this user, for the audit
 		// triggers in migrations/0003_audit_log.sql, and let the access log name them.
 		ctx = store.WithActor(ctx, store.Actor{UserID: user.ID, Source: store.SourceWeb})

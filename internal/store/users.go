@@ -111,7 +111,7 @@ var userFilterColumns = []filterColumn{
 // ListUsers returns all users, sorted per sort/dir (see userSortColumns; dir is "asc"
 // or "desc"), for the admin /usuarios page.
 func (s *Store) ListUsers(ctx context.Context, sort, dir string, filters Filters) ([]User, error) {
-	extra, args := filterWhere(userFilterColumns, filters)
+	extra, args := filterWhere(ctx, userFilterColumns, filters)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, username, name, password_hash, role, disabled_at
 		FROM users WHERE 1 = 1`+extra+`

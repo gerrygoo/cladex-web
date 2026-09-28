@@ -66,7 +66,7 @@ filtrar por cualquier columna, además de buscar y ordenar:
      mayúsculas.
    - **Elección** (estado, rol, familia, unidad): elige un valor de la lista.
    - **Número** (total, costo): pon un mínimo, un máximo o ambos.
-   - **Fecha**: pon la fecha *Desde*, *Hasta* o ambas (los dos días cuentan).
+   - **Fecha**: pon la fecha *Desde*, *Hasta* o ambas (los dos días cuentan, según la zona horaria de tu navegador).
 3. Haz clic en **Aplicar**. El embudo de la columna filtrada se pinta de azul.
 
 Puedes combinar filtros de varias columnas, y siguen activos al buscar u ordenar. Para

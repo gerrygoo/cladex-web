@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 )
 
 func TestFilterWhereIgnoresUnknownAndInvalid(t *testing.T) {
-	where, args := filterWhere(quoteFilterColumns, Filters{
+	where, args := filterWhere(context.Background(), quoteFilterColumns, Filters{
 		"nope":      "x",
 		"total.min": "abc",
 		"fecha.max": "31/12/2026",
@@ -69,6 +70,33 @@ func TestListQuotesColumnFilters(t *testing.T) {
 		if fmt.Sprint(got) != tt.want {
 			t.Errorf("%s: got %v, want %s", tt.name, got, tt.want)
 		}
+	}
+}
+
+func TestListQuotesDateFilterUsesViewerZone(t *testing.T) {
+	s := newTestStore(t)
+	customerID, _ := s.CreateCustomer(context.Background(), Customer{Name: "Grupo PEME"})
+	ana, _ := s.CreateUser(context.Background(), "ana", "Ana", "hash", "vendedor")
+	// 03:00 UTC on the 28th is 21:00 on the 27th in Mexico City (UTC-6).
+	if _, err := s.db.Exec(`INSERT INTO quotes (folio, prefix, customer_id, user_id, status, created_at) VALUES ('QA0001', 'QA', ?, ?, 'emitida', '2026-09-28T03:00:00.000Z')`, customerID, ana); err != nil {
+		t.Fatal(err)
+	}
+	mexico := time.FixedZone("UTC-6", -6*3600)
+	count := func(ctx context.Context, f Filters) int {
+		qs, err := s.ListQuotes(ctx, "", "", "", f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(qs)
+	}
+	on27 := Filters{"fecha.min": "2026-09-27", "fecha.max": "2026-09-27"}
+	on28 := Filters{"fecha.min": "2026-09-28", "fecha.max": "2026-09-28"}
+	local := WithLocation(context.Background(), mexico)
+	if count(local, on27) != 1 || count(local, on28) != 0 {
+		t.Error("in Mexico City the quote belongs to the 27th")
+	}
+	if count(context.Background(), on27) != 0 || count(context.Background(), on28) != 1 {
+		t.Error("with no zone the quote belongs to its UTC day, the 28th")
 	}
 }
 

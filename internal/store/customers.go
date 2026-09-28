@@ -69,7 +69,7 @@ var customerFilterColumns = []filterColumn{
 // sort/dir (see customerSortColumns; dir is "asc" or "desc").
 func (s *Store) ListCustomers(ctx context.Context, query, sort, dir string, filters Filters) ([]Customer, error) {
 	like := "%" + escapeLike(query) + "%"
-	extra, extraArgs := filterWhere(customerFilterColumns, filters)
+	extra, extraArgs := filterWhere(ctx, customerFilterColumns, filters)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+customerSelectCols+`
 		FROM customers

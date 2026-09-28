@@ -169,7 +169,7 @@ func (s *Store) ListProducts(ctx context.Context, query, sort, dir string, filte
 		// Re-sorted naturally in Go below; order here only needs to be deterministic.
 		orderBy = "ORDER BY p.id ASC"
 	}
-	extra, extraArgs := filterWhere(productFilterColumns, filters)
+	extra, extraArgs := filterWhere(ctx, productFilterColumns, filters)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+productSelectCols+`
 		`+productFrom+`

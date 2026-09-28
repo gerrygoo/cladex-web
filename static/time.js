@@ -13,6 +13,11 @@
         " - " + pad(d.getHours()) + ":" + pad(d.getMinutes());
     });
   }
+  // Tell the server our zone so the tables' Desde/Hasta date filters use our days.
+  try {
+    var zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (zone) document.cookie = "tz=" + zone + "; path=/; max-age=31536000; samesite=lax";
+  } catch (e) {}
   localize(document);
   document.addEventListener("htmx:load", function (e) {
     localize(e.target);
