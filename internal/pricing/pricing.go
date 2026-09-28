@@ -73,6 +73,29 @@ func UnitPrice(p Product, margin *money.Micros) (money.Micros, error) {
 	return money.Micros(money.RoundHalfUp(int64(cost)*1_000_000, complement)), nil
 }
 
+// PriceFromMargin is what a cost sells for at margin, cost / (1 - margin): the same
+// formula UnitPrice uses, on a bare cost (e.g. a material's price per kg).
+func PriceFromMargin(cost, margin money.Micros) (money.Micros, error) {
+	if margin < 0 || margin >= 1_000_000 {
+		return 0, fmt.Errorf("pricing: margin %v out of range [0, 1_000_000)", margin)
+	}
+	return money.Micros(money.RoundHalfUp(int64(cost)*1_000_000, 1_000_000-int64(margin))), nil
+}
+
+// MarginFromPrice is the margin that sells cost for price, 1 - cost / price: the inverse
+// of PriceFromMargin. It errors when price is below cost (a negative margin) or the
+// price is zero.
+func MarginFromPrice(cost, price money.Micros) (money.Micros, error) {
+	if price <= 0 || price < cost {
+		return 0, fmt.Errorf("pricing: price %v is below cost %v", price, cost)
+	}
+	m := money.Micros(1_000_000 - money.RoundHalfUp(int64(cost)*1_000_000, int64(price)))
+	if m >= 1_000_000 {
+		return 0, fmt.Errorf("pricing: margin %v out of range [0, 1_000_000)", m)
+	}
+	return m, nil
+}
+
 // ConvertQty converts a quantity from one unit to another, given the rate between
 // them (amount of the target unit per 1 of the source unit — see
 // migrations/0003_add_units_and_conversions.sql). Used to turn a quote line entered

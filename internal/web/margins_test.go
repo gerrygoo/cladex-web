@@ -251,3 +251,92 @@ func TestAjustesMargenes(t *testing.T) {
 		t.Fatal("Estándar still retired after Restaurar")
 	}
 }
+
+// A custom margin typed as a percentage, or as the copper price per kg it implies,
+// prices the lines, is saved on the draft with the other field derived, and is frozen
+// as "Personalizado" when the quote is issued.
+func TestQuoteCustomMargin(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	ccsProductID, _ := seedCCSProduct(t, a) // CCS 30% at $160/kg
+	ctx := context.Background()
+	estandar := marginOption(t, a, "Estándar")
+
+	draft, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QS")
+	customForm := func(fields url.Values) url.Values {
+		f := costLineForm(ccsProductID, estandar.ID)
+		f.Set("margin_option_id", "custom")
+		for k, v := range fields {
+			f[k] = v
+		}
+		return f
+	}
+	recalc := func(f url.Values) string {
+		t.Helper()
+		rec := doForm(t, a, userID, q.Recalcular, "POST", "/cotizaciones/"+draft.Folio+"/recalcular",
+			map[string]string{"folio": draft.Folio}, f, true)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Recalcular status = %d", rec.Code)
+		}
+		return rec.Body.String()
+	}
+
+	// 0.1723 kg × $160 = $27.568; ÷ (1 − 0.5) = $55.14.
+	if body := recalc(customForm(url.Values{"margin_pct": {"50"}})); !strings.Contains(body, "55.14") {
+		t.Errorf("50%% custom margin didn't price to $55.14: %s", body)
+	}
+	// Typing the copper price wins when it was the last field edited: $320 = 160 / (1 − 0.5).
+	if body := recalc(customForm(url.Values{"margin_pct": {"10"}, "copper_price": {"320"}, "margin_edited": {"copper"}})); !strings.Contains(body, "55.14") {
+		t.Errorf("$320 copper price didn't price to $55.14: %s", body)
+	}
+	// A price below the material's cost, or a margin outside 0–100%, can't price.
+	for name, f := range map[string]url.Values{
+		"copper below cost": {"copper_price": {"100"}, "margin_edited": {"copper"}},
+		"margin over 100":   {"margin_pct": {"100"}},
+		"empty":             {},
+	} {
+		body := recalc(customForm(f))
+		if !strings.Contains(body, `class="error"`) {
+			t.Errorf("%s: no error shown: %s", name, body)
+		}
+	}
+
+	// Saving keeps the custom margin, and the builder shows both fields for it.
+	rec := doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+draft.Folio+"/guardar",
+		map[string]string{"folio": draft.Folio}, customForm(url.Values{"copper_price": {"320"}, "margin_edited": {"copper"}}), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	saved, _ := a.store.QuoteByID(ctx, draft.ID)
+	if saved.CustomMarginMicros == nil || *saved.CustomMarginMicros != 500_000 {
+		t.Fatalf("saved custom margin = %v, want 0.5", saved.CustomMarginMicros)
+	}
+	body := builderBody(t, a, q, userID, draft.Folio)
+	for _, want := range []string{`value="50"`, `value="320"`, `value="custom" selected`, "55.14"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("builder missing %q", want)
+		}
+	}
+
+	// Picking a menu option again drops the custom margin.
+	rec = doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+draft.Folio+"/guardar",
+		map[string]string{"folio": draft.Folio}, costLineForm(ccsProductID, estandar.ID), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar(option) status = %d", rec.Code)
+	}
+	if saved, _ = a.store.QuoteByID(ctx, draft.ID); saved.CustomMarginMicros != nil {
+		t.Errorf("custom margin survived picking an option: %v", *saved.CustomMarginMicros)
+	}
+
+	// Issuing freezes it as Personalizado.
+	rec = doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+draft.Folio+"/emitir",
+		map[string]string{"folio": draft.Folio}, customForm(url.Values{"margin_pct": {"50"}}), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if body := builderBody(t, a, q, userID, draft.Folio); !strings.Contains(body, "Margen: Personalizado (50%)") {
+		t.Errorf("issued page lost its custom margin: %s", body)
+	}
+}

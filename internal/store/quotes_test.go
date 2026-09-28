@@ -122,7 +122,7 @@ func TestReplaceQuoteLines(t *testing.T) {
 		{UnitPriceMicros: lines[1].UnitPriceMicros, QtyMilli: lines[1].QtyMilli},
 	})
 
-	if err := s.ReplaceQuoteLines(ctx, q.ID, nil, lines, totals); err != nil {
+	if err := s.ReplaceQuoteLines(ctx, q.ID, nil, nil, lines, totals); err != nil {
 		t.Fatalf("ReplaceQuoteLines: %v", err)
 	}
 
@@ -151,7 +151,7 @@ func TestReplaceQuoteLines(t *testing.T) {
 	// Replacing again with fewer lines should leave exactly the new set — no stale rows.
 	single := []QuoteLine{lines[0]}
 	singleTotals := pricing.ComputeTotals([]pricing.Line{{UnitPriceMicros: lines[0].UnitPriceMicros, QtyMilli: lines[0].QtyMilli}})
-	if err := s.ReplaceQuoteLines(ctx, q.ID, nil, single, singleTotals); err != nil {
+	if err := s.ReplaceQuoteLines(ctx, q.ID, nil, nil, single, singleTotals); err != nil {
 		t.Fatalf("ReplaceQuoteLines (second call): %v", err)
 	}
 	got, err = s.ListQuoteLines(ctx, q.ID)
@@ -176,7 +176,7 @@ func TestIssueQuote(t *testing.T) {
 		{ProductID: &flatProductID, DescriptionSnapshot: "Foco LED", QtyMilli: money.Milli(1_000), UnitPriceMicros: money.Micros(100_000_000), LineTotal: money.Centavos(10_000), Source: "manual"},
 	}
 	totals := pricing.ComputeTotals([]pricing.Line{{UnitPriceMicros: lines[0].UnitPriceMicros, QtyMilli: lines[0].QtyMilli}})
-	if err := s.ReplaceQuoteLines(ctx, q.ID, nil, lines, totals); err != nil {
+	if err := s.ReplaceQuoteLines(ctx, q.ID, nil, nil, lines, totals); err != nil {
 		t.Fatalf("ReplaceQuoteLines: %v", err)
 	}
 
@@ -245,7 +245,7 @@ func TestCreateRevision(t *testing.T) {
 		{ProductID: &flatProductID, DescriptionSnapshot: "Foco LED", QtyMilli: money.Milli(1_000), UnitPriceMicros: money.Micros(100_000_000), LineTotal: money.Centavos(10_000), Source: "manual"},
 	}
 	totals := pricing.ComputeTotals([]pricing.Line{{UnitPriceMicros: lines[0].UnitPriceMicros, QtyMilli: lines[0].QtyMilli}})
-	if err := s.ReplaceQuoteLines(ctx, q.ID, nil, lines, totals); err != nil {
+	if err := s.ReplaceQuoteLines(ctx, q.ID, nil, nil, lines, totals); err != nil {
 		t.Fatalf("ReplaceQuoteLines: %v", err)
 	}
 	if err := s.IssueQuote(ctx, q.ID, testIssue("sha1")); err != nil {
@@ -292,7 +292,7 @@ func TestCreateRevision(t *testing.T) {
 	}
 
 	// Issuing and revising the revision itself produces -R2, chained off the same base.
-	if err := s.ReplaceQuoteLines(ctx, rev.ID, nil, lines, totals); err != nil {
+	if err := s.ReplaceQuoteLines(ctx, rev.ID, nil, nil, lines, totals); err != nil {
 		t.Fatalf("ReplaceQuoteLines(rev): %v", err)
 	}
 	if err := s.IssueQuote(ctx, rev.ID, testIssue("sha2")); err != nil {
@@ -334,7 +334,7 @@ func TestQuotesAreAudited(t *testing.T) {
 		{ProductID: &flatProductID, DescriptionSnapshot: "Foco LED", QtyMilli: money.Milli(1_000), UnitPriceMicros: money.Micros(100_000_000), LineTotal: money.Centavos(10_000), Source: "manual"},
 	}
 	totals := pricing.ComputeTotals([]pricing.Line{{UnitPriceMicros: lines[0].UnitPriceMicros, QtyMilli: lines[0].QtyMilli}})
-	if err := s.ReplaceQuoteLines(actorCtx, q.ID, nil, lines, totals); err != nil {
+	if err := s.ReplaceQuoteLines(actorCtx, q.ID, nil, nil, lines, totals); err != nil {
 		t.Fatalf("ReplaceQuoteLines: %v", err)
 	}
 	if err := s.IssueQuote(actorCtx, q.ID, testIssue("sha1")); err != nil {

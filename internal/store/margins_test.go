@@ -168,11 +168,11 @@ func TestQuoteMarginOption(t *testing.T) {
 		t.Fatalf("new draft margin = %v, want Estándar (%d)", q.MarginOptionID, estandar.ID)
 	}
 
-	if err := s.ReplaceQuoteLines(ctx, q.ID, &alto.ID, nil, pricing.Totals{}); err != nil {
+	if err := s.ReplaceQuoteLines(ctx, q.ID, &alto.ID, nil, nil, pricing.Totals{}); err != nil {
 		t.Fatalf("ReplaceQuoteLines: %v", err)
 	}
 	// nil leaves the saved option alone.
-	if err := s.ReplaceQuoteLines(ctx, q.ID, nil, nil, pricing.Totals{}); err != nil {
+	if err := s.ReplaceQuoteLines(ctx, q.ID, nil, nil, nil, pricing.Totals{}); err != nil {
 		t.Fatalf("ReplaceQuoteLines(nil margin): %v", err)
 	}
 	if q, _ = s.QuoteByID(ctx, q.ID); q.MarginOptionID == nil || *q.MarginOptionID != alto.ID {

@@ -306,7 +306,7 @@ func TestQuotesPDF(t *testing.T) {
 		t.Fatalf("CreateDraftQuote: %v", err)
 	}
 	totals := pricing.ComputeTotals([]pricing.Line{{UnitPriceMicros: money.Micros(100_000_000), QtyMilli: money.Milli(1_000)}})
-	err = a.store.ReplaceQuoteLines(context.Background(), quote.ID, nil, []store.QuoteLine{
+	err = a.store.ReplaceQuoteLines(context.Background(), quote.ID, nil, nil, []store.QuoteLine{
 		{ProductID: &flatProductID, DescriptionSnapshot: "Foco LED", QtyMilli: money.Milli(1_000), UnitPriceMicros: money.Micros(100_000_000), LineTotal: money.LineTotalCentavos(money.Micros(100_000_000), money.Milli(1_000)), Source: "manual"},
 	}, totals)
 	if err != nil {

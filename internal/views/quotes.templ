@@ -485,6 +485,7 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
 // revision superseded it (revisada).
 templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, picker ProductPicker, user *NavUser) {
 	@Layout("Cotización "+quote.Folio, user) {
+		<script src="/static/margin.js" defer></script>
 		<h1>
 			Cotización { quote.Folio }
 			@HelpLink(quoteHelpTopic(quote.Status))
@@ -517,23 +518,60 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 				>
 					Recalcular
 				</button>
-				<label>
-					Margen
-					<select
-						name="margin_option_id"
-						hx-post={ recalcularPath(quote.Folio) }
-						hx-trigger="change"
-						hx-target="#quote-lines-fragment"
-						hx-swap="outerHTML"
-					>
-						if margin.NoneChosen {
-							<option value="" selected>— Elige un margen —</option>
+				<div id="margin-controls" data-copper-cost={ margin.CopperCost }>
+					<label>
+						Margen
+						<select
+							id="margin-select"
+							name="margin_option_id"
+							hx-post={ recalcularPath(quote.Folio) }
+							hx-trigger="change"
+							hx-target="#quote-lines-fragment"
+							hx-swap="outerHTML"
+						>
+							if margin.NoneChosen {
+								<option value="" selected>— Elige un margen —</option>
+							}
+							for _, c := range margin.Choices {
+								<option value={ marginChoiceValue(c.ID) } data-pct={ c.Pct } selected?={ c.Selected }>{ c.Label }</option>
+							}
+							<option value={ CustomMarginValue } selected?={ margin.Custom }>Personalizado…</option>
+						</select>
+					</label>
+					<span id="margin-custom" hidden?={ !margin.Custom }>
+						<input type="hidden" name="margin_edited" id="margin-edited" value=""/>
+						<label>
+							Margen (%)
+							<input
+								type="text"
+								inputmode="decimal"
+								name="margin_pct"
+								id="margin-pct"
+								value={ margin.CustomPct }
+								hx-post={ recalcularPath(quote.Folio) }
+								hx-trigger="change"
+								hx-target="#quote-lines-fragment"
+								hx-swap="outerHTML"
+							/>
+						</label>
+						if margin.HasCopper {
+							<label>
+								Precio { margin.CopperName } ($/kg)
+								<input
+									type="text"
+									inputmode="decimal"
+									name="copper_price"
+									id="copper-price"
+									value={ margin.CopperPrice }
+									hx-post={ recalcularPath(quote.Folio) }
+									hx-trigger="change"
+									hx-target="#quote-lines-fragment"
+									hx-swap="outerHTML"
+								/>
+							</label>
 						}
-						for _, c := range margin.Choices {
-							<option value={ marginChoiceValue(c.ID) } selected?={ c.Selected }>{ c.Label }</option>
-						}
-					</select>
-				</label>
+					</span>
+				</div>
 				<div class="toolbar">
 					<input
 						type="search"

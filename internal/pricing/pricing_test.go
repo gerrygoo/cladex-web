@@ -213,3 +213,30 @@ func TestConvertQty(t *testing.T) {
 		})
 	}
 }
+
+func TestPriceMarginRoundTrip(t *testing.T) {
+	cost := money.Micros(160_000_000)
+	price, err := PriceFromMargin(cost, 295_500)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if price != 227_111_427 { // 160 / (1 - 0.2955)
+		t.Errorf("PriceFromMargin = %v, want 227.111427", price)
+	}
+	m, err := MarginFromPrice(cost, 220_000_000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m != 272_727 { // 1 - 160/220
+		t.Errorf("MarginFromPrice = %v, want 0.272727", m)
+	}
+	if m, err := MarginFromPrice(cost, cost); err != nil || m != 0 {
+		t.Errorf("MarginFromPrice(cost, cost) = %v, %v; want 0, nil", m, err)
+	}
+	if _, err := MarginFromPrice(cost, cost-1); err == nil {
+		t.Error("MarginFromPrice below cost: want error")
+	}
+	if _, err := PriceFromMargin(cost, 1_000_000); err == nil {
+		t.Error("PriceFromMargin at 100%: want error")
+	}
+}

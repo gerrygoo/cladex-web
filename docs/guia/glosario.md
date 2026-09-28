@@ -84,4 +84,5 @@ administrador en Ajustes.
 La parte del precio de venta que es utilidad, como porcentaje (35 %). Todo producto del
 catálogo cuesta costo ÷ (1 − margen), donde el costo incluye el de sus materiales. Cada cotización usa uno
 de los márgenes de una lista con nombre (p. ej. *Estándar (12.34%)*) que mantiene un
-administrador en Ajustes; el vendedor lo elige al armar la cotización.
+administrador en Ajustes; el vendedor lo elige al armar la cotización, o escribe uno propio
+(*Personalizado*), ya sea como porcentaje o como precio por kilo del cobre CCS.

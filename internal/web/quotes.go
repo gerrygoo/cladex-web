@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -47,19 +48,25 @@ const defaultValidityDays = 30
 // series label, not a restriction on which products a quote can contain.
 var validPrefixes = map[string]bool{"QA": true, "QS": true, "QI": true}
 
-// draftMargin is the margin option a draft is priced with: the quote's own
-// margin_option_id, or the one the builder form just submitted. Drafts follow the
-// option live, so its current value is what prices them. option is nil when neither
-// names an existing option; picker is the builder's dropdown for this state.
+// copperMaterialName is the catalog material whose sale price per kg a CCS quote's
+// margin can be set by: its cost / (1 - margin) is the "copper price" salespeople quote.
+const copperMaterialName = "CCS 30%"
+
+// draftMargin is the margin a draft is priced with: a custom margin typed on the
+// builder (or saved on the quote), else the quote's own margin_option_id or the one the
+// builder form just submitted. Drafts follow an option live, so its current value is
+// what prices them. option is nil when neither names an existing option; picker is the
+// builder's margin controls for this state.
 type draftMargin struct {
 	option *store.MarginOption
+	custom *money.Micros
 	picker views.MarginPicker
 }
 
-// usable reports whether the draft can be priced and issued with its margin: it names
-// an option, and that option hasn't been retired.
+// usable reports whether the draft can be priced and issued with its margin: it has a
+// custom margin, or names an option that hasn't been retired.
 func (m draftMargin) usable() bool {
-	return m.option != nil && m.option.Active()
+	return m.custom != nil || (m.option != nil && m.option.Active())
 }
 
 // value is the margin to price with, or nil when unusable — internal/pricing then fails
@@ -68,8 +75,23 @@ func (m draftMargin) value() *money.Micros {
 	if !m.usable() {
 		return nil
 	}
+	if m.custom != nil {
+		v := *m.custom
+		return &v
+	}
 	v := m.option.ValueMicros
 	return &v
+}
+
+// name is what the margin is called in snapshots: the option's name, or "Personalizado".
+func (m draftMargin) name() string {
+	if m.custom != nil {
+		return views.CustomMarginName
+	}
+	if m.option != nil {
+		return m.option.Name
+	}
+	return ""
 }
 
 // id is the option to save onto the draft, or nil to leave its current one.
@@ -80,18 +102,38 @@ func (m draftMargin) id() *int64 {
 	return &m.option.ID
 }
 
-// resolveMargin works out a draft's margin. submitted is the builder form's
-// margin_option_id ("" when the request didn't carry one, e.g. a page load); it wins
-// over the quote's saved option so an unsaved change in the dropdown prices the lines.
-func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, submitted string) (draftMargin, error) {
+// resolveMargin works out a draft's margin. form is the builder form's values (nil when
+// the request didn't carry one, e.g. a page load); its margin controls win over the
+// quote's saved margin so an unsaved change in the dropdown prices the lines.
+func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url.Values) (draftMargin, error) {
 	selected := quote.MarginOptionID
-	if id, err := strconv.ParseInt(strings.TrimSpace(submitted), 10, 64); err == nil {
-		selected = &id
+	custom := quote.CustomMarginMicros
+	customMode := custom != nil
+	submitted := false
+	if v, ok := form["margin_option_id"]; ok && len(v) > 0 {
+		v0 := strings.TrimSpace(v[0])
+		customMode = v0 == views.CustomMarginValue
+		submitted = true
+		custom = nil
+		if id, err := strconv.ParseInt(v0, 10, 64); err == nil {
+			selected = &id
+		}
 	}
 	opts, err := q.store.ListMarginOptions(ctx)
 	if err != nil {
 		return draftMargin{}, fmt.Errorf("resolve margin: %w", err)
 	}
+	var copper *store.Material
+	if materials, err := q.store.ListMaterials(ctx); err != nil {
+		return draftMargin{}, fmt.Errorf("resolve margin: %w", err)
+	} else {
+		for i := range materials {
+			if materials[i].Name == copperMaterialName {
+				copper = &materials[i]
+			}
+		}
+	}
+
 	var m draftMargin
 	if selected != nil {
 		for i := range opts {
@@ -101,6 +143,38 @@ func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, submitte
 			}
 		}
 	}
+	if customMode {
+		m.picker = views.NewMarginPicker(opts, nil)
+		m.picker.NoneChosen = false
+		m.picker.Custom = true
+		if copper != nil {
+			m.picker.HasCopper = true
+			m.picker.CopperName = copper.Name
+			m.picker.CopperCost = views.CopperPriceText(copper.PriceMicros)
+		}
+		var errMsg string
+		pctRaw, copperRaw := strings.TrimSpace(form.Get("margin_pct")), strings.TrimSpace(form.Get("copper_price"))
+		if submitted {
+			custom, errMsg = parseCustomMargin(form.Get("margin_edited"), pctRaw, copperRaw, copper)
+		}
+		m.custom = custom
+		if custom != nil {
+			m.picker.CustomPct = views.MarginPercent(*custom)
+			if copper != nil {
+				if price, err := pricing.PriceFromMargin(copper.PriceMicros, *custom); err == nil {
+					m.picker.CopperPrice = views.CopperPriceText(price)
+				}
+			}
+		} else {
+			m.picker.CustomPct, m.picker.CopperPrice = pctRaw, copperRaw
+			if errMsg == "" {
+				errMsg = invalidCustomMarginMsg
+			}
+			m.picker.Error = errMsg
+		}
+		return m, nil
+	}
+
 	m.picker = views.NewMarginPicker(opts, m.id())
 	switch {
 	case m.option == nil:
@@ -108,7 +182,38 @@ func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, submitte
 	case !m.option.Active():
 		m.picker.Error = "El margen elegido ya no está disponible; elige otro."
 	}
+	if copper != nil {
+		m.picker.HasCopper = true
+		m.picker.CopperName = copper.Name
+		m.picker.CopperCost = views.CopperPriceText(copper.PriceMicros)
+	}
 	return m, nil
+}
+
+const invalidCustomMarginMsg = "Margen personalizado inválido: escribe un porcentaje de 0 a 99.9999, p. ej. 12.34."
+
+// parseCustomMargin reads a custom margin from the builder's two fields. edited says
+// which one the salesperson touched last ("copper" or anything else for the
+// percentage): the other is derived from it, so they can never disagree. copper is the
+// material the price field is measured against (nil when the catalog has none, in
+// which case only the percentage exists). errMsg is set when the value is unusable.
+func parseCustomMargin(edited, pctRaw, copperRaw string, copper *store.Material) (margin *money.Micros, errMsg string) {
+	if edited == "copper" && copper != nil {
+		price, err := money.ParseMicros(strings.TrimPrefix(copperRaw, "$"))
+		if err != nil {
+			return nil, "Precio de " + copper.Name + " inválido: escribe un monto por kg, p. ej. 220.00."
+		}
+		m, err := pricing.MarginFromPrice(copper.PriceMicros, price)
+		if err != nil {
+			return nil, "El precio de " + copper.Name + " no puede ser menor que su costo (" + views.CopperPriceText(copper.PriceMicros) + " por kg)."
+		}
+		return &m, ""
+	}
+	m, err := parseMarginPercent(pctRaw)
+	if err != nil {
+		return nil, invalidCustomMarginMsg
+	}
+	return &m, ""
 }
 
 // List renders /cotizaciones: the full page normally, or just the table body when
@@ -419,11 +524,7 @@ func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput,
 		}
 		v.UnitPriceMicros = unitPrice
 		v.LineTotal = money.LineTotalCentavos(unitPrice, qty)
-		marginName := ""
-		if margin.option != nil {
-			marginName = margin.option.Name
-		}
-		v.PricingInputsJSON = buildPricingInputsJSON(product, materials, *margin.value(), marginName)
+		v.PricingInputsJSON = buildPricingInputsJSON(product, materials, *margin.value(), margin.name())
 		result[i] = v
 	}
 	return result
@@ -550,7 +651,7 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 	var totals pricing.Totals
 	var margin draftMargin
 	if quote.Status == "borrador" {
-		margin, err = q.resolveMargin(ctx, quote, "")
+		margin, err = q.resolveMargin(ctx, quote, nil)
 		if err != nil {
 			http.Error(w, "error interno", http.StatusInternalServerError)
 			return
@@ -612,7 +713,7 @@ func (q *Quotes) Recalcular(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "solicitud inválida", http.StatusBadRequest)
 		return
 	}
-	margin, err := q.resolveMargin(ctx, quote, r.FormValue("margin_option_id"))
+	margin, err := q.resolveMargin(ctx, quote, r.Form)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
@@ -662,7 +763,7 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "solicitud inválida", http.StatusBadRequest)
 		return
 	}
-	margin, err := q.resolveMargin(ctx, quote, r.FormValue("margin_option_id"))
+	margin, err := q.resolveMargin(ctx, quote, r.Form)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
@@ -689,7 +790,7 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 			Source:              "manual",
 		}
 	}
-	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, margin.id(), storeLines, totals); err != nil {
+	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, margin.id(), margin.custom, storeLines, totals); err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
@@ -806,7 +907,7 @@ func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
 
 	var doc pdf.QuoteDocument
 	if quote.Status == "borrador" {
-		margin, err := q.resolveMargin(ctx, quote, "")
+		margin, err := q.resolveMargin(ctx, quote, nil)
 		if err != nil {
 			http.Error(w, "error interno", http.StatusInternalServerError)
 			return
@@ -864,7 +965,7 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "solicitud inválida", http.StatusBadRequest)
 		return
 	}
-	margin, err := q.resolveMargin(ctx, quote, r.FormValue("margin_option_id"))
+	margin, err := q.resolveMargin(ctx, quote, r.Form)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
@@ -895,7 +996,7 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 			Source:              "manual",
 		}
 	}
-	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, margin.id(), storeLines, totals); err != nil {
+	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, margin.id(), margin.custom, storeLines, totals); err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
@@ -909,8 +1010,8 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		ValidUntil:           &validUntil,
 		CustomerNameSnapshot: quote.CustomerName,
 		VendedorSnapshot:     quote.UserName,
-		MarginName:           margin.option.Name,
-		MarginMicros:         margin.option.ValueMicros,
+		MarginName:           margin.name(),
+		MarginMicros:         *margin.value(),
 	}
 
 	// Render from the quote exactly as it's about to be frozen, through the same

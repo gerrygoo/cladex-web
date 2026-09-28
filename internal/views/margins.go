@@ -22,6 +22,7 @@ func MarginLabel(name string, value money.Micros) string {
 type MarginChoice struct {
 	ID       int64
 	Label    string
+	Pct      string // the option's percentage, for prefilling the custom fields
 	Selected bool
 }
 
@@ -34,6 +35,18 @@ type MarginPicker struct {
 	Choices    []MarginChoice
 	NoneChosen bool
 	Error      string
+
+	// Custom is set when the draft is on a margin of its own ("Personalizado") rather
+	// than a menu option; CustomPct holds the percentage typed (or derived) for it.
+	// When the catalog has the copper material (HasCopper), the same margin is also
+	// offered as that material's sale price per kg: CopperName and CopperCost say what
+	// the price is measured against, and CopperPrice is the price CustomPct implies.
+	Custom      bool
+	CustomPct   string
+	HasCopper   bool
+	CopperName  string
+	CopperCost  string
+	CopperPrice string
 }
 
 // NewMarginPicker builds the dropdown for a draft whose selected option is selectedID
@@ -50,11 +63,23 @@ func NewMarginPicker(opts []store.MarginOption, selectedID *int64) MarginPicker 
 		if !o.Active() {
 			label += " — retirado"
 		}
-		p.Choices = append(p.Choices, MarginChoice{ID: o.ID, Label: label, Selected: selected})
+		p.Choices = append(p.Choices, MarginChoice{ID: o.ID, Label: label, Pct: MarginPercent(o.ValueMicros), Selected: selected})
 		found = found || selected
 	}
 	p.NoneChosen = !found
 	return p
+}
+
+// CustomMarginValue is the margin dropdown's value for "Personalizado".
+const CustomMarginValue = "custom"
+
+// CustomMarginName is the name a custom margin carries in snapshots and pricing inputs.
+const CustomMarginName = "Personalizado"
+
+// CopperPriceText renders a sale price per kg for the copper field: whole centavos, no
+// currency formatting, so it round-trips through an <input>.
+func CopperPriceText(m money.Micros) string {
+	return money.Micros(money.RoundHalfUp(int64(m), 10_000) * 10_000).String()
 }
 
 func marginChoiceValue(id int64) string {
