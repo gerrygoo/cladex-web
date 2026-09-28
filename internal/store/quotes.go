@@ -204,9 +204,9 @@ var quoteSortColumns = []sortColumn{
 	{"fecha", "q.created_at"},
 }
 
-// quoteDefaultOrder is the list's order when no sort column is chosen: by folio, with the
-// QI (alumbrado) family after all the others.
-const quoteDefaultOrder = `ORDER BY (q.prefix = 'QI') ASC, q.folio ASC`
+// quoteDefaultOrder is the list's order when no sort column is chosen: newest first,
+// with the QI (alumbrado) family after all the others.
+const quoteDefaultOrder = `ORDER BY (q.prefix = 'QI') ASC, q.created_at DESC, q.id DESC`
 
 // ListQuotes returns quotes, optionally filtered by a case-insensitive substring match
 // on folio or customer name, sorted per sort/dir (see quoteSortColumns).

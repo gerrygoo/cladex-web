@@ -454,7 +454,7 @@ func migrationsBefore(t *testing.T, first string) fstest.MapFS {
 	return before
 }
 
-func TestListQuotesDefaultOrderPutsQILast(t *testing.T) {
+func TestListQuotesDefaultOrderNewestFirstQILast(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
 	customerID, err := s.CreateCustomer(ctx, Customer{Name: "Grupo PEME"})
@@ -478,7 +478,7 @@ func TestListQuotesDefaultOrderPutsQILast(t *testing.T) {
 	for _, q := range quotes {
 		got = append(got, q.Folio)
 	}
-	want := []string{"QA0001", "QA0002", "QS0001", "QI0001"}
+	want := []string{"QA0002", "QS0001", "QA0001", "QI0001"}
 	if fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Errorf("default order = %v, want %v", got, want)
 	}

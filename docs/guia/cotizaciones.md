@@ -199,8 +199,8 @@ Qué pasa al revisar:
 1. En el menú, entra a **Cotizaciones**.
 2. Escribe el folio o el nombre del cliente en *"Buscar por folio o cliente…"*.
 3. Para ordenar, haz clic en el encabezado **Folio**, **Cliente**, **Autor**,
-   **Estado**, **Total** o **Fecha**. Otro clic invierte el orden. Sin ordenar, van por
-   folio y las cotizaciones de alumbrado (QI) quedan al final.
+   **Estado**, **Total** o **Fecha**. Otro clic invierte el orden. Sin ordenar, van de la más
+   reciente a la más antigua y las cotizaciones de alumbrado (QI) quedan al final.
 4. Haz clic en el folio para abrir la cotización.
 
 ## Problemas comunes
