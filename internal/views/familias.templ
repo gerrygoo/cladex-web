@@ -46,7 +46,7 @@ templ FamiliasList(families []store.Family, values FamiliaFormValues, fieldError
 									De catálogo
 								}
 							</td>
-							<td><a href={ templ.URL("/familias/" + strconv.FormatInt(f.ID, 10)) }>Editar términos<span class="visually-hidden">de { f.Name }</span></a></td>
+							<td><a href={ templ.URL("/familias/" + strconv.FormatInt(f.ID, 10)) }>Editar términos<span class="visually-hidden">{ " de " + f.Name }</span></a></td>
 						</tr>
 					}
 				</tbody>
