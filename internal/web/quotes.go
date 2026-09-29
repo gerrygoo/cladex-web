@@ -710,9 +710,11 @@ func (q *Quotes) renderBuilder(w http.ResponseWriter, r *http.Request, quote *st
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
+	comments, pager := paginate(r, comments)
+	commentsLV := views.ListView{Base: "/cotizaciones/" + quote.Folio, Pager: pager, Anchor: "comentarios"}
 	user, _ := UserFromContext(ctx)
 	w.WriteHeader(status)
-	views.QuoteBuilder(*quote, lines, totals, margin, successMsg, picker, comments, navUserView(user)).Render(ctx, w)
+	views.QuoteBuilder(*quote, lines, totals, margin, successMsg, picker, comments, commentsLV, navUserView(user)).Render(ctx, w)
 }
 
 // Recalcular handles POST /cotizaciones/{folio}/recalcular: the endpoint behind every

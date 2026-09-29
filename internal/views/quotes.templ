@@ -484,7 +484,7 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
 // read-only summary instead: QuoteLinesReadOnly, the frozen issue metadata, and either
 // a "Revisar" button (emitida — the active version) or a note pointing at whichever
 // revision superseded it (revisada).
-templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, picker ProductPicker, comments []store.QuoteComment, user *NavUser) {
+templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser) {
 	@Layout("Cotización "+quote.Folio, user) {
 		<script src="/static/margin.js" defer></script>
 		<h1>
@@ -640,7 +640,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 			<a href={ templ.URL("/cotizaciones/" + quote.Folio + "/pdf") } target="_blank">Descargar PDF</a> ·
 			<a href="/cotizaciones">Volver a cotizaciones</a>
 		</p>
-		@QuoteComments(quote.Folio, comments)
+		@QuoteComments(quote.Folio, comments, commentsLV)
 	}
 }
 
@@ -694,7 +694,7 @@ func comentarPath(folio string) string {
 
 // QuoteComments is the follow-up box at the foot of every quote: the form to add a
 // comment, then everyone's comments, newest first.
-templ QuoteComments(folio string, comments []store.QuoteComment) {
+templ QuoteComments(folio string, comments []store.QuoteComment, lv ListView) {
 	<section id="comentarios">
 		<h2>Comentarios</h2>
 		<form method="post" action={ templ.URL(comentarPath(folio)) }>
@@ -727,6 +727,7 @@ templ QuoteComments(folio string, comments []store.QuoteComment) {
 				}
 			</tbody>
 		</table>
+		@listPager(lv, false)
 	</section>
 }
 

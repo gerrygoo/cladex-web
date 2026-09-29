@@ -17,7 +17,8 @@ type ListView struct {
 	Sort    string
 	Dir     string
 	Filters store.Filters
-	Pager   Pager // the page shown; the zero value means one unpaged page
+	Pager   Pager  // the page shown; the zero value means one unpaged page
+	Anchor  string // fragment the pager's links and form jump to, for lists inside a longer page
 }
 
 // DefaultPerPage is the rows per page of a list that doesn't ask for another size, and
@@ -39,7 +40,14 @@ func (lv ListView) PageHref(n int) string {
 	if n > 1 {
 		v.Set("page", strconv.Itoa(n))
 	}
-	return withQuery(lv.Base, v)
+	return withQuery(lv.Base, v) + lv.fragment()
+}
+
+func (lv ListView) fragment() string {
+	if lv.Anchor == "" {
+		return ""
+	}
+	return "#" + lv.Anchor
 }
 
 // filterParam is the URL param name for a Filters key ("sku" -> "f.sku").

@@ -109,7 +109,7 @@ templ listPager(lv ListView, oob bool) {
 			if lv.Pager.Page < lv.Pager.Pages {
 				<a href={ templ.URL(lv.PageHref(lv.Pager.Page + 1)) } rel="next">Siguiente →</a>
 			}
-			<form method="get" action={ templ.URL(lv.Base) } class="per-page">
+			<form method="get" action={ templ.URL(lv.Base + lv.fragment()) } class="per-page">
 				@listHiddenInputs(lv, "per")
 				<label>
 					Filas por página

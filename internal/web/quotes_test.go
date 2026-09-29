@@ -856,3 +856,34 @@ func TestQuotesComments(t *testing.T) {
 		t.Error("comment box is not below the download / back links")
 	}
 }
+
+func TestQuotesCommentsArePaged(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
+	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	quote, err := a.store.CreateDraftQuote(context.Background(), customerID, ana, "QA")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+	for i := 1; i <= 25; i++ {
+		if err := a.store.AddQuoteComment(context.Background(), quote.ID, ana, fmt.Sprintf("nota-%02d.", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pv := map[string]string{"folio": quote.Folio}
+	get := func(target string) string {
+		return doForm(t, a, ana, q.Builder, "GET", target, pv, nil, false).Body.String()
+	}
+	body := get("/cotizaciones/" + quote.Folio)
+	if !strings.Contains(body, "nota-25.") || !strings.Contains(body, "nota-06.") || strings.Contains(body, "nota-05.") {
+		t.Error("page 1 should hold the 20 newest comments (25 down to 6)")
+	}
+	if !strings.Contains(body, "Página 1 de 2") || !strings.Contains(body, "page=2#comentarios") {
+		t.Error("comments pager missing or not anchored to the comments")
+	}
+	body = get("/cotizaciones/" + quote.Folio + "?page=2")
+	if !strings.Contains(body, "nota-05.") || !strings.Contains(body, "nota-01.") || strings.Contains(body, "nota-06.") {
+		t.Error("page 2 should hold the 5 oldest comments")
+	}
+}
