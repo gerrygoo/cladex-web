@@ -109,7 +109,7 @@ func UnitsList(units []store.Unit, successMsg string, errorMsg string, user *Nav
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</tbody></table></div><h2>Nueva unidad</h2><form method=\"post\" action=\"/unidades\"><label>Código <input type=\"text\" name=\"code\" placeholder=\"p. ej. caja\" required></label> <label>Nombre <input type=\"text\" name=\"name\" placeholder=\"p. ej. Caja\" required></label> <button type=\"submit\">Agregar</button></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</tbody></table></div><h2>Nueva unidad</h2><form method=\"post\" action=\"/unidades\"><label>Código <input type=\"text\" name=\"code\" placeholder=\"p. ej. caja\" required></label> <label>Nombre <input type=\"text\" name=\"name\" placeholder=\"p. ej. Caja\" required></label> <button type=\"submit\" class=\"primary\">Agregar</button></form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

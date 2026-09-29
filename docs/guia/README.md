@@ -71,7 +71,8 @@ filtrar por cualquier columna, además de buscar y ordenar:
 
 Puedes combinar filtros de varias columnas, y siguen activos al buscar u ordenar. Para
 quitar uno, abre su embudo y haz clic en **Limpiar**; **Quitar todos** (arriba de la
-tabla) los quita todos. La dirección de la página guarda los filtros, así que puedes
+tabla) los quita todos. Arriba de la tabla siempre ves si hay filtros: *"Filtros activos
+en la tabla."* o *"Sin filtros."* La dirección de la página guarda los filtros, así que puedes
 guardarla o compartirla.
 
 ## Conceptos

@@ -8,6 +8,15 @@
     if (msg && !window.confirm(msg)) e.preventDefault();
   }, true);
 
+  // Mark the nav link of the section this page belongs to (/cotizaciones/QS0001 is under
+  // Cotizaciones).
+  document.addEventListener("DOMContentLoaded", function () {
+    var section = "/" + location.pathname.split("/")[1];
+    document.querySelectorAll("nav.app-nav a, div.nav-user a").forEach(function (a) {
+      if (a.getAttribute("href") === section) a.setAttribute("aria-current", "page");
+    });
+  });
+
   // After a failed submit the server re-renders the form with aria-invalid fields;
   // start the user on the first one.
   document.addEventListener("DOMContentLoaded", function () {
@@ -22,6 +31,21 @@
   // that had focus (e.g. a deleted line's button), focus goes to the fragment itself
   // (tabindex="-1") instead of falling back to the top of the page. htmx already
   // restores focus to an element whose id survives the swap.
+  // Keep the control the user just used under the cursor. Adding a line from the product
+  // picker grows the lines table above it; without this the next product would slide
+  // out from under the pointer. Whatever moved is compensated by scrolling the page.
+  var anchor = null;
+  document.addEventListener("htmx:beforeRequest", function (e) {
+    var elt = e.detail.elt;
+    anchor = elt ? { elt: elt, top: elt.getBoundingClientRect().top } : null;
+  });
+  document.addEventListener("htmx:afterSettle", function () {
+    if (!anchor || !anchor.elt.isConnected) return;
+    var moved = anchor.elt.getBoundingClientRect().top - anchor.top;
+    if (Math.abs(moved) > 1) window.scrollBy(0, moved);
+    anchor = null;
+  });
+
   var hadFocus = false;
   document.addEventListener("htmx:beforeSwap", function (e) {
     var t = e.detail.target;
@@ -48,22 +72,36 @@
   // (the quote builder). form[data-guard-unsaved] becomes dirty on any htmx POST from
   // inside it or on typing in a field, except fields marked data-guard-ignore (search
   // boxes). A submit through a button marked data-guard-save clears it. While dirty,
-  // [data-unsaved-status] inside the form is shown and leaving the page asks first.
+  // leaving the page asks first. [data-unsaved-status] always shows the current state,
+  // swapping between its data-saved-text and data-unsaved-text, so nothing appears or
+  // disappears and shifts the layout.
   document.addEventListener("DOMContentLoaded", function () {
     var form = document.querySelector("form[data-guard-unsaved]");
     if (!form) return;
     var dirty = false;
     var status = form.querySelector("[data-unsaved-status]");
+    function show(state) {
+      if (!status) return;
+      status.textContent = status.dataset[state + "Text"];
+      status.classList.remove("saved", "unsaved", "busy");
+      status.classList.add(state);
+    }
     function setDirty(v) {
       dirty = v;
-      if (status) status.hidden = !v;
+      show(v ? "unsaved" : "saved");
     }
+    // While a recalculation is in flight the same element says so.
+    document.addEventListener("htmx:beforeRequest", function (e) {
+      var cfg = e.detail.requestConfig;
+      if (cfg && cfg.verb === "post" && form.contains(e.detail.elt)) show("busy");
+    });
     form.addEventListener("input", function (e) {
       if (!e.target.closest("[data-guard-ignore]")) setDirty(true);
     });
     document.addEventListener("htmx:afterRequest", function (e) {
       var cfg = e.detail.requestConfig;
-      if (e.detail.successful && cfg && cfg.verb === "post" && form.contains(e.detail.elt)) setDirty(true);
+      if (!cfg || cfg.verb !== "post" || !form.contains(e.detail.elt)) return;
+      setDirty(e.detail.successful ? true : dirty);
     });
     form.addEventListener("submit", function (e) {
       if (e.defaultPrevented) return;

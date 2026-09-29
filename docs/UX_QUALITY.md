@@ -1,10 +1,13 @@
 # UI/UX quality
 
-How we judge and track the quality of Cladex's interface. Two tiers:
+How we judge and track the quality of Cladex's interface. Three tiers:
 
 1. **Compliance** — web standards with pass/fail criteria. A failure is a bug.
 2. **Quality** — research-backed heuristics and measurements. A finding is a judgement call,
    prioritised like any other improvement.
+3. **Visual design** — hierarchy, order, alignment and consistency, against a small design
+   system. The first two tiers pass a page where every button is the same grey; this one
+   doesn't.
 
 Scope is the authenticated app (every route in `internal/web/router.go`) plus `/login`.
 The PDF is out of scope here; it's a print artifact, not an interface.
@@ -107,6 +110,85 @@ For each, the target is measured by watching a seller do it, not guessed.
 | Revise an issued quote | Completed without help | — | — |
 | Add a new customer from the new-quote flow | Completed without help | — | — |
 
+## Tier 3 — Visual design
+
+### Audience and direction
+
+Sellers and admins in their 60s who are at home with computers and web tools. The look is
+corporate, reliable and plain: tried-and-true patterns, done by the book, nothing novel to
+learn. For this audience that means larger text and controls, strong contrast, links that
+look like links, and one obvious thing to do on each screen.
+
+### References
+
+| Reference | Kind | How we use it |
+|---|---|---|
+| [NN/g: 5 principles of visual design](https://www.nngroup.com/articles/principles-visual-design/) | Research guidelines | Scale, visual hierarchy, balance, contrast and Gestalt grouping: the vocabulary for findings. |
+| [NN/g: Visual hierarchy](https://www.nngroup.com/articles/visual-hierarchy-ux-definition/) | Research guidelines | Each screen's most important element should be the most prominent. |
+| Contrast, repetition, alignment, proximity (Robin Williams, *The Non-Designer's Design Book*) | Classic layout checklist | The four questions of the per-screen review below. |
+| [NN/g: Designing for older adults](https://www.nngroup.com/articles/usability-for-senior-citizens/) | Research report | Text size, contrast, target size and explicit affordances for users over 60. |
+| Design tokens (the variables at the top of `static/app.css`) | Our design system | The only colours, font sizes and control sizes the site uses. |
+
+### Principles
+
+1. **One primary action per screen.** A solid `primary` button for the thing the screen is
+   for (Emitir cotización, Guardar, Nuevo cliente). Everything else is an outlined
+   secondary button; destructive actions (`danger`) are outlined in red and always ask
+   first.
+2. **Sections follow the task.** Top to bottom in the order the user works: what it is
+   (title, customer, status), the content (lines, totals), what to do with it (save,
+   issue), then secondary tools (add lines, comments).
+3. **Alignment.** One left edge for content. Numbers (money, quantities) right-aligned
+   with tabular figures, and totals under their column. The same button sits in the same
+   place on every row.
+4. **Proximity.** Things that work together sit together: a search box and its "Buscar",
+   a heading and its "?" help, a table and its totals.
+5. **Repetition.** Each kind of element looks the same everywhere: buttons, messages,
+   status badges, table headers, form fields.
+6. **Stable layout, persistent status.** Don't hide and show elements to signal a state;
+   show the state. "Hay cambios sin guardar." becomes "Todos los cambios guardados.", not
+   nothing, and "Filtros activos" becomes "Sin filtros.". Nothing appears or disappears
+   and shifts what's below or to the right under the cursor. When content has to grow
+   (adding a line), the control just used stays where it was (`static/app.js`).
+7. **Legible for the audience.** 17 px body text that still follows the browser's text
+   size, 40 px buttons and fields, underlined links, and every colour at least 5.5:1 on its
+   background.
+
+### Design system
+
+**Palette: five colours** (`--c-*` at the top of `static/app.css`). Every other shade
+(backgrounds, borders, muted text, hover, dark mode) is derived from them with
+`color-mix()`, so changing a colour is one line. After changing one, re-run axe in both
+schemes: each must stay ≥ 5.5:1 on its own 10% tint.
+
+| Token | Colour | Role | On white |
+|---|---|---|---|
+| `--c-primary` | `#1f4e9c` navy | Primary action, links, current page | 8.0:1 |
+| `--c-neutral` | `#374151` slate | Text, borders, secondary buttons | 10.3:1 |
+| `--c-success` | `#17663a` green | Saved, issued | 7.0:1 |
+| `--c-warning` | `#8a4f00` amber | Unsaved changes, attention | 6.6:1 |
+| `--c-danger` | `#b3261e` red | Delete, errors | 6.5:1 |
+
+**Type scale:** body 1rem (17 px), `--fs-small` 0.9rem, `--fs-h3` 1.15rem, `--fs-h2`
+1.35rem, `--fs-h1` 1.75rem. No other sizes.
+
+**Components:** buttons (secondary default, `.primary`, `.danger`; `a.button` for links
+that look like buttons), messages (`p.success`, `p.error[role=alert]` boxed with a left
+rule; field errors as red text under the field), status badges (`StatusBadge`), `td.num`
+for figures, `td.actions` for row actions, `div.page-title` / `div.section-title` for a
+heading with its help link.
+
+### How Tier 3 is checked
+
+- **Automated** (in the preview pane, same iframe loop as axe): count visible `.primary`
+  elements per screen (expect exactly one where the screen has a main action), list
+  distinct computed text/background colours (all should come from the palette) and font
+  sizes (only the type scale), and collect the left edges of `main`'s blocks (expect one).
+- **Manual**, per screen from a screenshot, the four questions: *What's the one thing to
+  do here, and does it stand out? Do the sections follow the task? Do related things sit
+  together and line up? Is each kind of element styled the same as everywhere else?* Plus:
+  does anything appear, disappear or move when the state changes?
+
 ## Scorecard
 
 Status per screen. `—` is not yet audited; otherwise ✅ pass, ⚠️ open issues (see log), ❌ blocking.
@@ -116,27 +198,28 @@ _Last audit: 2026-09-28, first pass of both tiers complete. axe-core 4.13 in the
 preview pane, light and dark schemes, on every screen including an issued, a revised and a
 revision-draft quote. Real-keyboard pass (Tab through every stop, checking order, visible
 focus ring and nothing hidden) on every screen. Reflow at 320 px, and text at 200% (root
-font size) at 1280 px. Heuristic review of every screen. Still to do: VoiceOver
+font size) at 1280 px. Heuristic review of every screen. Tier 3 visual review of every screen after the palette
+and layout work (automated checks plus the four questions). Still to do: VoiceOver
 ([issue 10](https://github.com/gerrygoo/cladex-web/issues/10)) and the core-task
 measurements. The numbers point into the issue log._
 
-| Screen | Route | axe | Keyboard | Zoom/reflow | Screen reader | Heuristics |
-|---|---|---|---|---|---|---|
-| Login | `/login` | ✅ | ✅ | ✅ | — | ✅ |
-| Home | `/` | ✅ | ✅ | ✅ | — | ✅ |
-| Quotes list | `/cotizaciones` | ✅ | ✅ | ⚠️ 7 | — | ⚠️ 18 |
-| New quote | `/cotizaciones/nueva` | ✅ | ✅ | ✅ | — | ✅ |
-| Quote builder (draft) | `/cotizaciones/{folio}` | ✅ | ✅ | ✅ | — | ⚠️ 18, 20, 21 |
-| Issued / revised quote | `/cotizaciones/{folio}` | ✅ | ✅ | ✅ | — | ⚠️ 18 |
-| Products list | `/productos` | ✅ | ✅ | ⚠️ 7 | — | ⚠️ 18 |
-| Product form | `/productos/{id}` | ✅ | ✅ | ✅ | — | ✅ |
-| Customers list | `/clientes` | ✅ | ✅ | ⚠️ 7 | — | ✅ |
-| Customer form | `/clientes/{id}` | ✅ | ✅ | ✅ | — | ✅ |
-| Users (admin) | `/usuarios` | ✅ | ✅ | ⚠️ 7 | — | ✅ |
-| Settings (admin) | `/ajustes` | ✅ | ✅ | ✅ | — | ✅ |
-| Units (admin) | `/unidades` | ✅ | ✅ | ✅ | — | ✅ |
-| My account | `/mi-cuenta` | ✅ | ✅ | ✅ | — | ✅ |
-| Help | `/ayuda` | ✅ | ✅ | ✅ | — | ✅ |
+| Screen | Route | axe | Keyboard | Zoom/reflow | Screen reader | Heuristics | Visual |
+|---|---|---|---|---|---|---|---|
+| Login | `/login` | ✅ | ✅ | ✅ | — | ✅ | ✅ |
+| Home | `/` | ✅ | ✅ | ✅ | — | ✅ | ✅ |
+| Quotes list | `/cotizaciones` | ✅ | ✅ | ⚠️ 7 | — | ✅ | ✅ |
+| New quote | `/cotizaciones/nueva` | ✅ | ✅ | ✅ | — | ✅ | ✅ |
+| Quote builder (draft) | `/cotizaciones/{folio}` | ✅ | ✅ | ✅ | — | ⚠️ 21 | ✅ |
+| Issued / revised quote | `/cotizaciones/{folio}` | ✅ | ✅ | ✅ | — | ✅ | ✅ |
+| Products list | `/productos` | ✅ | ✅ | ⚠️ 7 | — | ✅ | ✅ |
+| Product form | `/productos/{id}` | ✅ | ✅ | ✅ | — | ✅ | ✅ |
+| Customers list | `/clientes` | ✅ | ✅ | ⚠️ 7 | — | ✅ | ✅ |
+| Customer form | `/clientes/{id}` | ✅ | ✅ | ✅ | — | ✅ | ✅ |
+| Users (admin) | `/usuarios` | ✅ | ✅ | ⚠️ 7 | — | ✅ | ✅ |
+| Settings (admin) | `/ajustes` | ✅ | ✅ | ✅ | — | ✅ | ✅ |
+| Units (admin) | `/unidades` | ✅ | ✅ | ✅ | — | ✅ | ✅ |
+| My account | `/mi-cuenta` | ✅ | ✅ | ✅ | — | ✅ | ✅ |
+| Help | `/ayuda` | ✅ | ✅ | ✅ | — | ✅ | ✅ |
 
 Core tasks (the ISO 9241-11 table above): not measured yet. They need a seller doing them
 while someone watches.
@@ -222,19 +305,47 @@ heuristic and severity. Tick when fixed, with the commit.
       their text (a global `input { display: block }`). Now inline.
 - [x] **#27 · H5 Error prevention · severity 1.** Mi cuenta didn't say the new password
       needs 8 characters until after a failed submit. The label now says so.
-- [ ] **#18 · H4 Consistency / NN/g tables · severity 1.** ([issue 8](https://github.com/gerrygoo/cladex-web/issues/8)) Money and quantity columns are
+- [x] **#18 · H4 Consistency / NN/g tables · severity 1.** ([issue 8](https://github.com/gerrygoo/cladex-web/issues/8)) Money and quantity columns are
       left-aligned. Right-align numbers (and use tabular figures) so amounts compare
-      down a column.
+      down a column. Fixed with the Tier 3 work (#30).
 - [ ] **#19 · Performance · severity 2.** ([issue 5](https://github.com/gerrygoo/cladex-web/issues/5)) Production's nginx serves static files
       uncompressed and without cache headers, and the embedded files have no
       Last-Modified. Every page load re-downloads about 60 KB (htmx 50 KB took 567 ms on
       the measured load). Fix: gzip plus `Cache-Control` at nginx, or an ETag from the
       build SHA in the Go static handler. htmx is now `defer`, so it no longer blocks the
       first paint.
-- [ ] **#20 · H8 / H6 Recognition · severity 2.** ([issue 6](https://github.com/gerrygoo/cladex-web/issues/6)) In the builder, the product picker lists
+- [x] **#20 · H8 / H6 Recognition · severity 2.** ([issue 6](https://github.com/gerrygoo/cladex-web/issues/6)) In the builder, the product picker lists
       a full page of products above the lines, so the quote itself (lines and totals)
-      starts below the fold. Consider putting the lines first, or collapsing the list
-      until the user searches.
+      starts below the fold. Fixed with the Tier 3 work: the lines come first (#29).
 - [ ] **#21 · H1 Visibility / H2 Match · severity 2.** ([issue 7](https://github.com/gerrygoo/cladex-web/issues/7)) On a draft, "Descargar PDF" shows the
       last saved state, not what's on screen. The guide says so, but the screen doesn't.
       Say so next to the link, or disable it while there are unsaved changes.
+
+**Tier 3 — Visual design**
+
+- [x] **#28 · Contrast / hierarchy.** Every button was the browser's default grey, so
+      "Emitir cotización" looked the same as "Eliminar" or "Buscar", and nothing marked a
+      screen's main action. Now: the five-colour palette, one solid primary button per
+      screen, destructive buttons outlined in red, links in the primary colour and always
+      underlined, the current section marked in the nav.
+- [x] **#29 · Order.** In the quote builder the product picker sat above the lines and
+      pushed the quote itself below the fold
+      ([issue 6](https://github.com/gerrygoo/cladex-web/issues/6)). Now: margin → lines and
+      totals → save/issue → "Agregar líneas" (search, results, "Línea libre") → comments.
+- [x] **#30 · Alignment.** Money was left-aligned, totals sat at the page's right edge
+      instead of under the Total column, row actions were right-aligned so "Guardar" moved
+      between rows in Ajustes, the "?" help sat above its section heading, and the list
+      search's "Buscar" button sat lower than its box. Now: `td.num` with tabular figures,
+      totals in the table's footer, left-aligned action cells, headings and help links
+      centred on each other, search and button on one line.
+- [x] **#31 · Repetition.** Twelve font sizes in use, three different success/error looks,
+      "Editar" a link next to an "Eliminar" button, statuses as bare words. Now: a
+      five-step type scale, one message style per kind, both row actions as buttons,
+      status badges.
+- [x] **#32 · Stable layout.** "Hay cambios sin guardar." and "Recalculando…" appeared and
+      disappeared beside the save buttons; "Filtros activos" appeared above the table and
+      pushed it down; adding a line slid the next product button out from under the
+      cursor. Now each is a persistent status in one of its states, and the clicked
+      control stays under the cursor.
+- [x] **#33 · Legibility.** 16 px text, ~21 px controls, 13 px form text. Now 17 px text
+      and form text, 40 px controls (32 px inside table rows).

@@ -59,7 +59,7 @@ templ ProductsList(products []store.Product, lv ListView, families []FilterOptio
 				@listHiddenInputs(lv, "q")
 				<button type="submit">Buscar</button>
 			</form>
-			<a class="button" href="/productos/nuevo">Nuevo producto</a>
+			<a class="button primary" href="/productos/nuevo">Nuevo producto</a>
 		</div>
 		@listActiveFilters(lv)
 		<table>
@@ -90,16 +90,15 @@ templ ProductsTableBody(products []store.Product) {
 				<td>{ p.SKU }</td>
 				<td>{ p.Description }</td>
 				<td>{ p.FamilyName }</td>
-				<td>{ productPriceDisplay(p) }</td>
+				<td class="num">{ productPriceDisplay(p) }</td>
 				<td>{ p.UnitCode }</td>
-				<td>
-					<a href={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10)) }>Editar<span class="visually-hidden">{ " " + p.SKU }</span></a>
+				<td class="actions">
+					<a class="button" href={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10)) }>Editar<span class="visually-hidden">{ " " + p.SKU }</span></a>
 					<form
 						method="post"
 						action={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10) + "/eliminar") }
-						style="display:inline"
 					>
-						<button type="submit" data-confirm="¿Eliminar este producto?">Eliminar<span class="visually-hidden">{ " " + p.SKU }</span></button>
+						<button type="submit" class="danger" data-confirm="¿Eliminar este producto?">Eliminar<span class="visually-hidden">{ " " + p.SKU }</span></button>
 					</form>
 				</td>
 			</tr>
@@ -180,7 +179,7 @@ templ ProductForm(title string, action string, values ProductFormValues, fieldEr
 					}
 				</select>
 			</label>
-			<button type="submit">Guardar</button>
+			<button type="submit" class="primary">Guardar</button>
 			<a href="/productos">Cancelar</a>
 		</form>
 		if productID != 0 {
@@ -224,9 +223,8 @@ templ ProductConversionsSection(productID int64, conversions []store.ProductUnit
 							<form
 								method="post"
 								action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/conversiones/" + strconv.FormatInt(c.ID, 10) + "/eliminar") }
-								style="display:inline"
 							>
-								<button type="submit" data-confirm="¿Eliminar esta conversión?">Eliminar<span class="visually-hidden">{ " " + ("conversión " + c.FromUnitCode + " a " + c.ToUnitCode) }</span></button>
+								<button type="submit" class="danger" data-confirm="¿Eliminar esta conversión?">Eliminar<span class="visually-hidden">{ " " + ("conversión " + c.FromUnitCode + " a " + c.ToUnitCode) }</span></button>
 							</form>
 						</td>
 					</tr>
@@ -293,9 +291,8 @@ templ ProductMaterialsSection(productID int64, materials []store.ProductMaterial
 							<form
 								method="post"
 								action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/materiales/" + strconv.FormatInt(m.ID, 10) + "/eliminar") }
-								style="display:inline"
 							>
-								<button type="submit" data-confirm="¿Quitar este material?">Eliminar<span class="visually-hidden">{ " " + m.Material.Name }</span></button>
+								<button type="submit" class="danger" data-confirm="¿Quitar este material?">Eliminar<span class="visually-hidden">{ " " + m.Material.Name }</span></button>
 							</form>
 						</td>
 					</tr>

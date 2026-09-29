@@ -82,7 +82,7 @@ func TestListsUseLinksNotButtonsInsideLinks(t *testing.T) {
 		t.Error("button nested in a link")
 	}
 	assertContains(t, html,
-		`<a class="button" href="/clientes/nuevo">Nuevo cliente</a>`,
+		`<a class="button primary" href="/clientes/nuevo">Nuevo cliente</a>`,
 		`aria-label="Buscar por nombre, RFC o contacto"`,
 		`data-announce="Ningún resultado"`,
 	)

@@ -10,14 +10,18 @@ templ listHiddenInputs(lv ListView, skip string) {
 	}
 }
 
-// listActiveFilters is the notice above a table while column filters are on.
+// listActiveFilters is the line above a table that says whether column filters are on.
+// It's always there, in one of two states, so turning a filter on or off doesn't move the
+// table.
 templ listActiveFilters(lv ListView) {
-	if lv.HasFilters() {
-		<p class="active-filters">
+	<p class="active-filters">
+		if lv.HasFilters() {
 			Filtros activos en la tabla.
 			<a href={ templ.URL(lv.ClearHref("")) }>Quitar todos</a>
-		</p>
-	}
+		} else {
+			Sin filtros. Usa el embudo de cada columna para filtrar.
+		}
+	</p>
 }
 
 // columnHeader renders one <th>: a click-to-sort link and a funnel that opens that
@@ -25,7 +29,7 @@ templ listActiveFilters(lv ListView) {
 // Both are plain full-page GETs, not htmx — htmx's live search only swaps the tbody, so
 // a swapped header click would leave the arrows and next-toggle hrefs stale.
 templ columnHeader(lv ListView, label, col string, f ColumnFilter) {
-	<th class="col-header">
+	<th class={ "col-header", templ.KV("num", f.Kind == store.FilterNumber) }>
 		<a href={ templ.URL(lv.SortHref(col)) }>{ label } { lv.SortIndicator(col) }</a>
 		<details class={ "col-filter", templ.KV("active", lv.FilterActive(col)) }>
 			<summary title={ "Filtrar por " + label } aria-label={ "Filtrar por " + label }>
@@ -69,7 +73,7 @@ templ columnHeader(lv ListView, label, col string, f ColumnFilter) {
 						</label>
 				}
 				<div class="col-filter-actions">
-					<button type="submit">Aplicar</button>
+					<button type="submit" class="primary">Aplicar</button>
 					<a href={ templ.URL(lv.ClearHref(col)) }>Limpiar</a>
 				</div>
 			</form>

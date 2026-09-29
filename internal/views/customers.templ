@@ -31,7 +31,7 @@ templ CustomersList(customers []store.Customer, lv ListView, successMsg string, 
 				@listHiddenInputs(lv, "q")
 				<button type="submit">Buscar</button>
 			</form>
-			<a class="button" href="/clientes/nuevo">Nuevo cliente</a>
+			<a class="button primary" href="/clientes/nuevo">Nuevo cliente</a>
 		</div>
 		@listActiveFilters(lv)
 		<table>
@@ -64,14 +64,13 @@ templ CustomersTableBody(customers []store.Customer) {
 				<td>{ c.ContactName }</td>
 				<td>{ c.Phone }</td>
 				<td>{ c.Email }</td>
-				<td>
-					<a href={ templ.URL("/clientes/" + strconv.FormatInt(c.ID, 10)) }>Editar<span class="visually-hidden">{ " " + c.Name }</span></a>
+				<td class="actions">
+					<a class="button" href={ templ.URL("/clientes/" + strconv.FormatInt(c.ID, 10)) }>Editar<span class="visually-hidden">{ " " + c.Name }</span></a>
 					<form
 						method="post"
 						action={ templ.URL("/clientes/" + strconv.FormatInt(c.ID, 10) + "/eliminar") }
-						style="display:inline"
 					>
-						<button type="submit" data-confirm="¿Eliminar este cliente?">Eliminar<span class="visually-hidden">{ " " + c.Name }</span></button>
+						<button type="submit" class="danger" data-confirm="¿Eliminar este cliente?">Eliminar<span class="visually-hidden">{ " " + c.Name }</span></button>
 					</form>
 				</td>
 			</tr>
@@ -144,7 +143,7 @@ templ CustomerForm(title string, action string, values CustomerFormValues, field
 				Notas (opcional)
 				<input type="text" name="notes" value={ values.Notes }/>
 			</label>
-			<button type="submit">Guardar</button>
+			<button type="submit" class="primary">Guardar</button>
 			<a href="/clientes">Cancelar</a>
 		</form>
 	}

@@ -66,20 +66,20 @@ templ Ajustes(margins []store.MarginOption, materials []store.Material, units []
 									Activo
 								}
 							</td>
-							<td>
-								<form id={ marginFormID(m) } method="post" action={ templ.URL(marginPath(m, "")) } style="display:inline">
+							<td class="actions">
+								<form id={ marginFormID(m) } method="post" action={ templ.URL(marginPath(m, "")) }>
 									<button type="submit">Guardar<span class="visually-hidden">{ " " + m.Name }</span></button>
 								</form>
 								if !m.Active() {
-									<form method="post" action={ templ.URL(marginPath(m, "restaurar")) } style="display:inline">
+									<form method="post" action={ templ.URL(marginPath(m, "restaurar")) }>
 										<button type="submit">Restaurar<span class="visually-hidden">{ " " + m.Name }</span></button>
 									</form>
 								} else if !m.IsDefault {
-									<form method="post" action={ templ.URL(marginPath(m, "predeterminado")) } style="display:inline">
+									<form method="post" action={ templ.URL(marginPath(m, "predeterminado")) }>
 										<button type="submit">Hacer predeterminado<span class="visually-hidden">{ " " + m.Name }</span></button>
 									</form>
-									<form method="post" action={ templ.URL(marginPath(m, "retirar")) } style="display:inline">
-										<button type="submit">Retirar<span class="visually-hidden">{ " " + m.Name }</span></button>
+									<form method="post" action={ templ.URL(marginPath(m, "retirar")) }>
+										<button type="submit" class="danger">Retirar<span class="visually-hidden">{ " " + m.Name }</span></button>
 									</form>
 								}
 							</td>
@@ -132,8 +132,8 @@ templ Ajustes(margins []store.MarginOption, materials []store.Material, units []
 							</td>
 							<td>{ m.UnitCode }</td>
 							<td>{ MaterialAge(m.UpdatedAt, time.Now()) }</td>
-							<td>
-								<form id={ materialFormID(m) } method="post" action={ templ.URL("/ajustes/materiales/" + strconv.FormatInt(m.ID, 10)) } style="display:inline">
+							<td class="actions">
+								<form id={ materialFormID(m) } method="post" action={ templ.URL("/ajustes/materiales/" + strconv.FormatInt(m.ID, 10)) }>
 									<button type="submit">Guardar<span class="visually-hidden">{ " " + m.Name }</span></button>
 								</form>
 							</td>

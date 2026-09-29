@@ -21,7 +21,7 @@ templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavU
 		</div>
 		<div class="toolbar">
 			<h2>Cotizaciones por etapa</h2>
-			<a class="button" href="/cotizaciones/nueva">Nueva cotización</a>
+			<a class="button primary" href="/cotizaciones/nueva">Nueva cotización</a>
 		</div>
 		<div class="overview-stages">
 			for _, st := range ov.Stages {
@@ -54,21 +54,21 @@ templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavU
 				<table>
 					<thead>
 						<tr>
-							<th>#</th>
+							<th class="num">#</th>
 							<th>Vendedor</th>
-							<th>Monto emitido</th>
-							<th>Emitidas</th>
-							<th>Revisadas</th>
+							<th class="num">Monto emitido</th>
+							<th class="num">Emitidas</th>
+							<th class="num">Revisadas</th>
 						</tr>
 					</thead>
 					<tbody>
 						for i, v := range ov.Vendedores {
 							<tr>
-								<td>{ strconv.Itoa(i + 1) }</td>
+								<td class="num">{ strconv.Itoa(i + 1) }</td>
 								<td>{ v.Name }</td>
-								<td>{ v.MontoEmitido.String() }</td>
-								<td>{ strconv.Itoa(v.Emitidas) }</td>
-								<td>{ strconv.Itoa(v.Revisadas) }</td>
+								<td class="num">{ v.MontoEmitido.String() }</td>
+								<td class="num">{ strconv.Itoa(v.Emitidas) }</td>
+								<td class="num">{ strconv.Itoa(v.Revisadas) }</td>
 							</tr>
 						}
 					</tbody>

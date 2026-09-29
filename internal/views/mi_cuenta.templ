@@ -23,7 +23,7 @@ templ MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) 
 				<input type="password" name="confirm_password" required autocomplete="new-password" minlength="8" { errAttrs(fieldErrors, "confirm_password")... }/>
 			</label>
 			@FieldError(fieldErrors, "confirm_password")
-			<button type="submit">Cambiar contraseña</button>
+			<button type="submit" class="primary">Cambiar contraseña</button>
 		</form>
 	}
 }

@@ -62,7 +62,7 @@ func Login(errorMsg string, username string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" required autofocus autocomplete=\"username\" autocapitalize=\"none\"></label> <label>Contraseña <input type=\"password\" name=\"password\" required autocomplete=\"current-password\"></label> <button type=\"submit\">Entrar</button></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" required autofocus autocomplete=\"username\" autocapitalize=\"none\"></label> <label>Contraseña <input type=\"password\" name=\"password\" required autocomplete=\"current-password\"></label> <button type=\"submit\" class=\"primary\">Entrar</button></form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

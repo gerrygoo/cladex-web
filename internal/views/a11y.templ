@@ -52,3 +52,10 @@ func countAnnouncement(n int, one, many string) string {
 		return strconv.Itoa(n) + " " + many
 	}
 }
+
+// StatusBadge shows a quote's status as a pill, coloured by stage: a draft is neutral, an
+// issued quote green, a revised (superseded) one muted. The word is always there, so the
+// colour is never the only cue.
+templ StatusBadge(status string) {
+	<span class={ "badge", "badge-" + status }>{ status }</span>
+}

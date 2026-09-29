@@ -42,7 +42,7 @@ templ UsersList(users []store.User, currentUserID int64, lv ListView, successMsg
 							if u.ID == currentUserID {
 								{ roleLabel(u.Role) }
 							} else {
-								<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/rol") } style="display:inline">
+								<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/rol") }>
 									if u.Role == "admin" {
 										<select name="role" aria-label={ "Rol de " + u.Username }>
 											<option value="admin" selected>Administrador</option>
@@ -65,16 +65,16 @@ templ UsersList(users []store.User, currentUserID int64, lv ListView, successMsg
 								Activo
 							}
 						</td>
-						<td>
+						<td class="actions">
 							if u.ID == currentUserID {
 								—
 							} else if u.DisabledAt != nil {
-								<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/habilitar") } style="display:inline">
+								<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/habilitar") }>
 									<button type="submit">Habilitar</button>
 								</form>
 							} else {
-								<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/deshabilitar") } style="display:inline">
-									<button type="submit" data-confirm="¿Deshabilitar a este usuario?">Deshabilitar</button>
+								<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/deshabilitar") }>
+									<button type="submit" class="danger" data-confirm="¿Deshabilitar a este usuario?">Deshabilitar</button>
 								</form>
 							}
 						</td>
