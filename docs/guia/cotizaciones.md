@@ -196,7 +196,23 @@ Qué pasa al emitir:
 - La [[vigencia]] es de 30 días a partir de hoy; aparece en el PDF y en la página.
 
 > Para emitir, la cotización necesita al menos una línea, ninguna línea con error y un
-> margen disponible.
+> margen disponible. En las series cuyos términos incluyen el tiempo de entrega (como
+> **QL**), también necesita el [tiempo de entrega](#tiempo-de-entrega).
+
+### Tiempo de entrega
+
+En las cotizaciones de la serie **QL** (y de cualquier serie cuyos términos lo pidan),
+la página del borrador muestra el campo **Tiempo de entrega (obligatorio para emitir)**,
+arriba de las líneas. Escríbelo como quieras que se lea en el PDF (p. ej. `5 días
+hábiles`). Se imprime en los términos y condiciones: *"Tiempo de entrega: 5 días hábiles"*.
+
+- **Guardar borrador** lo guarda; no es obligatorio para guardar.
+- **Emitir cotización** no avanza si está vacío y muestra *"Escribe el tiempo de entrega
+  para poder emitir la cotización."*
+- Al emitir se congela junto con los demás términos. Una revisión empieza con el mismo
+  tiempo de entrega.
+- En la vista previa del PDF de un borrador sin tiempo de entrega aparece *"por
+  definir"*.
 
 ## Descargar y enviar el PDF
 

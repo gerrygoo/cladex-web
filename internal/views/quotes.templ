@@ -536,7 +536,7 @@ templ quoteTotalRow(label, amount string, trailing int, grand bool) {
 // issue metadata, the button that moves it to the next stage (with an admin-only one to
 // go back), a "Revisar" button while it is 'emitida' (the active version), or a note
 // pointing at whichever revision superseded it (revisada).
-templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser) {
+templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, deliveryErr string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser) {
 	@Layout("Cotización "+quote.Folio, user) {
 		<script src="/static/margin.js" defer></script>
 		<div class="page-title">
@@ -630,6 +630,23 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 						</span>
 					}
 				</div>
+				if store.RequiresDeliveryTime(quote.SeriesTerms) {
+					<div class="quote-meta">
+						<label>
+							Tiempo de entrega (obligatorio para emitir)
+							<input
+								type="text"
+								name="delivery_time"
+								id="delivery-time"
+								value={ quote.DeliveryTime }
+								maxlength="120"
+								placeholder="p. ej. 5 días hábiles"
+								{ errAttrs(map[string]string{"delivery_time": deliveryErr}, "delivery_time")... }
+							/>
+						</label>
+						@FieldError(map[string]string{"delivery_time": deliveryErr}, "delivery_time")
+					</div>
+				}
 				@QuoteLinesFragment(quote, lines, totals, margin.Error)
 				<div class="quote-actions">
 					<button type="submit" formaction={ guardarPath(quote.Folio) } data-guard-save>

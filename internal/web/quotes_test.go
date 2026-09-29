@@ -1043,3 +1043,87 @@ func TestQuotesLibreSeries(t *testing.T) {
 		t.Fatal("QI builder lost its familia filter")
 	}
 }
+
+// TestQuotesDeliveryTimeRequiredToIssue covers QL's {tiempo_de_entrega} term (issue #14):
+// the builder asks for a delivery time, saving keeps it, issuing without one is refused
+// with nothing written, and the value ends up in the frozen terms and on a revision.
+func TestQuotesDeliveryTimeRequiredToIssue(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	ctx := context.Background()
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, userID)
+
+	libre := func(delivery ...string) url.Values {
+		f := url.Values{
+			"line_keys":             {"0"},
+			"lines[0][kind]":        {"free"},
+			"lines[0][description]": {"Servicio de instalación"},
+			"lines[0][unit_price]":  {"1000"},
+			"lines[0][qty]":         {"1"},
+		}
+		if len(delivery) > 0 {
+			f.Set("delivery_time", delivery[0])
+		}
+		return f
+	}
+	pv := func(folio string) map[string]string { return map[string]string{"folio": folio} }
+
+	ql, err := a.store.CreateDraftQuote(ctx, customerID, userID, "QL")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote(QL): %v", err)
+	}
+	page := doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+ql.Folio, pv(ql.Folio), nil, false).Body.String()
+	if !strings.Contains(page, `name="delivery_time"`) {
+		t.Fatal("QL builder doesn't ask for a delivery time")
+	}
+	qa, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QA")
+	if page := doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+qa.Folio, pv(qa.Folio), nil, false).Body.String(); strings.Contains(page, `name="delivery_time"`) {
+		t.Fatal("QA builder asks for a delivery time, but its terms have no such line")
+	}
+
+	// Issuing without one: refused, and the draft is untouched.
+	rec := doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+ql.Folio+"/emitir", pv(ql.Folio), libre("   "), false)
+	if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), "Escribe el tiempo de entrega para poder emitir la cotización.") {
+		t.Fatalf("Emitir without delivery time = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if got, _ := a.store.QuoteByID(ctx, ql.ID); got.Status != "borrador" {
+		t.Fatalf("status after refused issue = %q", got.Status)
+	}
+	if lines, _ := a.store.ListQuoteLines(ctx, ql.ID); len(lines) != 0 {
+		t.Fatalf("refused issue wrote %d lines", len(lines))
+	}
+
+	// Saving a draft doesn't need it, but keeps what was typed.
+	rec = doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+ql.Folio+"/guardar", pv(ql.Folio), libre("5 días hábiles"), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if got, _ := a.store.QuoteByID(ctx, ql.ID); got.DeliveryTime != "5 días hábiles" {
+		t.Fatalf("saved delivery time = %q", got.DeliveryTime)
+	}
+
+	rec = doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+ql.Folio+"/emitir", pv(ql.Folio), libre("5 días hábiles"), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	issued, _ := a.store.QuoteByID(ctx, ql.ID)
+	if issued.Status != "emitida" || issued.TermsSnapshot == nil ||
+		!strings.Contains(*issued.TermsSnapshot, "Tiempo de entrega: 5 días hábiles") ||
+		strings.Contains(*issued.TermsSnapshot, "{") {
+		t.Fatalf("frozen terms = %v (status %s); want the delivery time filled in", issued.TermsSnapshot, issued.Status)
+	}
+
+	// A revision starts from the same delivery time.
+	rev, err := a.store.CreateRevision(ctx, ql.ID, userID)
+	if err != nil || rev == nil || rev.DeliveryTime != "5 días hábiles" {
+		t.Fatalf("revision = %+v, %v", rev, err)
+	}
+
+	// A series without the token issues without one, as before.
+	rec = doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+qa.Folio+"/emitir", pv(qa.Folio), libre(), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir(QA) = %d; body = %s", rec.Code, rec.Body.String())
+	}
+}

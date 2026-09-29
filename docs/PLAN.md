@@ -1092,10 +1092,15 @@ QA/QS/QI lived in CHECK constraints, a web-layer whitelist and a PDF terms map.
 - Terms and conditions moved from Go to the database, one block per familia, editable
   by admins. Issued quotes keep the block frozen at issue time.
 
-**Open — QL terms.** QL ships with placeholder terms (the generic lines of the other
-series: MXN/IVA, prices subject to change, prepayment, freight quoted separately). Ask
-Emilio for the real text; an admin then replaces it at `/familias` with no deploy. Until
-then, QL quotes issued in the meantime carry the placeholder in their frozen terms.
+**QL terms (issue #14, settled).** Emilio's four terms replaced the placeholder
+(migration 0014, applied only while QL's terms are still the placeholder, so an admin's
+edit at `/familias` is never overwritten): MXN without IVA "(a menos que se haya indicado
+que esa cotización se emitirá en USD)", prices subject to change, delivery time, prepayment
+for the OC. The USD clause is his wording; the app itself is MXN-only. The delivery time
+is per quote: a terms block may hold `{tiempo_de_entrega}`, and a quote of a series whose
+terms hold it shows a "Tiempo de entrega" field on the builder and can't be issued
+without it (`quotes.delivery_time`, copied onto revisions, frozen into the terms at
+issue). Not specific to QL: any admin-created series can opt in by writing the token.
 
 **Migration note:** 0013 rebuilds `quotes` with foreign keys off, (and `folio_sequences`) to drop the prefix CHECKs, unlike 0012's park-and-defer
 approach. A migration whose first line is

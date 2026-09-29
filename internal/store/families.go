@@ -163,3 +163,26 @@ func SplitTerms(terms string) []string {
 	}
 	return out
 }
+
+// DeliveryTimeToken marks where a quote's delivery time goes in a terms block. A series
+// whose terms hold it asks for the delivery time on every quote and won't issue one
+// without it; RenderTerms puts the value in place.
+const DeliveryTimeToken = "{tiempo_de_entrega}"
+
+// RequiresDeliveryTime reports whether a terms block asks each quote for a delivery time.
+func RequiresDeliveryTime(terms string) bool {
+	return strings.Contains(terms, DeliveryTimeToken)
+}
+
+// RenderTerms splits a terms block into lines and fills in the delivery time. An empty
+// deliveryTime (a draft that hasn't got one yet) renders as "por definir".
+func RenderTerms(terms, deliveryTime string) []string {
+	if deliveryTime = strings.TrimSpace(deliveryTime); deliveryTime == "" {
+		deliveryTime = "por definir"
+	}
+	lines := SplitTerms(terms)
+	for i, l := range lines {
+		lines[i] = strings.ReplaceAll(l, DeliveryTimeToken, deliveryTime)
+	}
+	return lines
+}

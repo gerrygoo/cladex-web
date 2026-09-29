@@ -177,3 +177,68 @@ func TestFamilySeriesMigrationKeepsQuotes(t *testing.T) {
 		t.Fatalf("audit triggers on quotes = %d; want 3", triggers)
 	}
 }
+
+func TestRenderTermsFillsTheDeliveryTime(t *testing.T) {
+	terms := "Precios en MXN\n\nTiempo de entrega: " + DeliveryTimeToken + "\nPago por adelantado"
+	if !RequiresDeliveryTime(terms) || RequiresDeliveryTime("Precios en MXN") {
+		t.Fatal("RequiresDeliveryTime misjudged the token")
+	}
+	if got := strings.Join(RenderTerms(terms, " 5 días "), "|"); got != "Precios en MXN|Tiempo de entrega: 5 días|Pago por adelantado" {
+		t.Fatalf("RenderTerms = %q", got)
+	}
+	if got := RenderTerms(terms, "")[1]; got != "Tiempo de entrega: por definir" {
+		t.Fatalf("no delivery time yet renders as %q", got)
+	}
+}
+
+// TestQLTermsMigration checks 0014 gives QL Emilio's terms on a fresh database, and
+// leaves them alone when an admin already edited them at /familias.
+func TestQLTermsMigration(t *testing.T) {
+	ctx := context.Background()
+	qlTerms := func(s *Store) string {
+		var terms string
+		if err := s.db.QueryRowContext(ctx, `SELECT terms FROM product_families WHERE name = 'QL'`).Scan(&terms); err != nil {
+			t.Fatal(err)
+		}
+		return terms
+	}
+
+	fresh := newTestStore(t)
+	got := qlTerms(fresh)
+	for _, want := range []string{"(a menos que se haya indicado que esa cotización se emitirá en USD)", "Tiempo de entrega: " + DeliveryTimeToken, "Pago por adelantado para colocar OC"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("QL terms are missing %q:\n%s", want, got)
+		}
+	}
+	if !RequiresDeliveryTime(got) || strings.Contains(got, "Flete") {
+		t.Errorf("QL terms still look like the placeholder:\n%s", got)
+	}
+
+	// Replay: stop before 0014, let an admin edit QL, then apply 0014.
+	dsn := filepath.Join(t.TempDir(), "ql.db")
+	before := fstest.MapFS{}
+	entries, _ := fs.ReadDir(cladex.MigrationsFS, "migrations")
+	for _, e := range entries {
+		if e.Name() >= "0014" {
+			continue
+		}
+		b, _ := fs.ReadFile(cladex.MigrationsFS, "migrations/"+e.Name())
+		before["migrations/"+e.Name()] = &fstest.MapFile{Data: b}
+	}
+	old, err := Open(ctx, dsn, before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.db.ExecContext(ctx, `UPDATE product_families SET terms = 'Editado por un admin' WHERE name = 'QL'`); err != nil {
+		t.Fatal(err)
+	}
+	old.Close()
+	s, err := Open(ctx, dsn, cladex.MigrationsFS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if got := qlTerms(s); got != "Editado por un admin" {
+		t.Fatalf("0014 overwrote an admin's edit of QL's terms: %q", got)
+	}
+}

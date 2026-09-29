@@ -69,6 +69,7 @@ templ FamiliasList(families []store.Family, values FamiliaFormValues, fieldError
 				Descripción de la serie (opcional)
 				<input type="text" name="series_label" value={ values.SeriesLabel } placeholder="p. ej. Cobijas ignífugas"/>
 			</label>
+			<p>Escribe <code>{ store.DeliveryTimeToken }</code> donde va el tiempo de entrega, p. ej. <em>Tiempo de entrega: { store.DeliveryTimeToken }</em>. Cada cotización de esta serie pedirá ese dato y no se podrá emitir sin él.</p>
 			<label>
 				Términos y condiciones del PDF (uno por línea)
 				<textarea name="terms" rows="6">{ values.Terms }</textarea>
@@ -95,6 +96,7 @@ templ FamiliaEdit(f store.Family, seriesLabel string, terms string, user *NavUse
 				Descripción de la serie (opcional)
 				<input type="text" name="series_label" value={ seriesLabel }/>
 			</label>
+			<p>Escribe <code>{ store.DeliveryTimeToken }</code> donde va el tiempo de entrega, p. ej. <em>Tiempo de entrega: { store.DeliveryTimeToken }</em>. Cada cotización de esta serie pedirá ese dato y no se podrá emitir sin él.</p>
 			<label>
 				Términos y condiciones del PDF (uno por línea)
 				<textarea name="terms" rows="10">{ terms }</textarea>
