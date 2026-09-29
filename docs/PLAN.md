@@ -146,6 +146,10 @@ margins); vendedor gets everything else. Checked in middleware — not a permiss
   Any slice that adds or changes a user-visible flow updates its guide page in the same
   commit — a slice isn't done until its page is. Plain markdown, so it can be mirrored to
   a GitHub wiki verbatim if that's ever wanted.
+- **UI/UX quality.** Tracked in [UX_QUALITY.md](UX_QUALITY.md) in two tiers: compliance
+  (HTML semantics, WAI-ARIA, WCAG 2.2 AA; a failure is a bug) and quality (Nielsen
+  heuristics, Core Web Vitals, task metrics). It holds the per-screen scorecard and the
+  issue log.
 
 ## Quote persistence
 
