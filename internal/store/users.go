@@ -90,6 +90,20 @@ func (s *Store) DisableUser(ctx context.Context, username string) (bool, error) 
 	return n > 0, nil
 }
 
+// RenameUser sets the full name of the named user, returning false if no such user
+// exists.
+func (s *Store) RenameUser(ctx context.Context, username, name string) (bool, error) {
+	res, err := s.exec(ctx, `UPDATE users SET name = ? WHERE username = ?`, name, username)
+	if err != nil {
+		return false, fmt.Errorf("store: rename user %q: %w", username, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("store: rename user %q: %w", username, err)
+	}
+	return n > 0, nil
+}
+
 // userSortColumns is the sortable-column whitelist for ListUsers; the first entry
 // (username) is the default when sort doesn't match a known column.
 var userSortColumns = []sortColumn{

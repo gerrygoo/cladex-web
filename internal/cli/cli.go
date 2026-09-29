@@ -1,4 +1,4 @@
-// Package cli implements cladex's admin subcommands (user add/passwd/disable),
+// Package cli implements cladex's admin subcommands (user add/passwd/disable/rename),
 // dispatched both from a standalone cladexctl binary (local dev) and from the same
 // binary as the server, since the deployed image ships only /cladex and the
 // provisioning workflow is `docker compose exec cladex /cladex user add ...`.
@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -20,10 +21,10 @@ import (
 // parameters to get wrong.
 const bcryptCost = 12
 
-// Run dispatches a "user <add|passwd|disable> ..." command line.
+// Run dispatches a "user <add|passwd|disable|rename> ..." command line.
 func Run(ctx context.Context, s *store.Store, args []string) error {
 	if len(args) < 2 || args[0] != "user" {
-		return fmt.Errorf("uso: cladex user <add|passwd|disable> ...")
+		return fmt.Errorf("uso: cladex user <add|passwd|disable|rename> ...")
 	}
 	switch args[1] {
 	case "add":
@@ -32,8 +33,10 @@ func Run(ctx context.Context, s *store.Store, args []string) error {
 		return userPasswd(ctx, s, args[2:])
 	case "disable":
 		return userDisable(ctx, s, args[2:])
+	case "rename":
+		return userRename(ctx, s, args[2:])
 	default:
-		return fmt.Errorf("subcomando desconocido: %q (use add, passwd o disable)", args[1])
+		return fmt.Errorf("subcomando desconocido: %q (use add, passwd, disable o rename)", args[1])
 	}
 }
 
@@ -130,6 +133,36 @@ func userDisable(ctx context.Context, s *store.Store, args []string) error {
 	}
 
 	fmt.Printf("Usuario deshabilitado: %s\n", username)
+	return nil
+}
+
+// userRename changes the full name shown for a user, which is also what a quote prints
+// as its vendedor when that user issues it. Quotes already issued keep the name they
+// were issued with.
+func userRename(ctx context.Context, s *store.Store, args []string) error {
+	const usage = `uso: cladex user rename <username> --name "Nombre Completo"`
+	if len(args) < 1 {
+		return fmt.Errorf(usage)
+	}
+	username, rest := args[0], args[1:]
+
+	fs := flag.NewFlagSet("user rename", flag.ContinueOnError)
+	name := fs.String("name", "", "nuevo nombre completo")
+	if err := fs.Parse(rest); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 || strings.TrimSpace(*name) == "" {
+		return fmt.Errorf(usage)
+	}
+
+	found, err := s.RenameUser(ctx, username, strings.TrimSpace(*name))
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("usuario no encontrado: %s", username)
+	}
+	fmt.Printf("Usuario renombrado: %s → %s\n", username, strings.TrimSpace(*name))
 	return nil
 }
 

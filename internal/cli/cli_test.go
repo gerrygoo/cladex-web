@@ -131,3 +131,30 @@ func TestUserDisableUnknownUser(t *testing.T) {
 		t.Fatal("Run: expected error for unknown user, got nil")
 	}
 }
+
+func TestUserRename(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	if err := Run(ctx, s, []string{"user", "add", "efs", "--name", "Emilio Flores Solbes", "--role", "admin"}); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	before, _ := s.UserByUsername(ctx, "efs")
+
+	if err := Run(ctx, s, []string{"user", "rename", "efs", "--name", "  Emilio Flores "}); err != nil {
+		t.Fatalf("rename: %v", err)
+	}
+	u, _ := s.UserByUsername(ctx, "efs")
+	if u.Name != "Emilio Flores" || u.Role != "admin" || u.PasswordHash != before.PasswordHash {
+		t.Fatalf("user after rename = %+v; want only the name changed", u)
+	}
+
+	if err := Run(ctx, s, []string{"user", "rename", "nadie", "--name", "X"}); err == nil {
+		t.Error("renaming an unknown user should fail")
+	}
+	if err := Run(ctx, s, []string{"user", "rename", "efs"}); err == nil {
+		t.Error("rename without --name should fail")
+	}
+	if err := Run(ctx, s, []string{"user", "rename", "efs", "--name", "  "}); err == nil {
+		t.Error("rename to a blank name should fail")
+	}
+}

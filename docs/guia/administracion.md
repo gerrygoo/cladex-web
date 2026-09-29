@@ -120,7 +120,16 @@ ssh cladex-nas docker compose exec cladex /cladex user add <usuario> --name "Nom
 Para restablecer una contraseña se usa `user passwd <usuario>` de la misma forma; esto
 también cierra las sesiones abiertas de ese usuario.
 
-En ambos casos el comando genera una contraseña y la muestra **una sola vez** en
+Para cambiar el nombre con que aparece un usuario (y con que sale como vendedor en las
+cotizaciones que emita de ahí en adelante):
+
+```bash
+ssh cladex-nas docker compose exec cladex /cladex user rename <usuario> --name "Nombre Apellido"
+```
+
+Las cotizaciones ya emitidas conservan el nombre con que se emitieron.
+
+Al dar de alta o restablecer, el comando genera una contraseña y la muestra **una sola vez** en
 pantalla. Entrégasela al usuario por un medio privado y pídele que la
 [cambie](acceso.md#cambiar-tu-contraseña) desde **Mi cuenta** en cuanto entre.
 
