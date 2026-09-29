@@ -122,7 +122,7 @@ func TestFamilySeriesMigrationKeepsQuotes(t *testing.T) {
 		`INSERT INTO customers (name) VALUES ('ACME')`,
 		`INSERT INTO product_families (name) VALUES ('CCA')`,
 		`INSERT INTO quotes (folio, prefix, customer_id, user_id, status, terms_snapshot)
-		 VALUES ('QA0001', 'QA', 1, 1, 'emitida', 'frozen terms'), ('QI0001', 'QI', 1, 1, 'borrador', NULL)`,
+		 VALUES ('QA0001', 'QA', 1, 1, 'emitida', 'frozen terms'), ('QI0001', 'QI', 1, 1, 'borrador', NULL), ('QA0002', 'QA', 1, 1, 'oc_emitida', NULL)`,
 		`INSERT INTO quote_lines (quote_id, line_no, description_snapshot, qty_milli, unit_price_micros, line_total)
 		 VALUES (1, 1, 'Cable', 1000, 5000000, 500)`,
 		`INSERT INTO quote_comments (quote_id, user_id, body) VALUES (1, 1, 'ok')`,
@@ -147,6 +147,9 @@ func TestFamilySeriesMigrationKeepsQuotes(t *testing.T) {
 	q, err := s.QuoteByFolio(ctx, "QA0001")
 	if err != nil || q == nil || q.TermsSnapshot == nil || *q.TermsSnapshot != "frozen terms" {
 		t.Fatalf("QA0001 after migration = %+v, %v", q, err)
+	}
+	if p, _ := s.QuoteByFolio(ctx, "QA0002"); p == nil || p.Status != "oc_emitida" {
+		t.Fatalf("a quote in a pipeline stage (migration 0012) must survive the rebuild: %+v", p)
 	}
 	if q.SeriesFamily != "CCA" {
 		t.Fatalf("QA0001 family = %q; want the pre-existing CCA familia to own QA", q.SeriesFamily)
