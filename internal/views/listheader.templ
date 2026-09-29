@@ -35,10 +35,22 @@ templ columnHeader(lv ListView, label, col string, f ColumnFilter) {
 				@listHiddenInputs(lv, col)
 				switch f.Kind {
 					case store.FilterText:
-						<label>
-							{ label } contiene
-							<input type="text" name={ filterParam(col) } value={ lv.FilterValue(col) }/>
-						</label>
+						if len(f.Options) > 0 {
+							<label>
+								{ label }
+								<select name={ filterParam(col + ".is") }>
+									<option value="">Todos</option>
+									for _, o := range f.Options {
+										<option value={ o.Value } selected?={ lv.FilterValue(col + ".is") == o.Value }>{ o.Label }</option>
+									}
+								</select>
+							</label>
+						} else {
+							<label>
+								{ label } contiene
+								<input type="text" name={ filterParam(col) } value={ lv.FilterValue(col) }/>
+							</label>
+						}
 					case store.FilterEnum:
 						<label>
 							{ label }

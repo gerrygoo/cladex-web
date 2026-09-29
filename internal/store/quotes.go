@@ -225,6 +225,47 @@ var quoteFilterColumns = []filterColumn{
 	{name: "fecha", expr: "q.created_at", kind: FilterDate},
 }
 
+// MaxFilterChoices caps how many values a column filter dropdown lists.
+const MaxFilterChoices = 200
+
+// QuoteFilterChoices returns the customer and author names that appear on quotes, for
+// the Cliente and Autor filter dropdowns. A column with more than MaxFilterChoices
+// distinct names returns nil, and its filter stays a free-text box.
+func (s *Store) QuoteFilterChoices(ctx context.Context) (customers, authors []string, err error) {
+	if customers, err = s.distinctQuoteNames(ctx, "c.name"); err != nil {
+		return nil, nil, err
+	}
+	if authors, err = s.distinctQuoteNames(ctx, "u.name"); err != nil {
+		return nil, nil, err
+	}
+	return customers, authors, nil
+}
+
+func (s *Store) distinctQuoteNames(ctx context.Context, expr string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT DISTINCT `+expr+` `+quoteFrom+`
+		ORDER BY `+expr+` COLLATE NOCASE LIMIT ?`, MaxFilterChoices+1)
+	if err != nil {
+		return nil, fmt.Errorf("store: quote filter choices: %w", err)
+	}
+	defer rows.Close()
+	var names []string
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			return nil, fmt.Errorf("store: quote filter choices: %w", err)
+		}
+		names = append(names, n)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: quote filter choices: %w", err)
+	}
+	if len(names) > MaxFilterChoices {
+		return nil, nil
+	}
+	return names, nil
+}
+
 // ListQuotes returns quotes, optionally filtered by a case-insensitive substring match
 // on folio or customer name and by per-column filters (see quoteFilterColumns), sorted
 // per sort/dir (see quoteSortColumns).

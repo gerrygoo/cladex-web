@@ -20,8 +20,9 @@ const (
 )
 
 // Filters holds a list page's active column filters, keyed by column name. Text and
-// enum columns use the bare name; number and date columns use "<name>.min" and
-// "<name>.max". Empty values are never stored.
+// enum columns use the bare name (text columns also accept "<name>.is" for an exact
+// match); number and date columns use "<name>.min" and "<name>.max". Empty values are
+// never stored.
 type Filters map[string]string
 
 type filterColumn struct {
@@ -45,6 +46,11 @@ func filterWhere(ctx context.Context, cols []filterColumn, f Filters) (string, [
 	for _, c := range cols {
 		switch c.kind {
 		case FilterText:
+			// "<name>.is" is the exact-match form a dropdown of known values submits;
+			// the bare name stays the typed substring.
+			if v := f[c.name+".is"]; v != "" {
+				add(c.expr+" = ? COLLATE NOCASE", v)
+			}
 			if v := f[c.name]; v != "" {
 				add(c.expr+` LIKE ? ESCAPE '\' COLLATE NOCASE`, "%"+escapeLike(v)+"%")
 			}

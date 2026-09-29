@@ -39,7 +39,7 @@ type QuoteLineView struct {
 	Materials         []store.Material // the materials a cost-priced product line was priced from
 }
 
-func QuotesList(quotes []store.Quote, lv ListView, successMsg string, user *NavUser) templ.Component {
+func QuotesList(quotes []store.Quote, lv ListView, customers, authors []string, successMsg string, user *NavUser) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -140,11 +140,11 @@ func QuotesList(quotes []store.Quote, lv ListView, successMsg string, user *NavU
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = columnHeader(lv, "Cliente", "cliente", textFilter).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = columnHeader(lv, "Cliente", "cliente", choiceFilter(customers)).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = columnHeader(lv, "Autor", "autor", textFilter).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = columnHeader(lv, "Autor", "autor", choiceFilter(authors)).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

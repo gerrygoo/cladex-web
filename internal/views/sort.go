@@ -131,6 +131,19 @@ func enumFilter(opts ...FilterOption) ColumnFilter {
 	return ColumnFilter{Kind: store.FilterEnum, Options: opts}
 }
 
+// choiceFilter is a text column that offers its known values as a dropdown, falling
+// back to the plain text box when there are none (too many to list).
+func choiceFilter(values []string) ColumnFilter {
+	if len(values) == 0 {
+		return textFilter
+	}
+	opts := make([]FilterOption, len(values))
+	for i, v := range values {
+		opts[i] = FilterOption{Value: v, Label: v}
+	}
+	return ColumnFilter{Kind: store.FilterText, Options: opts}
+}
+
 // Choice lists for the enum column filters that don't depend on the database.
 var (
 	quoteStatusFilter = enumFilter(

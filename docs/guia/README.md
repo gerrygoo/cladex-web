@@ -62,9 +62,11 @@ filtrar por cualquier columna, además de buscar y ordenar:
 
 1. Haz clic en el embudo junto al nombre de la columna.
 2. Llena el filtro, que depende del tipo de columna:
-   - **Texto** (folio, cliente, nombre, RFC…): escribe una parte; no importan las
+   - **Texto** (folio, nombre, RFC…): escribe una parte; no importan las
      mayúsculas.
-   - **Elección** (estado, rol, familia, unidad): elige un valor de la lista.
+   - **Elección** (estado, rol, familia, unidad, y en Cotizaciones cliente y autor):
+     elige un valor de la lista. Si hay demasiados clientes o autores para listarlos
+     (más de 200), esas dos columnas se filtran escribiendo, como el texto.
    - **Número** (total, costo): pon un mínimo, un máximo o ambos.
    - **Fecha**: pon la fecha *Desde*, *Hasta* o ambas (los dos días cuentan, según la zona horaria de tu navegador).
 3. Haz clic en **Aplicar**. El embudo de la columna filtrada se pinta de azul.

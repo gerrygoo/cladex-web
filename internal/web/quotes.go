@@ -246,8 +246,13 @@ func (q *Quotes) List(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("creada") == "1" {
 		successMsg = "Cotización creada."
 	}
+	customers, authors, err := q.store.QuoteFilterChoices(ctx)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
 	user, _ := UserFromContext(ctx)
-	views.QuotesList(quotes, views.ListView{Base: "/cotizaciones", Query: query, Sort: sortCol, Dir: dir, Filters: filters}, successMsg, navUserView(user)).Render(ctx, w)
+	views.QuotesList(quotes, views.ListView{Base: "/cotizaciones", Query: query, Sort: sortCol, Dir: dir, Filters: filters}, customers, authors, successMsg, navUserView(user)).Render(ctx, w)
 }
 
 // QuoteNewForm is the /cotizaciones/nueva form.

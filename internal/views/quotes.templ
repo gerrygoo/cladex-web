@@ -31,7 +31,7 @@ type QuoteLineView struct {
 	Materials         []store.Material // the materials a cost-priced product line was priced from
 }
 
-templ QuotesList(quotes []store.Quote, lv ListView, successMsg string, user *NavUser) {
+templ QuotesList(quotes []store.Quote, lv ListView, customers, authors []string, successMsg string, user *NavUser) {
 	@Layout("Cotizaciones", user) {
 		<h1>
 			Cotizaciones
@@ -64,8 +64,8 @@ templ QuotesList(quotes []store.Quote, lv ListView, successMsg string, user *Nav
 			<thead>
 				<tr>
 					@columnHeader(lv, "Folio", "folio", textFilter)
-					@columnHeader(lv, "Cliente", "cliente", textFilter)
-					@columnHeader(lv, "Autor", "autor", textFilter)
+					@columnHeader(lv, "Cliente", "cliente", choiceFilter(customers))
+					@columnHeader(lv, "Autor", "autor", choiceFilter(authors))
 					@columnHeader(lv, "Estado", "estado", quoteStatusFilter)
 					@columnHeader(lv, "Total", "total", numberFilter)
 					@columnHeader(lv, "Fecha", "fecha", dateFilter)

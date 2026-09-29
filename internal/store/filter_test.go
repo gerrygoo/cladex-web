@@ -52,6 +52,8 @@ func TestListQuotesColumnFilters(t *testing.T) {
 		{"none", nil, "[QA0002 QA0001 QI0001]"},
 		{"estado", Filters{"estado": "emitida"}, "[QA0002 QI0001]"},
 		{"autor contains", Filters{"autor": "bet"}, "[QI0001]"},
+		{"autor exact", Filters{"autor.is": "ana"}, "[QA0002 QA0001]"},
+		{"autor exact is not a substring", Filters{"autor.is": "an"}, "[]"},
 		{"total range", Filters{"total.min": "200", "total.max": "600"}, "[QA0002]"},
 		{"total min only", Filters{"total.min": "500.00"}, "[QA0002 QI0001]"},
 		{"fecha range", Filters{"fecha.min": "2026-02-01", "fecha.max": "2026-02-28"}, "[QA0002]"},
@@ -120,5 +122,42 @@ func TestListUsersStatusFilter(t *testing.T) {
 	}
 	if users, _ := s.ListUsers(ctx, "", "", Filters{"role": "admin"}); len(users) != 1 || users[0].Username != "beto" {
 		t.Errorf("role=admin: got %+v", users)
+	}
+}
+
+func TestQuoteFilterChoices(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	acme, _ := s.CreateCustomer(ctx, Customer{Name: "acme"})
+	zeta, _ := s.CreateCustomer(ctx, Customer{Name: "Zeta"})
+	_, _ = s.CreateCustomer(ctx, Customer{Name: "Sin cotizaciones"})
+	ana, _ := s.CreateUser(ctx, "ana", "Ana", "hash", "vendedor")
+	for i, c := range []int64{zeta, acme, acme} {
+		if _, err := s.db.ExecContext(ctx,
+			`INSERT INTO quotes (folio, prefix, customer_id, user_id, status) VALUES (?, 'QA', ?, ?, 'borrador')`,
+			fmt.Sprintf("QA%04d", i+1), c, ana); err != nil {
+			t.Fatal(err)
+		}
+	}
+	customers, authors, err := s.QuoteFilterChoices(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(customers) != "[acme Zeta]" || fmt.Sprint(authors) != "[Ana]" {
+		t.Errorf("customers = %v, authors = %v", customers, authors)
+	}
+
+	// Past the cap a column falls back to free text (nil choices).
+	for i := 0; i <= MaxFilterChoices; i++ {
+		id, _ := s.CreateCustomer(ctx, Customer{Name: fmt.Sprintf("Cliente %03d", i)})
+		if _, err := s.db.ExecContext(ctx,
+			`INSERT INTO quotes (folio, prefix, customer_id, user_id, status) VALUES (?, 'QS', ?, ?, 'borrador')`,
+			fmt.Sprintf("QS%04d", i+1), id, ana); err != nil {
+			t.Fatal(err)
+		}
+	}
+	customers, authors, err = s.QuoteFilterChoices(ctx)
+	if err != nil || customers != nil || fmt.Sprint(authors) != "[Ana]" {
+		t.Errorf("over the cap: customers = %v, authors = %v, err = %v", customers, authors, err)
 	}
 }
