@@ -67,7 +67,7 @@ func UnitsList(units []store.Unit, successMsg string, errorMsg string, user *Nav
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, " <table><thead><tr><th>Código</th><th>Nombre</th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, " <div class=\"table-scroll\"><table><thead><tr><th>Código</th><th>Nombre</th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -85,7 +85,7 @@ func UnitsList(units []store.Unit, successMsg string, errorMsg string, user *Nav
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(u.Code)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/units.templ`, Line: 28, Col: 18}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/units.templ`, Line: 29, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -98,7 +98,7 @@ func UnitsList(units []store.Unit, successMsg string, errorMsg string, user *Nav
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(u.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/units.templ`, Line: 29, Col: 18}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/units.templ`, Line: 30, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -109,7 +109,7 @@ func UnitsList(units []store.Unit, successMsg string, errorMsg string, user *Nav
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</tbody></table><h2>Nueva unidad</h2><form method=\"post\" action=\"/unidades\"><label>Código <input type=\"text\" name=\"code\" placeholder=\"p. ej. caja\" required></label> <label>Nombre <input type=\"text\" name=\"name\" placeholder=\"p. ej. Caja\" required></label> <button type=\"submit\">Agregar</button></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</tbody></table></div><h2>Nueva unidad</h2><form method=\"post\" action=\"/unidades\"><label>Código <input type=\"text\" name=\"code\" placeholder=\"p. ej. caja\" required></label> <label>Nombre <input type=\"text\" name=\"name\" placeholder=\"p. ej. Caja\" required></label> <button type=\"submit\">Agregar</button></form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

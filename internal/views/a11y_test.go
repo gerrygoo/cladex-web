@@ -87,3 +87,15 @@ func TestListsUseLinksNotButtonsInsideLinks(t *testing.T) {
 		`data-announce="Ningún resultado"`,
 	)
 }
+
+func TestRowActionsNameTheirRow(t *testing.T) {
+	html := render(t, CustomersTableBody([]store.Customer{{ID: 7, Name: "Constructora Bajío"}}))
+	assertContains(t, html,
+		`Editar<span class="visually-hidden"> Constructora Bajío</span>`,
+		`Eliminar<span class="visually-hidden"> Constructora Bajío</span>`,
+		`data-confirm="¿Eliminar este cliente?"`,
+	)
+	if strings.Contains(html, "hx-confirm") {
+		t.Error("hx-confirm does nothing on a plain form post; use data-confirm")
+	}
+}

@@ -73,7 +73,7 @@ func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) t
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<label>Contraseña nueva <input type=\"password\" name=\"new_password\" required autocomplete=\"new-password\" minlength=\"8\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<label>Contraseña nueva <span class=\"hint\">(mínimo 8 caracteres)</span> <input type=\"password\" name=\"new_password\" required autocomplete=\"new-password\" minlength=\"8\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

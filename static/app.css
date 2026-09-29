@@ -30,6 +30,15 @@ main.app-main:focus {
   outline: none;
 }
 
+/* Form controls default to a smaller system font that ignores the page's text size; take
+   the page's font so they read at the same size and grow with it (WCAG 1.4.4). */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
 /* WCAG 2.5.8: controls at least 24px tall, with room to spare. */
 button,
 select,
@@ -58,6 +67,12 @@ a.button:hover {
 }
 
 div.page-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+div.section-title {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -128,6 +143,11 @@ p.hint {
   font-size: 0.9rem;
 }
 
+label span.hint {
+  color: light-dark(#666, #aaa);
+  font-size: 0.9rem;
+}
+
 p.success {
   color: light-dark(#0a7a2f, #4ade80);
 }
@@ -172,9 +192,19 @@ label {
   margin-top: 0.75rem;
 }
 
-input, select {
+input, select, textarea {
   display: block;
   margin-top: 0.25rem;
+}
+
+/* A checkbox or radio sits on the same line as its label text. */
+input[type="checkbox"],
+input[type="radio"] {
+  display: inline-block;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0 0.4rem 0 0;
+  vertical-align: -0.15rem;
 }
 
 /* Present for form mechanics (e.g. a default submit button) but not shown. */
@@ -500,7 +530,8 @@ span.unsaved {
 /* Room to see what's typed: the browser default (~20 characters) cut off product
    descriptions and addresses. */
 label > input:not([type="checkbox"], [type="radio"]),
-label > select {
+label > select,
+label > textarea {
   width: min(100%, 28rem);
   box-sizing: border-box;
 }

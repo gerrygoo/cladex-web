@@ -65,13 +65,13 @@ templ CustomersTableBody(customers []store.Customer) {
 				<td>{ c.Phone }</td>
 				<td>{ c.Email }</td>
 				<td>
-					<a href={ templ.URL("/clientes/" + strconv.FormatInt(c.ID, 10)) }>Editar</a>
+					<a href={ templ.URL("/clientes/" + strconv.FormatInt(c.ID, 10)) }>Editar<span class="visually-hidden">{ " " + c.Name }</span></a>
 					<form
 						method="post"
 						action={ templ.URL("/clientes/" + strconv.FormatInt(c.ID, 10) + "/eliminar") }
 						style="display:inline"
 					>
-						<button type="submit" data-confirm="¿Eliminar este cliente?">Eliminar</button>
+						<button type="submit" data-confirm="¿Eliminar este cliente?">Eliminar<span class="visually-hidden">{ " " + c.Name }</span></button>
 					</form>
 				</td>
 			</tr>

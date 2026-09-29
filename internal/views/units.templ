@@ -10,27 +10,29 @@ templ UnitsList(units []store.Unit, successMsg string, errorMsg string, user *Na
 		</div>
 		@Flash(successMsg)
 		@FormError(errorMsg)
-		<table>
-			<thead>
-				<tr>
-					<th>Código</th>
-					<th>Nombre</th>
-				</tr>
-			</thead>
-			<tbody>
-				if len(units) == 0 {
+		<div class="table-scroll">
+			<table>
+				<thead>
 					<tr>
-						<td colspan="2">No hay unidades.</td>
+						<th>Código</th>
+						<th>Nombre</th>
 					</tr>
-				}
-				for _, u := range units {
-					<tr>
-						<td>{ u.Code }</td>
-						<td>{ u.Name }</td>
-					</tr>
-				}
-			</tbody>
-		</table>
+				</thead>
+				<tbody>
+					if len(units) == 0 {
+						<tr>
+							<td colspan="2">No hay unidades.</td>
+						</tr>
+					}
+					for _, u := range units {
+						<tr>
+							<td>{ u.Code }</td>
+							<td>{ u.Name }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
 		<h2>Nueva unidad</h2>
 		<form method="post" action="/unidades">
 			<label>

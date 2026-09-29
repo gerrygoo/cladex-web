@@ -32,15 +32,14 @@ The PDF is out of scope here; it's a print artifact, not an interface.
 - [x] After an htmx swap that replaces the focused element, focus lands somewhere sensible
       and not on `<body>` (2.4.3). Controls inside swapped fragments get stable ids;
       `static/app.js` falls back to the fragment itself.
-- [ ] Everything works with the keyboard alone, with a visible focus ring (2.1.1, 2.4.7,
-      2.4.11). Verified on the customers list, its column filters and the quote builder;
-      the other screens are still to do.
+- [x] Everything works with the keyboard alone, with a visible focus ring (2.1.1, 2.4.7,
+      2.4.11). Verified on every screen.
 - [x] Text contrast ≥ 4.5:1, UI component and focus-indicator contrast ≥ 3:1 in
       `static/app.css` (1.4.3, 1.4.11), in both colour schemes.
 - [x] Click/tap targets ≥ 24×24 CSS px, including table row actions (2.5.8).
 - [ ] Usable at 200% zoom and at 320 px width without horizontal page scroll, wide tables
-      excepted (1.4.4, 1.4.10). At 320 px everything but the list tables fits (#7); 200%
-      text zoom not checked yet.
+      excepted (1.4.4, 1.4.10). 200% text: nothing clipped. 320 px: everything fits except
+      the four filterable list tables (#7).
 - [x] Inputs for the user's own data declare `autocomplete` (1.3.5).
 - [x] Destructive and final actions ask first: `data-confirm` on the submit button
       (`static/app.js`). Not `hx-confirm`, which only applies to htmx requests.
@@ -113,31 +112,31 @@ For each, the target is measured by watching a seller do it, not guessed.
 Status per screen. `—` is not yet audited; otherwise ✅ pass, ⚠️ open issues (see log), ❌ blocking.
 Date and commit the audit in the header when refreshing.
 
-_Last audit: 2026-09-28, after the first round of fixes. axe-core 4.13, Chromium preview
-pane, light and dark schemes, 1100 px and 320 px. Real-keyboard pass only on the customers
-list (with its column filters) and the quote builder; the other lists and forms share
-their markup but weren't tabbed through. Heuristic review from screenshots of the screens
-marked. Not done yet: VoiceOver ([issue 10](https://github.com/gerrygoo/cladex-web/issues/10)),
-200% text zoom (1.4.4), the issued/revised quote view, and the core-task measurements. The
-numbers point into the issue log._
+_Last audit: 2026-09-28, first pass of both tiers complete. axe-core 4.13 in the Chromium
+preview pane, light and dark schemes, on every screen including an issued, a revised and a
+revision-draft quote. Real-keyboard pass (Tab through every stop, checking order, visible
+focus ring and nothing hidden) on every screen. Reflow at 320 px, and text at 200% (root
+font size) at 1280 px. Heuristic review of every screen. Still to do: VoiceOver
+([issue 10](https://github.com/gerrygoo/cladex-web/issues/10)) and the core-task
+measurements. The numbers point into the issue log._
 
 | Screen | Route | axe | Keyboard | Zoom/reflow | Screen reader | Heuristics |
 |---|---|---|---|---|---|---|
-| Login | `/login` | ✅ | — | — | — | — |
-| Home | `/` | ✅ | — | ✅ | — | ✅ |
-| Quotes list | `/cotizaciones` | ✅ | — | ⚠️ 7 | — | ⚠️ 18 |
-| New quote | `/cotizaciones/nueva` | ✅ | — | ✅ | — | — |
+| Login | `/login` | ✅ | ✅ | ✅ | — | ✅ |
+| Home | `/` | ✅ | ✅ | ✅ | — | ✅ |
+| Quotes list | `/cotizaciones` | ✅ | ✅ | ⚠️ 7 | — | ⚠️ 18 |
+| New quote | `/cotizaciones/nueva` | ✅ | ✅ | ✅ | — | ✅ |
 | Quote builder (draft) | `/cotizaciones/{folio}` | ✅ | ✅ | ✅ | — | ⚠️ 18, 20, 21 |
-| Issued / revised quote | `/cotizaciones/{folio}` | — | — | — | — | — |
-| Products list | `/productos` | ✅ | — | ⚠️ 7 | — | ⚠️ 18 |
-| Product form | `/productos/{id}` | ✅ | — | ✅ | — | ✅ |
+| Issued / revised quote | `/cotizaciones/{folio}` | ✅ | ✅ | ✅ | — | ⚠️ 18 |
+| Products list | `/productos` | ✅ | ✅ | ⚠️ 7 | — | ⚠️ 18 |
+| Product form | `/productos/{id}` | ✅ | ✅ | ✅ | — | ✅ |
 | Customers list | `/clientes` | ✅ | ✅ | ⚠️ 7 | — | ✅ |
-| Customer form | `/clientes/{id}` | ✅ | — | ✅ | — | — |
-| Users (admin) | `/usuarios` | ✅ | — | ⚠️ 7 | — | ✅ |
-| Settings (admin) | `/ajustes` | ✅ | — | ⚠️ 7 | — | ✅ |
-| Units (admin) | `/unidades` | ✅ | — | ✅ | — | — |
-| My account | `/mi-cuenta` | ✅ | — | ✅ | — | — |
-| Help | `/ayuda` | ✅ | — | ✅ | — | — |
+| Customer form | `/clientes/{id}` | ✅ | ✅ | ✅ | — | ✅ |
+| Users (admin) | `/usuarios` | ✅ | ✅ | ⚠️ 7 | — | ✅ |
+| Settings (admin) | `/ajustes` | ✅ | ✅ | ✅ | — | ✅ |
+| Units (admin) | `/unidades` | ✅ | ✅ | ✅ | — | ✅ |
+| My account | `/mi-cuenta` | ✅ | ✅ | ✅ | — | ✅ |
+| Help | `/ayuda` | ✅ | ✅ | ✅ | — | ✅ |
 
 Core tasks (the ISO 9241-11 table above): not measured yet. They need a seller doing them
 while someone watches.
@@ -172,10 +171,14 @@ heuristic and severity. Tick when fixed, with the commit.
 - [x] **#6 · 1.3.5.** Login and Mi cuenta declare `username`, `current-password` and
       `new-password`.
 - [ ] **#7 · 1.4.10 Reflow.** ([issue 9](https://github.com/gerrygoo/cladex-web/issues/9)) Fixed: the header wraps, the builder's toolbar wraps, and
-      its lines table scrolls in its own box. Open: the list tables (and Ajustes) still
-      widen the page at 320 px. They can't simply go in a scroll box, because it would
+      every table without column filters (quote lines, issued quote, comments, Ajustes,
+      the product's materials and conversions, Unidades) scrolls in its own box. Open: the
+      four filterable lists still widen the page at 320 px. They can't simply go in a scroll box, because it would
       clip the column-filter popovers. Data tables are exempt from 1.4.10, so this is low
       priority.
+- [x] **#24 · 1.4.4 Resize Text.** Buttons, fields and selects used the browser's
+      ~13 px form font and didn't grow with the page's text size. They now inherit the
+      page font.
 - [x] **#15 · 2.4.3 / 2.4.7.** Escape closed a column-filter popover but left focus on
       its now-hidden field. Focus now returns to the funnel.
 
@@ -190,6 +193,11 @@ heuristic and severity. Tick when fixed, with the commit.
       HTML: interactive content inside a link). Now `<a class="button">`.
 - [x] **#23** · The list search boxes and the users' role selects relied on a placeholder
       or had no name at all; now they have `aria-label`s.
+
+- [x] **#25** · Row actions ("Editar", "Eliminar", and Ajustes' "Guardar", "Retirar",
+      "Hacer predeterminado") didn't say which row they act on, and Ajustes' row inputs
+      were all named "Nombre" / "Margen (%)". Each now names its row. The product page's
+      section help links had the same name as the page's; each now names its section.
 
 **Tier 2 — Heuristics**
 
@@ -209,6 +217,11 @@ heuristic and severity. Tick when fixed, with the commit.
 - [x] **#17 · H8 Aesthetic and minimalist design · severity 1.** Form fields were ~20
       characters wide and cut off descriptions and addresses; search placeholders were
       truncated. Fields now grow to 28rem.
+- [x] **#26 · H4 Consistency · severity 2.** On New quote the folio-series radios, and in
+      the builder the "Solo productos de la familia" checkbox, sat on their own line above
+      their text (a global `input { display: block }`). Now inline.
+- [x] **#27 · H5 Error prevention · severity 1.** Mi cuenta didn't say the new password
+      needs 8 characters until after a failed submit. The label now says so.
 - [ ] **#18 · H4 Consistency / NN/g tables · severity 1.** ([issue 8](https://github.com/gerrygoo/cladex-web/issues/8)) Money and quantity columns are
       left-aligned. Right-align numbers (and use tabular figures) so amounts compare
       down a column.

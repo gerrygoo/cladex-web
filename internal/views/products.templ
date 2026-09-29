@@ -93,13 +93,13 @@ templ ProductsTableBody(products []store.Product) {
 				<td>{ productPriceDisplay(p) }</td>
 				<td>{ p.UnitCode }</td>
 				<td>
-					<a href={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10)) }>Editar</a>
+					<a href={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10)) }>Editar<span class="visually-hidden">{ " " + p.SKU }</span></a>
 					<form
 						method="post"
 						action={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10) + "/eliminar") }
 						style="display:inline"
 					>
-						<button type="submit" data-confirm="¿Eliminar este producto?">Eliminar</button>
+						<button type="submit" data-confirm="¿Eliminar este producto?">Eliminar<span class="visually-hidden">{ " " + p.SKU }</span></button>
 					</form>
 				</td>
 			</tr>
@@ -194,44 +194,46 @@ templ ProductForm(title string, action string, values ProductFormValues, fieldEr
 // to add another. rate_micros is displayed and entered as a plain decimal (the amount
 // of "A" per 1 "De" — see migrations/0003_add_units_and_conversions.sql).
 templ ProductConversionsSection(productID int64, conversions []store.ProductUnitConversion, units []store.Unit, errorMsg string) {
-	<h2>
-		Conversiones de unidades
-		@HelpLink(HelpConversiones)
-	</h2>
+	<div class="section-title">
+		<h2>Conversiones de unidades</h2>
+		@SectionHelpLink(HelpConversiones, "conversiones de unidades")
+	</div>
 	@FormError(errorMsg)
-	<table>
-		<thead>
-			<tr>
-				<th>De</th>
-				<th>A</th>
-				<th>Tasa (A por 1 De)</th>
-				<th><span class="visually-hidden">Acciones</span></th>
-			</tr>
-		</thead>
-		<tbody>
-			if len(conversions) == 0 {
+	<div class="table-scroll">
+		<table>
+			<thead>
 				<tr>
-					<td colspan="4">Sin conversiones registradas.</td>
+					<th>De</th>
+					<th>A</th>
+					<th>Tasa (A por 1 De)</th>
+					<th><span class="visually-hidden">Acciones</span></th>
 				</tr>
-			}
-			for _, c := range conversions {
-				<tr>
-					<td>{ c.FromUnitCode }</td>
-					<td>{ c.ToUnitCode }</td>
-					<td>{ c.RateMicros.String() }</td>
-					<td>
-						<form
-							method="post"
-							action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/conversiones/" + strconv.FormatInt(c.ID, 10) + "/eliminar") }
-							style="display:inline"
-						>
-							<button type="submit" data-confirm="¿Eliminar esta conversión?">Eliminar</button>
-						</form>
-					</td>
-				</tr>
-			}
-		</tbody>
-	</table>
+			</thead>
+			<tbody>
+				if len(conversions) == 0 {
+					<tr>
+						<td colspan="4">Sin conversiones registradas.</td>
+					</tr>
+				}
+				for _, c := range conversions {
+					<tr>
+						<td>{ c.FromUnitCode }</td>
+						<td>{ c.ToUnitCode }</td>
+						<td>{ c.RateMicros.String() }</td>
+						<td>
+							<form
+								method="post"
+								action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/conversiones/" + strconv.FormatInt(c.ID, 10) + "/eliminar") }
+								style="display:inline"
+							>
+								<button type="submit" data-confirm="¿Eliminar esta conversión?">Eliminar<span class="visually-hidden">{ " " + ("conversión " + c.FromUnitCode + " a " + c.ToUnitCode) }</span></button>
+							</form>
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
 	<form method="post" action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/conversiones") }>
 		<label>
 			De
@@ -261,44 +263,46 @@ templ ProductConversionsSection(productID int64, conversions []store.ProductUnit
 // form to add another material. A product's cost is its Costo field plus each
 // material's quantity x current price; see internal/pricing.
 templ ProductMaterialsSection(productID int64, materials []store.ProductMaterial, all []store.Material, errorMsg string) {
-	<h2>
-		Materiales
-		@HelpLink(HelpProductoMateriales)
-	</h2>
+	<div class="section-title">
+		<h2>Materiales</h2>
+		@SectionHelpLink(HelpProductoMateriales, "los materiales del producto")
+	</div>
 	@FormError(errorMsg)
-	<table>
-		<thead>
-			<tr>
-				<th>Material</th>
-				<th>Cantidad por unidad del producto</th>
-				<th>Precio del material</th>
-				<th><span class="visually-hidden">Acciones</span></th>
-			</tr>
-		</thead>
-		<tbody>
-			if len(materials) == 0 {
+	<div class="table-scroll">
+		<table>
+			<thead>
 				<tr>
-					<td colspan="4">Sin materiales registrados.</td>
+					<th>Material</th>
+					<th>Cantidad por unidad del producto</th>
+					<th>Precio del material</th>
+					<th><span class="visually-hidden">Acciones</span></th>
 				</tr>
-			}
-			for _, m := range materials {
-				<tr>
-					<td>{ m.Material.Name }</td>
-					<td>{ m.QtyPerUnitMicros.String() } { m.Material.UnitCode }</td>
-					<td>{ MaterialPrice(m.Material) }</td>
-					<td>
-						<form
-							method="post"
-							action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/materiales/" + strconv.FormatInt(m.ID, 10) + "/eliminar") }
-							style="display:inline"
-						>
-							<button type="submit" data-confirm="¿Quitar este material?">Eliminar</button>
-						</form>
-					</td>
-				</tr>
-			}
-		</tbody>
-	</table>
+			</thead>
+			<tbody>
+				if len(materials) == 0 {
+					<tr>
+						<td colspan="4">Sin materiales registrados.</td>
+					</tr>
+				}
+				for _, m := range materials {
+					<tr>
+						<td>{ m.Material.Name }</td>
+						<td>{ m.QtyPerUnitMicros.String() } { m.Material.UnitCode }</td>
+						<td>{ MaterialPrice(m.Material) }</td>
+						<td>
+							<form
+								method="post"
+								action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/materiales/" + strconv.FormatInt(m.ID, 10) + "/eliminar") }
+								style="display:inline"
+							>
+								<button type="submit" data-confirm="¿Quitar este material?">Eliminar<span class="visually-hidden">{ " " + m.Material.Name }</span></button>
+							</form>
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
 	if len(all) > 0 {
 		<form method="post" action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/materiales") }>
 			<label>

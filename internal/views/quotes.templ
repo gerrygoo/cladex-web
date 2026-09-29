@@ -462,42 +462,44 @@ func revisarPath(folio string) string {
 // inputs, no remove buttons, nothing that implies the row can still change. Used
 // instead of QuoteLinesFragment once a quote leaves 'borrador'.
 templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
-	<table>
-		<thead>
-			<tr>
-				<th>Producto / Descripción</th>
-				<th>Cantidad</th>
-				<th>Precio unitario</th>
-				<th>Total</th>
-			</tr>
-		</thead>
-		<tbody>
-			if len(lines) == 0 {
+	<div class="table-scroll">
+		<table>
+			<thead>
 				<tr>
-					<td colspan="4">Sin líneas.</td>
+					<th>Producto / Descripción</th>
+					<th>Cantidad</th>
+					<th>Precio unitario</th>
+					<th>Total</th>
 				</tr>
-			}
-			for _, line := range lines {
-				<tr>
-					<td>
-						if line.IsFree {
-							{ line.Description }
-						} else {
-							{ line.ProductLabel }
-						}
-					</td>
-					<td>
-						{ line.QtyMilli.String() }
-						if line.UnitCode != "" {
-							{ " " + line.UnitCode }
-						}
-					</td>
-					<td>{ line.UnitPriceMicros.ToCentavosHalfUp().String() }</td>
-					<td>{ line.LineTotal.String() }</td>
-				</tr>
-			}
-		</tbody>
-	</table>
+			</thead>
+			<tbody>
+				if len(lines) == 0 {
+					<tr>
+						<td colspan="4">Sin líneas.</td>
+					</tr>
+				}
+				for _, line := range lines {
+					<tr>
+						<td>
+							if line.IsFree {
+								{ line.Description }
+							} else {
+								{ line.ProductLabel }
+							}
+						</td>
+						<td>
+							{ line.QtyMilli.String() }
+							if line.UnitCode != "" {
+								{ " " + line.UnitCode }
+							}
+						</td>
+						<td>{ line.UnitPriceMicros.ToCentavosHalfUp().String() }</td>
+						<td>{ line.LineTotal.String() }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
 	<div class="quote-totals">
 		<p>Subtotal: { totals.Subtotal.String() }</p>
 		<p>IVA (16%): { totals.IVA.String() }</p>
@@ -756,31 +758,33 @@ templ QuoteComments(folio string, comments []store.QuoteComment) {
 			</label>
 			<button type="submit">Comentar</button>
 		</form>
-		<table>
-			<thead>
-				<tr>
-					<th>Fecha</th>
-					<th>Usuario</th>
-					<th>Comentario</th>
-				</tr>
-			</thead>
-			<tbody>
-				if len(comments) == 0 {
+		<div class="table-scroll">
+			<table>
+				<thead>
 					<tr>
-						<td colspan="3">Sin comentarios.</td>
+						<th>Fecha</th>
+						<th>Usuario</th>
+						<th>Comentario</th>
 					</tr>
-				}
-				for _, c := range comments {
-					<tr>
-						<td>
-							@Timestamp(c.CreatedAt)
-						</td>
-						<td>{ c.UserName }</td>
-						<td class="comment-body">{ c.Body }</td>
-					</tr>
-				}
-			</tbody>
-		</table>
+				</thead>
+				<tbody>
+					if len(comments) == 0 {
+						<tr>
+							<td colspan="3">Sin comentarios.</td>
+						</tr>
+					}
+					for _, c := range comments {
+						<tr>
+							<td>
+								@Timestamp(c.CreatedAt)
+							</td>
+							<td>{ c.UserName }</td>
+							<td class="comment-body">{ c.Body }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
 	</section>
 }
 

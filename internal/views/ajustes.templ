@@ -36,56 +36,58 @@ templ Ajustes(margins []store.MarginOption, materials []store.Material, units []
 		@FormError(errorMsg)
 		<h2>Márgenes</h2>
 		<p>Cada cotización se calcula con uno de estos márgenes; el vendedor lo elige al armarla.</p>
-		<table>
-			<thead>
-				<tr>
-					<th>Nombre</th>
-					<th>Margen (%)</th>
-					<th>Estado</th>
-					<th><span class="visually-hidden">Acciones</span></th>
-				</tr>
-			</thead>
-			<tbody>
-				for _, m := range margins {
+		<div class="table-scroll">
+			<table>
+				<thead>
 					<tr>
-						// The inputs sit in their own cells and join the row's edit form, which
-						// lives in the actions cell, through the form attribute.
-						<td>
-							<input type="text" form={ marginFormID(m) } name="name" value={ m.Name } aria-label="Nombre" required/>
-						</td>
-						<td>
-							<input type="text" form={ marginFormID(m) } name="value" value={ MarginPercent(m.ValueMicros) } size="8" aria-label="Margen (%)" required/>
-						</td>
-						<td>
-							if !m.Active() {
-								Retirado
-							} else if m.IsDefault {
-								<strong>Predeterminado</strong>
-							} else {
-								Activo
-							}
-						</td>
-						<td>
-							<form id={ marginFormID(m) } method="post" action={ templ.URL(marginPath(m, "")) } style="display:inline">
-								<button type="submit">Guardar</button>
-							</form>
-							if !m.Active() {
-								<form method="post" action={ templ.URL(marginPath(m, "restaurar")) } style="display:inline">
-									<button type="submit">Restaurar</button>
-								</form>
-							} else if !m.IsDefault {
-								<form method="post" action={ templ.URL(marginPath(m, "predeterminado")) } style="display:inline">
-									<button type="submit">Hacer predeterminado</button>
-								</form>
-								<form method="post" action={ templ.URL(marginPath(m, "retirar")) } style="display:inline">
-									<button type="submit">Retirar</button>
-								</form>
-							}
-						</td>
+						<th>Nombre</th>
+						<th>Margen (%)</th>
+						<th>Estado</th>
+						<th><span class="visually-hidden">Acciones</span></th>
 					</tr>
-				}
-			</tbody>
-		</table>
+				</thead>
+				<tbody>
+					for _, m := range margins {
+						<tr>
+							// The inputs sit in their own cells and join the row's edit form, which
+							// lives in the actions cell, through the form attribute.
+							<td>
+								<input type="text" form={ marginFormID(m) } name="name" value={ m.Name } aria-label={ "Nombre del margen " + m.Name } required/>
+							</td>
+							<td>
+								<input type="text" form={ marginFormID(m) } name="value" value={ MarginPercent(m.ValueMicros) } size="8" aria-label={ "Porcentaje del margen " + m.Name } required/>
+							</td>
+							<td>
+								if !m.Active() {
+									Retirado
+								} else if m.IsDefault {
+									<strong>Predeterminado</strong>
+								} else {
+									Activo
+								}
+							</td>
+							<td>
+								<form id={ marginFormID(m) } method="post" action={ templ.URL(marginPath(m, "")) } style="display:inline">
+									<button type="submit">Guardar<span class="visually-hidden">{ " " + m.Name }</span></button>
+								</form>
+								if !m.Active() {
+									<form method="post" action={ templ.URL(marginPath(m, "restaurar")) } style="display:inline">
+										<button type="submit">Restaurar<span class="visually-hidden">{ " " + m.Name }</span></button>
+									</form>
+								} else if !m.IsDefault {
+									<form method="post" action={ templ.URL(marginPath(m, "predeterminado")) } style="display:inline">
+										<button type="submit">Hacer predeterminado<span class="visually-hidden">{ " " + m.Name }</span></button>
+									</form>
+									<form method="post" action={ templ.URL(marginPath(m, "retirar")) } style="display:inline">
+										<button type="submit">Retirar<span class="visually-hidden">{ " " + m.Name }</span></button>
+									</form>
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
 		<h3>Nuevo margen</h3>
 		<form method="post" action="/ajustes/margenes">
 			<label>
@@ -98,46 +100,48 @@ templ Ajustes(margins []store.MarginOption, materials []store.Material, units []
 			</label>
 			<button type="submit">Agregar</button>
 		</form>
-		<h2>
-			Materiales
-			@HelpLink(HelpMateriales)
-		</h2>
+		<div class="section-title">
+			<h2>Materiales</h2>
+			@SectionHelpLink(HelpMateriales, "materiales")
+		</div>
 		<p>Costo de cada material, sin margen. Los productos hechos de un material se cotizan con su contenido × este precio, más el margen de la cotización.</p>
-		<table>
-			<thead>
-				<tr>
-					<th>Nombre</th>
-					<th>Precio (pesos por unidad)</th>
-					<th>Unidad</th>
-					<th>Actualizado</th>
-					<th><span class="visually-hidden">Acciones</span></th>
-				</tr>
-			</thead>
-			<tbody>
-				if len(materials) == 0 {
+		<div class="table-scroll">
+			<table>
+				<thead>
 					<tr>
-						<td colspan="5">No hay materiales.</td>
+						<th>Nombre</th>
+						<th>Precio (pesos por unidad)</th>
+						<th>Unidad</th>
+						<th>Actualizado</th>
+						<th><span class="visually-hidden">Acciones</span></th>
 					</tr>
-				}
-				for _, m := range materials {
-					<tr>
-						<td>
-							<input type="text" form={ materialFormID(m) } name="name" value={ m.Name } aria-label="Nombre" required/>
-						</td>
-						<td>
-							<input type="text" form={ materialFormID(m) } name="price" value={ m.PriceMicros.String() } size="10" aria-label="Precio" required/>
-						</td>
-						<td>{ m.UnitCode }</td>
-						<td>{ MaterialAge(m.UpdatedAt, time.Now()) }</td>
-						<td>
-							<form id={ materialFormID(m) } method="post" action={ templ.URL("/ajustes/materiales/" + strconv.FormatInt(m.ID, 10)) } style="display:inline">
-								<button type="submit">Guardar</button>
-							</form>
-						</td>
-					</tr>
-				}
-			</tbody>
-		</table>
+				</thead>
+				<tbody>
+					if len(materials) == 0 {
+						<tr>
+							<td colspan="5">No hay materiales.</td>
+						</tr>
+					}
+					for _, m := range materials {
+						<tr>
+							<td>
+								<input type="text" form={ materialFormID(m) } name="name" value={ m.Name } aria-label={ "Nombre del material " + m.Name } required/>
+							</td>
+							<td>
+								<input type="text" form={ materialFormID(m) } name="price" value={ m.PriceMicros.String() } size="10" aria-label={ "Precio del material " + m.Name } required/>
+							</td>
+							<td>{ m.UnitCode }</td>
+							<td>{ MaterialAge(m.UpdatedAt, time.Now()) }</td>
+							<td>
+								<form id={ materialFormID(m) } method="post" action={ templ.URL("/ajustes/materiales/" + strconv.FormatInt(m.ID, 10)) } style="display:inline">
+									<button type="submit">Guardar<span class="visually-hidden">{ " " + m.Name }</span></button>
+								</form>
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
 		<h3>Nuevo material</h3>
 		<form method="post" action="/ajustes/materiales">
 			<label>
