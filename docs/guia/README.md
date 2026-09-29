@@ -76,6 +76,14 @@ quitar uno, abre su embudo y haz clic en **Limpiar**; **Quitar todos** (arriba d
 tabla) los quita todos. La dirección de la página guarda los filtros, así que puedes
 guardarla o compartirla.
 
+## Páginas largas
+
+Las listas de **Cotizaciones**, **Productos**, **Clientes**, **Usuarios** y **Unidades**
+muestran 20 filas por página. Cuando hay más de 10 filas, debajo de la tabla verás
+*"Página 1 de 3"* con los enlaces **← Anterior** y **Siguiente →**, y el selector
+**Filas por página** (10, 20, 50 o 100). Al buscar, filtrar u ordenar vuelves a la
+página 1; el tamaño de página que elegiste se conserva.
+
 ## Conceptos
 
 [[Folio]], [[serie]], [[borrador]], [[emitida]], [[vigencia]]… Todos los términos

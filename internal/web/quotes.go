@@ -238,8 +238,11 @@ func (q *Quotes) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
+	quotes, pager := paginate(r, quotes)
+	lv := views.ListView{Base: "/cotizaciones", Query: query, Sort: sortCol, Dir: dir, Filters: filters, Pager: pager}
 	if r.Header.Get("HX-Request") == "true" {
 		views.QuotesTableBody(quotes).Render(ctx, w)
+		views.ListPagerOOB(lv).Render(ctx, w)
 		return
 	}
 	successMsg := ""
@@ -252,7 +255,7 @@ func (q *Quotes) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, _ := UserFromContext(ctx)
-	views.QuotesList(quotes, views.ListView{Base: "/cotizaciones", Query: query, Sort: sortCol, Dir: dir, Filters: filters}, customers, authors, successMsg, navUserView(user)).Render(ctx, w)
+	views.QuotesList(quotes, lv, customers, authors, successMsg, navUserView(user)).Render(ctx, w)
 }
 
 // QuoteNewForm is the /cotizaciones/nueva form.

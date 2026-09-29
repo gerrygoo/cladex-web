@@ -29,12 +29,14 @@ func (u *Users) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
+	users, pager := paginate(r, users)
+	lv := views.ListView{Base: "/usuarios", Sort: sort, Dir: dir, Filters: filters, Pager: pager}
 	authUser, _ := UserFromContext(ctx)
 	successMsg := ""
 	if r.URL.Query().Get("guardado") == "1" {
 		successMsg = "Cambios guardados."
 	}
-	views.UsersList(users, authUser.ID, views.ListView{Base: "/usuarios", Sort: sort, Dir: dir, Filters: filters}, successMsg, "", navUserView(authUser)).Render(ctx, w)
+	views.UsersList(users, authUser.ID, lv, successMsg, "", navUserView(authUser)).Render(ctx, w)
 }
 
 // SetRole handles POST /usuarios/{id}/rol. An admin can't change their own role
@@ -100,7 +102,9 @@ func (u *Users) renderListError(w http.ResponseWriter, r *http.Request, errorMsg
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
+	users, pager := paginate(r, users)
+	lv := views.ListView{Base: "/usuarios", Sort: sort, Dir: dir, Filters: filters, Pager: pager}
 	authUser, _ := UserFromContext(ctx)
 	w.WriteHeader(http.StatusUnprocessableEntity)
-	views.UsersList(users, authUser.ID, views.ListView{Base: "/usuarios", Sort: sort, Dir: dir, Filters: filters}, "", errorMsg, navUserView(authUser)).Render(ctx, w)
+	views.UsersList(users, authUser.ID, lv, "", errorMsg, navUserView(authUser)).Render(ctx, w)
 }

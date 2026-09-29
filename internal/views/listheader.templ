@@ -1,6 +1,10 @@
 package views
 
-import "github.com/gerrygoo/cladex-web/internal/store"
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
 
 // listHiddenInputs repeats the page's state (search, sort and the filters of every
 // column except skip) as hidden form fields, so submitting a form keeps it.
@@ -87,4 +91,48 @@ templ columnHeader(lv ListView, label, col string, f ColumnFilter) {
 			</form>
 		</details>
 	</th>
+}
+
+// listPager is the page navigation under a table (an empty placeholder when everything
+// fits on one page). oob marks it as an out-of-band htmx swap, so the live search
+// response can refresh it alongside the table body.
+templ listPager(lv ListView, oob bool) {
+	<nav id="pager" class="pager" aria-label="Paginación" { pagerAttrs(oob)... }>
+		if lv.Pager.Total > PerPageChoices[0] {
+			<span>
+				{ strconv.Itoa((lv.Pager.Page-1)*lv.Pager.PerPage + 1) }–{ strconv.Itoa(min(lv.Pager.Page*lv.Pager.PerPage, lv.Pager.Total)) } de { strconv.Itoa(lv.Pager.Total) }
+			</span>
+			if lv.Pager.Page > 1 {
+				<a href={ templ.URL(lv.PageHref(lv.Pager.Page - 1)) } rel="prev">← Anterior</a>
+			}
+			<span>Página { strconv.Itoa(lv.Pager.Page) } de { strconv.Itoa(lv.Pager.Pages) }</span>
+			if lv.Pager.Page < lv.Pager.Pages {
+				<a href={ templ.URL(lv.PageHref(lv.Pager.Page + 1)) } rel="next">Siguiente →</a>
+			}
+			<form method="get" action={ templ.URL(lv.Base) } class="per-page">
+				@listHiddenInputs(lv, "per")
+				<label>
+					Filas por página
+					<select name="per" class="per-page-select">
+						for _, n := range PerPageChoices {
+							<option value={ strconv.Itoa(n) } selected?={ lv.Pager.PerPage == n }>{ strconv.Itoa(n) }</option>
+						}
+					</select>
+				</label>
+				<noscript><button type="submit">Aplicar</button></noscript>
+			</form>
+		}
+	</nav>
+}
+
+func pagerAttrs(oob bool) templ.Attributes {
+	if oob {
+		return templ.Attributes{"hx-swap-oob": "true"}
+	}
+	return nil
+}
+
+// ListPagerOOB is the pager as an out-of-band swap, for htmx table-body responses.
+templ ListPagerOOB(lv ListView) {
+	@listPager(lv, true)
 }

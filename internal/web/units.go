@@ -35,8 +35,10 @@ func (u *Units) List(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("guardado") == "1" {
 		successMsg = "Unidad guardada."
 	}
+	units, pager := paginate(r, units)
+	lv := views.ListView{Base: "/unidades", Pager: pager}
 	user, _ := UserFromContext(ctx)
-	views.UnitsList(units, successMsg, "", navUserView(user)).Render(ctx, w)
+	views.UnitsList(units, lv, successMsg, "", navUserView(user)).Render(ctx, w)
 }
 
 func (u *Units) Create(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +72,9 @@ func (u *Units) renderListError(w http.ResponseWriter, r *http.Request, errorMsg
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
+	units, pager := paginate(r, units)
+	lv := views.ListView{Base: "/unidades", Pager: pager}
 	user, _ := UserFromContext(ctx)
 	w.WriteHeader(http.StatusUnprocessableEntity)
-	views.UnitsList(units, "", errorMsg, navUserView(user)).Render(ctx, w)
+	views.UnitsList(units, lv, "", errorMsg, navUserView(user)).Render(ctx, w)
 }

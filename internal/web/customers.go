@@ -118,8 +118,12 @@ func (cs *Customers) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	customers, pager := paginate(r, customers)
+	lv := views.ListView{Base: "/clientes", Query: query, Sort: sort, Dir: dir, Filters: filters, Pager: pager}
+
 	if r.Header.Get("HX-Request") == "true" {
 		views.CustomersTableBody(customers).Render(ctx, w)
+		views.ListPagerOOB(lv).Render(ctx, w)
 		return
 	}
 
@@ -131,7 +135,7 @@ func (cs *Customers) List(w http.ResponseWriter, r *http.Request) {
 		successMsg = "Cliente eliminado."
 	}
 	user, _ := UserFromContext(ctx)
-	views.CustomersList(customers, views.ListView{Base: "/clientes", Query: query, Sort: sort, Dir: dir, Filters: filters}, successMsg, navUserView(user)).Render(ctx, w)
+	views.CustomersList(customers, lv, successMsg, navUserView(user)).Render(ctx, w)
 }
 
 // NewPage renders the empty create form at /clientes/nuevo.

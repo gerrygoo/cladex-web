@@ -411,3 +411,16 @@ th.col-header:nth-last-child(-n + 2) form.col-filter-panel {
 .quote-info {
   margin-bottom: 2rem;
 }
+
+nav.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  margin: 0.75rem 0;
+  font-size: 0.9rem;
+}
+
+nav.pager form.per-page {
+  margin-left: auto;
+}

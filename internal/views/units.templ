@@ -4,7 +4,7 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-templ UnitsList(units []store.Unit, successMsg string, errorMsg string, user *NavUser) {
+templ UnitsList(units []store.Unit, lv ListView, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Unidades", user) {
 		<h1>
 			Unidades
@@ -37,6 +37,7 @@ templ UnitsList(units []store.Unit, successMsg string, errorMsg string, user *Na
 				}
 			</tbody>
 		</table>
+		@listPager(lv, false)
 		<h2>Nueva unidad</h2>
 		<form method="post" action="/unidades">
 			<label>

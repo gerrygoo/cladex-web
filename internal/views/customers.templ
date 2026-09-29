@@ -48,6 +48,7 @@ templ CustomersList(customers []store.Customer, lv ListView, successMsg string, 
 			</thead>
 			@CustomersTableBody(customers)
 		</table>
+		@listPager(lv, false)
 	}
 }
 

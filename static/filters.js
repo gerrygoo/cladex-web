@@ -16,3 +16,8 @@
     if (e.key === "Escape") closeOthers(null);
   });
 })();
+
+// The pager's "Filas por página" select applies as soon as it changes.
+document.addEventListener("change", function (e) {
+  if (e.target.matches && e.target.matches("select.per-page-select")) e.target.form.submit();
+});

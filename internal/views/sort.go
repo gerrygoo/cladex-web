@@ -2,6 +2,7 @@ package views
 
 import (
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/gerrygoo/cladex-web/internal/store"
@@ -16,6 +17,29 @@ type ListView struct {
 	Sort    string
 	Dir     string
 	Filters store.Filters
+	Pager   Pager // the page shown; the zero value means one unpaged page
+}
+
+// DefaultPerPage is the rows per page of a list that doesn't ask for another size, and
+// PerPageChoices are the sizes the pager offers.
+const DefaultPerPage = 20
+
+var PerPageChoices = []int{10, 20, 50, 100}
+
+// Pager is where a paged list stands. Page and Pages start at 1; Total counts every
+// matching row, not just this page's.
+type Pager struct {
+	Page, Pages, Total, PerPage int
+}
+
+// PageHref is the page's URL for page n, with search, sort and filters kept. Page 1
+// carries no param.
+func (lv ListView) PageHref(n int) string {
+	v := lv.values("")
+	if n > 1 {
+		v.Set("page", strconv.Itoa(n))
+	}
+	return withQuery(lv.Base, v)
 }
 
 // filterParam is the URL param name for a Filters key ("sku" -> "f.sku").
@@ -31,6 +55,9 @@ func (lv ListView) values(skip string) url.Values {
 	if lv.Sort != "" {
 		v.Set("sort", lv.Sort)
 		v.Set("dir", lv.Dir)
+	}
+	if lv.Pager.PerPage != 0 && lv.Pager.PerPage != DefaultPerPage && skip != "per" {
+		v.Set("per", strconv.Itoa(lv.Pager.PerPage))
 	}
 	for k, val := range lv.Filters {
 		if skip != "" && columnOfFilterKey(k) == skip {

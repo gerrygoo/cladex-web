@@ -76,6 +76,7 @@ templ ProductsList(products []store.Product, lv ListView, families []FilterOptio
 			</thead>
 			@ProductsTableBody(products)
 		</table>
+		@listPager(lv, false)
 	}
 }
 

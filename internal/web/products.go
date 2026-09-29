@@ -136,8 +136,12 @@ func (p *Products) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	products, pager := paginate(r, products)
+	lv := views.ListView{Base: "/productos", Query: query, Sort: sort, Dir: dir, Filters: filters, Pager: pager}
+
 	if r.Header.Get("HX-Request") == "true" {
 		views.ProductsTableBody(products).Render(ctx, w)
+		views.ListPagerOOB(lv).Render(ctx, w)
 		return
 	}
 
@@ -166,7 +170,6 @@ func (p *Products) List(w http.ResponseWriter, r *http.Request) {
 		unitOptions = append(unitOptions, views.FilterOption{Value: u.Code, Label: u.Code + " — " + u.Name})
 	}
 	user, _ := UserFromContext(ctx)
-	lv := views.ListView{Base: "/productos", Query: query, Sort: sort, Dir: dir, Filters: filters}
 	views.ProductsList(products, lv, familyOptions, unitOptions, successMsg, navUserView(user)).Render(ctx, w)
 }
 

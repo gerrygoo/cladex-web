@@ -12,7 +12,7 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-func UnitsList(units []store.Unit, successMsg string, errorMsg string, user *NavUser) templ.Component {
+func UnitsList(units []store.Unit, lv ListView, successMsg string, errorMsg string, user *NavUser) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -65,7 +65,7 @@ func UnitsList(units []store.Unit, successMsg string, errorMsg string, user *Nav
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(successMsg)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/units.templ`, Line: 14, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `units.templ`, Line: 14, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -88,7 +88,7 @@ func UnitsList(units []store.Unit, successMsg string, errorMsg string, user *Nav
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(errorMsg)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/units.templ`, Line: 17, Col: 30}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `units.templ`, Line: 17, Col: 30}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -117,7 +117,7 @@ func UnitsList(units []store.Unit, successMsg string, errorMsg string, user *Nav
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(u.Code)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/units.templ`, Line: 34, Col: 18}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `units.templ`, Line: 34, Col: 18}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -130,7 +130,7 @@ func UnitsList(units []store.Unit, successMsg string, errorMsg string, user *Nav
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(u.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/units.templ`, Line: 35, Col: 18}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `units.templ`, Line: 35, Col: 18}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -141,7 +141,15 @@ func UnitsList(units []store.Unit, successMsg string, errorMsg string, user *Nav
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</tbody></table><h2>Nueva unidad</h2><form method=\"post\" action=\"/unidades\"><label>Código <input type=\"text\" name=\"code\" placeholder=\"p. ej. caja\" required></label> <label>Nombre <input type=\"text\" name=\"name\" placeholder=\"p. ej. Caja\" required></label> <button type=\"submit\">Agregar</button></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</tbody></table>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = listPager(lv, false).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, " <h2>Nueva unidad</h2><form method=\"post\" action=\"/unidades\"><label>Código <input type=\"text\" name=\"code\" placeholder=\"p. ej. caja\" required></label> <label>Nombre <input type=\"text\" name=\"name\" placeholder=\"p. ej. Caja\" required></label> <button type=\"submit\">Agregar</button></form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
