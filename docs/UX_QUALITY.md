@@ -113,7 +113,7 @@ Date and commit the audit in the header when refreshing.
 
 _Last audit: 2026-09-28, after the first round of fixes. axe-core 4.13, Chromium preview
 pane, light and dark schemes, 1100 px and 320 px. Keyboard pass on the lists, column
-filters, forms and quote builder. No VoiceOver pass yet. The numbers point into the issue
+filters, forms and quote builder. No VoiceOver pass yet ([issue 10](https://github.com/gerrygoo/cladex-web/issues/10)). The numbers point into the issue
 log._
 
 | Screen | Route | axe | Keyboard | Zoom/reflow | Screen reader | Heuristics |
@@ -162,7 +162,7 @@ heuristic and severity. Tick when fixed, with the commit.
       `aria-invalid`) on every form, and focus starts on the first one.
 - [x] **#6 · 1.3.5.** Login and Mi cuenta declare `username`, `current-password` and
       `new-password`.
-- [ ] **#7 · 1.4.10 Reflow.** Fixed: the header wraps, the builder's toolbar wraps, and
+- [ ] **#7 · 1.4.10 Reflow.** ([issue 9](https://github.com/gerrygoo/cladex-web/issues/9)) Fixed: the header wraps, the builder's toolbar wraps, and
       its lines table scrolls in its own box. Open: the list tables (and Ajustes) still
       widen the page at 320 px. They can't simply go in a scroll box, because it would
       clip the column-filter popovers. Data tables are exempt from 1.4.10, so this is low
@@ -200,19 +200,19 @@ heuristic and severity. Tick when fixed, with the commit.
 - [x] **#17 · H8 Aesthetic and minimalist design · severity 1.** Form fields were ~20
       characters wide and cut off descriptions and addresses; search placeholders were
       truncated. Fields now grow to 28rem.
-- [ ] **#18 · H4 Consistency / NN/g tables · severity 1.** Money and quantity columns are
+- [ ] **#18 · H4 Consistency / NN/g tables · severity 1.** ([issue 8](https://github.com/gerrygoo/cladex-web/issues/8)) Money and quantity columns are
       left-aligned. Right-align numbers (and use tabular figures) so amounts compare
       down a column.
-- [ ] **#19 · Performance · severity 2.** Production's nginx serves static files
+- [ ] **#19 · Performance · severity 2.** ([issue 5](https://github.com/gerrygoo/cladex-web/issues/5)) Production's nginx serves static files
       uncompressed and without cache headers, and the embedded files have no
       Last-Modified. Every page load re-downloads about 60 KB (htmx 50 KB took 567 ms on
       the measured load). Fix: gzip plus `Cache-Control` at nginx, or an ETag from the
       build SHA in the Go static handler. htmx is now `defer`, so it no longer blocks the
       first paint.
-- [ ] **#20 · H8 / H6 Recognition · severity 2.** In the builder, the product picker lists
+- [ ] **#20 · H8 / H6 Recognition · severity 2.** ([issue 6](https://github.com/gerrygoo/cladex-web/issues/6)) In the builder, the product picker lists
       a full page of products above the lines, so the quote itself (lines and totals)
       starts below the fold. Consider putting the lines first, or collapsing the list
       until the user searches.
-- [ ] **#21 · H1 Visibility / H2 Match · severity 2.** On a draft, "Descargar PDF" shows the
+- [ ] **#21 · H1 Visibility / H2 Match · severity 2.** ([issue 7](https://github.com/gerrygoo/cladex-web/issues/7)) On a draft, "Descargar PDF" shows the
       last saved state, not what's on screen. The guide says so, but the screen doesn't.
       Say so next to the link, or disable it while there are unsaved changes.
