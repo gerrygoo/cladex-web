@@ -7,11 +7,19 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-// stageLabels names each lifecycle stage as a heading on the home overview.
+// stageLabels names each lifecycle stage as a heading on the home overview; the
+// singular status words become plural since each card counts quotes.
 var stageLabels = map[string]string{
-	"emitida":  "Emitidas",
-	"revisada": "Revisadas",
+	"emitida":    "Emitidas",
+	"pipeline":   "Pipeline",
+	"oc_emitida": "OC emitidas",
+	"entregada":  "Entregadas",
+	"cerrada":    "Entregadas y cerradas",
+	"revisada":   "Revisadas",
 }
+
+// vendedorColumns are the per-status counts of the salesperson table, in order.
+var vendedorColumns = []string{"emitida", "pipeline", "oc_emitida", "entregada", "cerrada", "revisada"}
 
 templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavUser) {
 	@Layout("Inicio", user) {
@@ -49,16 +57,18 @@ templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavU
 		if len(ov.Vendedores) == 0 {
 			<p>Aún no hay cotizaciones.</p>
 		} else {
-			<p><small>Ordenados por monto emitido. Cuenta a quien creó cada cotización, sea vendedor o administrador.</small></p>
+			<p><small>Ordenados por monto en pipeline. Cuenta a quien creó cada cotización, sea vendedor o administrador.</small></p>
 			<div class="table-scroll">
 				<table>
 					<thead>
 						<tr>
 							<th class="num">#</th>
 							<th>Vendedor</th>
+							<th class="num">Monto en pipeline</th>
 							<th class="num">Monto emitido</th>
-							<th class="num">Emitidas</th>
-							<th class="num">Revisadas</th>
+							for _, st := range vendedorColumns {
+								<th class="num">{ stageLabels[st] }</th>
+							}
 						</tr>
 					</thead>
 					<tbody>
@@ -66,9 +76,11 @@ templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavU
 							<tr>
 								<td class="num">{ strconv.Itoa(i + 1) }</td>
 								<td>{ v.Name }</td>
-								<td class="num">{ v.MontoEmitido.String() }</td>
-								<td class="num">{ strconv.Itoa(v.Emitidas) }</td>
-								<td class="num">{ strconv.Itoa(v.Revisadas) }</td>
+								<td class="num">{ v.Total["pipeline"].String() }</td>
+								<td class="num">{ v.Total["emitida"].String() }</td>
+								for _, st := range vendedorColumns {
+									<td class="num">{ strconv.Itoa(v.Count[st]) }</td>
+								}
 							</tr>
 						}
 					</tbody>

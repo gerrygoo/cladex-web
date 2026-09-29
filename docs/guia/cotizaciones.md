@@ -13,6 +13,8 @@ El flujo completo, de principio a fin:
 6. [Descargar el PDF](#descargar-y-enviar-el-pdf) y enviarlo al cliente.
 7. ¿El cliente pidió cambios? [Revisar](#revisar-una-cotización-emitida): se crea una
    nueva versión (`QA0012-R1`).
+8. Cuando la propuesta avanza, [dale seguimiento](#dar-seguimiento-a-una-cotización)
+   hasta que se entregue y se cobre.
 
 ## Crear una cotización
 
@@ -223,6 +225,40 @@ Qué pasa al revisar:
 > original, pero sus precios se recalculan con el catálogo, el porcentaje de ese margen
 > y los ajustes **actuales**, no con los de la original. Revisa los precios antes de
 > emitirla.
+
+## Dar seguimiento a una cotización
+
+Después de emitirla, la cotización avanza por etapas. Así el equipo sabe en qué punto
+está cada una y el resumen de la [página de inicio](README.md#la-página-de-inicio) se
+mantiene al día.
+
+| Etapa | Cuándo pasarla | Botón |
+|---|---|---|
+| [[emitida]] | Ya se emitió y se la compartimos al cliente. | — |
+| [[Pipeline]] | El cliente ya se interesó y la propuesta avanza. | **Pasar a Pipeline** |
+| [[OC emitida]] | El cliente mandó su orden de compra y la enviamos al fabricante. | **Pasar a OC emitida** |
+| [[entregada]] | Le entregamos el cable al cliente. | **Pasar a Entregada** |
+| [[cerrada]] | Ya se facturó, se cobró y se emitió el complemento de pago (si aplica). | **Pasar a Entregada y cerrada** |
+
+1. Abre la cotización.
+2. En **Seguimiento**, escribe en **Comentario** lo que dijo el cliente y los siguientes
+   pasos (opcional pero recomendado).
+3. Haz clic en el botón de la siguiente etapa.
+
+La cotización queda en la etapa nueva y en **Comentarios** aparece una línea como
+*"Pasó a Pipeline."* con tu nota, quién la escribió y cuándo. Ahí queda la historia.
+
+- Solo se avanza de una etapa a la siguiente, sin saltarse ninguna.
+- Si el cliente todavía pide cambios, usa [Revisar](#revisar-una-cotización-emitida)
+  **antes** de pasarla a Pipeline. Una cotización en Pipeline ya no se puede revisar: así
+  el Pipeline solo cuenta propuestas que de verdad avanzan.
+- Cualquier usuario puede avanzar una cotización. Si te equivocaste y la pasaste de más,
+  pídele a un administrador que la regrese.
+:::admin
+Un administrador ve además el botón **Regresar a …** para devolver la cotización a la
+etapa anterior (queda un comentario *"Regresó a …"*). Una cotización [[emitida]] no
+puede regresar más atrás.
+:::
 
 ## Ver el detalle de una cotización
 

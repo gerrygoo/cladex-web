@@ -44,12 +44,15 @@ Si no ves **Usuarios**, **Unidades** o **Ajustes** en el menú, tu cuenta es de 
 Al entrar ves un resumen de todas las cotizaciones (de todos los vendedores, no solo
 las tuyas):
 
-- **Cotizaciones por etapa**: cuántas hay en [[emitida]] y [[revisada]] (los borradores no se cuentan aquí), la
-  suma de sus totales y las 3 de mayor total en cada etapa. Haz clic en un folio para
-  abrirla. El botón **Nueva cotización** lleva a [crear una](cotizaciones.md#crear-una-cotización).
+- **Cotizaciones por etapa**: cuántas hay en cada etapa de [[emitida]], [[Pipeline]],
+  [[OC emitida]], [[entregada]], [[cerrada]] y [[revisada]] (los borradores no se cuentan
+  aquí), la suma de sus totales y las 3 de mayor total en cada etapa. Haz clic en un folio
+  para abrirla. El botón **Nueva cotización** lleva a [crear una](cotizaciones.md#crear-una-cotización).
+  Para mover una cotización de etapa, mira [darle seguimiento](cotizaciones.md#dar-seguimiento-a-una-cotización).
 - **Vendedores**: una fila por cada persona que ha creado cotizaciones, ordenadas por
-  **Monto emitido** (la suma de sus cotizaciones emitidas vigentes). Cuenta a quien creó
-  la cotización, sea vendedor o administrador. Una revisada ya no suma al monto emitido:
+  **Monto en pipeline** (la suma de sus cotizaciones en Pipeline). Junto están el
+  **Monto emitido** (las que siguen en emitida) y cuántas tiene en cada etapa. Cuenta a
+  quien creó la cotización, sea vendedor o administrador. Una revisada ya no suma:
   su lugar lo toma la revisión cuando se emite.
 - Abajo, **Compilado el …** indica cuándo se instaló la versión actual de la app.
 

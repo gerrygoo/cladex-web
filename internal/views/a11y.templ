@@ -1,6 +1,10 @@
 package views
 
-import "strconv"
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
 
 // fieldErrorID is the id of a field's error message, which the field points at with
 // aria-describedby so a screen reader reads the error along with the field.
@@ -54,8 +58,17 @@ func countAnnouncement(n int, one, many string) string {
 }
 
 // StatusBadge shows a quote's status as a pill, coloured by stage: a draft is neutral, an
-// issued quote green, a revised (superseded) one muted. The word is always there, so the
-// colour is never the only cue.
+// issued quote green, one the client is following blue, a delivered one amber until it is
+// collected, a revised (superseded) one muted. The word is always there, so the colour is
+// never the only cue.
+// statusLabel is the word for a quote status.
+func statusLabel(status string) string {
+	if l, ok := store.StatusLabels[status]; ok {
+		return l
+	}
+	return status
+}
+
 templ StatusBadge(status string) {
-	<span class={ "badge", "badge-" + status }>{ status }</span>
+	<span class={ "badge", "badge-" + status }>{ statusLabel(status) }</span>
 }

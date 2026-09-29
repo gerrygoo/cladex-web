@@ -1090,6 +1090,39 @@ func (q *Quotes) Revisar(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/cotizaciones/"+rev.Folio, http.StatusSeeOther)
 }
 
+// Etapa handles POST /cotizaciones/{folio}/etapa: moves an issued quote one stage along
+// the pipeline flow ("to" is the stage; the optional "note" is saved as a comment).
+// Anyone signed in can move a quote forward; going back a stage is for admins, since it
+// undoes what a salesperson reported. Anything but the stage right before or after the
+// quote's current one is refused, as is a stale click on a quote that has since moved.
+func (q *Quotes) Etapa(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	quote := q.loadQuoteOrNotFound(w, r)
+	if quote == nil {
+		return
+	}
+	to := r.FormValue("to")
+	note := strings.TrimSpace(r.FormValue("note"))
+	if utf8.RuneCountInString(note) > maxCommentLen {
+		http.Error(w, "el comentario no puede pasar de 2000 caracteres", http.StatusBadRequest)
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	if to != "" && to == store.PrevStatus(quote.Status) && user.Role != "admin" {
+		http.Error(w, "solo un administrador puede regresar una cotización de etapa", http.StatusForbidden)
+		return
+	}
+	if err := q.store.MoveQuote(ctx, quote.ID, user.ID, quote.Status, to, note); err != nil {
+		if errors.Is(err, store.ErrBadTransition) {
+			http.Error(w, "la cotización no puede pasar a esa etapa", http.StatusConflict)
+			return
+		}
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/cotizaciones/"+quote.Folio+"#comentarios", http.StatusSeeOther)
+}
+
 // maxCommentLen caps a comment; the textarea carries the same maxlength.
 const maxCommentLen = 2000
 

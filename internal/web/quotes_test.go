@@ -908,3 +908,94 @@ func TestFriendlyPricingError(t *testing.T) {
 		}
 	}
 }
+
+func TestQuotesEtapa(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
+	beto := createTestUser(t, a, "beto", "admin", "hunter2")
+	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, ana)
+
+	quote, err := a.store.CreateDraftQuote(context.Background(), customerID, ana, "QA")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+	pv := map[string]string{"folio": quote.Folio}
+	path := "/cotizaciones/" + quote.Folio + "/etapa"
+	move := func(userID int64, to, note string) *httptest.ResponseRecorder {
+		return doForm(t, a, userID, q.Etapa, "POST", path, pv, url.Values{"to": {to}, "note": {note}}, false)
+	}
+	page := func(userID int64) string {
+		return doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+quote.Folio, pv, nil, false).Body.String()
+	}
+
+	// A draft has no stages to move through.
+	if rec := move(ana, "pipeline", ""); rec.Code != http.StatusConflict {
+		t.Fatalf("Etapa(draft) status = %d, want 409", rec.Code)
+	}
+	form := url.Values{
+		"line_keys":            {"0"},
+		"lines[0][kind]":       {"product"},
+		"lines[0][product_id]": {strconv.FormatInt(costProductID, 10)},
+		"lines[0][qty]":        {"1"},
+	}
+	if rec := doForm(t, a, ana, q.Emitir, "POST", "/cotizaciones/"+quote.Folio+"/emitir", pv, form, false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+
+	body := page(ana)
+	for _, want := range []string{"Pasar a Pipeline", "Revisar"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("emitida page missing %q", want)
+		}
+	}
+	if strings.Contains(body, "Regresar a") {
+		t.Error("a vendedor is offered going back a stage")
+	}
+
+	if rec := move(ana, "oc_emitida", ""); rec.Code != http.StatusConflict {
+		t.Errorf("Etapa(skip a stage) status = %d, want 409", rec.Code)
+	}
+	if rec := move(ana, "pipeline", strings.Repeat("x", maxCommentLen+1)); rec.Code != http.StatusBadRequest {
+		t.Errorf("Etapa(note too long) status = %d, want 400", rec.Code)
+	}
+	if rec := move(ana, "pipeline", "Le interesa"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Etapa(→ pipeline) status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+
+	body = page(ana)
+	for _, want := range []string{"Pasar a OC emitida", "Pasó a Pipeline.", "Le interesa"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("pipeline page missing %q", want)
+		}
+	}
+	if strings.Contains(body, ">Revisar<") {
+		t.Error("a quote in pipeline can still be revised")
+	}
+
+	// Going back is admin-only.
+	if rec := move(ana, "emitida", ""); rec.Code != http.StatusForbidden {
+		t.Errorf("Etapa(back as vendedor) status = %d, want 403", rec.Code)
+	}
+	if !strings.Contains(page(beto), "Regresar a Emitida") {
+		t.Error("admin is not offered going back")
+	}
+	if rec := move(beto, "emitida", "Se cayó la junta"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Etapa(back as admin) status = %d", rec.Code)
+	}
+
+	// Run it to the end: the last stage has no forward button.
+	for _, to := range []string{"pipeline", "oc_emitida", "entregada", "cerrada"} {
+		if rec := move(ana, to, ""); rec.Code != http.StatusSeeOther {
+			t.Fatalf("Etapa(→ %s) status = %d; body = %s", to, rec.Code, rec.Body.String())
+		}
+	}
+	body = page(ana)
+	if !strings.Contains(body, "entregada y cerrada") && !strings.Contains(body, "Entregada y cerrada") {
+		t.Error("closed quote page doesn't say so")
+	}
+	if strings.Contains(body, "Pasar a") {
+		t.Error("closed quote still offers a next stage")
+	}
+}

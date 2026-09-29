@@ -524,6 +524,22 @@ span.badge-revisada {
   color: var(--text-muted);
 }
 
+span.badge-pipeline,
+span.badge-oc_emitida {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--bg));
+}
+
+span.badge-entregada {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 8%, var(--bg));
+}
+
+span.badge-cerrada {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 8%, var(--bg));
+}
+
 /* ==== Tables ============================================================ */
 
 table {
@@ -1032,4 +1048,14 @@ nav.pager {
 
 nav.pager form.per-page {
   margin-left: auto;
+}
+
+/* Moving a quote to its next stage */
+form.stage-form {
+  margin-block: 1rem;
+  max-width: 40rem;
+}
+
+form.stage-form textarea {
+  width: 100%;
 }

@@ -37,11 +37,19 @@ Una cotización pasa por estos estados, en este orden:
   <span class="estado">borrador</span>
   <span class="flecha">Emitir →</span>
   <span class="estado">emitida</span>
-  <span class="flecha">Revisar →</span>
-  <span class="estado">revisada</span>
+  <span class="flecha">Interesó →</span>
+  <span class="estado">Pipeline</span>
+  <span class="flecha">OC →</span>
+  <span class="estado">OC emitida</span>
+  <span class="flecha">Entrega →</span>
+  <span class="estado">entregada</span>
+  <span class="flecha">Cobro →</span>
+  <span class="estado">entregada y cerrada</span>
 </div>
 
-Al revisar se crea una nueva cotización (`QA0012-R1`) en borrador.
+Desde **emitida**, si el cliente pide cambios, [Revisar](cotizaciones.md#revisar-una-cotización-emitida)
+crea una nueva cotización (`QA0012-R1`) en borrador y la original pasa a **revisada**.
+Cómo mover una cotización de etapa: [darle seguimiento](cotizaciones.md#dar-seguimiento-a-una-cotización).
 
 ## Borrador
 
@@ -52,6 +60,25 @@ su margen y los ajustes vigentes cada vez que la abres.
 
 Una cotización congelada: sus precios, margen, términos y PDF ya no cambian.
 Es la que se envía al cliente.
+
+## Pipeline
+
+Una cotización emitida que el cliente ya consideró y cuya propuesta avanza. Solo pasa a
+Pipeline cuando hay avance con el cliente; una que todavía se está revisando no cuenta,
+para no comprometer el Pipeline.
+
+## OC emitida
+
+El cliente ya mandó su orden de compra y la enviamos al fabricante.
+
+## Entregada
+
+El cable ya se le entregó al cliente; falta facturar y cobrar.
+
+## Cerrada
+
+Entregada y cerrada: se entregó, se facturó, se cobró y se emitió el complemento de pago
+(si aplica).
 
 ## Revisada
 

@@ -3,14 +3,16 @@ package store
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
 )
 
-// QuoteStatuses are the lifecycle stages the home overview reports, in order. Drafts
-// (borrador) are work in progress and deliberately left out; an issued quote becomes
-// revisada once a revision supersedes it.
-var QuoteStatuses = []string{"emitida", "revisada"}
+// QuoteStatuses are the lifecycle stages the home overview reports, in order: the
+// pipeline flow, then revisada (an issued quote a revision superseded). Drafts
+// (borrador) are work in progress and deliberately left out.
+var QuoteStatuses = append(append([]string{}, PipelineFlow...), "revisada")
 
 // StageSummary is one lifecycle stage on the home overview: how many quotes sit in it,
 // what they add up to, and the largest few by total.
@@ -25,18 +27,17 @@ type StageSummary struct {
 // whoever created the quote (quotes.user_id), whatever their role: admins who quote
 // count the same as vendedores.
 type VendedorSummary struct {
-	UserID       int64
-	Name         string
-	Emitidas     int
-	Revisadas    int
-	MontoEmitido money.Centavos // sum of totals of quotes currently emitida
+	UserID int64
+	Name   string
+	Count  map[string]int            // quotes per status (QuoteStatuses only)
+	Total  map[string]money.Centavos // their sum, per status
 }
 
 // Overview is the home page's snapshot of the quote pipeline. Every quote is MXN, so
 // totals are summed as-is.
 type Overview struct {
 	Stages     []StageSummary    // one per QuoteStatuses entry, in order
-	Vendedores []VendedorSummary // ranked by MontoEmitido, then Emitidas, then name
+	Vendedores []VendedorSummary // ranked by pipeline amount, then emitida amount, then name
 }
 
 // topPerStage is how many of each stage's largest quotes the overview lists.
@@ -103,26 +104,50 @@ func (s *Store) QuoteOverview(ctx context.Context) (*Overview, error) {
 	}
 
 	rows, err = s.db.QueryContext(ctx, `
-		SELECT u.id, u.name,
-			sum(q.status = 'emitida'), sum(q.status = 'revisada'),
-			coalesce(sum(CASE WHEN q.status = 'emitida' THEN q.total END), 0)
+		SELECT u.id, u.name, q.status, count(*), coalesce(sum(q.total), 0)
 		FROM quotes q
 		JOIN users u ON u.id = q.user_id
-		GROUP BY u.id
-		ORDER BY 5 DESC, 3 DESC, u.name COLLATE NOCASE`)
+		GROUP BY u.id, q.status
+		ORDER BY u.id`)
 	if err != nil {
 		return nil, fmt.Errorf("store: overview vendedores: %w", err)
 	}
 	defer rows.Close()
+	byUser := map[int64]*VendedorSummary{}
+	var order []int64
 	for rows.Next() {
-		var v VendedorSummary
-		if err := rows.Scan(&v.UserID, &v.Name, &v.Emitidas, &v.Revisadas, &v.MontoEmitido); err != nil {
+		var id int64
+		var name, status string
+		var count int
+		var total money.Centavos
+		if err := rows.Scan(&id, &name, &status, &count, &total); err != nil {
 			return nil, fmt.Errorf("store: overview vendedores: %w", err)
 		}
-		ov.Vendedores = append(ov.Vendedores, v)
+		v := byUser[id]
+		if v == nil {
+			v = &VendedorSummary{UserID: id, Name: name, Count: map[string]int{}, Total: map[string]money.Centavos{}}
+			byUser[id] = v
+			order = append(order, id)
+		}
+		if byStatus[status] != nil {
+			v.Count[status], v.Total[status] = count, total
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("store: overview vendedores: %w", err)
 	}
+	for _, id := range order {
+		ov.Vendedores = append(ov.Vendedores, *byUser[id])
+	}
+	sort.SliceStable(ov.Vendedores, func(i, j int) bool {
+		a, b := ov.Vendedores[i], ov.Vendedores[j]
+		if a.Total["pipeline"] != b.Total["pipeline"] {
+			return a.Total["pipeline"] > b.Total["pipeline"]
+		}
+		if a.Total["emitida"] != b.Total["emitida"] {
+			return a.Total["emitida"] > b.Total["emitida"]
+		}
+		return strings.ToLower(a.Name) < strings.ToLower(b.Name)
+	})
 	return ov, nil
 }
