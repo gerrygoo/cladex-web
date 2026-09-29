@@ -776,7 +776,7 @@ hash after settings, product price and customer name change) and
 
 ## M3 — Standardized margins and a materials catalog — ✅ COMPLETE
 
-Brainstormed and settled with the user on 2026-09-22; shipped 3.1–3.3 by 2026-09-28 (3.4 folded into 3.2). Open follow-up: the QI terms block still prints "Precios en dólares americanos (USD)" and a "$93" percha, though every price is now MXN (see 3.3).
+Brainstormed and settled with the user on 2026-09-22; shipped 3.1–3.3 by 2026-09-28 (3.4 folded into 3.2). Follow-up done 2026-09-28: the QI terms block now says "Precios en pesos mexicanos (MXN)" like QS/QA, and the "$93" percha line is gone (user's call). Quotes issued before that keep their frozen terms.
 
 ### Why: margin is hidden inside costs and the FX rate today
 

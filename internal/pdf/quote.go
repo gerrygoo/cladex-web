@@ -67,11 +67,10 @@ var QuoteTerms = map[string][]string{
 		"Especificaciones Copperclad: CFE-E0000-33, ANCE, ASTM B227, ASTM B228, ASTM B229, ASTM B452, ASTM B910, UL-854, UL-1581",
 	},
 	"QI": {
-		"Precios en dólares americanos (USD), no incluyen IVA",
+		"Precios en pesos mexicanos (MXN), no incluyen IVA",
 		"Precios sujetos a cambios sin previo aviso",
 		"Tiempo de entrega inmediato",
 		"Pago por adelantado para colocar OC",
-		"La percha adicional tiene un costo de $93",
 		"Flete se cotiza por separado",
 		"Los postes fondeados en primer rojo óxido",
 	},
