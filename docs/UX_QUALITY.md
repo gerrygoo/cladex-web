@@ -32,13 +32,15 @@ The PDF is out of scope here; it's a print artifact, not an interface.
 - [x] After an htmx swap that replaces the focused element, focus lands somewhere sensible
       and not on `<body>` (2.4.3). Controls inside swapped fragments get stable ids;
       `static/app.js` falls back to the fragment itself.
-- [x] Everything works with the keyboard alone, with a visible focus ring (2.1.1, 2.4.7,
-      2.4.11). Checked on the lists, the column filters and the quote builder.
+- [ ] Everything works with the keyboard alone, with a visible focus ring (2.1.1, 2.4.7,
+      2.4.11). Verified on the customers list, its column filters and the quote builder;
+      the other screens are still to do.
 - [x] Text contrast ≥ 4.5:1, UI component and focus-indicator contrast ≥ 3:1 in
       `static/app.css` (1.4.3, 1.4.11), in both colour schemes.
 - [x] Click/tap targets ≥ 24×24 CSS px, including table row actions (2.5.8).
 - [ ] Usable at 200% zoom and at 320 px width without horizontal page scroll, wide tables
-      excepted (1.4.4, 1.4.10). Everything but the list tables fits (#7).
+      excepted (1.4.4, 1.4.10). At 320 px everything but the list tables fits (#7); 200%
+      text zoom not checked yet.
 - [x] Inputs for the user's own data declare `autocomplete` (1.3.5).
 - [x] Destructive and final actions ask first: `data-confirm` on the submit button
       (`static/app.js`). Not `hx-confirm`, which only applies to htmx requests.
@@ -112,26 +114,33 @@ Status per screen. `—` is not yet audited; otherwise ✅ pass, ⚠️ open iss
 Date and commit the audit in the header when refreshing.
 
 _Last audit: 2026-09-28, after the first round of fixes. axe-core 4.13, Chromium preview
-pane, light and dark schemes, 1100 px and 320 px. Keyboard pass on the lists, column
-filters, forms and quote builder. No VoiceOver pass yet ([issue 10](https://github.com/gerrygoo/cladex-web/issues/10)). The numbers point into the issue
-log._
+pane, light and dark schemes, 1100 px and 320 px. Real-keyboard pass only on the customers
+list (with its column filters) and the quote builder; the other lists and forms share
+their markup but weren't tabbed through. Heuristic review from screenshots of the screens
+marked. Not done yet: VoiceOver ([issue 10](https://github.com/gerrygoo/cladex-web/issues/10)),
+200% text zoom (1.4.4), the issued/revised quote view, and the core-task measurements. The
+numbers point into the issue log._
 
 | Screen | Route | axe | Keyboard | Zoom/reflow | Screen reader | Heuristics |
 |---|---|---|---|---|---|---|
-| Login | `/login` | ✅ | ✅ | — | — | ✅ |
-| Home | `/` | ✅ | ✅ | ✅ | — | ✅ |
-| Quotes list | `/cotizaciones` | ✅ | ✅ | ⚠️ 7 | — | ⚠️ 18 |
-| New quote | `/cotizaciones/nueva` | ✅ | ✅ | ✅ | — | ✅ |
-| Quote builder | `/cotizaciones/{folio}` | ✅ | ✅ | ✅ | — | ⚠️ 18, 20, 21 |
-| Products list | `/productos` | ✅ | ✅ | ⚠️ 7 | — | ⚠️ 18 |
-| Product form | `/productos/{id}` | ✅ | ✅ | ✅ | — | ✅ |
+| Login | `/login` | ✅ | — | — | — | — |
+| Home | `/` | ✅ | — | ✅ | — | ✅ |
+| Quotes list | `/cotizaciones` | ✅ | — | ⚠️ 7 | — | ⚠️ 18 |
+| New quote | `/cotizaciones/nueva` | ✅ | — | ✅ | — | — |
+| Quote builder (draft) | `/cotizaciones/{folio}` | ✅ | ✅ | ✅ | — | ⚠️ 18, 20, 21 |
+| Issued / revised quote | `/cotizaciones/{folio}` | — | — | — | — | — |
+| Products list | `/productos` | ✅ | — | ⚠️ 7 | — | ⚠️ 18 |
+| Product form | `/productos/{id}` | ✅ | — | ✅ | — | ✅ |
 | Customers list | `/clientes` | ✅ | ✅ | ⚠️ 7 | — | ✅ |
-| Customer form | `/clientes/{id}` | ✅ | ✅ | ✅ | — | ✅ |
-| Users (admin) | `/usuarios` | ✅ | ✅ | ⚠️ 7 | — | ✅ |
-| Settings (admin) | `/ajustes` | ✅ | ✅ | ⚠️ 7 | — | ✅ |
-| Units (admin) | `/unidades` | ✅ | ✅ | ✅ | — | ✅ |
-| My account | `/mi-cuenta` | ✅ | ✅ | ✅ | — | ✅ |
-| Help | `/ayuda` | ✅ | ✅ | ✅ | — | ✅ |
+| Customer form | `/clientes/{id}` | ✅ | — | ✅ | — | — |
+| Users (admin) | `/usuarios` | ✅ | — | ⚠️ 7 | — | ✅ |
+| Settings (admin) | `/ajustes` | ✅ | — | ⚠️ 7 | — | ✅ |
+| Units (admin) | `/unidades` | ✅ | — | ✅ | — | — |
+| My account | `/mi-cuenta` | ✅ | — | ✅ | — | — |
+| Help | `/ayuda` | ✅ | — | ✅ | — | — |
+
+Core tasks (the ISO 9241-11 table above): not measured yet. They need a seller doing them
+while someone watches.
 
 ### Performance (Core Web Vitals)
 
