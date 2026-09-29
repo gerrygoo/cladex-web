@@ -124,18 +124,19 @@ Para conceptos que no están en el catálogo: un flete, un producto especial, un
 
 Haz clic en **Eliminar** en la fila de la línea. No pide confirmación.
 
-> ¿Quitaste una línea por error? Recarga la página **sin guardar**: vuelves a lo último
-> que guardaste.
+> ¿Quitaste una línea por error? Recarga la página **sin guardar** y acepta el aviso del
+> navegador de que hay cambios sin guardar: vuelves a lo último que guardaste.
 
 ## Guardar el borrador
 
-Los cambios en las líneas **no se guardan solos**.
+Los cambios en las líneas y en el margen **no se guardan solos**. Mientras haya cambios
+pendientes verás *"Hay cambios sin guardar."* junto a los botones.
 
 1. Haz clic en **Guardar borrador**.
 2. Verás *"Borrador guardado."*
 
-> Si sales de la página o la recargas sin guardar, pierdes los cambios desde la última
-> vez que guardaste.
+> Si intentas salir de la página o recargarla con cambios sin guardar, el navegador te
+> pregunta antes. Si confirmas, pierdes los cambios desde la última vez que guardaste.
 
 > Si alguna línea tiene un error (un mensaje en rojo debajo de ella), no se guarda nada
 > hasta corregirla. Ver [problemas comunes](#problemas-comunes).
@@ -163,9 +164,10 @@ Cuando la cotización está lista para enviarse al cliente:
 
 1. Revisa las líneas y los totales.
 2. Haz clic en **Emitir cotización**. Guarda las líneas que están en pantalla y emite en
-   un solo paso: no hace falta guardar antes. **No hay paso de confirmación**: al hacer
-   clic, se emite.
-3. Verás *"Cotización emitida."* y, en el resumen debajo del cliente, **Estado** *emitida*.
+   un solo paso: no hace falta guardar antes.
+3. Confirma *"¿Emitir la cotización? Sus precios quedan congelados; para cambiarla
+   después habrá que crear una revisión."*
+4. Verás *"Cotización emitida."* y, en el resumen debajo del cliente, **Estado** *emitida*.
 
 Qué pasa al emitir:
 

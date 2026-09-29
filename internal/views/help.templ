@@ -3,5 +3,5 @@ package views
 // HelpLink is the small "?" next to a screen's heading that opens the matching section
 // of the user guide in a new tab, so unsaved work on the screen isn't lost.
 templ HelpLink(topic HelpTopic) {
-	<a class="help-link" href={ templ.SafeURL(string(topic)) } target="_blank" rel="noopener" title="Ver ayuda" aria-label="Ver ayuda sobre esta pantalla">?</a>
+	<a class="help-link" href={ templ.SafeURL(string(topic)) } target="_blank" rel="noopener" title="Ver ayuda (se abre en otra pestaña)" aria-label="Ayuda sobre esta pantalla (se abre en otra pestaña)">?</a>
 }

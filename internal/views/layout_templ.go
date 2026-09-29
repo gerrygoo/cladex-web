@@ -49,7 +49,7 @@ func Layout(title string, user *NavUser) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " · Cladex</title><link rel=\"stylesheet\" href=\"/static/app.css\"><script src=\"/static/htmx.min.js\"></script><script src=\"/static/filters.js\" defer></script><script src=\"/static/time.js\" defer></script></head><body><noscript><p class=\"noscript-banner\">JavaScript está desactivado. La aplicación funciona igual, pero cada acción recarga la página completa; actívalo para una experiencia más rápida.</p></noscript><header class=\"app-header\"><div class=\"brand\"><a href=\"/\" class=\"brand-link\"><strong>Cladex</strong></a> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " · Cladex</title><link rel=\"stylesheet\" href=\"/static/app.css\"><script src=\"/static/htmx.min.js\" defer></script><script src=\"/static/filters.js\" defer></script><script src=\"/static/time.js\" defer></script><script src=\"/static/app.js\" defer></script></head><body><a class=\"skip-link\" href=\"#contenido\">Saltar al contenido</a><noscript><p class=\"noscript-banner\">JavaScript está desactivado. La aplicación funciona igual, pero cada acción recarga la página completa; actívalo para una experiencia más rápida.</p></noscript><header class=\"app-header\"><div class=\"brand\"><a href=\"/\" class=\"brand-link\"><strong>Cladex</strong></a> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -81,7 +81,7 @@ func Layout(title string, user *NavUser) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(user.Username)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layout.templ`, Line: 47, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layout.templ`, Line: 49, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -92,7 +92,7 @@ func Layout(title string, user *NavUser) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</header><main class=\"app-main\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</header><main class=\"app-main\" id=\"contenido\" tabindex=\"-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -100,7 +100,7 @@ func Layout(title string, user *NavUser) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</main></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</main><div id=\"live-status\" class=\"visually-hidden\" role=\"status\"></div></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

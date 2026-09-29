@@ -15,13 +15,13 @@ var stageLabels = map[string]string{
 
 templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavUser) {
 	@Layout("Inicio", user) {
-		<h1>
-			Cladex
+		<div class="page-title">
+			<h1>Cladex</h1>
 			@HelpLink(HelpInicio)
-		</h1>
+		</div>
 		<div class="toolbar">
 			<h2>Cotizaciones por etapa</h2>
-			<a href="/cotizaciones/nueva"><button type="button">Nueva cotización</button></a>
+			<a class="button" href="/cotizaciones/nueva">Nueva cotización</a>
 		</div>
 		<div class="overview-stages">
 			for _, st := range ov.Stages {

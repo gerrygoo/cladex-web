@@ -13,6 +13,10 @@
     if (!e.target.closest("details.col-filter")) closeOthers(null);
   });
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") closeOthers(null);
+    if (e.key !== "Escape") return;
+    // Focus inside the popover would be left on a now-hidden field; return it to the funnel.
+    var open = document.activeElement && document.activeElement.closest("details.col-filter[open]");
+    closeOthers(null);
+    if (open) open.querySelector("summary").focus();
   });
 })();

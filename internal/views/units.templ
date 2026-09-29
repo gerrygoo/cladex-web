@@ -1,21 +1,15 @@
 package views
 
-import (
-	"github.com/gerrygoo/cladex-web/internal/store"
-)
+import "github.com/gerrygoo/cladex-web/internal/store"
 
 templ UnitsList(units []store.Unit, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Unidades", user) {
-		<h1>
-			Unidades
+		<div class="page-title">
+			<h1>Unidades</h1>
 			@HelpLink(HelpUnidades)
-		</h1>
-		if successMsg != "" {
-			<p class="success">{ successMsg }</p>
-		}
-		if errorMsg != "" {
-			<p class="error">{ errorMsg }</p>
-		}
+		</div>
+		@Flash(successMsg)
+		@FormError(errorMsg)
 		<table>
 			<thead>
 				<tr>

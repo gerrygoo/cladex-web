@@ -54,7 +54,7 @@ func Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavUs
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<h1>Cladex")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"page-title\"><h1>Cladex</h1>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -62,7 +62,7 @@ func Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavUs
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</h1><div class=\"toolbar\"><h2>Cotizaciones por etapa</h2><a href=\"/cotizaciones/nueva\"><button type=\"button\">Nueva cotización</button></a></div><div class=\"overview-stages\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div><div class=\"toolbar\"><h2>Cotizaciones por etapa</h2><a class=\"button\" href=\"/cotizaciones/nueva\">Nueva cotización</a></div><div class=\"overview-stages\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

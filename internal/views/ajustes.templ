@@ -28,16 +28,12 @@ func marginPath(o store.MarginOption, action string) string {
 // errorMsg is a refused margin or material action.
 templ Ajustes(margins []store.MarginOption, materials []store.Material, units []store.Unit, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Ajustes", user) {
-		<h1>
-			Ajustes
+		<div class="page-title">
+			<h1>Ajustes</h1>
 			@HelpLink(HelpAjustes)
-		</h1>
-		if successMsg != "" {
-			<p class="success">{ successMsg }</p>
-		}
-		if errorMsg != "" {
-			<p class="error">{ errorMsg }</p>
-		}
+		</div>
+		@Flash(successMsg)
+		@FormError(errorMsg)
 		<h2>Márgenes</h2>
 		<p>Cada cotización se calcula con uno de estos márgenes; el vendedor lo elige al armarla.</p>
 		<table>
@@ -46,7 +42,7 @@ templ Ajustes(margins []store.MarginOption, materials []store.Material, units []
 					<th>Nombre</th>
 					<th>Margen (%)</th>
 					<th>Estado</th>
-					<th></th>
+					<th><span class="visually-hidden">Acciones</span></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -114,7 +110,7 @@ templ Ajustes(margins []store.MarginOption, materials []store.Material, units []
 					<th>Precio (pesos por unidad)</th>
 					<th>Unidad</th>
 					<th>Actualizado</th>
-					<th></th>
+					<th><span class="visually-hidden">Acciones</span></th>
 				</tr>
 			</thead>
 			<tbody>

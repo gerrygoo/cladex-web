@@ -22,29 +22,30 @@ The PDF is out of scope here; it's a print artifact, not an interface.
 
 - [x] `<html lang="es">` on every page (WCAG 3.1.1).
 - [x] Every page has a unique, descriptive `<title>` (2.4.2).
-- [ ] Landmarks (`<header>`, `<nav>`, `<main>`) and a skip link to `<main>` (2.4.1).
-      Landmarks ✅; skip link missing (#9).
-- [ ] Field errors are tied to their input with `aria-describedby` and set `aria-invalid`;
-      the first invalid field is focusable from an error summary (3.3.1, 3.3.3). (#5)
-- [ ] htmx swaps that change content the user didn't directly touch (quote recalculation,
-      totals, list search results, flash messages) are announced through a polite live
-      region (4.1.3 Status Messages). (#4)
-- [ ] After an htmx swap that replaces the focused element, focus lands somewhere sensible
-      and not on `<body>` (2.4.3). (#3)
-- [ ] Everything works with the keyboard alone, with a visible focus ring (2.1.1, 2.4.7,
-      2.4.11 Focus Not Obscured). No `outline: none` in `app.css`, so browser focus
-      rings show.
+- [x] Landmarks (`<header>`, `<nav>`, `<main>`) and a skip link to `<main>` (2.4.1).
+- [x] Field errors are tied to their input with `aria-describedby` and set `aria-invalid`;
+      focus starts on the first invalid field (3.3.1, 3.3.3). Use `errAttrs` +
+      `FieldError` from `internal/views/a11y.templ`.
+- [x] htmx swaps that change content the user didn't directly touch are announced through
+      the layout's `#live-status` region (4.1.3). A swapped fragment declares what to say
+      with `data-announce`.
+- [x] After an htmx swap that replaces the focused element, focus lands somewhere sensible
+      and not on `<body>` (2.4.3). Controls inside swapped fragments get stable ids;
+      `static/app.js` falls back to the fragment itself.
+- [x] Everything works with the keyboard alone, with a visible focus ring (2.1.1, 2.4.7,
+      2.4.11). Checked on the lists, the column filters and the quote builder.
 - [x] Text contrast ≥ 4.5:1, UI component and focus-indicator contrast ≥ 3:1 in
-      `static/app.css` (1.4.3, 1.4.11). Light mode passes axe on every screen; dark mode
-      passes once `body` has a background (#10).
-- [ ] Click/tap targets ≥ 24×24 CSS px, including table row actions (2.5.8). (#1)
+      `static/app.css` (1.4.3, 1.4.11), in both colour schemes.
+- [x] Click/tap targets ≥ 24×24 CSS px, including table row actions (2.5.8).
 - [ ] Usable at 200% zoom and at 320 px width without horizontal page scroll, wide tables
-      excepted (1.4.4, 1.4.10). (#7)
-- [ ] Inputs for the user's own data declare `autocomplete` (1.3.5). (#6)
-- [ ] Destructive actions (eliminar, deshabilitar, retirar) can be confirmed or undone
-      (3.3.4 applies to legal/financial data, and an issued quote is financial data).
-- [ ] Money and quantities have their units in text, not only in colour or position (1.3.1,
+      excepted (1.4.4, 1.4.10). Everything but the list tables fits (#7).
+- [x] Inputs for the user's own data declare `autocomplete` (1.3.5).
+- [x] Destructive and final actions ask first: `data-confirm` on the submit button
+      (`static/app.js`). Not `hx-confirm`, which only applies to htmx requests.
+- [x] Money and quantities have their units in text, not only in colour or position (1.3.1,
       1.4.1).
+- [x] Navigating links are `<a>`, never a `<button>` inside an `<a>` (HTML content model).
+      Style them with `class="button"`.
 
 ### How Tier 1 is checked
 
@@ -110,29 +111,34 @@ For each, the target is measured by watching a seller do it, not guessed.
 Status per screen. `—` is not yet audited; otherwise ✅ pass, ⚠️ open issues (see log), ❌ blocking.
 Date and commit the audit in the header when refreshing.
 
-_Last audit: 2026-09-28 at `d41de18`, axe-core 4.13, Chromium preview pane, light and dark
-schemes. The keyboard pass and heuristic review covered only the quote builder, and there has
-been no VoiceOver pass yet. The numbers point into the issue log._
+_Last audit: 2026-09-28, after the first round of fixes. axe-core 4.13, Chromium preview
+pane, light and dark schemes, 1100 px and 320 px. Keyboard pass on the lists, column
+filters, forms and quote builder. No VoiceOver pass yet. The numbers point into the issue
+log._
 
 | Screen | Route | axe | Keyboard | Zoom/reflow | Screen reader | Heuristics |
 |---|---|---|---|---|---|---|
-| Login | `/login` | ⚠️ 1 | — | — | — | — |
-| Home | `/` | ⚠️ 1 | — | ⚠️ 7 | — | — |
-| Quotes list | `/cotizaciones` | ⚠️ 1 | — | ⚠️ 7 | — | — |
-| New quote | `/cotizaciones/nueva` | ✅ | — | ⚠️ 7 | — | — |
-| Quote builder | `/cotizaciones/{folio}` | ❌ 1, 2, 8 | ⚠️ 3 | ⚠️ 7 | — | ⚠️ 12, 13, 14 |
-| Products list | `/productos` | ⚠️ 1, 8 | — | ⚠️ 7 | — | — |
-| Product form | `/productos/{id}` | ⚠️ 1, 8 | — | ⚠️ 7 | — | — |
-| Customers list | `/clientes` | ⚠️ 1, 8 | — | ⚠️ 7 | — | — |
-| Customer form | `/clientes/{id}` | ⚠️ 1 | — | ⚠️ 7 | — | — |
-| Users (admin) | `/usuarios` | ⚠️ 1, 8 | — | ⚠️ 7 | — | — |
-| Settings (admin) | `/ajustes` | ⚠️ 1, 8 | — | ⚠️ 7 | — | — |
-| Units (admin) | `/unidades` | ⚠️ 1 | — | ⚠️ 7 | — | — |
-| My account | `/mi-cuenta` | ⚠️ 1 | — | ⚠️ 7 | — | — |
-| Help | `/ayuda` | ✅ | — | ⚠️ 7 | — | — |
+| Login | `/login` | ✅ | ✅ | — | — | ✅ |
+| Home | `/` | ✅ | ✅ | ✅ | — | ✅ |
+| Quotes list | `/cotizaciones` | ✅ | ✅ | ⚠️ 7 | — | ⚠️ 18 |
+| New quote | `/cotizaciones/nueva` | ✅ | ✅ | ✅ | — | ✅ |
+| Quote builder | `/cotizaciones/{folio}` | ✅ | ✅ | ✅ | — | ⚠️ 18, 20, 21 |
+| Products list | `/productos` | ✅ | ✅ | ⚠️ 7 | — | ⚠️ 18 |
+| Product form | `/productos/{id}` | ✅ | ✅ | ✅ | — | ✅ |
+| Customers list | `/clientes` | ✅ | ✅ | ⚠️ 7 | — | ✅ |
+| Customer form | `/clientes/{id}` | ✅ | ✅ | ✅ | — | ✅ |
+| Users (admin) | `/usuarios` | ✅ | ✅ | ⚠️ 7 | — | ✅ |
+| Settings (admin) | `/ajustes` | ✅ | ✅ | ⚠️ 7 | — | ✅ |
+| Units (admin) | `/unidades` | ✅ | ✅ | ✅ | — | ✅ |
+| My account | `/mi-cuenta` | ✅ | ✅ | ✅ | — | ✅ |
+| Help | `/ayuda` | ✅ | ✅ | ✅ | — | ✅ |
 
-Issues that span the whole app and don't show up in axe: #4 (no live regions), #5 (errors
-not tied to fields), #9–#11.
+### Performance (Core Web Vitals)
+
+Measured 2026-09-28. Local: every screen's HTML arrives in ≤ 10 ms and loads in ≤ 120 ms.
+Production (`/login`, the only page reachable without signing in, measured from the dev
+machine): TTFB 334 ms, load 948 ms, CLS 0. LCP wasn't reported by the pane; field data
+from real users is the proper source. See #19.
 
 ## Issue log
 
@@ -141,48 +147,72 @@ heuristic and severity. Tick when fixed, with the commit.
 
 **Tier 1 — Compliance**
 
-- [ ] **#1 · 2.5.8 Target Size.** Buttons, inputs and selects render about 21.5 px tall
-      with almost no spacing, on every screen. The column-filter `<summary>` toggles on
-      the lists are 12×12 px. Likely fixed in one place: `min-height` on form controls in
-      `app.css`, plus a bigger hit area for the filter toggles.
-- [ ] **#2 · 4.1.2 / 1.3.1.** The quantity inputs on quote lines have no label (axe:
-      critical). Add something like `aria-label="Cantidad de {producto}"`.
-- [ ] **#3 · 2.4.3 Focus Order.** In the quote builder, editing a quantity and pressing Tab
-      triggers the recalculation. `#quote-lines-fragment` is replaced with `outerHTML` and
-      focus falls back to `<body>`. Verified in the pane. Give the inputs stable ids, or
-      restore focus after the swap.
-- [ ] **#4 · 4.1.3 Status Messages.** There are no live regions anywhere. Recalculated
-      totals, product search results, list search and flash messages change without
-      being announced.
-- [ ] **#5 · 1.3.1 / 3.3.1.** Field errors are a `<p class="error">` placed after the field.
-      There's no `aria-describedby` or `aria-invalid`, so a screen reader on the field
-      doesn't hear the error. Applies to every form.
-- [ ] **#6 · 1.3.5 Identify Input Purpose.** Login and Mi cuenta have no `autocomplete`
-      (`username`, `current-password`, `new-password`).
-- [ ] **#7 · 1.4.10 Reflow.** At 320 px the header doesn't wrap and clips "Salir" on every
-      page. The quote builder's search row and "Línea libre" overflow. Tables and the
-      list column filters widen the whole page instead of scrolling in their own
-      container.
+- [x] **#1 · 2.5.8 Target Size.** Buttons, inputs and selects were about 21.5 px tall; the
+      column-filter toggles were 12×12 px. Now at least 28 px and 24 px.
+- [x] **#2 · 4.1.2 / 1.3.1.** Quote-line quantity (and free-line description and price)
+      inputs had no label. Now labelled with the line's product; "Eliminar" buttons say
+      which line.
+- [x] **#3 · 2.4.3 Focus Order.** Tabbing out of a quantity recalculated and dropped focus
+      to `<body>`. Line controls now have stable ids, so htmx restores focus; removing a
+      line moves focus to the fragment.
+- [x] **#4 · 4.1.3 Status Messages.** Recalculated totals, product-picker results and list
+      searches are announced through `#live-status`; flash messages have `role="status"`
+      and form-level errors `role="alert"`.
+- [x] **#5 · 1.3.1 / 3.3.1.** Field errors are tied to their fields (`aria-describedby`,
+      `aria-invalid`) on every form, and focus starts on the first one.
+- [x] **#6 · 1.3.5.** Login and Mi cuenta declare `username`, `current-password` and
+      `new-password`.
+- [ ] **#7 · 1.4.10 Reflow.** Fixed: the header wraps, the builder's toolbar wraps, and
+      its lines table scrolls in its own box. Open: the list tables (and Ajustes) still
+      widen the page at 320 px. They can't simply go in a scroll box, because it would
+      clip the column-filter popovers. Data tables are exempt from 1.4.10, so this is low
+      priority.
+- [x] **#15 · 2.4.3 / 2.4.7.** Escape closed a column-filter popover but left focus on
+      its now-hidden field. Focus now returns to the funnel.
 
 **Tier 1 — Best practice (not a WCAG failure)**
 
-- [ ] **#8** · The action column in tables has an empty `<th>`. Add hidden text such as
-      "Acciones".
-- [ ] **#9** · No skip link. 2.4.1 is met by the landmarks, but a skip link helps keyboard
-      users get past the nav on every page.
-- [ ] **#10** · `body` has no explicit background, so in dark mode contrast tools read the
-      background as white and report false failures. Add `background: Canvas`.
-- [ ] **#11** · The "?" help link sits inside each `<h1>`. That adds "Ver ayuda sobre esta
-      pantalla" to every heading's accessible name, and it opens a new tab without saying
-      so. Move it out of the heading and mention the new tab.
+- [x] **#8** · Action columns had an empty `<th>`; now a hidden "Acciones".
+- [x] **#9** · Skip link "Saltar al contenido" is the first Tab stop on every page.
+- [x] **#10** · `body` has an explicit `Canvas` background, so dark mode is measurable.
+- [x] **#11** · The "?" help link sits next to the `<h1>`, not inside it, and says it opens
+      a new tab.
+- [x] **#22** · "Nuevo cliente/producto/cotización" were `<button>`s inside `<a>` (invalid
+      HTML: interactive content inside a link). Now `<a class="button">`.
+- [x] **#23** · The list search boxes and the users' role selects relied on a placeholder
+      or had no name at all; now they have `aria-label`s.
 
-**Tier 2 — Heuristics (quote builder)**
+**Tier 2 — Heuristics**
 
-- [ ] **#12 · H5 Error prevention / H3 User control · severity 3.** Lines and quantity
-      changes are kept only in the page until "Guardar borrador". Leaving the page drops
-      them with no warning. Verified: a third line added, navigate away, gone on return.
-      Warn with `beforeunload` while unsaved, or autosave the draft.
-- [ ] **#13 · H1 Visibility of system status · severity 1.** Recalculation shows no
-      progress indicator (`hx-indicator`). Fine on the LAN, but invisible on a slow link.
-- [ ] **#14 · H5 Error prevention · severity 2.** "Emitir cotización" freezes prices with
-      no confirmation. It can be undone via Revisar, but only by creating a new folio.
+- [x] **#12 · H5 Error prevention / H3 User control · severity 3.** Unsaved lines were lost
+      on leaving the builder. Now "Hay cambios sin guardar." shows while there are
+      pending changes, and leaving the page asks first (`beforeunload`). Note: the Claude
+      preview pane doesn't display native leave prompts. The handler was verified to
+      fire, but check once in a real browser.
+- [x] **#13 · H1 Visibility of system status · severity 1.** "Recalculando…" shows while a
+      recalculation is in flight.
+- [x] **#14 · H5 Error prevention · severity 2.** "Emitir cotización" now asks for
+      confirmation, explaining that prices freeze.
+- [x] **#16 · H5 Error prevention · severity 3.** The delete confirmations ("¿Eliminar
+      este cliente?", products, conversions, materials, disabling a user) never
+      appeared. They used `hx-confirm` on plain form posts, which htmx ignores, so one
+      click deleted. Verified against the pre-fix build. Now `data-confirm`.
+- [x] **#17 · H8 Aesthetic and minimalist design · severity 1.** Form fields were ~20
+      characters wide and cut off descriptions and addresses; search placeholders were
+      truncated. Fields now grow to 28rem.
+- [ ] **#18 · H4 Consistency / NN/g tables · severity 1.** Money and quantity columns are
+      left-aligned. Right-align numbers (and use tabular figures) so amounts compare
+      down a column.
+- [ ] **#19 · Performance · severity 2.** Production's nginx serves static files
+      uncompressed and without cache headers, and the embedded files have no
+      Last-Modified. Every page load re-downloads about 60 KB (htmx 50 KB took 567 ms on
+      the measured load). Fix: gzip plus `Cache-Control` at nginx, or an ETag from the
+      build SHA in the Go static handler. htmx is now `defer`, so it no longer blocks the
+      first paint.
+- [ ] **#20 · H8 / H6 Recognition · severity 2.** In the builder, the product picker lists
+      a full page of products above the lines, so the quote itself (lines and totals)
+      starts below the fold. Consider putting the lines first, or collapsing the list
+      until the user searches.
+- [ ] **#21 · H1 Visibility / H2 Match · severity 2.** On a draft, "Descargar PDF" shows the
+      last saved state, not what's on screen. The guide says so, but the screen doesn't.
+      Say so next to the link, or disable it while there are unsaved changes.

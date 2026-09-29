@@ -6,10 +6,71 @@
 body {
   margin: 0;
   padding: 0;
+  /* Explicit so contrast checkers see the real background in dark mode. */
+  background: Canvas;
+  color: CanvasText;
+}
+
+/* Hidden until focused: the first Tab stop on every page jumps past the nav. */
+a.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -3rem;
+  z-index: 100;
+  padding: 0.5rem 0.75rem;
+  background: Canvas;
+  border: 2px solid currentColor;
+}
+
+a.skip-link:focus {
+  top: 0.5rem;
+}
+
+main.app-main:focus {
+  outline: none;
+}
+
+/* WCAG 2.5.8: controls at least 24px tall, with room to spare. */
+button,
+select,
+input:not([type="checkbox"], [type="radio"], [type="hidden"]) {
+  min-height: 1.75rem;
+  box-sizing: border-box;
+}
+
+/* A link that navigates but looks like a button ("Nuevo cliente"). */
+a.button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  box-sizing: border-box;
+  padding: 0 0.6rem;
+  border: 1px solid light-dark(#767676, #8f8f8f);
+  border-radius: 4px;
+  background: light-dark(#efefef, #3b3b3b);
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+a.button:hover {
+  background: light-dark(#e5e5e5, #474747);
+}
+
+div.page-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+div.page-title h1 {
+  margin: 0.67em 0;
 }
 
 header.app-header {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1.25rem;
@@ -27,12 +88,15 @@ a.brand-link {
 
 div.brand {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 1.5rem;
 }
 
-nav.app-nav a {
-  margin-right: 0.75rem;
+nav.app-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
 }
 
 div.nav-user {
@@ -82,6 +146,7 @@ th, td {
 
 div.toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
@@ -90,6 +155,7 @@ div.toolbar {
 
 div.toolbar form {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
@@ -278,9 +344,8 @@ a.help-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.3rem;
-  height: 1.3rem;
-  margin-left: 0.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
   vertical-align: middle;
   border: 1px solid currentColor;
   border-radius: 50%;
@@ -288,7 +353,7 @@ a.help-link {
   font-weight: 600;
   line-height: 1;
   text-decoration: none;
-  opacity: 0.6;
+  opacity: 0.75;
 }
 
 a.help-link:hover,
@@ -331,6 +396,9 @@ footer.build-footer {
 
 div.table-scroll {
   overflow-x: auto;
+  /* Contains the absolutely positioned .visually-hidden labels in the rows, which would
+     otherwise widen the whole page. */
+  position: relative;
 }
 
 /* Column filters: a funnel in each sortable header that opens a small form. */
@@ -347,6 +415,10 @@ details.col-filter {
 details.col-filter > summary {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  /* 12px funnel, 24px target (WCAG 2.5.8). */
+  min-width: 1.5rem;
+  min-height: 1.5rem;
   cursor: pointer;
   list-style: none;
   color: light-dark(#999, #777);
@@ -410,4 +482,30 @@ th.col-header:nth-last-child(-n + 2) form.col-filter-panel {
 
 .quote-info {
   margin-bottom: 2rem;
+}
+
+div.quote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+span.unsaved {
+  color: light-dark(#8a5a00, #f5d77a);
+  font-weight: 600;
+}
+
+/* Room to see what's typed: the browser default (~20 characters) cut off product
+   descriptions and addresses. */
+label > input:not([type="checkbox"], [type="radio"]),
+label > select {
+  width: min(100%, 28rem);
+  box-sizing: border-box;
+}
+
+div.toolbar input[type="search"] {
+  width: min(100%, 22rem);
+  box-sizing: border-box;
 }

@@ -44,7 +44,7 @@ func HelpLink(topic HelpTopic) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" target=\"_blank\" rel=\"noopener\" title=\"Ver ayuda\" aria-label=\"Ver ayuda sobre esta pantalla\">?</a>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" target=\"_blank\" rel=\"noopener\" title=\"Ver ayuda (se abre en otra pestaña)\" aria-label=\"Ayuda sobre esta pantalla (se abre en otra pestaña)\">?</a>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

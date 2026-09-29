@@ -36,19 +36,18 @@ type ProductEditSections struct {
 
 templ ProductsList(products []store.Product, lv ListView, families []FilterOption, units []FilterOption, successMsg string, user *NavUser) {
 	@Layout("Productos", user) {
-		<h1>
-			Productos
+		<div class="page-title">
+			<h1>Productos</h1>
 			@HelpLink(HelpProductos)
-		</h1>
-		if successMsg != "" {
-			<p class="success">{ successMsg }</p>
-		}
+		</div>
+		@Flash(successMsg)
 		<div class="toolbar">
 			<form method="get" action="/productos" role="search">
 				<input
 					type="search"
 					name="q"
 					placeholder="Buscar por SKU o descripción…"
+					aria-label="Buscar por SKU o descripción"
 					value={ lv.Query }
 					hx-get="/productos"
 					hx-trigger="keyup changed delay:400ms, search"
@@ -60,7 +59,7 @@ templ ProductsList(products []store.Product, lv ListView, families []FilterOptio
 				@listHiddenInputs(lv, "q")
 				<button type="submit">Buscar</button>
 			</form>
-			<a href="/productos/nuevo"><button type="button">Nuevo producto</button></a>
+			<a class="button" href="/productos/nuevo">Nuevo producto</a>
 		</div>
 		@listActiveFilters(lv)
 		<table>
@@ -71,7 +70,7 @@ templ ProductsList(products []store.Product, lv ListView, families []FilterOptio
 					@columnHeader(lv, "Familia", "familia", enumFilter(families...))
 					@columnHeader(lv, "Costo", "costo", numberFilter)
 					@columnHeader(lv, "Unidad", "unidad", enumFilter(units...))
-					<th></th>
+					<th><span class="visually-hidden">Acciones</span></th>
 				</tr>
 			</thead>
 			@ProductsTableBody(products)
@@ -80,7 +79,7 @@ templ ProductsList(products []store.Product, lv ListView, families []FilterOptio
 }
 
 templ ProductsTableBody(products []store.Product) {
-	<tbody id="productos-tbody">
+	<tbody id="productos-tbody" data-announce={ countAnnouncement(len(products), "producto", "productos") }>
 		if len(products) == 0 {
 			<tr>
 				<td colspan="6">No se encontraron productos.</td>
@@ -100,7 +99,7 @@ templ ProductsTableBody(products []store.Product) {
 						action={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10) + "/eliminar") }
 						style="display:inline"
 					>
-						<button type="submit" hx-confirm="¿Eliminar este producto?">Eliminar</button>
+						<button type="submit" data-confirm="¿Eliminar este producto?">Eliminar</button>
 					</form>
 				</td>
 			</tr>
@@ -124,35 +123,29 @@ type ProductFormValues struct {
 // product, so they only make sense once one exists (see ProductConversionsSection).
 templ ProductForm(title string, action string, values ProductFormValues, fieldErrors map[string]string, successMsg string, families []store.ProductFamily, units []store.Unit, productID int64, sections ProductEditSections, user *NavUser) {
 	@Layout(title, user) {
-		<h1>
-			{ title }
+		<div class="page-title">
+			<h1>{ title }</h1>
 			if productID == 0 {
 				@HelpLink(HelpProductoNuevo)
 			} else {
 				@HelpLink(HelpProductoEditar)
 			}
-		</h1>
-		if successMsg != "" {
-			<p class="success">{ successMsg }</p>
-		}
+		</div>
+		@Flash(successMsg)
 		<form method="post" action={ templ.URL(action) }>
 			<label>
 				SKU
-				<input type="text" name="sku" value={ values.SKU } required/>
+				<input type="text" name="sku" value={ values.SKU } required { errAttrs(fieldErrors, "sku")... }/>
 			</label>
-			if fieldErrors["sku"] != "" {
-				<p class="error">{ fieldErrors["sku"] }</p>
-			}
+			@FieldError(fieldErrors, "sku")
 			<label>
 				Descripción
-				<input type="text" name="description" value={ values.Description } required/>
+				<input type="text" name="description" value={ values.Description } required { errAttrs(fieldErrors, "description")... }/>
 			</label>
-			if fieldErrors["description"] != "" {
-				<p class="error">{ fieldErrors["description"] }</p>
-			}
+			@FieldError(fieldErrors, "description")
 			<label>
 				Familia
-				<select name="family_id" required>
+				<select name="family_id" required { errAttrs(fieldErrors, "family_id")... }>
 					<option value="">— Selecciona —</option>
 					for _, f := range families {
 						if strconv.FormatInt(f.ID, 10) == values.FamilyID {
@@ -163,23 +156,17 @@ templ ProductForm(title string, action string, values ProductFormValues, fieldEr
 					}
 				</select>
 			</label>
-			if fieldErrors["family_id"] != "" {
-				<p class="error">{ fieldErrors["family_id"] }</p>
-			}
+			@FieldError(fieldErrors, "family_id")
 			<label>
 				Costo (pesos, sin margen — opcional si el producto tiene materiales)
-				<input type="text" name="cost" value={ values.Cost } placeholder="p. ej. 45.00"/>
+				<input type="text" name="cost" value={ values.Cost } placeholder="p. ej. 45.00" { errAttrs(fieldErrors, "cost")... }/>
 			</label>
-			if fieldErrors["cost"] != "" {
-				<p class="error">{ fieldErrors["cost"] }</p>
-			}
+			@FieldError(fieldErrors, "cost")
 			<label>
 				Peso (kg/m, opcional — solo informativo, no cambia el precio)
-				<input type="text" name="kg_per_m" value={ values.KgPerM } placeholder="p. ej. 0.123"/>
+				<input type="text" name="kg_per_m" value={ values.KgPerM } placeholder="p. ej. 0.123" { errAttrs(fieldErrors, "kg_per_m")... }/>
 			</label>
-			if fieldErrors["kg_per_m"] != "" {
-				<p class="error">{ fieldErrors["kg_per_m"] }</p>
-			}
+			@FieldError(fieldErrors, "kg_per_m")
 			<label>
 				Unidad (opcional)
 				<select name="unit_id">
@@ -211,16 +198,14 @@ templ ProductConversionsSection(productID int64, conversions []store.ProductUnit
 		Conversiones de unidades
 		@HelpLink(HelpConversiones)
 	</h2>
-	if errorMsg != "" {
-		<p class="error">{ errorMsg }</p>
-	}
+	@FormError(errorMsg)
 	<table>
 		<thead>
 			<tr>
 				<th>De</th>
 				<th>A</th>
 				<th>Tasa (A por 1 De)</th>
-				<th></th>
+				<th><span class="visually-hidden">Acciones</span></th>
 			</tr>
 		</thead>
 		<tbody>
@@ -240,7 +225,7 @@ templ ProductConversionsSection(productID int64, conversions []store.ProductUnit
 							action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/conversiones/" + strconv.FormatInt(c.ID, 10) + "/eliminar") }
 							style="display:inline"
 						>
-							<button type="submit" hx-confirm="¿Eliminar esta conversión?">Eliminar</button>
+							<button type="submit" data-confirm="¿Eliminar esta conversión?">Eliminar</button>
 						</form>
 					</td>
 				</tr>
@@ -280,16 +265,14 @@ templ ProductMaterialsSection(productID int64, materials []store.ProductMaterial
 		Materiales
 		@HelpLink(HelpProductoMateriales)
 	</h2>
-	if errorMsg != "" {
-		<p class="error">{ errorMsg }</p>
-	}
+	@FormError(errorMsg)
 	<table>
 		<thead>
 			<tr>
 				<th>Material</th>
 				<th>Cantidad por unidad del producto</th>
 				<th>Precio del material</th>
-				<th></th>
+				<th><span class="visually-hidden">Acciones</span></th>
 			</tr>
 		</thead>
 		<tbody>
@@ -309,7 +292,7 @@ templ ProductMaterialsSection(productID int64, materials []store.ProductMaterial
 							action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/materiales/" + strconv.FormatInt(m.ID, 10) + "/eliminar") }
 							style="display:inline"
 						>
-							<button type="submit" hx-confirm="¿Quitar este material?">Eliminar</button>
+							<button type="submit" data-confirm="¿Quitar este material?">Eliminar</button>
 						</form>
 					</td>
 				</tr>
