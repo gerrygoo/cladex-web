@@ -151,7 +151,7 @@ func FamiliasList(families []store.Family, values FamiliaFormValues, fieldErrors
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(f.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/familias.templ`, Line: 49, Col: 135}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/familias.templ`, Line: 49, Col: 134}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {

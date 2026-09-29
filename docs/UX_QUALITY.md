@@ -176,7 +176,8 @@ schemes: each must stay ≥ 5.5:1 on its own 10% tint.
 that look like buttons), messages (`p.success`, `p.error[role=alert]` boxed with a left
 rule; field errors as red text under the field), status badges (`StatusBadge`), `td.num`
 for figures, `td.actions` for row actions, `div.page-title` / `div.section-title` for a
-heading with its help link.
+heading with its help link, `ol.comments` for a feed of notes (the text leads; author
+and date follow in a muted `--fs-small` line).
 
 ### How Tier 3 is checked
 
@@ -254,7 +255,7 @@ heuristic and severity. Tick when fixed, with the commit.
 - [x] **#6 · 1.3.5.** Login and Mi cuenta declare `username`, `current-password` and
       `new-password`.
 - [ ] **#7 · 1.4.10 Reflow.** ([issue 9](https://github.com/gerrygoo/cladex-web/issues/9)) Fixed: the header wraps, the builder's toolbar wraps, and
-      every table without column filters (quote lines, issued quote, comments, Ajustes,
+      every table without column filters (quote lines, issued quote, Ajustes,
       the product's materials and conversions, Unidades) scrolls in its own box. Open: the
       four filterable lists still widen the page at 320 px. They can't simply go in a scroll box, because it would
       clip the column-filter popovers. Data tables are exempt from 1.4.10, so this is low
@@ -349,3 +350,8 @@ heuristic and severity. Tick when fixed, with the commit.
       control stays under the cursor.
 - [x] **#33 · Legibility.** 16 px text, ~21 px controls, 13 px form text. Now 17 px text
       and form text, 40 px controls (32 px inside table rows).
+- [x] **#34 · Hierarchy.** Quote comments were a three-column table (Fecha, Usuario,
+      Comentario), so the date and author took the first two columns and as much weight
+      as the note itself. Now a list: the comment text at body size, then author and date
+      in a smaller, muted line beneath it. Newest first, as before; the order already
+      carries the sequence.

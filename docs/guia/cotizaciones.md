@@ -288,8 +288,8 @@ seguimiento (*"el cliente pidió otro precio"*, *"llamar el lunes"*).
 
 1. Abre la cotización.
 2. Escribe en **Agregar un comentario** y haz clic en **Comentar**.
-3. Tu comentario aparece en la tabla de abajo, con tu nombre y la fecha. Los más nuevos
-   van arriba.
+3. Tu comentario aparece en la lista de abajo; debajo del texto, en letra más pequeña,
+   van tu nombre y la fecha. Los más nuevos van arriba.
 
 Cualquier usuario puede comentar. Los comentarios no se editan ni se borran.
 

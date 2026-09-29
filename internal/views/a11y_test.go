@@ -99,3 +99,16 @@ func TestRowActionsNameTheirRow(t *testing.T) {
 		t.Error("hx-confirm does nothing on a plain form post; use data-confirm")
 	}
 }
+
+func TestCommentsLeadWithTheirText(t *testing.T) {
+	html := render(t, QuoteComments("QA0001", []store.QuoteComment{
+		{UserName: "ana", Body: "Llamar el lunes", CreatedAt: "2026-09-28T16:42:00Z"},
+	}, ListView{}))
+	assertContains(t, html,
+		`<ol class="comments"><li><p class="comment-body">Llamar el lunes</p><p class="comment-meta">ana · <time`)
+	if strings.Contains(html, "<table") {
+		t.Error("comments should be a list, not a table")
+	}
+	empty := render(t, QuoteComments("QA0001", nil, ListView{}))
+	assertContains(t, empty, `<p class="comments-empty">Sin comentarios.</p>`)
+}

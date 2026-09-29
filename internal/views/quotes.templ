@@ -88,8 +88,9 @@ templ QuotesTableBody(quotes []store.Quote) {
 				<td><a href={ templ.URL("/cotizaciones/" + q.Folio) }>{ q.Folio }</a></td>
 				<td>{ q.CustomerName }</td>
 				<td>{ q.UserName }</td>
-				<td>@StatusBadge(q.Status)
-</td>
+				<td>
+					@StatusBadge(q.Status)
+				</td>
 				<td class="num">{ q.Total.String() }</td>
 				<td>
 					@Timestamp(q.CreatedAt)
@@ -747,8 +748,9 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 templ QuoteInfo(quote store.Quote, lines []QuoteLineView) {
 	<dl class="quote-info">
 		<dt>Estado</dt>
-		<dd>@StatusBadge(quote.Status)
-</dd>
+		<dd>
+			@StatusBadge(quote.Status)
+		</dd>
 		<dt>Emitió</dt>
 		<dd>
 			if quote.VendedorSnapshot != nil {
@@ -794,7 +796,9 @@ func comentarPath(folio string) string {
 }
 
 // QuoteComments is the follow-up box at the foot of every quote: the form to add a
-// comment, then everyone's comments, newest first.
+// comment, then everyone's comments, newest first, a page at a time. Each comment leads
+// with its text; who wrote it and when sit below in a smaller, muted line, since the
+// list's order already says which came first.
 templ QuoteComments(folio string, comments []store.QuoteComment, lv ListView) {
 	<section id="comentarios">
 		<h2>Comentarios</h2>
@@ -805,33 +809,21 @@ templ QuoteComments(folio string, comments []store.QuoteComment, lv ListView) {
 			</label>
 			<button type="submit">Comentar</button>
 		</form>
-		<div class="table-scroll">
-			<table>
-				<thead>
-					<tr>
-						<th>Fecha</th>
-						<th>Usuario</th>
-						<th>Comentario</th>
-					</tr>
-				</thead>
-				<tbody>
-					if len(comments) == 0 {
-						<tr>
-							<td colspan="3">Sin comentarios.</td>
-						</tr>
-					}
-					for _, c := range comments {
-						<tr>
-							<td>
-								@Timestamp(c.CreatedAt)
-							</td>
-							<td>{ c.UserName }</td>
-							<td class="comment-body">{ c.Body }</td>
-						</tr>
-					}
-				</tbody>
-			</table>
-		</div>
+		if len(comments) == 0 {
+			<p class="comments-empty">Sin comentarios.</p>
+		} else {
+			<ol class="comments">
+				for _, c := range comments {
+					<li>
+						<p class="comment-body">{ c.Body }</p>
+						<p class="comment-meta">
+							{ c.UserName + " · " }
+							@Timestamp(c.CreatedAt)
+						</p>
+					</li>
+				}
+			</ol>
+		}
 		@listPager(lv, false)
 	</section>
 }
