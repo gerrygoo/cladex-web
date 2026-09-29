@@ -13,8 +13,8 @@ Una revisión conserva el folio de la original y le agrega `-R1`, `-R2`… Ver
 
 ## Serie
 
-El prefijo del folio: **QA** (Cable CCA), **QS** (Cable CCS & AC) o **QI**
-(Alumbrado). Define la numeración y los *Términos y condiciones* del PDF; no limita qué
+El prefijo del folio: **QA** (Cable CCA), **QS** (Cable CCS & AC), **QI**
+(Alumbrado) o **QL** (Líneas libres); cada [[familia]] tiene la suya. Define la numeración y los *Términos y condiciones* del PDF; no limita qué
 productos lleva la cotización.
 
 Ver [¿qué serie elijo?](cotizaciones.md#crear-una-cotización).
@@ -23,6 +23,7 @@ Ver [¿qué serie elijo?](cotizaciones.md#crear-una-cotización).
 
 La línea de producto a la que pertenece cada producto del catálogo: CCA, CCS & AC o
 ABASTILUM. El buscador de la cotización filtra por la familia de la serie de inicio.
+**QL** es una familia especial sin productos: solo sirve para cotizar líneas libres.
 
 ## SKU
 

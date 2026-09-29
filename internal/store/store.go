@@ -5,10 +5,12 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io/fs"
 	"path"
 	"sort"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -101,23 +103,64 @@ func migrate(ctx context.Context, db *sql.DB, migrationsFS fs.FS) error {
 			return fmt.Errorf("read %s: %w", name, err)
 		}
 
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("begin %s: %w", name, err)
+		if err := applyMigration(ctx, db, name, string(sqlBytes)); err != nil {
+			return err
 		}
-		if _, err := tx.ExecContext(ctx, string(sqlBytes)); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("apply %s: %w", name, err)
+	}
+	return nil
+}
+
+// foreignKeysOffMarker, as the first line of a migration, makes the runner apply it with
+// foreign key enforcement off. SQLite can't alter a constraint in place, so a migration
+// that drops one rebuilds the table, and dropping a table other tables reference is
+// refused while enforcement is on. PRAGMA foreign_keys is a no-op inside a transaction,
+// so the runner has to flip it on the connection around the transaction.
+const foreignKeysOffMarker = "-- cladex:foreign-keys-off"
+
+// applyMigration runs one migration file and records it in schema_migrations, in a
+// single transaction. A foreign-keys-off migration is followed by a foreign_key_check
+// inside that transaction, so a rebuild that orphans rows is rolled back rather than
+// committed, and enforcement is restored on the connection afterwards.
+func applyMigration(ctx context.Context, db *sql.DB, name, script string) error {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("conn for %s: %w", name, err)
+	}
+	defer conn.Close()
+
+	fkOff := strings.HasPrefix(script, foreignKeysOffMarker)
+	if fkOff {
+		if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
+			return fmt.Errorf("disable foreign keys for %s: %w", name, err)
 		}
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO schema_migrations (filename) VALUES (?)`, name,
-		); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("record %s: %w", name, err)
+		defer conn.ExecContext(context.WithoutCancel(ctx), `PRAGMA foreign_keys = ON`)
+	}
+
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin %s: %w", name, err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, script); err != nil {
+		return fmt.Errorf("apply %s: %w", name, err)
+	}
+	if fkOff {
+		var table string
+		err := tx.QueryRowContext(ctx, `SELECT "table" FROM pragma_foreign_key_check LIMIT 1`).Scan(&table)
+		if err == nil {
+			return fmt.Errorf("apply %s: foreign key violation in %s", name, table)
 		}
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit %s: %w", name, err)
+		if !errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("foreign key check for %s: %w", name, err)
 		}
+	}
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO schema_migrations (filename) VALUES (?)`, name,
+	); err != nil {
+		return fmt.Errorf("record %s: %w", name, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit %s: %w", name, err)
 	}
 	return nil
 }

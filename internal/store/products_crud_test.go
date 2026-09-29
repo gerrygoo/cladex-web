@@ -20,8 +20,15 @@ func TestProductCRUDLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListFamilies: %v", err)
 	}
-	if len(families) != 1 || families[0].ID != familyID || families[0].Name != "ABASTILUM" {
-		t.Fatalf("ListFamilies = %+v", families)
+	// The catalog familias come from migration 0013; QL holds no products and is left out.
+	var names []string
+	found := false
+	for _, f := range families {
+		names = append(names, f.Name)
+		found = found || (f.ID == familyID && f.Name == "ABASTILUM")
+	}
+	if !found || len(families) != 3 {
+		t.Fatalf("ListFamilies = %v; want CCA, CCS & AC and ABASTILUM (with the ABASTILUM id)", names)
 	}
 
 	if p, err := s.ProductBySKU(ctx, "abl-cable-thw-14"); err != nil || p != nil {

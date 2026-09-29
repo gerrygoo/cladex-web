@@ -44,11 +44,6 @@ func NewQuotes(s *store.Store, logger *slog.Logger) *Quotes {
 // quote gets this fixed window. Matches a typical commercial-quote validity period.
 const defaultValidityDays = 30
 
-// validPrefixes mirrors the quotes.prefix CHECK constraint in migrations/0001_init.sql.
-// Per the user's decision, prefix is a free choice at quote-creation time — a folio
-// series label, not a restriction on which products a quote can contain.
-var validPrefixes = map[string]bool{"QA": true, "QS": true, "QI": true}
-
 // copperMaterialName is the catalog material whose sale price per kg a CCS quote's
 // margin can be set by: its cost / (1 - margin) is the "copper price" salespeople quote.
 const copperMaterialName = "CCS 30%"
@@ -108,7 +103,7 @@ func (m draftMargin) id() *int64 {
 // quote's saved margin so an unsaved change in the dropdown prices the lines.
 func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url.Values) (draftMargin, error) {
 	// A margin of its own is only offered on CCS quotes for now.
-	allowCustom := views.QuotePrefixFamily(quote.Prefix) == views.CCSFamilyName
+	allowCustom := quote.SeriesFamily == views.CCSFamilyName
 	selected := quote.MarginOptionID
 	var custom *money.Micros
 	if allowCustom {
@@ -271,12 +266,15 @@ func parseQuoteNewForm(r *http.Request) QuoteNewForm {
 	}
 }
 
-func (f QuoteNewForm) Validate() map[string]string {
+// Validate checks the form; series are the prefixes a quote can start in. Per the
+// user's decision, the series is a free choice at quote-creation time — a folio series
+// label, not a restriction on which products a quote can contain.
+func (f QuoteNewForm) Validate(series []store.Series) map[string]string {
 	errs := map[string]string{}
 	if id, err := strconv.ParseInt(f.CustomerID, 10, 64); f.CustomerID == "" || err != nil || id <= 0 {
 		errs["customer_id"] = "Selecciona un cliente."
 	}
-	if !validPrefixes[f.Prefix] {
+	if !slices.ContainsFunc(series, func(sr store.Series) bool { return sr.Prefix == f.Prefix }) {
 		errs["prefix"] = "Selecciona una serie de folio."
 	}
 	return errs
@@ -290,8 +288,13 @@ func (q *Quotes) NewPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
+	series, err := q.store.ListSeries(ctx)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
 	user, _ := UserFromContext(ctx)
-	views.QuoteNewForm(customers, views.QuoteNewFormValues{}, nil, navUserView(user)).Render(ctx, w)
+	views.QuoteNewForm(customers, series, views.QuoteNewFormValues{}, nil, navUserView(user)).Render(ctx, w)
 }
 
 // Create handles POST /cotizaciones/nueva: assigns a folio and redirects into the
@@ -303,7 +306,12 @@ func (q *Quotes) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	form := parseQuoteNewForm(r)
-	fieldErrors := form.Validate()
+	series, err := q.store.ListSeries(ctx)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	fieldErrors := form.Validate(series)
 	if len(fieldErrors) > 0 {
 		customers, err := q.store.ListCustomers(ctx, "", "name", "asc", nil)
 		if err != nil {
@@ -313,7 +321,7 @@ func (q *Quotes) Create(w http.ResponseWriter, r *http.Request) {
 		user, _ := UserFromContext(ctx)
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		values := views.QuoteNewFormValues{CustomerID: form.CustomerID, Prefix: form.Prefix}
-		views.QuoteNewForm(customers, values, fieldErrors, navUserView(user)).Render(ctx, w)
+		views.QuoteNewForm(customers, series, values, fieldErrors, navUserView(user)).Render(ctx, w)
 		return
 	}
 
@@ -646,7 +654,7 @@ func searchFamily(quote *store.Quote, soloFamilia bool) string {
 	if !soloFamilia {
 		return ""
 	}
-	return views.QuotePrefixFamily(quote.Prefix)
+	return quote.SeriesFamily
 }
 
 // Builder renders the full quote-builder page at GET /cotizaciones/{folio}, starting
@@ -874,7 +882,7 @@ func draftQuoteDocument(quote store.Quote, lines []views.QuoteLineView, totals p
 		Subtotal:     totals.Subtotal.String(),
 		IVA:          totals.IVA.String(),
 		Total:        totals.Total.String(),
-		Terms:        pdf.QuoteTerms[quote.Prefix],
+		Terms:        store.SplitTerms(quote.SeriesTerms),
 	}
 }
 
@@ -906,7 +914,7 @@ func issuedQuoteDocument(quote store.Quote, persisted []store.QuoteLine) (pdf.Qu
 		Subtotal:     quote.Subtotal.String(),
 		IVA:          quote.IVA.String(),
 		Total:        quote.Total.String(),
-		Terms:        strings.Split(*quote.TermsSnapshot, "\n"),
+		Terms:        store.SplitTerms(*quote.TermsSnapshot),
 		Created:      issuedAt,
 	}, nil
 }
@@ -1031,7 +1039,7 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		// Whole seconds: that's the resolution Typst embeds, and the one reprints
 		// parse back out of issued_at.
 		IssuedAt:             time.Now().UTC().Truncate(time.Second).Format("2006-01-02T15:04:05.000Z"),
-		TermsSnapshot:        strings.Join(pdf.QuoteTerms[quote.Prefix], "\n"),
+		TermsSnapshot:        strings.Join(store.SplitTerms(quote.SeriesTerms), "\n"),
 		ValidUntil:           &validUntil,
 		CustomerNameSnapshot: quote.CustomerName,
 		VendedorSnapshot:     quote.UserName,

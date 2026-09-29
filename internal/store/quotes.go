@@ -48,6 +48,12 @@ type Quote struct {
 	MarginSnapshotMicros *money.Micros
 	// CustomMarginMicros, when set, prices the draft instead of MarginOptionID's value.
 	CustomMarginMicros *money.Micros
+	// SeriesFamily is the product familia the quote's series belongs to, "" when the
+	// series has no familia or the familia is free-lines-only: the builder's product
+	// search defaults to it. SeriesTerms is that series' current terms block, one term
+	// per line; an issued quote prints TermsSnapshot instead.
+	SeriesFamily string
+	SeriesTerms  string
 }
 
 // QuoteLine is a quote_lines row. ProductID is nil for a free-text ("Cotizador libre")
@@ -116,30 +122,33 @@ const quoteSelectCols = `
 	q.vendedor_snapshot, q.pdf_sha256, q.margin_option_id, q.margin_name_snapshot,
 	q.margin_snapshot_micros, q.custom_margin_micros,
 	(SELECT o.folio FROM quotes o WHERE o.id = q.supersedes_quote_id),
-	(SELECT r.folio FROM quotes r WHERE r.supersedes_quote_id = q.id)`
+	(SELECT r.folio FROM quotes r WHERE r.supersedes_quote_id = q.id),
+	CASE WHEN f.free_lines_only = 0 THEN f.name END, COALESCE(f.terms, '')`
 
 const quoteFrom = `
 	FROM quotes q
 	JOIN customers c ON c.id = q.customer_id
-	JOIN users u ON u.id = q.user_id`
+	JOIN users u ON u.id = q.user_id
+	LEFT JOIN product_families f ON f.series = q.prefix`
 
 func scanQuote(row interface{ Scan(...any) error }) (*Quote, error) {
 	var q Quote
 	var termsSnapshot, issuedAt, validUntil, customerNameSnapshot, vendedorSnapshot, pdfSHA256 sql.NullString
-	var supersedesFolio, supersededByFolio sql.NullString
+	var supersedesFolio, supersededByFolio, seriesFamily sql.NullString
 	var supersedesQuoteID, marginOptionID, marginSnapshotMicros, customMarginMicros sql.NullInt64
 	var marginNameSnapshot sql.NullString
 	err := row.Scan(&q.ID, &q.Folio, &q.Prefix, &q.CustomerID, &q.CustomerName, &q.UserID, &q.UserName,
 		&q.Status, &q.Subtotal, &q.IVA, &q.Total, &termsSnapshot, &q.CreatedAt,
 		&issuedAt, &validUntil, &supersedesQuoteID, &customerNameSnapshot, &vendedorSnapshot, &pdfSHA256,
 		&marginOptionID, &marginNameSnapshot, &marginSnapshotMicros, &customMarginMicros,
-		&supersedesFolio, &supersededByFolio)
+		&supersedesFolio, &supersededByFolio, &seriesFamily, &q.SeriesTerms)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	q.SeriesFamily = seriesFamily.String
 	if termsSnapshot.Valid {
 		q.TermsSnapshot = &termsSnapshot.String
 	}

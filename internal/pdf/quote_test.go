@@ -36,7 +36,11 @@ func sampleDoc() QuoteDocument {
 		Subtotal: "$15.18",
 		IVA:      "$2.43",
 		Total:    "$17.61",
-		Terms:    QuoteTerms["QA"],
+		Terms: []string{
+			"Precios en pesos mexicanos (MXN), no incluyen IVA",
+			"Precios sujetos a cambios sin previo aviso",
+			"Pago por adelantado para colocar OC",
+		},
 	}
 }
 

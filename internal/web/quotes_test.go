@@ -999,3 +999,47 @@ func TestQuotesEtapa(t *testing.T) {
 		t.Error("closed quote still offers a next stage")
 	}
 }
+
+// TestQuotesLibreSeries covers QL, the free-lines-only series: it's offered on the
+// new-quote form, starts a quote whose builder has no "solo familia" filter (there is
+// no catalog familia to filter to), and a series nobody owns is still refused.
+func TestQuotesLibreSeries(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, userID)
+
+	rec := doForm(t, a, userID, q.NewPage, "GET", "/cotizaciones/nueva", nil, nil, false)
+	if body := rec.Body.String(); !strings.Contains(body, "QL — Líneas libres") || !strings.Contains(body, "QI — Alumbrado") {
+		t.Fatalf("new-quote form should offer every series, QL included; body = %s", body)
+	}
+
+	rec = doForm(t, a, userID, q.Create, "POST", "/cotizaciones/nueva", nil, url.Values{
+		"customer_id": {strconv.FormatInt(customerID, 10)}, "prefix": {"QZ"},
+	}, false)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("Create with an unknown series = %d, want 422", rec.Code)
+	}
+
+	builder := func(prefix string) string {
+		rec := doForm(t, a, userID, q.Create, "POST", "/cotizaciones/nueva", nil, url.Values{
+			"customer_id": {strconv.FormatInt(customerID, 10)}, "prefix": {prefix},
+		}, false)
+		if rec.Code != http.StatusSeeOther {
+			t.Fatalf("Create(%s) = %d, want 303; body = %s", prefix, rec.Code, rec.Body.String())
+		}
+		folio := strings.TrimPrefix(rec.Header().Get("Location"), "/cotizaciones/")
+		if !strings.HasPrefix(folio, prefix) {
+			t.Fatalf("folio = %q, want prefix %s", folio, prefix)
+		}
+		return doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+folio,
+			map[string]string{"folio": folio}, nil, false).Body.String()
+	}
+	if body := builder("QL"); strings.Contains(body, "Solo productos de la familia") {
+		t.Fatal("QL builder offers a familia filter, but QL has no products")
+	}
+	if body := builder("QI"); !strings.Contains(body, "Solo productos de la familia ABASTILUM") {
+		t.Fatal("QI builder lost its familia filter")
+	}
+}

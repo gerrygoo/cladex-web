@@ -105,31 +105,7 @@ type QuoteNewFormValues struct {
 	Prefix     string
 }
 
-// quotePrefixOptions labels the three folio series a new quote can start in — a free
-// choice per the user's decision, not a restriction on which products the quote can
-// later contain (see docs/PLAN.md's M2.2 notes).
-var quotePrefixOptions = []struct{ Code, Label string }{
-	{"QA", "QA — Cable CCA"},
-	{"QS", "QS — Cable CCS & AC"},
-	{"QI", "QI — Alumbrado"},
-}
-
-// quotePrefixFamilies maps each folio series to the product family it's named after —
-// used only as the builder's default search filter ("solo productos de la familia"),
-// which the user can switch off, so it never restricts what a quote can contain.
-var quotePrefixFamilies = map[string]string{
-	"QA": "CCA",
-	"QS": CCSFamilyName,
-	"QI": "ABASTILUM",
-}
-
-// QuotePrefixFamily returns the product family name a folio series defaults its
-// product search to, or "" if the series has none.
-func QuotePrefixFamily(prefix string) string {
-	return quotePrefixFamilies[prefix]
-}
-
-templ QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldErrors map[string]string, user *NavUser) {
+templ QuoteNewForm(customers []store.Customer, series []store.Series, values QuoteNewFormValues, fieldErrors map[string]string, user *NavUser) {
 	@Layout("Nueva cotización", user) {
 		<div class="page-title">
 			<h1>Nueva cotización</h1>
@@ -152,10 +128,10 @@ templ QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldE
 			@FieldError(fieldErrors, "customer_id")
 			<fieldset role="radiogroup" { errAttrs(fieldErrors, "prefix")... }>
 				<legend>Serie de folio</legend>
-				for _, opt := range quotePrefixOptions {
+				for _, sr := range series {
 					<label>
-						<input type="radio" name="prefix" value={ opt.Code } checked?={ opt.Code == values.Prefix }/>
-						{ opt.Label }
+						<input type="radio" name="prefix" value={ sr.Prefix } checked?={ sr.Prefix == values.Prefix }/>
+						{ sr.PickerLabel() }
 					</label>
 				}
 				@FieldError(fieldErrors, "prefix")
@@ -692,7 +668,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 							hx-swap="outerHTML"
 						/>
 						<button type="submit" formmethod="get" formaction={ "/cotizaciones/" + quote.Folio }>Buscar</button>
-						if family := QuotePrefixFamily(quote.Prefix); family != "" {
+						if family := quote.SeriesFamily; family != "" {
 							<input type="hidden" name="solo_familia" value="0"/>
 							<label>
 								<input

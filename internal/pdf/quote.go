@@ -39,43 +39,6 @@ type QuoteDocument struct {
 	Created time.Time
 }
 
-// QuoteTerms holds each folio prefix's "Términos y condiciones" block, transcribed
-// from the legacy workbook's separate "Cotizador CCA" / "Cotizador CCS" / "Cotizador
-// Alumbrado" sheets — each ends in its own terms list, tied to what that sheet quotes
-// (cable vs. copper-clad steel vs. lighting hardware), not to the customer or product.
-var QuoteTerms = map[string][]string{
-	"QA": {
-		"Precios en pesos mexicanos (MXN), no incluyen IVA",
-		"Precios sujetos a cambios sin previo aviso",
-		"Tiempo de entrega inmediato salvo previa venta",
-		"Pago por adelantado para colocar OC",
-		"Empaques de 100, 500, 1000 mt y especiales bajo pedido",
-		"Las propiedades del conductor de Resistencia Eléctrica y Elongación están basadas en ASTM B566, UL-83, UL-1581",
-		"La capacidad eléctrica fue determinada en cables bajo pruebas en condiciones controladas a 30°C de temperatura",
-		"UL 477453, cumple con NOM",
-		"Valor de las ampacidades conforme a NEC 2014 CAP 310 conductores eléctricos tabla 310.15(B)(16) al aire",
-	},
-	"QS": {
-		"Precios en pesos mexicanos (MXN), no incluyen IVA",
-		"Precios sujetos a cambios sin previo aviso",
-		"Tiempo de entrega inmediata salvo previa venta",
-		"El flete no está incluido en la cotización",
-		"Pago por adelantado para colocar OC",
-		"Sigla 03, lo que indica CFE norma 33",
-		"Empaque 500 KG + o - 5% tolerancia de embarque",
-		"CCS = Copper Clad Steel",
-		"Especificaciones Copperclad: CFE-E0000-33, ANCE, ASTM B227, ASTM B228, ASTM B229, ASTM B452, ASTM B910, UL-854, UL-1581",
-	},
-	"QI": {
-		"Precios en pesos mexicanos (MXN), no incluyen IVA",
-		"Precios sujetos a cambios sin previo aviso",
-		"Tiempo de entrega inmediato",
-		"Pago por adelantado para colocar OC",
-		"Flete se cotiza por separado",
-		"Los postes fondeados en primer rojo óxido",
-	},
-}
-
 // RenderQuote lays out a cotización PDF matching the legacy workbook's Cotizador
 // sheets: letterhead, folio/cliente/fecha header, a line-item table, subtotal/IVA/
 // total, and the family's terms block.

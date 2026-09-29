@@ -112,9 +112,11 @@ func scanProduct(row interface{ Scan(...any) error }) (*Product, error) {
 	return &p, nil
 }
 
-// ListFamilies returns all product families ordered by name.
+// ListFamilies returns the product families that hold catalog products, ordered by
+// name. Free-lines-only familias (QL) are left out: products can't be filed under them.
 func (s *Store) ListFamilies(ctx context.Context) ([]ProductFamily, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name FROM product_families ORDER BY name`)
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, name FROM product_families WHERE free_lines_only = 0 ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("store: list families: %w", err)
 	}

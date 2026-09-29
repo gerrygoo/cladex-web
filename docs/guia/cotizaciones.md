@@ -26,6 +26,8 @@ El flujo completo, de principio a fin:
    - **QA — Cable CCA**
    - **QS — Cable CCS & AC**
    - **QI — Alumbrado**
+   - **QL — Líneas libres**: para cotizar solo líneas libres (productos que no están en
+     el catálogo y no tienen SKU).
 4. Haz clic en **Crear cotización**.
 
 Llegas a la página de la cotización (p. ej. *"Cotización QS0007"*) con
@@ -35,7 +37,8 @@ el nombre de la cotización arriba y el cliente debajo. Es un [[borrador]]: lo r
 > propia numeración: QA0001, QA0002…) y el bloque de **Términos y condiciones** que se
 > imprime en el PDF (moneda, tiempo de entrega, empaque, flete). Elige la serie cuyos
 > términos correspondan a lo que vendes. La serie **no** limita los productos: una
-> cotización QS puede llevar productos de cualquier familia.
+> cotización QS puede llevar productos de cualquier familia. La serie **QL** no tiene
+> productos de catálogo: sus cotizaciones se arman con [líneas libres](#agregar-una-línea-libre).
 
 > El cliente y la serie no se pueden cambiar después, y los borradores no se pueden
 > borrar. Si te equivocaste, crea otra cotización y deja la equivocada sin emitir.
@@ -54,7 +57,8 @@ Con la cotización en borrador:
      el cuadro *"Buscar producto por SKU o descripción…"*. La lista se filtra
      mientras escribes y vuelve a la página 1.
    - Junto al buscador está la casilla *"Solo productos de la familia …"* (CCA para
-     serie QA, CCS & AC para QS, ABASTILUM para QI), **marcada de inicio**: solo
+     serie QA, CCS & AC para QS, ABASTILUM para QI; en QL no aparece, porque no tiene
+     productos), **marcada de inicio**: solo
      aparecen productos de la familia de la serie. Desmárcala para ver o buscar en todo
      el catálogo; cualquier producto se puede agregar a cualquier cotización.
 2. Haz clic en el producto. Se agrega como una línea nueva, con cantidad 1 y su precio

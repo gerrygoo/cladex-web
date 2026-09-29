@@ -1077,3 +1077,27 @@ CRUD/quoting patterns are actually solid enough to extend.
 
 **Other**: htmx round-trip limits on the quote builder → JS island, decided in 2.2. TLS
 terminates on the VPS; fix if ever needed is FRP raw-TCP passthrough.
+
+## Familias and quote series (issue #12)
+
+A familia owns its quote series: `product_families` gained `series` (the folio prefix,
+unique), `series_label`, `terms` and `free_lines_only` (migration 0013). Before this,
+QA/QS/QI lived in CHECK constraints, a web-layer whitelist and a PDF terms map.
+
+**Decisions (issue #12, 2026-09-28):**
+- **QL** is a familia and a series that holds no catalog products (`free_lines_only`): it
+  is only for líneas libres, so it never appears in the product form's familia list and
+  its quote builder has no "solo productos de la familia" filter.
+- Admins create familias, series included, at `/familias`.
+- Terms and conditions moved from Go to the database, one block per familia, editable
+  by admins. Issued quotes keep the block frozen at issue time.
+
+**Open — QL terms.** QL ships with placeholder terms (the generic lines of the other
+series: MXN/IVA, prices subject to change, prepayment, freight quoted separately). Ask
+Emilio for the real text; an admin then replaces it at `/familias` with no deploy. Until
+then, QL quotes issued in the meantime carry the placeholder in their frozen terms.
+
+**Migration note:** 0013 rebuilds `quotes` with foreign keys off, (and `folio_sequences`) to drop the prefix CHECKs, unlike 0012's park-and-defer
+approach. A migration whose first line is
+`-- cladex:foreign-keys-off` gets that from the runner, which runs
+`PRAGMA foreign_key_check` before committing.
