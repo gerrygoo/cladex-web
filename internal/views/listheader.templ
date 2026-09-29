@@ -41,6 +41,9 @@ templ columnHeader(lv ListView, label, col string, f ColumnFilter) {
 			</summary>
 			<form method="get" action={ templ.URL(lv.Base) } class="col-filter-panel">
 				@listHiddenInputs(lv, col)
+				// Names the column: a panel wider than its column hangs under the
+				// neighbours' headers, so position alone doesn't say whose filter it is.
+				<p class="col-filter-title">Filtrar por { label }</p>
 				switch f.Kind {
 					case store.FilterText:
 						if len(f.Options) > 0 {

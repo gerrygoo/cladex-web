@@ -677,6 +677,11 @@ form.col-filter-panel {
   box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
 }
 
+form.col-filter-panel .col-filter-title {
+  margin: 0 0 0.6rem;
+  font-weight: 600;
+}
+
 form.col-filter-panel label {
   margin-top: 0;
   margin-bottom: 0.6rem;
