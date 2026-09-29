@@ -1,0 +1,61 @@
+package views
+
+import "strconv"
+
+// fieldErrorID is the id of a field's error message, which the field points at with
+// aria-describedby so a screen reader reads the error along with the field.
+func fieldErrorID(field string) string {
+	return "error-" + field
+}
+
+// errAttrs marks a form field invalid and ties it to its FieldError message, or adds
+// nothing when the field has no error. Spread it onto the field: { errAttrs(errs, "name")... }.
+func errAttrs(fieldErrors map[string]string, field string) templ.Attributes {
+	if fieldErrors[field] == "" {
+		return templ.Attributes{}
+	}
+	return templ.Attributes{"aria-invalid": "true", "aria-describedby": fieldErrorID(field)}
+}
+
+// FieldError is a field's validation message, placed right after the field. static/app.js
+// moves focus to the first invalid field when the page loads.
+templ FieldError(fieldErrors map[string]string, field string) {
+	if msg := fieldErrors[field]; msg != "" {
+		<p class="error" id={ fieldErrorID(field) }>{ msg }</p>
+	}
+}
+
+// FormError is a message about a whole form or action, not one field. role="alert"
+// makes screen readers announce it as soon as the page shows it.
+templ FormError(msg string) {
+	if msg != "" {
+		<p class="error" role="alert">{ msg }</p>
+	}
+}
+
+// Flash is the success message after a redirect.
+templ Flash(msg string) {
+	if msg != "" {
+		<p class="success" role="status">{ msg }</p>
+	}
+}
+
+// countAnnouncement is what the live region reads out after a list's live search:
+// "3 clientes", "1 cliente", "Ningún resultado".
+func countAnnouncement(n int, one, many string) string {
+	switch n {
+	case 0:
+		return "Ningún resultado"
+	case 1:
+		return "1 " + one
+	default:
+		return strconv.Itoa(n) + " " + many
+	}
+}
+
+// StatusBadge shows a quote's status as a pill, coloured by stage: a draft is neutral, an
+// issued quote green, a revised (superseded) one muted. The word is always there, so the
+// colour is never the only cue.
+templ StatusBadge(status string) {
+	<span class={ "badge", "badge-" + status }>{ status }</span>
+}

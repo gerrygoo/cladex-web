@@ -2,36 +2,28 @@ package views
 
 templ MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) {
 	@Layout("Mi cuenta", user) {
-		<h1>
-			Mi cuenta
+		<div class="page-title">
+			<h1>Mi cuenta</h1>
 			@HelpLink(HelpMiCuenta)
-		</h1>
-		if successMsg != "" {
-			<p class="success">{ successMsg }</p>
-		}
+		</div>
+		@Flash(successMsg)
 		<form method="post" action="/mi-cuenta">
 			<label>
 				Contraseña actual
-				<input type="password" name="current_password" required/>
+				<input type="password" name="current_password" required autocomplete="current-password" { errAttrs(fieldErrors, "current_password")... }/>
 			</label>
-			if fieldErrors["current_password"] != "" {
-				<p class="error">{ fieldErrors["current_password"] }</p>
-			}
+			@FieldError(fieldErrors, "current_password")
 			<label>
-				Contraseña nueva
-				<input type="password" name="new_password" required minlength="8"/>
+				Contraseña nueva <span class="hint">(mínimo 8 caracteres)</span>
+				<input type="password" name="new_password" required autocomplete="new-password" minlength="8" { errAttrs(fieldErrors, "new_password")... }/>
 			</label>
-			if fieldErrors["new_password"] != "" {
-				<p class="error">{ fieldErrors["new_password"] }</p>
-			}
+			@FieldError(fieldErrors, "new_password")
 			<label>
 				Confirmar contraseña nueva
-				<input type="password" name="confirm_password" required minlength="8"/>
+				<input type="password" name="confirm_password" required autocomplete="new-password" minlength="8" { errAttrs(fieldErrors, "confirm_password")... }/>
 			</label>
-			if fieldErrors["confirm_password"] != "" {
-				<p class="error">{ fieldErrors["confirm_password"] }</p>
-			}
-			<button type="submit">Cambiar contraseña</button>
+			@FieldError(fieldErrors, "confirm_password")
+			<button type="submit" class="primary">Cambiar contraseña</button>
 		</form>
 	}
 }

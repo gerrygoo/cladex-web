@@ -15,11 +15,13 @@ templ Layout(title string, user *NavUser) {
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ title } · Cladex</title>
 			<link rel="stylesheet" href="/static/app.css"/>
-			<script src="/static/htmx.min.js"></script>
+			<script src="/static/htmx.min.js" defer></script>
 			<script src="/static/filters.js" defer></script>
 			<script src="/static/time.js" defer></script>
+			<script src="/static/app.js" defer></script>
 		</head>
 		<body>
+			<a class="skip-link" href="#contenido">Saltar al contenido</a>
 			<noscript>
 				<p class="noscript-banner">
 					JavaScript está desactivado. La aplicación funciona igual, pero cada acción recarga la página completa; actívalo para una experiencia más rápida.
@@ -51,9 +53,12 @@ templ Layout(title string, user *NavUser) {
 					</div>
 				}
 			</header>
-			<main class="app-main">
+			<main class="app-main" id="contenido" tabindex="-1">
 				{ children... }
 			</main>
+			// Announces what htmx swaps change (a recalculated total, search results); see
+			// data-announce in static/app.js.
+			<div id="live-status" class="visually-hidden" role="status"></div>
 		</body>
 	</html>
 }

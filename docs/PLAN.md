@@ -27,7 +27,7 @@ Two pinned constraints:
 | Stack | **Go + templ + htmx** | Minimal deps, no npm churn, ~20 MB image, ~25 MB idle on a shared 8 GB box |
 | DB | **SQLite** via `modernc.org/sqlite` (pure Go) | No cgo → static binary → distroless |
 | PDF | **Typst** (static musl binary in image) | Chromium idles ~400 MB, spikes >1 GB/render — untenable beside Jellyfin |
-| Registry | **Public GHCR** image | Repo is public; no auth needed on the NAS |
+| Registry | **Public GHCR** image | GHCR package set to public (separate from the private repo); no auth needed on the NAS |
 | Deploy | Actions build+push → NAS cron pulls every 5 min | NAS is behind NAT; the pull must be outbound |
 | Auth | **Username + password, admin-provisioned** | No self-service surface; OAuth/2FA deferred |
 
@@ -146,6 +146,11 @@ margins); vendedor gets everything else. Checked in middleware — not a permiss
   Any slice that adds or changes a user-visible flow updates its guide page in the same
   commit — a slice isn't done until its page is. Plain markdown, so it can be mirrored to
   a GitHub wiki verbatim if that's ever wanted.
+- **UI/UX quality.** Tracked in [UX_QUALITY.md](UX_QUALITY.md) in three tiers: compliance
+  (HTML semantics, WAI-ARIA, WCAG 2.2 AA; a failure is a bug), quality (Nielsen
+  heuristics, Core Web Vitals, task metrics) and visual design (a five-colour palette and
+  type scale in `static/app.css`, one primary action per screen, stable layout). It holds
+  the per-screen scorecard and the issue log.
 
 ## Quote persistence
 
@@ -242,6 +247,13 @@ What Litestream closes is the up-to-24h window in which a lost disk cost a day o
 The replica is a local file under `$BACKUP_DIR`, which the NAS cloud sync already carries
 offsite — so no cloud credentials live on the box. Note that Litestream v0.5 dropped age
 encryption, so that replica is plaintext.
+
+## Testing
+
+`go test ./...` is the whole suite; it needs the `typst` CLI on `PATH`. Test
+conventions, the current coverage snapshot, and the tracked coverage gaps live in
+`docs/TESTING.md` — refresh that file's snapshot and tick its checklist in the same
+commit that changes what is covered.
 
 ---
 
@@ -772,7 +784,7 @@ hash after settings, product price and customer name change) and
 
 ## M3 — Standardized margins and a materials catalog — ✅ COMPLETE
 
-Brainstormed and settled with the user on 2026-09-22; shipped 3.1–3.3 by 2026-09-28 (3.4 folded into 3.2). Open follow-up: the QI terms block still prints "Precios en dólares americanos (USD)" and a "$93" percha, though every price is now MXN (see 3.3).
+Brainstormed and settled with the user on 2026-09-22; shipped 3.1–3.3 by 2026-09-28 (3.4 folded into 3.2). Follow-up done 2026-09-28: the QI terms block now says "Precios en pesos mexicanos (MXN)" like QS/QA, and the "$93" percha line is gone (user's call). Quotes issued before that keep their frozen terms.
 
 ### Why: margin is hidden inside costs and the FX rate today
 

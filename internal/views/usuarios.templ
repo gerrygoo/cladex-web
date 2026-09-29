@@ -16,16 +16,12 @@ func roleLabel(role string) string {
 
 templ UsersList(users []store.User, currentUserID int64, lv ListView, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Usuarios", user) {
-		<h1>
-			Usuarios
+		<div class="page-title">
+			<h1>Usuarios</h1>
 			@HelpLink(HelpUsuarios)
-		</h1>
-		if successMsg != "" {
-			<p class="success">{ successMsg }</p>
-		}
-		if errorMsg != "" {
-			<p class="error">{ errorMsg }</p>
-		}
+		</div>
+		@Flash(successMsg)
+		@FormError(errorMsg)
 		@listActiveFilters(lv)
 		<table>
 			<thead>
@@ -34,7 +30,7 @@ templ UsersList(users []store.User, currentUserID int64, lv ListView, successMsg
 					@columnHeader(lv, "Nombre", "name", textFilter)
 					@columnHeader(lv, "Rol", "role", userRoleFilter)
 					@columnHeader(lv, "Estado", "status", userStatusFilter)
-					<th></th>
+					<th><span class="visually-hidden">Acciones</span></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -46,14 +42,14 @@ templ UsersList(users []store.User, currentUserID int64, lv ListView, successMsg
 							if u.ID == currentUserID {
 								{ roleLabel(u.Role) }
 							} else {
-								<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/rol") } style="display:inline">
+								<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/rol") }>
 									if u.Role == "admin" {
-										<select name="role">
+										<select name="role" aria-label={ "Rol de " + u.Username }>
 											<option value="admin" selected>Administrador</option>
 											<option value="vendedor">Vendedor</option>
 										</select>
 									} else {
-										<select name="role">
+										<select name="role" aria-label={ "Rol de " + u.Username }>
 											<option value="admin">Administrador</option>
 											<option value="vendedor" selected>Vendedor</option>
 										</select>
@@ -69,16 +65,16 @@ templ UsersList(users []store.User, currentUserID int64, lv ListView, successMsg
 								Activo
 							}
 						</td>
-						<td>
+						<td class="actions">
 							if u.ID == currentUserID {
 								—
 							} else if u.DisabledAt != nil {
-								<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/habilitar") } style="display:inline">
+								<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/habilitar") }>
 									<button type="submit">Habilitar</button>
 								</form>
 							} else {
-								<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/deshabilitar") } style="display:inline">
-									<button type="submit" hx-confirm="¿Deshabilitar a este usuario?">Deshabilitar</button>
+								<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/deshabilitar") }>
+									<button type="submit" class="danger" data-confirm="¿Deshabilitar a este usuario?">Deshabilitar</button>
 								</form>
 							}
 						</td>

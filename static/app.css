@@ -1,72 +1,530 @@
+/* ==== Palette =============================================================
+   The five colours the whole site is built from. Change one here and every shade
+   derived from it below (tints, borders, hover, dark mode) follows. Each keeps at
+   least 5.5:1 contrast on its own tint in both colour schemes; re-check with axe
+   after changing one (see docs/UX_QUALITY.md). */
+:root {
+  --c-primary: #1f4e9c; /* the screen's main action, links, current page */
+  --c-neutral: #374151; /* text, borders, secondary buttons */
+  --c-success: #17663a; /* saved, issued */
+  --c-warning: #8a4f00; /* unsaved changes, attention */
+  --c-danger: #b3261e;  /* delete, errors */
+}
+
+/* ==== Derived roles ======================================================
+   light-dark(): first value for light mode, second for dark. Dark mode lightens each
+   colour towards white rather than defining a second palette. */
 :root {
   color-scheme: light dark;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --bg: light-dark(#ffffff, #15181d);
+  --surface: light-dark(
+    color-mix(in srgb, var(--c-neutral) 5%, #ffffff),
+    color-mix(in srgb, #ffffff 5%, #15181d)
+  );
+  --text: light-dark(color-mix(in srgb, var(--c-neutral), #000000 25%), #e6e8eb);
+  --text-muted: light-dark(
+    color-mix(in srgb, var(--c-neutral) 80%, #ffffff),
+    color-mix(in srgb, #ffffff 68%, #15181d)
+  );
+  /* Borders of controls (inputs, secondary buttons): ≥ 3:1, WCAG 1.4.11. */
+  --border: light-dark(
+    color-mix(in srgb, var(--c-neutral) 60%, #ffffff),
+    color-mix(in srgb, #ffffff 45%, #15181d)
+  );
+  /* Hairlines between rows and around panels: decorative, no contrast minimum. */
+  --rule: light-dark(
+    color-mix(in srgb, var(--c-neutral) 18%, #ffffff),
+    color-mix(in srgb, #ffffff 16%, #15181d)
+  );
+
+  --primary: light-dark(var(--c-primary), color-mix(in srgb, var(--c-primary) 45%, #ffffff));
+  --success: light-dark(var(--c-success), color-mix(in srgb, var(--c-success) 45%, #ffffff));
+  --warning: light-dark(var(--c-warning), color-mix(in srgb, var(--c-warning) 45%, #ffffff));
+  --danger: light-dark(var(--c-danger), color-mix(in srgb, var(--c-danger) 45%, #ffffff));
+  /* Text on a solid primary button. */
+  --on-primary: var(--bg);
+
+  --radius: 6px;
+  --control-height: 2.5rem;
+
+  /* Type scale: the only font sizes the site uses. */
+  --fs-small: 0.9rem; /* hints, table headers, footnotes */
+  --fs-h3: 1.15rem;
+  --fs-h2: 1.35rem;
+  --fs-h1: 1.75rem;
+}
+
+/* ==== Base ============================================================== */
+
+/* 17px body text at the browser's default setting, and it still follows the user's own
+   text-size preference. */
+html {
+  font-size: 106.25%;
 }
 
 body {
   margin: 0;
   padding: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--text);
 }
+
+h1 {
+  font-size: var(--fs-h1);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--fs-h2);
+  line-height: 1.3;
+  margin: 2rem 0 0.75rem;
+}
+
+h3 {
+  font-size: var(--fs-h3);
+  margin: 1.5rem 0 0.5rem;
+}
+
+a {
+  color: var(--primary);
+  text-underline-offset: 0.15em;
+}
+
+:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+
+small {
+  font-size: var(--fs-small);
+}
+
+code {
+  font-size: 0.9em;
+}
+
+/* Present for form mechanics or screen readers but not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Hidden until focused: the first Tab stop on every page jumps past the nav. */
+a.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -4rem;
+  z-index: 100;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border: 2px solid var(--primary);
+  border-radius: var(--radius);
+}
+
+a.skip-link:focus {
+  top: 0.5rem;
+}
+
+/* ==== Page frame ======================================================== */
 
 header.app-header {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1.25rem;
-  border-bottom: 1px solid light-dark(#ddd, #333);
-}
-
-main.app-main {
-  padding: 1.25rem;
-}
-
-a.brand-link {
-  color: inherit;
-  text-decoration: none;
+  padding: 0.6rem 1.25rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
 }
 
 div.brand {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 1.5rem;
+  gap: 0.5rem 2rem;
 }
 
-nav.app-nav a {
-  margin-right: 0.75rem;
+a.brand-link {
+  color: var(--text);
+  font-size: var(--fs-h3);
+  text-decoration: none;
+}
+
+nav.app-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+}
+
+/* static/app.js marks the section the page belongs to. */
+nav.app-nav a[aria-current="page"] {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration-thickness: 3px;
+  text-underline-offset: 0.35em;
 }
 
 div.nav-user {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem 1.25rem;
 }
 
 div.nav-user form {
   margin: 0;
-  display: inline;
 }
 
-p.error {
-  color: light-dark(#b00020, #ff6b6b);
+main.app-main {
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 0.5rem 1.25rem 3rem;
+}
+
+main.app-main:focus {
+  outline: none;
+}
+
+/* A heading with its "?" help link. The margins sit on the wrapper so the link centres
+   on the heading's text, not on its margins. */
+div.page-title,
+div.section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+div.page-title {
+  margin: 1.25rem 0 1rem;
+}
+
+div.section-title {
+  margin: 2rem 0 0.75rem;
+}
+
+div.page-title h1,
+div.section-title h2 {
+  margin: 0;
+}
+
+footer.build-footer {
+  margin-top: 3rem;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
 }
 
 p.noscript-banner {
   margin: 0;
-  padding: 0.5rem 1rem;
-  background: light-dark(#fff4d6, #3a2e0a);
-  color: light-dark(#5c4400, #f5d77a);
-  border-bottom: 1px solid light-dark(#e8cf8a, #6b5518);
+  padding: 0.5rem 1.25rem;
+  background: color-mix(in srgb, var(--warning) 10%, var(--bg));
+  color: var(--warning);
+  border-bottom: 1px solid var(--warning);
 }
 
-/* Secondary context under a table, e.g. the builder's material prices and their age. */
-p.hint {
-  color: light-dark(#666, #aaa);
-  font-size: 0.9rem;
+/* ==== Forms ============================================================= */
+
+/* Form controls default to a smaller system font that ignores the page's text size;
+   take the page's font so they read at the same size and grow with it (WCAG 1.4.4). */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
 }
 
+label {
+  display: block;
+  margin-top: 1rem;
+  font-weight: 600;
+}
+
+input,
+select,
+textarea {
+  display: block;
+  margin-top: 0.3rem;
+  font-weight: normal;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+input:not([type="checkbox"], [type="radio"], [type="hidden"]),
+select {
+  min-height: var(--control-height);
+  padding: 0 0.6rem;
+  box-sizing: border-box;
+}
+
+textarea {
+  padding: 0.5rem 0.6rem;
+  box-sizing: border-box;
+}
+
+input[readonly] {
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+input::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+/* Room to see what's typed: the browser default (~20 characters) cut off product
+   descriptions and addresses. */
+label > input:not([type="checkbox"], [type="radio"]),
+label > select,
+label > textarea {
+  width: min(100%, 28rem);
+}
+
+/* A checkbox or radio sits on the same line as its label text. */
+input[type="checkbox"],
+input[type="radio"] {
+  display: inline-block;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0 0.5rem 0 0;
+  vertical-align: -0.15rem;
+  accent-color: var(--primary);
+}
+
+label:has(> input[type="checkbox"], > input[type="radio"]) {
+  font-weight: normal;
+}
+
+fieldset {
+  margin: 1rem 0 0;
+  padding: 0.5rem 1rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+legend {
+  padding: 0 0.3rem;
+  font-weight: 600;
+}
+
+fieldset label {
+  margin-top: 0.5rem;
+}
+
+[aria-invalid="true"] {
+  border: 2px solid var(--danger);
+}
+
+fieldset[aria-invalid="true"] {
+  border: 2px solid var(--danger);
+}
+
+/* Supporting text inside a label, e.g. "(mínimo 8 caracteres)". */
+label span.hint {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: normal;
+}
+
+/* The buttons that submit or leave a form, in one row under it. Not for one-line forms
+   (search, row actions, logout), whose button sits beside its field. */
+form > button[type="submit"],
+.form-actions {
+  margin-top: 1.25rem;
+}
+
+div.toolbar form > button[type="submit"],
+td form > button[type="submit"],
+div.nav-user form > button[type="submit"] {
+  margin-top: 0;
+}
+
+form > button[type="submit"] + a {
+  margin-left: 0.75rem;
+}
+
+/* ==== Buttons ===========================================================
+   Default (secondary): outlined. .primary: the one main action on a screen, solid.
+   .danger: destructive, outlined in red. a.button is a link styled the same way. */
+button,
+a.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: var(--control-height);
+  padding: 0 1rem;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+button:hover,
+a.button:hover {
+  background: var(--surface);
+  border-color: var(--text-muted);
+}
+
+button.primary,
+a.button.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+  font-weight: 600;
+}
+
+button.primary:hover,
+a.button.primary:hover {
+  background: color-mix(in srgb, var(--primary), var(--text) 18%);
+  border-color: color-mix(in srgb, var(--primary), var(--text) 18%);
+}
+
+button.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+button.danger:hover {
+  background: color-mix(in srgb, var(--danger) 8%, var(--bg));
+  border-color: var(--danger);
+}
+
+/* Row actions stay compact so tables don't balloon (still ≥ 24px, WCAG 2.5.8). */
+td button,
+td a.button {
+  min-height: 2rem;
+  padding: 0 0.7rem;
+  font-size: var(--fs-small);
+}
+
+/* Forms inside a cell (row actions, the users' role picker) stay on one line. */
+td form {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+td form select {
+  margin-top: 0;
+  min-height: 2rem;
+}
+
+/* The logout button reads as part of the nav bar, not as a form action. */
+div.nav-user button {
+  min-height: 2rem;
+}
+
+/* ==== Messages ========================================================== */
+
+/* Result of the last action ("Cliente guardado."). */
 p.success {
-  color: light-dark(#0a7a2f, #4ade80);
+  margin: 0.75rem 0;
+  padding: 0.6rem 0.9rem;
+  border-left: 4px solid var(--success);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--success) 10%, var(--bg));
+  color: var(--success);
+  font-weight: 600;
 }
+
+/* A field's error, under the field. */
+p.error {
+  margin: 0.3rem 0 0;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* An error about the whole form or action. */
+p.error[role="alert"] {
+  margin: 0.75rem 0;
+  padding: 0.6rem 0.9rem;
+  border-left: 4px solid var(--danger);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--danger) 10%, var(--bg));
+}
+
+td.error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* Secondary context, e.g. the builder's material prices and their age. */
+p.hint {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+/* The builder's save state. Always shown, in one of two states, so the row never
+   reflows (see "Stable layout" in docs/UX_QUALITY.md). */
+span.save-status {
+  padding: 0.3rem 0.7rem;
+  border-left: 4px solid;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+span.save-status.saved {
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, var(--bg));
+  color: var(--success);
+}
+
+span.save-status.unsaved {
+  border-color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, var(--bg));
+  color: var(--warning);
+}
+
+span.save-status.busy {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+/* A quote's status (StatusBadge). */
+span.badge {
+  display: inline-block;
+  padding: 0.05rem 0.6rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+span.badge-emitida {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 8%, var(--bg));
+}
+
+span.badge-borrador {
+  color: var(--text);
+}
+
+span.badge-revisada {
+  color: var(--text-muted);
+}
+
+/* ==== Tables ============================================================ */
 
 table {
   border-collapse: collapse;
@@ -74,23 +532,74 @@ table {
   margin-top: 1rem;
 }
 
-th, td {
+th,
+td {
   text-align: left;
-  padding: 0.4rem 0.6rem;
-  border-bottom: 1px solid light-dark(#ddd, #333);
+  vertical-align: middle;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--rule);
 }
 
+thead th {
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+
+thead th a {
+  color: var(--text);
+}
+
+/* Money and quantities: right-aligned with equal-width digits so they compare down a
+   column (NN/g data tables). */
+th.num,
+td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+td input.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+tbody tr:hover {
+  background: color-mix(in srgb, var(--surface), var(--rule) 30%);
+}
+
+div.table-scroll {
+  overflow-x: auto;
+  /* Contains the absolutely positioned .visually-hidden labels in the rows, which
+     would otherwise widen the whole page. */
+  position: relative;
+}
+
+/* Search and "Nuevo …" above a list. */
 div.toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-top: 1rem;
+  margin-top: 0.5rem;
 }
 
+/* The search box and its "Buscar" button stay on one line; the box gives way first. */
 div.toolbar form {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
+  flex: 0 1 26rem;
+  min-width: 0;
+}
+
+div.toolbar input[type="search"] {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 8rem;
+  margin-top: 0;
 }
 
 nav.pager {
@@ -98,38 +607,265 @@ nav.pager {
   align-items: center;
   flex-wrap: wrap;
   gap: 0.75rem;
-  margin-top: 0.5rem;
-}
-
-label {
-  display: block;
   margin-top: 0.75rem;
 }
 
-input, select {
-  display: block;
-  margin-top: 0.25rem;
+/* Column filters: a funnel in each sortable header that opens a small form. */
+th.col-header {
+  position: relative;
+  white-space: nowrap;
 }
 
-/* Present for form mechanics (e.g. a default submit button) but not shown. */
-.visually-hidden {
-	position: absolute;
-	width: 1px;
-	height: 1px;
-	margin: -1px;
-	padding: 0;
-	overflow: hidden;
-	clip: rect(0 0 0 0);
-	white-space: nowrap;
-	border: 0;
+details.col-filter {
+  display: inline-block;
+  margin-left: 0.25rem;
 }
 
-/* ---- User guide (/ayuda) ---- */
+details.col-filter > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 12px funnel, 24px target (WCAG 2.5.8). */
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--text-muted);
+  vertical-align: middle;
+}
+
+details.col-filter > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.col-filter.active > summary {
+  color: var(--primary);
+}
+
+form.col-filter-panel {
+  position: absolute;
+  z-index: 10;
+  top: 100%;
+  left: 0;
+  min-width: 15rem;
+  padding: 0.75rem;
+  font-size: 1rem;
+  font-weight: normal;
+  text-align: left;
+  white-space: normal;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
+}
+
+form.col-filter-panel label {
+  margin-top: 0;
+  margin-bottom: 0.6rem;
+}
+
+form.col-filter-panel input,
+form.col-filter-panel select {
+  width: 100%;
+}
+
+div.col-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Keep the last columns' panels inside the viewport. */
+th.col-header:nth-last-child(-n + 2) form.col-filter-panel {
+  left: auto;
+  right: 0;
+}
+
+p.active-filters {
+  margin: 0.75rem 0 0;
+  font-size: var(--fs-small);
+}
+
+/* ==== Screens =========================================================== */
+
+/* "?" next to a heading, opening that section of the user guide. */
+a.help-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 1.5px solid var(--primary);
+  border-radius: 50%;
+  color: var(--primary);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+}
+
+a.help-link:hover {
+  background: color-mix(in srgb, var(--primary) 10%, var(--bg));
+}
+
+/* Home */
+div.overview-stages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+}
+
+section.overview-stage {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 0.9rem 1.1rem;
+  background: var(--surface);
+}
+
+section.overview-stage h3 {
+  margin: 0;
+}
+
+section.overview-stage ol {
+  padding-left: 1.25rem;
+  margin: 0;
+}
+
+section.overview-stage li {
+  margin-bottom: 0.4rem;
+}
+
+p.overview-figure strong {
+  font-size: var(--fs-h2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Quote builder */
+div.quote-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0 1.5rem;
+}
+
+div.quote-meta label > input,
+div.quote-meta label > select {
+  width: auto;
+  min-width: 12rem;
+}
+
+section.quote-add {
+  margin-top: 1.5rem;
+  padding: 0.25rem 1.1rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+section.quote-add h2 {
+  margin-top: 0.75rem;
+}
+
+section.quote-add div.toolbar {
+  justify-content: flex-start;
+}
+
+p.picker-free {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+  color: var(--text-muted);
+}
+
+/* The picker's products: a plain list of buttons that each add one line. */
+#product-search-results ul {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+#product-search-results li button {
+  width: 100%;
+  justify-content: flex-start;
+  white-space: normal;
+  text-align: left;
+  min-height: 2.25rem;
+  padding: 0.3rem 0.8rem;
+}
+
+/* Subtotal / IVA / Total at the foot of the lines table, under the Total column. */
+tfoot th,
+tfoot td {
+  border-bottom: none;
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+  font-weight: normal;
+}
+
+tfoot tr:first-child th,
+tfoot tr:first-child td {
+  padding-top: 0.75rem;
+}
+
+tfoot tr.grand th,
+tfoot tr.grand td {
+  font-size: var(--fs-h3);
+  font-weight: 700;
+}
+
+tfoot tr:hover {
+  background: none;
+}
+
+div.quote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+}
+
+/* Issued quote summary: label / value pairs in two columns. */
+dl.quote-info {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1.5rem;
+  margin: 0 0 1.5rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+dl.quote-info dt {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+dl.quote-info dd {
+  margin: 0;
+}
+
+.comment-body {
+  white-space: pre-wrap;
+}
+
+/* ==== User guide (/ayuda) =============================================== */
 
 div.guia {
   display: grid;
   grid-template-columns: 12rem minmax(0, 46rem);
   gap: 2rem;
+  margin-top: 1.25rem;
 }
 
 nav.guia-nav ul {
@@ -141,11 +877,12 @@ nav.guia-nav ul {
 }
 
 nav.guia-nav li {
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.5rem;
 }
 
 nav.guia-nav a[aria-current="page"] {
-  font-weight: 600;
+  color: var(--text);
+  font-weight: 700;
   text-decoration: none;
 }
 
@@ -163,7 +900,7 @@ nav.guia-nav a[aria-current="page"] {
 }
 
 article.guia-page {
-  line-height: 1.55;
+  line-height: 1.6;
 }
 
 article.guia-page h1 {
@@ -178,8 +915,9 @@ article.guia-page h2 {
 article.guia-page blockquote {
   margin: 1rem 0;
   padding: 0.5rem 1rem;
-  border-left: 3px solid light-dark(#3b82f6, #60a5fa);
-  background: light-dark(#f1f5fb, #1c2330);
+  border-left: 4px solid var(--primary);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--primary) 7%, var(--bg));
 }
 
 article.guia-page blockquote p {
@@ -188,7 +926,7 @@ article.guia-page blockquote p {
 
 article.guia-page code,
 article.guia-page pre {
-  background: light-dark(#f3f3f3, #222);
+  background: var(--surface);
   border-radius: 3px;
 }
 
@@ -228,11 +966,11 @@ span.term-tip {
   max-width: min(22rem, 80vw);
   margin-top: 0.25rem;
   padding: 0.5rem 0.75rem;
-  border: 1px solid light-dark(#ccc, #444);
-  border-radius: 4px;
-  background: light-dark(#fff, #1e1e1e);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
-  font-size: 0.9rem;
+  font-size: var(--fs-small);
   font-weight: normal;
   line-height: 1.4;
   text-decoration: none;
@@ -264,152 +1002,23 @@ div.estados {
 
 div.estados span.estado {
   padding: 0.2rem 0.6rem;
-  border: 1px solid light-dark(#bbb, #555);
+  border: 1px solid var(--border);
   border-radius: 999px;
 }
 
 div.estados span.flecha {
-  color: light-dark(#666, #aaa);
-  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
 }
 
-/* "?" next to a screen's heading, opening its section of the user guide. */
-a.help-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.3rem;
-  height: 1.3rem;
-  margin-left: 0.5rem;
-  vertical-align: middle;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  font-size: 0.8rem;
-  font-weight: 600;
-  line-height: 1;
-  text-decoration: none;
-  opacity: 0.6;
-}
-
-a.help-link:hover,
-a.help-link:focus-visible {
-  opacity: 1;
-}
-
-div.overview-stages {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  gap: 1rem;
-}
-
-section.overview-stage {
-  border: 1px solid light-dark(#ddd, #333);
-  border-radius: 6px;
-  padding: 0.75rem 1rem;
-}
-
-section.overview-stage h3 {
-  margin: 0;
-}
-
-section.overview-stage ol {
-  padding-left: 1.25rem;
-  margin: 0;
-}
-
-section.overview-stage li {
-  margin-bottom: 0.4rem;
-}
-
-p.overview-figure strong {
-  font-size: 1.5rem;
-}
-
-footer.build-footer {
-  margin-top: 2rem;
-}
-
-div.table-scroll {
-  overflow-x: auto;
-}
-
-/* Column filters: a funnel in each sortable header that opens a small form. */
-th.col-header {
-  position: relative;
+/* Row actions ("Editar", "Eliminar") on one line, left-aligned so the same button sits
+   in the same place on every row even when some rows have fewer actions. */
+td.actions {
   white-space: nowrap;
 }
 
-details.col-filter {
-  display: inline-block;
-  margin-left: 0.25rem;
-}
-
-details.col-filter > summary {
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
-  list-style: none;
-  color: light-dark(#999, #777);
-}
-
-details.col-filter > summary::-webkit-details-marker {
-  display: none;
-}
-
-details.col-filter.active > summary {
-  color: light-dark(#0b57d0, #8ab4f8);
-}
-
-form.col-filter-panel {
-  position: absolute;
-  z-index: 10;
-  top: 100%;
-  left: 0;
-  min-width: 14rem;
-  padding: 0.75rem;
-  font-weight: normal;
-  white-space: normal;
-  background: Canvas;
-  color: CanvasText;
-  border: 1px solid light-dark(#ccc, #444);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.2);
-}
-
-form.col-filter-panel label {
-  margin-top: 0;
-  margin-bottom: 0.5rem;
-}
-
-form.col-filter-panel input,
-form.col-filter-panel select {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-div.col-filter-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-p.active-filters {
-  margin: 0.75rem 0 0;
-  font-size: 0.9rem;
-}
-
-/* Keep the last columns' panels inside the viewport. */
-th.col-header:nth-last-child(-n + 2) form.col-filter-panel {
-  left: auto;
-  right: 0;
-}
-
-.comment-body {
-  white-space: pre-wrap;
-}
-
-.quote-info {
-  margin-bottom: 2rem;
+td.actions > * + * {
+  margin-left: 0.4rem;
 }
 
 nav.pager {

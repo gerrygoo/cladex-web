@@ -33,19 +33,18 @@ type QuoteLineView struct {
 
 templ QuotesList(quotes []store.Quote, lv ListView, customers, authors []string, successMsg string, user *NavUser) {
 	@Layout("Cotizaciones", user) {
-		<h1>
-			Cotizaciones
+		<div class="page-title">
+			<h1>Cotizaciones</h1>
 			@HelpLink(HelpCotizaciones)
-		</h1>
-		if successMsg != "" {
-			<p class="success">{ successMsg }</p>
-		}
+		</div>
+		@Flash(successMsg)
 		<div class="toolbar">
 			<form method="get" action="/cotizaciones" role="search">
 				<input
 					type="search"
 					name="q"
 					placeholder="Buscar por folio o cliente…"
+					aria-label="Buscar por folio o cliente"
 					value={ lv.Query }
 					hx-get="/cotizaciones"
 					hx-trigger="keyup changed delay:400ms, search"
@@ -57,7 +56,7 @@ templ QuotesList(quotes []store.Quote, lv ListView, customers, authors []string,
 				@listHiddenInputs(lv, "q")
 				<button type="submit">Buscar</button>
 			</form>
-			<a href="/cotizaciones/nueva"><button type="button">Nueva cotización</button></a>
+			<a class="button primary" href="/cotizaciones/nueva">Nueva cotización</a>
 		</div>
 		@listActiveFilters(lv)
 		<table>
@@ -78,7 +77,7 @@ templ QuotesList(quotes []store.Quote, lv ListView, customers, authors []string,
 }
 
 templ QuotesTableBody(quotes []store.Quote) {
-	<tbody id="cotizaciones-tbody">
+	<tbody id="cotizaciones-tbody" data-announce={ countAnnouncement(len(quotes), "cotización", "cotizaciones") }>
 		if len(quotes) == 0 {
 			<tr>
 				<td colspan="6">No se encontraron cotizaciones.</td>
@@ -89,9 +88,12 @@ templ QuotesTableBody(quotes []store.Quote) {
 				<td><a href={ templ.URL("/cotizaciones/" + q.Folio) }>{ q.Folio }</a></td>
 				<td>{ q.CustomerName }</td>
 				<td>{ q.UserName }</td>
-				<td>{ q.Status }</td>
-				<td>{ q.Total.String() }</td>
-				<td>@Timestamp(q.CreatedAt)</td>
+				<td>@StatusBadge(q.Status)
+</td>
+				<td class="num">{ q.Total.String() }</td>
+				<td>
+					@Timestamp(q.CreatedAt)
+				</td>
 			</tr>
 		}
 	</tbody>
@@ -129,14 +131,14 @@ func QuotePrefixFamily(prefix string) string {
 
 templ QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldErrors map[string]string, user *NavUser) {
 	@Layout("Nueva cotización", user) {
-		<h1>
-			Nueva cotización
+		<div class="page-title">
+			<h1>Nueva cotización</h1>
 			@HelpLink(HelpCotizacionNueva)
-		</h1>
+		</div>
 		<form method="post" action={ templ.URL("/cotizaciones/nueva") }>
 			<label>
 				Cliente
-				<select name="customer_id" required>
+				<select name="customer_id" required { errAttrs(fieldErrors, "customer_id")... }>
 					<option value="">— Selecciona —</option>
 					for _, c := range customers {
 						if strconv.FormatInt(c.ID, 10) == values.CustomerID {
@@ -147,26 +149,18 @@ templ QuoteNewForm(customers []store.Customer, values QuoteNewFormValues, fieldE
 					}
 				</select>
 			</label>
-			if fieldErrors["customer_id"] != "" {
-				<p class="error">{ fieldErrors["customer_id"] }</p>
-			}
-			<fieldset>
+			@FieldError(fieldErrors, "customer_id")
+			<fieldset role="radiogroup" { errAttrs(fieldErrors, "prefix")... }>
 				<legend>Serie de folio</legend>
 				for _, opt := range quotePrefixOptions {
 					<label>
-						if opt.Code == values.Prefix {
-							<input type="radio" name="prefix" value={ opt.Code } checked/>
-						} else {
-							<input type="radio" name="prefix" value={ opt.Code }/>
-						}
+						<input type="radio" name="prefix" value={ opt.Code } checked?={ opt.Code == values.Prefix }/>
 						{ opt.Label }
 					</label>
 				}
+				@FieldError(fieldErrors, "prefix")
 			</fieldset>
-			if fieldErrors["prefix"] != "" {
-				<p class="error">{ fieldErrors["prefix"] }</p>
-			}
-			<button type="submit">Crear cotización</button>
+			<button type="submit" class="primary">Crear cotización</button>
 			<a href="/cotizaciones">Cancelar</a>
 		</form>
 	}
@@ -206,6 +200,36 @@ func lineKeysValue(lines []QuoteLineView) string {
 	return strings.Join(keys, ",")
 }
 
+// lineFieldID is a stable id for one of a line's controls. htmx puts focus back on the
+// element with the same id after it swaps the lines fragment, so tabbing out of a
+// quantity (which recalculates) doesn't drop focus to the top of the page.
+func lineFieldID(key, field string) string {
+	return "linea-" + key + "-" + field
+}
+
+// lineLabel names a line for screen readers: its product, or the free line's description.
+func lineLabel(line QuoteLineView) string {
+	if line.IsFree {
+		if line.Description == "" {
+			return "línea libre"
+		}
+		return line.Description
+	}
+	return line.ProductLabel
+}
+
+// pickerAnnouncement is what the live region reads out after the product picker updates.
+func pickerAnnouncement(picker ProductPicker) string {
+	switch picker.Total {
+	case 0:
+		return "Ningún producto encontrado"
+	case 1:
+		return "1 producto"
+	default:
+		return strconv.Itoa(picker.Total) + " productos"
+	}
+}
+
 templ quoteLineRow(folio string, line QuoteLineView) {
 	<tr>
 		<td>
@@ -213,9 +237,11 @@ templ quoteLineRow(folio string, line QuoteLineView) {
 			if line.IsFree {
 				<input
 					type="text"
+					id={ lineFieldID(line.Key, "description") }
 					name={ "lines[" + line.Key + "][description]" }
 					value={ line.Description }
 					placeholder="Descripción"
+					aria-label="Descripción de la línea libre"
 					hx-post={ recalcularPath(folio) }
 					hx-trigger="change"
 					hx-target="#quote-lines-fragment"
@@ -226,11 +252,15 @@ templ quoteLineRow(folio string, line QuoteLineView) {
 				{ line.ProductLabel }
 			}
 		</td>
-		<td>
+		<td class="num">
 			<input
 				type="text"
+				inputmode="decimal"
+				class="num"
+				id={ lineFieldID(line.Key, "qty") }
 				name={ "lines[" + line.Key + "][qty]" }
 				value={ line.QtyRaw }
+				aria-label={ "Cantidad: " + lineLabel(line) }
 				size="6"
 				hx-post={ recalcularPath(folio) }
 				hx-trigger="change"
@@ -241,12 +271,15 @@ templ quoteLineRow(folio string, line QuoteLineView) {
 				{ line.UnitCode }
 			}
 		</td>
-		<td>
+		<td class="num">
 			if line.IsFree {
 				<input
 					type="text"
+					inputmode="decimal"
+					id={ lineFieldID(line.Key, "unit_price") }
 					name={ "lines[" + line.Key + "][unit_price]" }
 					value={ line.UnitPriceRaw }
+					aria-label={ "Precio unitario: " + lineLabel(line) }
 					placeholder="p. ej. 123.45"
 					hx-post={ recalcularPath(folio) }
 					hx-trigger="change"
@@ -257,17 +290,19 @@ templ quoteLineRow(folio string, line QuoteLineView) {
 				{ line.UnitPriceMicros.ToCentavosHalfUp().String() }
 			}
 		</td>
-		<td>{ line.LineTotal.String() }</td>
-		<td>
+		<td class="num">{ line.LineTotal.String() }</td>
+		<td class="actions">
 			<button
 				type="submit"
+				class="danger"
+				id={ lineFieldID(line.Key, "remove") }
 				name="remove_key"
 				value={ line.Key }
 				hx-post={ recalcularPath(folio) }
 				hx-target="#quote-lines-fragment"
 				hx-swap="outerHTML"
 			>
-				Eliminar
+				Eliminar<span class="visually-hidden">{ " " + lineLabel(line) }</span>
 			</button>
 		</td>
 	</tr>
@@ -286,36 +321,35 @@ templ quoteLineRow(folio string, line QuoteLineView) {
 // to the dropdown so that picking another option (which swaps only this fragment)
 // clears it.
 templ QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, marginError string) {
-	<div id="quote-lines-fragment">
+	<div id="quote-lines-fragment" tabindex="-1" data-announce={ "Total: " + totals.Total.String() }>
 		<input type="hidden" name="line_keys" value={ lineKeysValue(lines) }/>
 		if marginError != "" {
 			<p class="error">{ marginError }</p>
 		}
-		<table>
-			<thead>
-				<tr>
-					<th>Producto / Descripción</th>
-					<th>Cantidad</th>
-					<th>Precio unitario</th>
-					<th>Total</th>
-					<th></th>
-				</tr>
-			</thead>
-			<tbody>
-				if len(lines) == 0 {
+		<div class="table-scroll">
+			<table>
+				<caption class="visually-hidden">Líneas de la cotización</caption>
+				<thead>
 					<tr>
-						<td colspan="5">Sin líneas todavía.</td>
+						<th>Producto / Descripción</th>
+						<th class="num">Cantidad</th>
+						<th class="num">Precio unitario</th>
+						<th class="num">Total</th>
+						<th><span class="visually-hidden">Acciones</span></th>
 					</tr>
-				}
-				for _, line := range lines {
-					@quoteLineRow(quote.Folio, line)
-				}
-			</tbody>
-		</table>
-		<div class="quote-totals">
-			<p>Subtotal: { totals.Subtotal.String() }</p>
-			<p>IVA (16%): { totals.IVA.String() }</p>
-			<p><strong>Total: { totals.Total.String() }</strong></p>
+				</thead>
+				<tbody>
+					if len(lines) == 0 {
+						<tr>
+							<td colspan="5">Sin líneas todavía.</td>
+						</tr>
+					}
+					for _, line := range lines {
+						@quoteLineRow(quote.Folio, line)
+					}
+				</tbody>
+				@quoteTotals(totals, 1)
+			</table>
 		</div>
 		if used := materialsInUse(lines); len(used) > 0 {
 			<p class="hint">
@@ -356,7 +390,7 @@ func productPickerPath(folio string) string {
 // fragment, so the picker stays on the same page for adding several products in a row.
 // Not scoped to the quote's own folio prefix; any product may be added to any quote.
 templ ProductSearchResults(picker ProductPicker) {
-	<div id="product-search-results">
+	<div id="product-search-results" data-announce={ pickerAnnouncement(picker) }>
 		if len(picker.Products) > 0 {
 			<ul>
 				for _, p := range picker.Products {
@@ -428,47 +462,66 @@ func revisarPath(folio string) string {
 // inputs, no remove buttons, nothing that implies the row can still change. Used
 // instead of QuoteLinesFragment once a quote leaves 'borrador'.
 templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
-	<table>
-		<thead>
-			<tr>
-				<th>Producto / Descripción</th>
-				<th>Cantidad</th>
-				<th>Precio unitario</th>
-				<th>Total</th>
-			</tr>
-		</thead>
-		<tbody>
-			if len(lines) == 0 {
+	<div class="table-scroll">
+		<table>
+			<thead>
 				<tr>
-					<td colspan="4">Sin líneas.</td>
+					<th>Producto / Descripción</th>
+					<th class="num">Cantidad</th>
+					<th class="num">Precio unitario</th>
+					<th class="num">Total</th>
 				</tr>
-			}
-			for _, line := range lines {
-				<tr>
-					<td>
-						if line.IsFree {
-							{ line.Description }
-						} else {
-							{ line.ProductLabel }
-						}
-					</td>
-					<td>
-						{ line.QtyMilli.String() }
-						if line.UnitCode != "" {
-							{ " " + line.UnitCode }
-						}
-					</td>
-					<td>{ line.UnitPriceMicros.ToCentavosHalfUp().String() }</td>
-					<td>{ line.LineTotal.String() }</td>
-				</tr>
-			}
-		</tbody>
-	</table>
-	<div class="quote-totals">
-		<p>Subtotal: { totals.Subtotal.String() }</p>
-		<p>IVA (16%): { totals.IVA.String() }</p>
-		<p><strong>Total: { totals.Total.String() }</strong></p>
+			</thead>
+			<tbody>
+				if len(lines) == 0 {
+					<tr>
+						<td colspan="4">Sin líneas.</td>
+					</tr>
+				}
+				for _, line := range lines {
+					<tr>
+						<td>
+							if line.IsFree {
+								{ line.Description }
+							} else {
+								{ line.ProductLabel }
+							}
+						</td>
+						<td class="num">
+							{ line.QtyMilli.String() }
+							if line.UnitCode != "" {
+								{ " " + line.UnitCode }
+							}
+						</td>
+						<td class="num">{ line.UnitPriceMicros.ToCentavosHalfUp().String() }</td>
+						<td class="num">{ line.LineTotal.String() }</td>
+					</tr>
+				}
+			</tbody>
+			@quoteTotals(totals, 0)
+		</table>
 	</div>
+}
+
+// quoteTotals is the Subtotal / IVA / Total rows at the foot of a lines table, the
+// figures under the Total column. trailing is the number of columns after Total (the
+// editable table's actions column).
+templ quoteTotals(totals pricing.Totals, trailing int) {
+	<tfoot>
+		@quoteTotalRow("Subtotal", totals.Subtotal.String(), trailing, false)
+		@quoteTotalRow("IVA (16%)", totals.IVA.String(), trailing, false)
+		@quoteTotalRow("Total", totals.Total.String(), trailing, true)
+	</tfoot>
+}
+
+templ quoteTotalRow(label, amount string, trailing int, grand bool) {
+	<tr class={ templ.KV("grand", grand) }>
+		<th scope="row" colspan="3" class="num">{ label }</th>
+		<td class="num">{ amount }</td>
+		if trailing > 0 {
+			<td colspan={ strconv.Itoa(trailing) }></td>
+		}
+	</tr>
 }
 
 // QuoteBuilder is the main /cotizaciones/{folio} page. A draft ('borrador') gets the
@@ -487,19 +540,22 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
 templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser) {
 	@Layout("Cotización "+quote.Folio, user) {
 		<script src="/static/margin.js" defer></script>
-		<h1>
-			Cotización { quote.Folio }
+		<div class="page-title">
+			<h1>Cotización { quote.Folio }</h1>
 			@HelpLink(quoteHelpTopic(quote.Status))
-		</h1>
+		</div>
 		<p>Cliente: { quote.CustomerName }</p>
 		if quote.SupersedesFolio != "" {
 			<p>Esta es una revisión de <a href={ templ.URL("/cotizaciones/" + quote.SupersedesFolio) }>{ quote.SupersedesFolio }</a>.</p>
 		}
-		if successMsg != "" {
-			<p class="success">{ successMsg }</p>
-		}
+		@Flash(successMsg)
 		if quote.Status == "borrador" {
-			<form id="linea-form" method="post" action={ templ.URL(recalcularPath(quote.Folio)) }>
+			<form
+				id="linea-form"
+				method="post"
+				action={ templ.URL(recalcularPath(quote.Folio)) }
+				data-guard-unsaved
+			>
 				// Enter in any text field (e.g. iOS's "Ir" key on a qty input) does an
 				// implicit submit through the form's first submit button. Without this, that
 				// was "Buscar" — a GET reload from the DB that dropped every unsaved line.
@@ -515,7 +571,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 				>
 					Recalcular
 				</button>
-				<div id="margin-controls" data-copper-cost={ margin.CopperCost }>
+				<div id="margin-controls" class="quote-meta" data-copper-cost={ margin.CopperCost }>
 					<label>
 						Margen
 						<select
@@ -575,62 +631,86 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 						</span>
 					}
 				</div>
-				<div class="toolbar">
-					<input
-						type="search"
-						name="q"
-						placeholder="Buscar producto por SKU o descripción…"
-						value={ picker.Query }
-						hx-get={ productPickerPath(quote.Folio) }
-						hx-trigger="keyup changed delay:400ms, search"
-						hx-include="#linea-form [name='solo_familia']"
-						hx-target="#product-search-results"
-						hx-swap="outerHTML"
-					/>
-					<button type="submit" formmethod="get" formaction={ "/cotizaciones/" + quote.Folio }>Buscar</button>
-					if family := QuotePrefixFamily(quote.Prefix); family != "" {
-						<input type="hidden" name="solo_familia" value="0"/>
-						<label>
-							<input
-								type="checkbox"
-								name="solo_familia"
-								value="1"
-								checked?={ picker.SoloFamilia }
-								hx-get={ productPickerPath(quote.Folio) }
-								hx-trigger="change"
-								hx-include="#linea-form [name='q'], #linea-form [name='solo_familia']"
-								hx-target="#product-search-results"
-								hx-swap="outerHTML"
-							/>
-							Solo productos de la familia { family }
-						</label>
-					}
+				@QuoteLinesFragment(quote, lines, totals, margin.Error)
+				<div class="quote-actions">
+					<button type="submit" formaction={ guardarPath(quote.Folio) } data-guard-save>
+						Guardar borrador
+					</button>
 					<button
 						type="submit"
-						name="add_free"
-						value="1"
-						hx-post={ recalcularPath(quote.Folio) }
-						hx-target="#quote-lines-fragment"
-						hx-swap="outerHTML"
+						class="primary"
+						formaction={ emitirPath(quote.Folio) }
+						data-guard-save
+						data-confirm="¿Emitir la cotización? Sus precios quedan congelados; para cambiarla después habrá que crear una revisión."
 					>
-						Línea libre
+						Emitir cotización
 					</button>
+					<span
+						class="save-status saved"
+						data-unsaved-status
+						data-saved-text="Todos los cambios guardados."
+						data-unsaved-text="Hay cambios sin guardar."
+						data-busy-text="Recalculando…"
+					>Todos los cambios guardados.</span>
 				</div>
-				@ProductSearchResults(picker)
-				@QuoteLinesFragment(quote, lines, totals, margin.Error)
-				<button type="submit" formaction={ guardarPath(quote.Folio) }>
-					Guardar borrador
-				</button>
-				<button type="submit" formaction={ emitirPath(quote.Folio) }>
-					Emitir cotización
-				</button>
+				<section class="quote-add" aria-labelledby="agregar-lineas">
+					<h2 id="agregar-lineas">Agregar líneas</h2>
+					<div class="toolbar">
+						<input
+							type="search"
+							name="q"
+							placeholder="Buscar producto por SKU o descripción…"
+							aria-label="Buscar producto por SKU o descripción"
+							value={ picker.Query }
+							hx-get={ productPickerPath(quote.Folio) }
+							hx-trigger="keyup changed delay:400ms, search"
+							data-guard-ignore
+							hx-include="#linea-form [name='solo_familia']"
+							hx-target="#product-search-results"
+							hx-swap="outerHTML"
+						/>
+						<button type="submit" formmethod="get" formaction={ "/cotizaciones/" + quote.Folio }>Buscar</button>
+						if family := QuotePrefixFamily(quote.Prefix); family != "" {
+							<input type="hidden" name="solo_familia" value="0"/>
+							<label>
+								<input
+									type="checkbox"
+									name="solo_familia"
+									value="1"
+									checked?={ picker.SoloFamilia }
+									data-guard-ignore
+									hx-get={ productPickerPath(quote.Folio) }
+									hx-trigger="change"
+									hx-include="#linea-form [name='q'], #linea-form [name='solo_familia']"
+									hx-target="#product-search-results"
+									hx-swap="outerHTML"
+								/>
+								Solo productos de la familia { family }
+							</label>
+						}
+					</div>
+					@ProductSearchResults(picker)
+					<p class="picker-free">
+						¿No está en el catálogo?
+						<button
+							type="submit"
+							name="add_free"
+							value="1"
+							hx-post={ recalcularPath(quote.Folio) }
+							hx-target="#quote-lines-fragment"
+							hx-swap="outerHTML"
+						>
+							Línea libre
+						</button>
+					</p>
+				</section>
 			</form>
 		} else {
 			@QuoteInfo(quote, lines)
 			@QuoteLinesReadOnly(lines, totals)
 			if quote.Status == "emitida" {
 				<form method="post" action={ templ.URL(revisarPath(quote.Folio)) }>
-					<button type="submit">Revisar</button>
+					<button type="submit" class="primary">Revisar</button>
 				</form>
 			} else if quote.Status == "revisada" && quote.SupersededByFolio != "" {
 				<p>Esta cotización fue revisada. Ver <a href={ templ.URL("/cotizaciones/" + quote.SupersededByFolio) }>{ quote.SupersededByFolio }</a>.</p>
@@ -649,7 +729,8 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 templ QuoteInfo(quote store.Quote, lines []QuoteLineView) {
 	<dl class="quote-info">
 		<dt>Estado</dt>
-		<dd>{ quote.Status }</dd>
+		<dd>@StatusBadge(quote.Status)
+</dd>
 		<dt>Emitió</dt>
 		<dd>
 			if quote.VendedorSnapshot != nil {
@@ -660,7 +741,9 @@ templ QuoteInfo(quote store.Quote, lines []QuoteLineView) {
 		</dd>
 		if quote.IssuedAt != nil {
 			<dt>Emitida</dt>
-			<dd>@Timestamp(*quote.IssuedAt)</dd>
+			<dd>
+				@Timestamp(*quote.IssuedAt)
+			</dd>
 		}
 		if quote.ValidUntil != nil {
 			<dt>Vigencia</dt>
@@ -704,29 +787,33 @@ templ QuoteComments(folio string, comments []store.QuoteComment, lv ListView) {
 			</label>
 			<button type="submit">Comentar</button>
 		</form>
-		<table>
-			<thead>
-				<tr>
-					<th>Fecha</th>
-					<th>Usuario</th>
-					<th>Comentario</th>
-				</tr>
-			</thead>
-			<tbody>
-				if len(comments) == 0 {
+		<div class="table-scroll">
+			<table>
+				<thead>
 					<tr>
-						<td colspan="3">Sin comentarios.</td>
+						<th>Fecha</th>
+						<th>Usuario</th>
+						<th>Comentario</th>
 					</tr>
-				}
-				for _, c := range comments {
-					<tr>
-						<td>@Timestamp(c.CreatedAt)</td>
-						<td>{ c.UserName }</td>
-						<td class="comment-body">{ c.Body }</td>
-					</tr>
-				}
-			</tbody>
-		</table>
+				</thead>
+				<tbody>
+					if len(comments) == 0 {
+						<tr>
+							<td colspan="3">Sin comentarios.</td>
+						</tr>
+					}
+					for _, c := range comments {
+						<tr>
+							<td>
+								@Timestamp(c.CreatedAt)
+							</td>
+							<td>{ c.UserName }</td>
+							<td class="comment-body">{ c.Body }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
 		@listPager(lv, false)
 	</section>
 }

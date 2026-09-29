@@ -42,8 +42,9 @@ el nombre de la cotización arriba y el cliente debajo. Es un [[borrador]]: lo r
 
 Con la cotización en borrador:
 
-1. Debajo del buscador ya aparece la lista de productos de la familia de la serie, en
-   orden de SKU, 10 por página, cada uno como botón:
+1. Debajo de las líneas y los totales está la sección **Agregar líneas**. Ahí ya aparece
+   la lista de productos de la familia de la serie, en orden de SKU, 10 por página, cada
+   uno como botón:
    `SKU — Descripción (precio)`. No hace falta escribir nada para verlos.
    - Usa **« Anterior** y **Siguiente »** para moverte entre páginas; la línea
      *"Página 1 de 3 · 23 productos"* te dice cuántos hay.
@@ -55,7 +56,8 @@ Con la cotización en borrador:
      aparecen productos de la familia de la serie. Desmárcala para ver o buscar en todo
      el catálogo; cualquier producto se puede agregar a cualquier cotización.
 2. Haz clic en el producto. Se agrega como una línea nueva, con cantidad 1 y su precio
-   ya calculado. La lista se queda en la misma página.
+   ya calculado. La lista se queda en la misma página y en el mismo lugar de la
+   pantalla, así que puedes seguir haciendo clic en el siguiente producto.
 3. Repite para cada producto.
 
 > El precio de una línea **lo calcula el sistema** a partir del catálogo, el
@@ -115,7 +117,8 @@ y su porcentaje. Si vuelves a elegir uno de la lista, el margen propio se descar
 
 Para conceptos que no están en el catálogo: un flete, un producto especial, un servicio.
 
-1. Haz clic en **Línea libre**. Aparece una línea nueva.
+1. En **Agregar líneas**, junto a *"¿No está en el catálogo?"*, haz clic en **Línea libre**.
+   Aparece una línea nueva.
 2. Escribe la **Descripción**; así aparecerá en el PDF.
 3. Escribe el **Precio unitario** en pesos, sin signo `$` (p. ej. `123.45`).
 4. Ajusta la **Cantidad** si no es 1.
@@ -124,18 +127,23 @@ Para conceptos que no están en el catálogo: un flete, un producto especial, un
 
 Haz clic en **Eliminar** en la fila de la línea. No pide confirmación.
 
-> ¿Quitaste una línea por error? Recarga la página **sin guardar**: vuelves a lo último
-> que guardaste.
+> ¿Quitaste una línea por error? Recarga la página **sin guardar** y acepta el aviso del
+> navegador de que hay cambios sin guardar: vuelves a lo último que guardaste.
 
 ## Guardar el borrador
 
-Los cambios en las líneas **no se guardan solos**.
+Los cambios en las líneas y en el margen **no se guardan solos**. Junto a los botones,
+debajo de los totales, siempre ves en qué estado está la cotización:
+
+- *"Todos los cambios guardados."* (en verde): no hay nada pendiente.
+- *"Recalculando…"*: el sistema está actualizando los precios.
+- *"Hay cambios sin guardar."* (en ámbar): guarda antes de salir.
 
 1. Haz clic en **Guardar borrador**.
 2. Verás *"Borrador guardado."*
 
-> Si sales de la página o la recargas sin guardar, pierdes los cambios desde la última
-> vez que guardaste.
+> Si intentas salir de la página o recargarla con cambios sin guardar, el navegador te
+> pregunta antes. Si confirmas, pierdes los cambios desde la última vez que guardaste.
 
 > Si alguna línea tiene un error (un mensaje en rojo debajo de ella), no se guarda nada
 > hasta corregirla. Ver [problemas comunes](#problemas-comunes).
@@ -163,9 +171,10 @@ Cuando la cotización está lista para enviarse al cliente:
 
 1. Revisa las líneas y los totales.
 2. Haz clic en **Emitir cotización**. Guarda las líneas que están en pantalla y emite en
-   un solo paso: no hace falta guardar antes. **No hay paso de confirmación**: al hacer
-   clic, se emite.
-3. Verás *"Cotización emitida."* y, en el resumen debajo del cliente, **Estado** *emitida*.
+   un solo paso: no hace falta guardar antes.
+3. Confirma *"¿Emitir la cotización? Sus precios quedan congelados; para cambiarla
+   después habrá que crear una revisión."*
+4. Verás *"Cotización emitida."* y, en el resumen debajo del cliente, **Estado** *emitida*.
 
 Qué pasa al emitir:
 

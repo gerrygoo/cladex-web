@@ -3,19 +3,17 @@ package views
 templ Login(errorMsg string, username string) {
 	@Layout("Iniciar sesión", nil) {
 		<h1>Iniciar sesión</h1>
-		if errorMsg != "" {
-			<p class="error">{ errorMsg }</p>
-		}
+		@FormError(errorMsg)
 		<form method="post" action="/login">
 			<label>
 				Usuario
-				<input type="text" name="username" value={ username } required autofocus/>
+				<input type="text" name="username" value={ username } required autofocus autocomplete="username" autocapitalize="none"/>
 			</label>
 			<label>
 				Contraseña
-				<input type="password" name="password" required/>
+				<input type="password" name="password" required autocomplete="current-password"/>
 			</label>
-			<button type="submit">Entrar</button>
+			<button type="submit" class="primary">Entrar</button>
 		</form>
 	}
 }

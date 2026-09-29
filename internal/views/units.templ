@@ -1,42 +1,38 @@
 package views
 
-import (
-	"github.com/gerrygoo/cladex-web/internal/store"
-)
+import "github.com/gerrygoo/cladex-web/internal/store"
 
 templ UnitsList(units []store.Unit, lv ListView, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Unidades", user) {
-		<h1>
-			Unidades
+		<div class="page-title">
+			<h1>Unidades</h1>
 			@HelpLink(HelpUnidades)
-		</h1>
-		if successMsg != "" {
-			<p class="success">{ successMsg }</p>
-		}
-		if errorMsg != "" {
-			<p class="error">{ errorMsg }</p>
-		}
-		<table>
-			<thead>
-				<tr>
-					<th>Código</th>
-					<th>Nombre</th>
-				</tr>
-			</thead>
-			<tbody>
-				if len(units) == 0 {
+		</div>
+		@Flash(successMsg)
+		@FormError(errorMsg)
+		<div class="table-scroll">
+			<table>
+				<thead>
 					<tr>
-						<td colspan="2">No hay unidades.</td>
+						<th>Código</th>
+						<th>Nombre</th>
 					</tr>
-				}
-				for _, u := range units {
-					<tr>
-						<td>{ u.Code }</td>
-						<td>{ u.Name }</td>
-					</tr>
-				}
-			</tbody>
-		</table>
+				</thead>
+				<tbody>
+					if len(units) == 0 {
+						<tr>
+							<td colspan="2">No hay unidades.</td>
+						</tr>
+					}
+					for _, u := range units {
+						<tr>
+							<td>{ u.Code }</td>
+							<td>{ u.Name }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
 		@listPager(lv, false)
 		<h2>Nueva unidad</h2>
 		<form method="post" action="/unidades">
@@ -48,7 +44,7 @@ templ UnitsList(units []store.Unit, lv ListView, successMsg string, errorMsg str
 				Nombre
 				<input type="text" name="name" placeholder="p. ej. Caja" required/>
 			</label>
-			<button type="submit">Agregar</button>
+			<button type="submit" class="primary">Agregar</button>
 		</form>
 	}
 }

@@ -8,19 +8,18 @@ import (
 
 templ CustomersList(customers []store.Customer, lv ListView, successMsg string, user *NavUser) {
 	@Layout("Clientes", user) {
-		<h1>
-			Clientes
+		<div class="page-title">
+			<h1>Clientes</h1>
 			@HelpLink(HelpClientes)
-		</h1>
-		if successMsg != "" {
-			<p class="success">{ successMsg }</p>
-		}
+		</div>
+		@Flash(successMsg)
 		<div class="toolbar">
 			<form method="get" action="/clientes" role="search">
 				<input
 					type="search"
 					name="q"
 					placeholder="Buscar por nombre, RFC o contacto…"
+					aria-label="Buscar por nombre, RFC o contacto"
 					value={ lv.Query }
 					hx-get="/clientes"
 					hx-trigger="keyup changed delay:400ms, search"
@@ -32,7 +31,7 @@ templ CustomersList(customers []store.Customer, lv ListView, successMsg string, 
 				@listHiddenInputs(lv, "q")
 				<button type="submit">Buscar</button>
 			</form>
-			<a href="/clientes/nuevo"><button type="button">Nuevo cliente</button></a>
+			<a class="button primary" href="/clientes/nuevo">Nuevo cliente</a>
 		</div>
 		@listActiveFilters(lv)
 		<table>
@@ -43,7 +42,7 @@ templ CustomersList(customers []store.Customer, lv ListView, successMsg string, 
 					@columnHeader(lv, "Contacto", "contact_name", textFilter)
 					@columnHeader(lv, "Teléfono", "phone", textFilter)
 					@columnHeader(lv, "Email", "email", textFilter)
-					<th></th>
+					<th><span class="visually-hidden">Acciones</span></th>
 				</tr>
 			</thead>
 			@CustomersTableBody(customers)
@@ -53,7 +52,7 @@ templ CustomersList(customers []store.Customer, lv ListView, successMsg string, 
 }
 
 templ CustomersTableBody(customers []store.Customer) {
-	<tbody id="clientes-tbody">
+	<tbody id="clientes-tbody" data-announce={ countAnnouncement(len(customers), "cliente", "clientes") }>
 		if len(customers) == 0 {
 			<tr>
 				<td colspan="6">No se encontraron clientes.</td>
@@ -66,14 +65,13 @@ templ CustomersTableBody(customers []store.Customer) {
 				<td>{ c.ContactName }</td>
 				<td>{ c.Phone }</td>
 				<td>{ c.Email }</td>
-				<td>
-					<a href={ templ.URL("/clientes/" + strconv.FormatInt(c.ID, 10)) }>Editar</a>
+				<td class="actions">
+					<a class="button" href={ templ.URL("/clientes/" + strconv.FormatInt(c.ID, 10)) }>Editar<span class="visually-hidden">{ " " + c.Name }</span></a>
 					<form
 						method="post"
 						action={ templ.URL("/clientes/" + strconv.FormatInt(c.ID, 10) + "/eliminar") }
-						style="display:inline"
 					>
-						<button type="submit" hx-confirm="¿Eliminar este cliente?">Eliminar</button>
+						<button type="submit" class="danger" data-confirm="¿Eliminar este cliente?">Eliminar<span class="visually-hidden">{ " " + c.Name }</span></button>
 					</form>
 				</td>
 			</tr>
@@ -97,32 +95,26 @@ type CustomerFormValues struct {
 
 templ CustomerForm(title string, action string, values CustomerFormValues, fieldErrors map[string]string, successMsg string, user *NavUser) {
 	@Layout(title, user) {
-		<h1>
-			{ title }
+		<div class="page-title">
+			<h1>{ title }</h1>
 			if action == "/clientes/nuevo" {
 				@HelpLink(HelpClienteNuevo)
 			} else {
 				@HelpLink(HelpClienteEditar)
 			}
-		</h1>
-		if successMsg != "" {
-			<p class="success">{ successMsg }</p>
-		}
+		</div>
+		@Flash(successMsg)
 		<form method="post" action={ templ.URL(action) }>
 			<label>
 				Nombre
-				<input type="text" name="name" value={ values.Name } required/>
+				<input type="text" name="name" value={ values.Name } required { errAttrs(fieldErrors, "name")... }/>
 			</label>
-			if fieldErrors["name"] != "" {
-				<p class="error">{ fieldErrors["name"] }</p>
-			}
+			@FieldError(fieldErrors, "name")
 			<label>
 				RFC (opcional)
-				<input type="text" name="rfc" value={ values.RFC }/>
+				<input type="text" name="rfc" value={ values.RFC } { errAttrs(fieldErrors, "rfc")... }/>
 			</label>
-			if fieldErrors["rfc"] != "" {
-				<p class="error">{ fieldErrors["rfc"] }</p>
-			}
+			@FieldError(fieldErrors, "rfc")
 			<label>
 				Contacto (opcional)
 				<input type="text" name="contact_name" value={ values.ContactName }/>
@@ -133,11 +125,9 @@ templ CustomerForm(title string, action string, values CustomerFormValues, field
 			</label>
 			<label>
 				Email (opcional)
-				<input type="text" name="email" value={ values.Email }/>
+				<input type="text" name="email" value={ values.Email } { errAttrs(fieldErrors, "email")... }/>
 			</label>
-			if fieldErrors["email"] != "" {
-				<p class="error">{ fieldErrors["email"] }</p>
-			}
+			@FieldError(fieldErrors, "email")
 			<label>
 				Dirección (opcional)
 				<input type="text" name="address" value={ values.Address }/>
@@ -154,7 +144,7 @@ templ CustomerForm(title string, action string, values CustomerFormValues, field
 				Notas (opcional)
 				<input type="text" name="notes" value={ values.Notes }/>
 			</label>
-			<button type="submit">Guardar</button>
+			<button type="submit" class="primary">Guardar</button>
 			<a href="/clientes">Cancelar</a>
 		</form>
 	}

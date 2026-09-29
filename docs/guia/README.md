@@ -73,7 +73,8 @@ filtrar por cualquier columna, además de buscar y ordenar:
 
 Puedes combinar filtros de varias columnas, y siguen activos al buscar u ordenar. Para
 quitar uno, abre su embudo y haz clic en **Limpiar**; **Quitar todos** (arriba de la
-tabla) los quita todos. La dirección de la página guarda los filtros, así que puedes
+tabla) los quita todos. Arriba de la tabla siempre ves si hay filtros: *"Filtros activos
+en la tabla."* o *"Sin filtros."* La dirección de la página guarda los filtros, así que puedes
 guardarla o compartirla.
 
 ## Páginas largas
@@ -93,5 +94,7 @@ están en el [glosario](glosario.md).
 Mantenimiento de esta guía: cualquier cambio a una pantalla o flujo de la app actualiza
 la página correspondiente en el mismo commit. Los nombres de botones, campos y mensajes
 se citan exactamente como aparecen en la app. La app sirve estas páginas en /ayuda; ver
-internal/guia para las convenciones ([[término]], :::admin).
+internal/guia para las convenciones ([[término]], :::admin). Hay pruebas que verifican
+que los textos citados sigan coincidiendo con la app (internal/web/guia_test.go, ver
+docs/TESTING.md).
 -->

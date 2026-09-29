@@ -36,19 +36,18 @@ type ProductEditSections struct {
 
 templ ProductsList(products []store.Product, lv ListView, families []FilterOption, units []FilterOption, successMsg string, user *NavUser) {
 	@Layout("Productos", user) {
-		<h1>
-			Productos
+		<div class="page-title">
+			<h1>Productos</h1>
 			@HelpLink(HelpProductos)
-		</h1>
-		if successMsg != "" {
-			<p class="success">{ successMsg }</p>
-		}
+		</div>
+		@Flash(successMsg)
 		<div class="toolbar">
 			<form method="get" action="/productos" role="search">
 				<input
 					type="search"
 					name="q"
 					placeholder="Buscar por SKU o descripción…"
+					aria-label="Buscar por SKU o descripción"
 					value={ lv.Query }
 					hx-get="/productos"
 					hx-trigger="keyup changed delay:400ms, search"
@@ -60,7 +59,7 @@ templ ProductsList(products []store.Product, lv ListView, families []FilterOptio
 				@listHiddenInputs(lv, "q")
 				<button type="submit">Buscar</button>
 			</form>
-			<a href="/productos/nuevo"><button type="button">Nuevo producto</button></a>
+			<a class="button primary" href="/productos/nuevo">Nuevo producto</a>
 		</div>
 		@listActiveFilters(lv)
 		<table>
@@ -71,7 +70,7 @@ templ ProductsList(products []store.Product, lv ListView, families []FilterOptio
 					@columnHeader(lv, "Familia", "familia", enumFilter(families...))
 					@columnHeader(lv, "Costo", "costo", numberFilter)
 					@columnHeader(lv, "Unidad", "unidad", enumFilter(units...))
-					<th></th>
+					<th><span class="visually-hidden">Acciones</span></th>
 				</tr>
 			</thead>
 			@ProductsTableBody(products)
@@ -81,7 +80,7 @@ templ ProductsList(products []store.Product, lv ListView, families []FilterOptio
 }
 
 templ ProductsTableBody(products []store.Product) {
-	<tbody id="productos-tbody">
+	<tbody id="productos-tbody" data-announce={ countAnnouncement(len(products), "producto", "productos") }>
 		if len(products) == 0 {
 			<tr>
 				<td colspan="6">No se encontraron productos.</td>
@@ -92,16 +91,15 @@ templ ProductsTableBody(products []store.Product) {
 				<td>{ p.SKU }</td>
 				<td>{ p.Description }</td>
 				<td>{ p.FamilyName }</td>
-				<td>{ productPriceDisplay(p) }</td>
+				<td class="num">{ productPriceDisplay(p) }</td>
 				<td>{ p.UnitCode }</td>
-				<td>
-					<a href={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10)) }>Editar</a>
+				<td class="actions">
+					<a class="button" href={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10)) }>Editar<span class="visually-hidden">{ " " + p.SKU }</span></a>
 					<form
 						method="post"
 						action={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10) + "/eliminar") }
-						style="display:inline"
 					>
-						<button type="submit" hx-confirm="¿Eliminar este producto?">Eliminar</button>
+						<button type="submit" class="danger" data-confirm="¿Eliminar este producto?">Eliminar<span class="visually-hidden">{ " " + p.SKU }</span></button>
 					</form>
 				</td>
 			</tr>
@@ -125,35 +123,29 @@ type ProductFormValues struct {
 // product, so they only make sense once one exists (see ProductConversionsSection).
 templ ProductForm(title string, action string, values ProductFormValues, fieldErrors map[string]string, successMsg string, families []store.ProductFamily, units []store.Unit, productID int64, sections ProductEditSections, user *NavUser) {
 	@Layout(title, user) {
-		<h1>
-			{ title }
+		<div class="page-title">
+			<h1>{ title }</h1>
 			if productID == 0 {
 				@HelpLink(HelpProductoNuevo)
 			} else {
 				@HelpLink(HelpProductoEditar)
 			}
-		</h1>
-		if successMsg != "" {
-			<p class="success">{ successMsg }</p>
-		}
+		</div>
+		@Flash(successMsg)
 		<form method="post" action={ templ.URL(action) }>
 			<label>
 				SKU
-				<input type="text" name="sku" value={ values.SKU } required/>
+				<input type="text" name="sku" value={ values.SKU } required { errAttrs(fieldErrors, "sku")... }/>
 			</label>
-			if fieldErrors["sku"] != "" {
-				<p class="error">{ fieldErrors["sku"] }</p>
-			}
+			@FieldError(fieldErrors, "sku")
 			<label>
 				Descripción
-				<input type="text" name="description" value={ values.Description } required/>
+				<input type="text" name="description" value={ values.Description } required { errAttrs(fieldErrors, "description")... }/>
 			</label>
-			if fieldErrors["description"] != "" {
-				<p class="error">{ fieldErrors["description"] }</p>
-			}
+			@FieldError(fieldErrors, "description")
 			<label>
 				Familia
-				<select name="family_id" required>
+				<select name="family_id" required { errAttrs(fieldErrors, "family_id")... }>
 					<option value="">— Selecciona —</option>
 					for _, f := range families {
 						if strconv.FormatInt(f.ID, 10) == values.FamilyID {
@@ -164,23 +156,17 @@ templ ProductForm(title string, action string, values ProductFormValues, fieldEr
 					}
 				</select>
 			</label>
-			if fieldErrors["family_id"] != "" {
-				<p class="error">{ fieldErrors["family_id"] }</p>
-			}
+			@FieldError(fieldErrors, "family_id")
 			<label>
 				Costo (pesos, sin margen — opcional si el producto tiene materiales)
-				<input type="text" name="cost" value={ values.Cost } placeholder="p. ej. 45.00"/>
+				<input type="text" name="cost" value={ values.Cost } placeholder="p. ej. 45.00" { errAttrs(fieldErrors, "cost")... }/>
 			</label>
-			if fieldErrors["cost"] != "" {
-				<p class="error">{ fieldErrors["cost"] }</p>
-			}
+			@FieldError(fieldErrors, "cost")
 			<label>
 				Peso (kg/m, opcional — solo informativo, no cambia el precio)
-				<input type="text" name="kg_per_m" value={ values.KgPerM } placeholder="p. ej. 0.123"/>
+				<input type="text" name="kg_per_m" value={ values.KgPerM } placeholder="p. ej. 0.123" { errAttrs(fieldErrors, "kg_per_m")... }/>
 			</label>
-			if fieldErrors["kg_per_m"] != "" {
-				<p class="error">{ fieldErrors["kg_per_m"] }</p>
-			}
+			@FieldError(fieldErrors, "kg_per_m")
 			<label>
 				Unidad (opcional)
 				<select name="unit_id">
@@ -194,7 +180,7 @@ templ ProductForm(title string, action string, values ProductFormValues, fieldEr
 					}
 				</select>
 			</label>
-			<button type="submit">Guardar</button>
+			<button type="submit" class="primary">Guardar</button>
 			<a href="/productos">Cancelar</a>
 		</form>
 		if productID != 0 {
@@ -208,46 +194,45 @@ templ ProductForm(title string, action string, values ProductFormValues, fieldEr
 // to add another. rate_micros is displayed and entered as a plain decimal (the amount
 // of "A" per 1 "De" — see migrations/0003_add_units_and_conversions.sql).
 templ ProductConversionsSection(productID int64, conversions []store.ProductUnitConversion, units []store.Unit, errorMsg string) {
-	<h2>
-		Conversiones de unidades
-		@HelpLink(HelpConversiones)
-	</h2>
-	if errorMsg != "" {
-		<p class="error">{ errorMsg }</p>
-	}
-	<table>
-		<thead>
-			<tr>
-				<th>De</th>
-				<th>A</th>
-				<th>Tasa (A por 1 De)</th>
-				<th></th>
-			</tr>
-		</thead>
-		<tbody>
-			if len(conversions) == 0 {
+	<div class="section-title">
+		<h2>Conversiones de unidades</h2>
+		@SectionHelpLink(HelpConversiones, "conversiones de unidades")
+	</div>
+	@FormError(errorMsg)
+	<div class="table-scroll">
+		<table>
+			<thead>
 				<tr>
-					<td colspan="4">Sin conversiones registradas.</td>
+					<th>De</th>
+					<th>A</th>
+					<th>Tasa (A por 1 De)</th>
+					<th><span class="visually-hidden">Acciones</span></th>
 				</tr>
-			}
-			for _, c := range conversions {
-				<tr>
-					<td>{ c.FromUnitCode }</td>
-					<td>{ c.ToUnitCode }</td>
-					<td>{ c.RateMicros.String() }</td>
-					<td>
-						<form
-							method="post"
-							action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/conversiones/" + strconv.FormatInt(c.ID, 10) + "/eliminar") }
-							style="display:inline"
-						>
-							<button type="submit" hx-confirm="¿Eliminar esta conversión?">Eliminar</button>
-						</form>
-					</td>
-				</tr>
-			}
-		</tbody>
-	</table>
+			</thead>
+			<tbody>
+				if len(conversions) == 0 {
+					<tr>
+						<td colspan="4">Sin conversiones registradas.</td>
+					</tr>
+				}
+				for _, c := range conversions {
+					<tr>
+						<td>{ c.FromUnitCode }</td>
+						<td>{ c.ToUnitCode }</td>
+						<td>{ c.RateMicros.String() }</td>
+						<td>
+							<form
+								method="post"
+								action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/conversiones/" + strconv.FormatInt(c.ID, 10) + "/eliminar") }
+							>
+								<button type="submit" class="danger" data-confirm="¿Eliminar esta conversión?">Eliminar<span class="visually-hidden">{ " " + ("conversión " + c.FromUnitCode + " a " + c.ToUnitCode) }</span></button>
+							</form>
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
 	<form method="post" action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/conversiones") }>
 		<label>
 			De
@@ -277,46 +262,45 @@ templ ProductConversionsSection(productID int64, conversions []store.ProductUnit
 // form to add another material. A product's cost is its Costo field plus each
 // material's quantity x current price; see internal/pricing.
 templ ProductMaterialsSection(productID int64, materials []store.ProductMaterial, all []store.Material, errorMsg string) {
-	<h2>
-		Materiales
-		@HelpLink(HelpProductoMateriales)
-	</h2>
-	if errorMsg != "" {
-		<p class="error">{ errorMsg }</p>
-	}
-	<table>
-		<thead>
-			<tr>
-				<th>Material</th>
-				<th>Cantidad por unidad del producto</th>
-				<th>Precio del material</th>
-				<th></th>
-			</tr>
-		</thead>
-		<tbody>
-			if len(materials) == 0 {
+	<div class="section-title">
+		<h2>Materiales</h2>
+		@SectionHelpLink(HelpProductoMateriales, "los materiales del producto")
+	</div>
+	@FormError(errorMsg)
+	<div class="table-scroll">
+		<table>
+			<thead>
 				<tr>
-					<td colspan="4">Sin materiales registrados.</td>
+					<th>Material</th>
+					<th>Cantidad por unidad del producto</th>
+					<th>Precio del material</th>
+					<th><span class="visually-hidden">Acciones</span></th>
 				</tr>
-			}
-			for _, m := range materials {
-				<tr>
-					<td>{ m.Material.Name }</td>
-					<td>{ m.QtyPerUnitMicros.String() } { m.Material.UnitCode }</td>
-					<td>{ MaterialPrice(m.Material) }</td>
-					<td>
-						<form
-							method="post"
-							action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/materiales/" + strconv.FormatInt(m.ID, 10) + "/eliminar") }
-							style="display:inline"
-						>
-							<button type="submit" hx-confirm="¿Quitar este material?">Eliminar</button>
-						</form>
-					</td>
-				</tr>
-			}
-		</tbody>
-	</table>
+			</thead>
+			<tbody>
+				if len(materials) == 0 {
+					<tr>
+						<td colspan="4">Sin materiales registrados.</td>
+					</tr>
+				}
+				for _, m := range materials {
+					<tr>
+						<td>{ m.Material.Name }</td>
+						<td>{ m.QtyPerUnitMicros.String() } { m.Material.UnitCode }</td>
+						<td>{ MaterialPrice(m.Material) }</td>
+						<td>
+							<form
+								method="post"
+								action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/materiales/" + strconv.FormatInt(m.ID, 10) + "/eliminar") }
+							>
+								<button type="submit" class="danger" data-confirm="¿Quitar este material?">Eliminar<span class="visually-hidden">{ " " + m.Material.Name }</span></button>
+							</form>
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
 	if len(all) > 0 {
 		<form method="post" action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/materiales") }>
 			<label>

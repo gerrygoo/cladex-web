@@ -6,7 +6,7 @@
 /cladexctl
 /dist/
 
-# Local data — the repo is public; business data never belongs here
+# Local data — business data never belongs in the repo
 *.db
 *.db-wal
 *.db-shm
