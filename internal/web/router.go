@@ -44,6 +44,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	users := NewUsers(db)
 	settings := NewSettings(db)
 	units := NewUnits(db)
+	familias := NewFamilias(db)
 	help := NewHelp(guide)
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
@@ -106,6 +107,11 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 
 	mux.Handle("GET /unidades", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(units.List))))
 	mux.Handle("POST /unidades", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(units.Create))))
+
+	mux.Handle("GET /familias", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(familias.List))))
+	mux.Handle("POST /familias", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(familias.Create))))
+	mux.Handle("GET /familias/{id}", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(familias.EditPage))))
+	mux.Handle("POST /familias/{id}", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(familias.Update))))
 
 	mux.Handle("GET /ayuda", auth.RequireAuth(http.HandlerFunc(help.Page)))
 	mux.Handle("GET /ayuda/{pagina}", auth.RequireAuth(http.HandlerFunc(help.Page)))

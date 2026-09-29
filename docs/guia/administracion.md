@@ -1,7 +1,7 @@
 # Administración
 
 Solo para cuentas con rol **Administrador**. Estas opciones aparecen en el menú como
-**Usuarios**, **Unidades** y **Ajustes**.
+**Usuarios**, **Unidades**, **Familias** y **Ajustes**.
 
 En **Ajustes** están los dos datos de los que salen los precios, además del costo de
 cada producto: los [márgenes](#márgenes) y los [materiales](#materiales). Ver
@@ -134,3 +134,46 @@ Las unidades (metro, caja, pieza…) que se pueden asignar a los productos.
 3. Haz clic en **Agregar**.
 
 Las unidades no se pueden editar ni eliminar desde la app.
+
+## Familias
+
+Una [[familia]] es una línea de producto (CCA, CCS & AC, ABASTILUM…) y cada una lleva
+su propia [[serie]] de folio (QA, QS, QI…) con sus *Términos y condiciones* del PDF.
+**QL** es una familia especial que no tiene productos: solo sirve para cotizar
+[líneas libres](cotizaciones.md#agregar-una-línea-libre).
+
+### Crear una familia
+
+1. En el menú, entra a **Familias**. Arriba ves la lista actual.
+2. En **Nueva familia**, escribe el **Nombre**.
+3. En **Serie**, escribe dos letras que empiecen con Q (p. ej. `QF`). Cada familia
+   tiene una serie distinta. Es el prefijo de sus folios (`QF0001`).
+4. Opcional: la **Descripción de la serie** es el texto que aparece junto al prefijo al
+   elegir la serie en una cotización nueva (p. ej. *QF — Cobijas ignífugas*).
+5. En **Términos y condiciones**, escribe un término por línea; se imprimen en el PDF.
+6. Marca *"Sin productos de catálogo"* solo si la familia es para líneas libres, como QL:
+   no aparecerá al dar de alta productos.
+7. Haz clic en **Crear familia**.
+
+La serie nueva aparece de inmediato en **Nueva cotización**.
+
+### Cambiar los términos de una familia
+
+1. En **Familias**, haz clic en **Editar términos** en la fila de la familia.
+2. Cambia la descripción o los términos y haz clic en **Guardar**.
+
+Los cambios se ven en los borradores y en las cotizaciones que se emitan de ahora en
+adelante. Las cotizaciones ya emitidas conservan los términos con que se emitieron.
+
+> Los términos de **QL** son provisionales: reemplázalos con el texto definitivo aquí.
+
+El nombre y la serie de una familia no se pueden cambiar ni eliminar desde la app.
+
+Mensajes de error:
+
+| Mensaje | Qué hacer |
+|---|---|
+| *El nombre es obligatorio.* | Escribe el nombre de la familia. |
+| *La serie son dos letras y empieza con Q, p. ej. QF.* | Escribe algo como `QF`. |
+| *Ya existe una familia con este nombre.* | Usa otro nombre. |
+| *Ya existe una familia con esta serie.* | Elige otra serie. |

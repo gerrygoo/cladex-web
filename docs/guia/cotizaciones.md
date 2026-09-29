@@ -28,6 +28,9 @@ El flujo completo, de principio a fin:
    - **QI — Alumbrado**
    - **QL — Líneas libres**: para cotizar solo líneas libres (productos que no están en
      el catálogo y no tienen SKU).
+
+   Un administrador puede agregar más series (ver [Familias](administracion.md#familias));
+   la lista siempre muestra las que existen.
 4. Haz clic en **Crear cotización**.
 
 Llegas a la página de la cotización (p. ej. *"Cotización QS0007"*) con

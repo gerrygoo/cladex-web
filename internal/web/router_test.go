@@ -74,6 +74,11 @@ var appRoutes = []route{
 	{"GET", "/unidades", true},
 	{"POST", "/unidades", true},
 
+	{"GET", "/familias", true},
+	{"POST", "/familias", true},
+	{"GET", "/familias/1", true},
+	{"POST", "/familias/1", true},
+
 	{"GET", "/ayuda", false},
 	{"GET", "/ayuda/cotizaciones", false},
 }

@@ -24,6 +24,7 @@ Ver [¿qué serie elijo?](cotizaciones.md#crear-una-cotización).
 La línea de producto a la que pertenece cada producto del catálogo: CCA, CCS & AC o
 ABASTILUM. El buscador de la cotización filtra por la familia de la serie de inicio.
 **QL** es una familia especial sin productos: solo sirve para cotizar líneas libres.
+Los administradores crean familias nuevas en [Familias](administracion.md#familias).
 
 ## SKU
 

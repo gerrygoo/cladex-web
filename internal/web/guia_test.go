@@ -87,14 +87,14 @@ func TestGuiaMiCuentaMessages(t *testing.T) {
 
 // --- docs/guia/README.md, "Quién puede hacer qué" ---
 
-// "Si no ves Usuarios, Unidades o Ajustes en el menú, tu cuenta es de vendedor."
+// "Si no ves Usuarios, Unidades, Familias o Ajustes en el menú, tu cuenta es de vendedor."
 func TestGuiaNavLinksByRole(t *testing.T) {
 	a := newTestAuth(t)
 	products := NewProducts(a.store)
 	vendedorID := createTestUser(t, a, "rodolfo", "vendedor", "hunter2")
 	adminID := createTestUser(t, a, "ana", "admin", "hunter2")
 
-	adminLinks := []string{`href="/usuarios"`, `href="/unidades"`, `href="/ajustes"`}
+	adminLinks := []string{`href="/usuarios"`, `href="/unidades"`, `href="/familias"`, `href="/ajustes"`}
 
 	rec := doForm(t, a, vendedorID, products.List, "GET", "/productos", nil, nil, false)
 	if rec.Code != http.StatusOK {

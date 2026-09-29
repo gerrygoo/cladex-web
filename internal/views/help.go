@@ -30,6 +30,7 @@ const (
 	HelpMateriales HelpTopic = "/ayuda/administracion#materiales"
 	HelpUsuarios   HelpTopic = "/ayuda/administracion#cambiar-el-rol-de-un-usuario"
 	HelpUnidades   HelpTopic = "/ayuda/administracion#unidades"
+	HelpFamilias   HelpTopic = "/ayuda/administracion#familias"
 )
 
 // HelpTopics lists every topic with whether it is only linked from admin screens.
@@ -54,6 +55,7 @@ var HelpTopics = map[HelpTopic]bool{
 	HelpMateriales:            true,
 	HelpUsuarios:              true,
 	HelpUnidades:              true,
+	HelpFamilias:              true,
 }
 
 func quoteHelpTopic(status string) HelpTopic {
