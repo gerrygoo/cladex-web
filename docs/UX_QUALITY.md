@@ -40,9 +40,9 @@ The PDF is out of scope here; it's a print artifact, not an interface.
 - [x] Text contrast ≥ 4.5:1, UI component and focus-indicator contrast ≥ 3:1 in
       `static/app.css` (1.4.3, 1.4.11), in both colour schemes.
 - [x] Click/tap targets ≥ 24×24 CSS px, including table row actions (2.5.8).
-- [ ] Usable at 200% zoom and at 320 px width without horizontal page scroll, wide tables
-      excepted (1.4.4, 1.4.10). 200% text: nothing clipped. 320 px: everything fits except
-      the four filterable list tables (#7).
+- [x] Usable at 200% zoom and at 320 px width without horizontal page scroll, wide tables
+      excepted (1.4.4, 1.4.10). 200% text: nothing clipped. 320 px: everything fits; the wide tables
+      scroll inside their own box (#7).
 - [x] Inputs for the user's own data declare `autocomplete` (1.3.5).
 - [x] Destructive and final actions ask first: `data-confirm` on the submit button
       (`static/app.js`). Not `hx-confirm`, which only applies to htmx requests.
@@ -272,12 +272,12 @@ heuristic and severity. Tick when fixed, with the commit.
       `aria-invalid`) on every form, and focus starts on the first one.
 - [x] **#6 · 1.3.5.** Login and Mi cuenta declare `username`, `current-password` and
       `new-password`.
-- [ ] **#7 · 1.4.10 Reflow.** ([issue 9](https://github.com/gerrygoo/cladex-web/issues/9)) Fixed: the header wraps, the builder's toolbar wraps, and
+- [x] **#7 · 1.4.10 Reflow.** ([issue 9](https://github.com/gerrygoo/cladex-web/issues/9)) Fixed: the header wraps, the builder's toolbar wraps, and
       every table without column filters (quote lines, issued quote, Ajustes,
-      the product's materials and conversions, Unidades) scrolls in its own box. Open: the
-      four filterable lists still widen the page at 320 px. They can't simply go in a scroll box, because it would
-      clip the column-filter popovers. Data tables are exempt from 1.4.10, so this is low
-      priority.
+      the product's materials and conversions, Unidades) scrolls in its own box. The
+      four filterable lists (Cotizaciones, Productos, Clientes, Usuarios) now scroll in
+      their own box too. Their column filters are Popover API panels (top layer, so the
+      box can't clip them), positioned under the funnel by `static/app.js`.
 - [x] **#24 · 1.4.4 Resize Text.** Buttons, fields and selects used the browser's
       ~13 px form font and didn't grow with the page's text size. They now inherit the
       page font.

@@ -726,39 +726,40 @@ th.col-header {
   white-space: nowrap;
 }
 
-details.col-filter {
+span.col-filter {
   display: inline-block;
   margin-left: 0.25rem;
 }
 
-details.col-filter > summary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+button.col-filter-toggle {
   /* 12px funnel, 24px target (WCAG 2.5.8). */
   min-width: 1.5rem;
   min-height: 1.5rem;
+  padding: 0;
+  border: 0;
   border-radius: 4px;
-  cursor: pointer;
-  list-style: none;
+  background: transparent;
   color: var(--text-muted);
   vertical-align: middle;
 }
 
-details.col-filter > summary::-webkit-details-marker {
-  display: none;
+button.col-filter-toggle:hover {
+  background: var(--surface);
 }
 
-details.col-filter.active > summary {
+span.col-filter.active > button.col-filter-toggle {
   color: var(--primary);
 }
 
+/* A popover (top layer), so no table container can clip it. app.js sets its top and
+   left under the funnel. */
 form.col-filter-panel {
-  position: absolute;
-  z-index: 10;
-  top: 100%;
-  left: 0;
+  inset: auto;
+  margin: 0;
   min-width: 15rem;
+  max-width: calc(100vw - 1rem);
+  max-height: calc(100vh - 1rem);
+  overflow: auto;
   padding: 0.75rem;
   font-size: 1rem;
   font-weight: normal;
@@ -810,12 +811,6 @@ div.col-filter-actions {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-}
-
-/* Keep the last columns' panels inside the viewport. */
-th.col-header:nth-last-child(-n + 2) form.col-filter-panel {
-  left: auto;
-  right: 0;
 }
 
 p.active-filters {

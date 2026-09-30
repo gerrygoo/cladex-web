@@ -62,19 +62,21 @@ templ ProductsList(products []store.Product, lv ListView, families []FilterOptio
 			<a class="button primary" href="/productos/nuevo">Nuevo producto</a>
 		</div>
 		@listActiveFilters(lv)
-		<table>
-			<thead>
-				<tr>
-					@columnHeader(lv, "SKU", "sku", textFilter)
-					@columnHeader(lv, "Descripción", "description", textFilter)
-					@columnHeader(lv, "Familia", "familia", enumFilter(families...))
-					@columnHeader(lv, "Costo", "costo", numberFilter)
-					@columnHeader(lv, "Unidad", "unidad", enumFilter(units...))
-					<th><span class="visually-hidden">Acciones</span></th>
-				</tr>
-			</thead>
-			@ProductsTableBody(products)
-		</table>
+		<div class="table-scroll">
+			<table>
+				<thead>
+					<tr>
+						@columnHeader(lv, "SKU", "sku", textFilter)
+						@columnHeader(lv, "Descripción", "description", textFilter)
+						@columnHeader(lv, "Familia", "familia", enumFilter(families...))
+						@columnHeader(lv, "Costo", "costo", numberFilter)
+						@columnHeader(lv, "Unidad", "unidad", enumFilter(units...))
+						<th><span class="visually-hidden">Acciones</span></th>
+					</tr>
+				</thead>
+				@ProductsTableBody(products)
+			</table>
+		</div>
 		@listPager(lv, false)
 	}
 }

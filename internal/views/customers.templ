@@ -34,19 +34,21 @@ templ CustomersList(customers []store.Customer, lv ListView, successMsg string, 
 			<a class="button primary" href="/clientes/nuevo">Nuevo cliente</a>
 		</div>
 		@listActiveFilters(lv)
-		<table>
-			<thead>
-				<tr>
-					@columnHeader(lv, "Nombre", "name", textFilter)
-					@columnHeader(lv, "RFC", "rfc", textFilter)
-					@columnHeader(lv, "Contacto", "contact_name", textFilter)
-					@columnHeader(lv, "Teléfono", "phone", textFilter)
-					@columnHeader(lv, "Email", "email", textFilter)
-					<th><span class="visually-hidden">Acciones</span></th>
-				</tr>
-			</thead>
-			@CustomersTableBody(customers)
-		</table>
+		<div class="table-scroll">
+			<table>
+				<thead>
+					<tr>
+						@columnHeader(lv, "Nombre", "name", textFilter)
+						@columnHeader(lv, "RFC", "rfc", textFilter)
+						@columnHeader(lv, "Contacto", "contact_name", textFilter)
+						@columnHeader(lv, "Teléfono", "phone", textFilter)
+						@columnHeader(lv, "Email", "email", textFilter)
+						<th><span class="visually-hidden">Acciones</span></th>
+					</tr>
+				</thead>
+				@CustomersTableBody(customers)
+			</table>
+		</div>
 		@listPager(lv, false)
 	}
 }

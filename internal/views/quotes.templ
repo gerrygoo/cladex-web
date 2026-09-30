@@ -59,19 +59,21 @@ templ QuotesList(quotes []store.Quote, lv ListView, customers, authors []string,
 			<a class="button primary" href="/cotizaciones/nueva">Nueva cotización</a>
 		</div>
 		@listActiveFilters(lv)
-		<table>
-			<thead>
-				<tr>
-					@columnHeader(lv, "Folio", "folio", textFilter)
-					@columnHeader(lv, "Cliente", "cliente", choiceFilter(customers))
-					@columnHeader(lv, "Autor", "autor", choiceFilter(authors))
-					@columnHeader(lv, "Estado", "estado", quoteStatusFilter)
-					@columnHeader(lv, "Total", "total", numberFilter)
-					@columnHeader(lv, "Fecha", "fecha", dateFilter)
-				</tr>
-			</thead>
-			@QuotesTableBody(quotes)
-		</table>
+		<div class="table-scroll">
+			<table>
+				<thead>
+					<tr>
+						@columnHeader(lv, "Folio", "folio", textFilter)
+						@columnHeader(lv, "Cliente", "cliente", choiceFilter(customers))
+						@columnHeader(lv, "Autor", "autor", choiceFilter(authors))
+						@columnHeader(lv, "Estado", "estado", quoteStatusFilter)
+						@columnHeader(lv, "Total", "total", numberFilter)
+						@columnHeader(lv, "Fecha", "fecha", dateFilter)
+					</tr>
+				</thead>
+				@QuotesTableBody(quotes)
+			</table>
+		</div>
 		@listPager(lv, false)
 	}
 }

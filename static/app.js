@@ -87,6 +87,31 @@
     }
   });
 
+  // Column filter panels are popovers (top layer, so a scrolling table can't clip
+  // them). Place each under its funnel when it opens, keep it inside the viewport, and
+  // follow the funnel if the page or the table scrolls or the window resizes.
+  (function () {
+    var openPanel = null;
+    function place() {
+      if (!openPanel) return;
+      var btn = document.querySelector('[popovertarget="' + openPanel.id + '"]');
+      if (!btn) return;
+      var r = btn.getBoundingClientRect();
+      var top = r.bottom + 4;
+      openPanel.style.maxHeight = Math.max(160, window.innerHeight - top - 8) + "px";
+      var left = Math.min(r.left, window.innerWidth - openPanel.offsetWidth - 8);
+      openPanel.style.top = top + "px";
+      openPanel.style.left = Math.max(8, left) + "px";
+    }
+    document.addEventListener("toggle", function (e) {
+      if (!e.target.matches || !e.target.matches("form.col-filter-panel")) return;
+      openPanel = e.newState === "open" ? e.target : null;
+      place();
+    }, true);
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+  })();
+
   // Unsaved-changes guard for forms that keep edits in the page until an explicit save
   // (the quote builder). form[data-guard-unsaved] becomes dirty on any htmx POST from
   // inside it or on typing in a field, except fields marked data-guard-ignore (search

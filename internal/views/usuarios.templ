@@ -23,65 +23,67 @@ templ UsersList(users []store.User, currentUserID int64, lv ListView, successMsg
 		@Flash(successMsg)
 		@FormError(errorMsg)
 		@listActiveFilters(lv)
-		<table>
-			<thead>
-				<tr>
-					@columnHeader(lv, "Usuario", "username", textFilter)
-					@columnHeader(lv, "Nombre", "name", textFilter)
-					@columnHeader(lv, "Rol", "role", userRoleFilter)
-					@columnHeader(lv, "Estado", "status", userStatusFilter)
-					<th><span class="visually-hidden">Acciones</span></th>
-				</tr>
-			</thead>
-			<tbody>
-				for _, u := range users {
+		<div class="table-scroll">
+			<table>
+				<thead>
 					<tr>
-						<td>{ u.Username }</td>
-						<td>{ u.Name }</td>
-						<td>
-							if u.ID == currentUserID {
-								{ roleLabel(u.Role) }
-							} else {
-								<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/rol") }>
-									if u.Role == "admin" {
-										<select name="role" aria-label={ "Rol de " + u.Username }>
-											<option value="admin" selected>Administrador</option>
-											<option value="vendedor">Vendedor</option>
-										</select>
-									} else {
-										<select name="role" aria-label={ "Rol de " + u.Username }>
-											<option value="admin">Administrador</option>
-											<option value="vendedor" selected>Vendedor</option>
-										</select>
-									}
-									<button type="submit">Guardar rol</button>
-								</form>
-							}
-						</td>
-						<td>
-							if u.DisabledAt != nil {
-								Deshabilitado
-							} else {
-								Activo
-							}
-						</td>
-						<td class="actions">
-							if u.ID == currentUserID {
-								—
-							} else if u.DisabledAt != nil {
-								<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/habilitar") }>
-									<button type="submit">Habilitar</button>
-								</form>
-							} else {
-								<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/deshabilitar") }>
-									<button type="submit" class="danger" data-confirm="¿Deshabilitar a este usuario?">Deshabilitar</button>
-								</form>
-							}
-						</td>
+						@columnHeader(lv, "Usuario", "username", textFilter)
+						@columnHeader(lv, "Nombre", "name", textFilter)
+						@columnHeader(lv, "Rol", "role", userRoleFilter)
+						@columnHeader(lv, "Estado", "status", userStatusFilter)
+						<th><span class="visually-hidden">Acciones</span></th>
 					</tr>
-				}
-			</tbody>
-		</table>
+				</thead>
+				<tbody>
+					for _, u := range users {
+						<tr>
+							<td>{ u.Username }</td>
+							<td>{ u.Name }</td>
+							<td>
+								if u.ID == currentUserID {
+									{ roleLabel(u.Role) }
+								} else {
+									<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/rol") }>
+										if u.Role == "admin" {
+											<select name="role" aria-label={ "Rol de " + u.Username }>
+												<option value="admin" selected>Administrador</option>
+												<option value="vendedor">Vendedor</option>
+											</select>
+										} else {
+											<select name="role" aria-label={ "Rol de " + u.Username }>
+												<option value="admin">Administrador</option>
+												<option value="vendedor" selected>Vendedor</option>
+											</select>
+										}
+										<button type="submit">Guardar rol</button>
+									</form>
+								}
+							</td>
+							<td>
+								if u.DisabledAt != nil {
+									Deshabilitado
+								} else {
+									Activo
+								}
+							</td>
+							<td class="actions">
+								if u.ID == currentUserID {
+									—
+								} else if u.DisabledAt != nil {
+									<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/habilitar") }>
+										<button type="submit">Habilitar</button>
+									</form>
+								} else {
+									<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/deshabilitar") }>
+										<button type="submit" class="danger" data-confirm="¿Deshabilitar a este usuario?">Deshabilitar</button>
+									</form>
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
 		@listPager(lv, false)
 		<p><small>Crear usuarios y restablecer contraseñas se hace por línea de comandos (<code>cladex user add/passwd</code>) — ver el runbook de administración.</small></p>
 	}

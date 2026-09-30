@@ -76,6 +76,9 @@ filtrar por cualquier columna, además de buscar y ordenar:
    - **Fecha**: pon la fecha *Desde*, *Hasta* o ambas (los dos días cuentan, según la zona horaria de tu navegador).
 3. Haz clic en **Aplicar**. El embudo de la columna filtrada se pinta de azul.
 
+En una pantalla angosta (celular), la tabla se desplaza de lado dentro de su recuadro; el
+filtro se abre sobre la tabla y se cierra con **Escape** o al hacer clic fuera de él.
+
 Puedes combinar filtros de varias columnas, y siguen activos al buscar u ordenar. Para
 quitar uno, abre su embudo y haz clic en **Limpiar**; **Quitar todos** (arriba de la
 tabla) los quita todos. Arriba de la tabla siempre ves si hay filtros: *"Filtros activos
