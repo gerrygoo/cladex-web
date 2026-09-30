@@ -10,7 +10,7 @@ Llegas a la página de inicio. El menú de arriba tiene **Cotizaciones** y **Cat
 Haz clic en **Cotizaciones** para elegir **Nueva cotización** o **Ver cotizaciones**, y en
 **Catálogos** para abrir la lista de **Productos** y **Clientes**
 (y, si eres administrador, **Usuarios**, **Familias**, **Unidades** y **Configuración
-del sistema**). A la derecha están **Ayuda** y tu nombre de usuario, que abre
+del sistema**). A la derecha están **Manual de usuario** y tu nombre de usuario, que abre
 [Mi cuenta](#cambiar-tu-contraseña).
 
 > **¿No tienes usuario u olvidaste tu contraseña?** La app no tiene registro ni "olvidé

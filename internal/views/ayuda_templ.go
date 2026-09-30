@@ -50,7 +50,7 @@ func Guia(title string, html string, nav []GuiaNavItem, user *NavUser) templ.Com
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"guia\"><nav class=\"guia-nav\" aria-label=\"Guía de uso\"><ul>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"guia\"><nav class=\"guia-nav\" aria-label=\"Manual de usuario\"><ul>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

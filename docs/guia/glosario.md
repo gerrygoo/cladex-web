@@ -1,6 +1,6 @@
 # Glosario
 
-Los términos que usa el cotizador. En el resto de la guía, los términos subrayados con
+Los términos que usa el cotizador. En el resto del manual, los términos subrayados con
 puntos muestran su definición al pasar el cursor encima (o al tocarlos en el celular).
 
 ## Folio

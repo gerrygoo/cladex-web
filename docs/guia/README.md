@@ -1,10 +1,10 @@
-# Guía de uso — Cotizador Cladex
+# Manual de usuario — Cotizador Cladex
 
 Instrucciones paso a paso para usar el cotizador. Cada página cubre los flujos completos de una
 sección de la app, en el orden en que normalmente se hacen.
 
 En cada pantalla de la app, el botón **?** junto al título abre en otra pestaña la
-parte de esta guía que la explica.
+parte de este manual que la explica.
 
 ## Contenido
 
@@ -96,7 +96,7 @@ página 1; el tamaño de página que elegiste se conserva.
 están en el [glosario](glosario.md).
 
 <!--
-Mantenimiento de esta guía: cualquier cambio a una pantalla o flujo de la app actualiza
+Mantenimiento de este manual: cualquier cambio a una pantalla o flujo de la app actualiza
 la página correspondiente en el mismo commit. Los nombres de botones, campos y mensajes
 se citan exactamente como aparecen en la app. La app sirve estas páginas en /ayuda; ver
 internal/guia para las convenciones ([[término]], :::admin). Hay pruebas que verifican

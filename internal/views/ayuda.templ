@@ -12,7 +12,7 @@ type GuiaNavItem struct {
 templ Guia(title string, html string, nav []GuiaNavItem, user *NavUser) {
 	@Layout(title, user) {
 		<div class="guia">
-			<nav class="guia-nav" aria-label="Guía de uso">
+			<nav class="guia-nav" aria-label="Manual de usuario">
 				<ul>
 					for _, item := range nav {
 						<li>

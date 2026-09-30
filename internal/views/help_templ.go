@@ -44,7 +44,7 @@ func HelpLink(topic HelpTopic) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" target=\"_blank\" rel=\"noopener\" title=\"Ver ayuda (se abre en otra pestaña)\" aria-label=\"Ayuda sobre esta pantalla (se abre en otra pestaña)\">?</a>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" target=\"_blank\" rel=\"noopener\" title=\"Ver el manual de usuario (se abre en otra pestaña)\" aria-label=\"Manual de usuario de esta pantalla (se abre en otra pestaña)\">?</a>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -88,14 +88,14 @@ func SectionHelpLink(topic HelpTopic, section string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" target=\"_blank\" rel=\"noopener\" title=\"Ver ayuda (se abre en otra pestaña)\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" target=\"_blank\" rel=\"noopener\" title=\"Ver el manual de usuario (se abre en otra pestaña)\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var5 string
-		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue("Ayuda sobre " + section + " (se abre en otra pestaña)")
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue("Manual de usuario de " + section + " (se abre en otra pestaña)")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/help.templ`, Line: 12, Col: 205}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/help.templ`, Line: 12, Col: 229}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {

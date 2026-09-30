@@ -390,3 +390,6 @@ heuristic and severity. Tick when fixed, with the commit.
 - [x] **#38 · Minimalism.** Inicio opened with a "Cladex" heading that repeated the logo
       right above it. It's gone from view; a visually hidden "Inicio" h1 keeps the
       heading outline, and the help link sits beside "Cotizaciones por etapa".
+- [x] **#39 · Match with the real world.** The bar's "Ayuda" link is now "Manual de
+      usuario", which names what it opens. The guide calls itself that throughout: its
+      title, its page list and the "?" links' labels.
