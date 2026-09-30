@@ -1,4 +1,4 @@
-# Manual de usuario — Cotizador Cladex
+# Manual de usuario
 
 Instrucciones paso a paso para usar el cotizador. Cada página cubre los flujos completos de una
 sección de la app, en el orden en que normalmente se hacen.
