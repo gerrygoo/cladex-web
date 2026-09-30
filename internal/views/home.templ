@@ -23,11 +23,13 @@ var vendedorColumns = []string{"emitida", "pipeline", "oc_emitida", "entregada",
 
 templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavUser) {
 	@Layout("Inicio", user) {
+		// The logo in the header already says where you are; the h1 stays for screen
+		// readers and the heading outline, and the first section heading carries the help.
+		<h1 class="visually-hidden">Inicio</h1>
 		<div class="page-title">
-			<h1>Cladex</h1>
+			<h2>Cotizaciones por etapa</h2>
 			@HelpLink(HelpInicio)
 		</div>
-		<h2>Cotizaciones por etapa</h2>
 		<div class="overview-stages">
 			for _, st := range ov.Stages {
 				<section class="overview-stage">

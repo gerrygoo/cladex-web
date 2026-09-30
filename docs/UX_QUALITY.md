@@ -385,3 +385,6 @@ heuristic and severity. Tick when fixed, with the commit.
 - [x] **#37 · Navigation.** Cotizaciones is a menu too, with "Nueva cotización" and "Ver
       cotizaciones", so creating a quote is one path from every page. Inicio drops its
       "Nueva cotización" button and is a read-only overview with no main action.
+- [x] **#38 · Minimalism.** Inicio opened with a "Cladex" heading that repeated the logo
+      right above it. It's gone from view; a visually hidden "Inicio" h1 keeps the
+      heading outline, and the help link sits beside "Cotizaciones por etapa".
