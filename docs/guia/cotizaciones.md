@@ -193,11 +193,13 @@ Qué pasa al emitir:
 - El PDF queda definitivo. Cada vez que lo descargues tendrá los mismos precios,
   cliente, vendedor, fechas y términos con que se emitió, aunque después cambien los
   ajustes, el catálogo o los datos del cliente.
-- La [[vigencia]] es de 30 días a partir de hoy; aparece en el PDF y en la página.
+- La [[vigencia]] es de 30 días a partir de hoy; aparece en el PDF y en la página. En
+  la serie **QL** no es automática: tú escribes la [fecha de vigencia](#moneda-y-vigencia-en-ql).
 
 > Para emitir, la cotización necesita al menos una línea, ninguna línea con error y un
 > margen disponible. En las series cuyos términos incluyen el tiempo de entrega (como
-> **QL**), también necesita el [tiempo de entrega](#tiempo-de-entrega).
+> **QL**), también necesita el [tiempo de entrega](#tiempo-de-entrega); y en **QL**,
+> además, la [moneda y la vigencia](#moneda-y-vigencia-en-ql).
 
 ### Tiempo de entrega
 
@@ -213,6 +215,24 @@ hábiles`). Se imprime en los términos y condiciones: *"Tiempo de entrega: 5 d�
   tiempo de entrega.
 - En la vista previa del PDF de un borrador sin tiempo de entrega aparece *"por
   definir"*.
+
+### Moneda y vigencia en QL
+
+Las cotizaciones de la serie **QL** no tienen buscador de productos: solo se arman con
+[líneas libres](#agregar-una-línea-libre). Además del tiempo de entrega, piden:
+
+- **Moneda (obligatoria para emitir)**: elige **MXN** o **USD**. Los precios de las
+  líneas libres los escribes directamente en esa moneda; la aplicación **no convierte
+  nada**. El PDF muestra *Subtotal, IVA y Total* (el IVA se suma en ambas monedas) con la
+  moneda al lado, y el primer término dice *"Precios en pesos mexicanos (MXN), no incluyen
+  IVA"* o *"Precios en dólares americanos (USD), no incluyen IVA"*.
+- **Vigencia: válida hasta (obligatoria para emitir)**: la fecha hasta la cual es válida
+  la cotización. Escríbela tú; no puede ser anterior a hoy. Aparece en el PDF como
+  *Vencimiento*.
+
+**Guardar borrador** guarda lo que hayas elegido aunque esté incompleto; **Emitir
+cotización** muestra qué falta. Una revisión conserva la moneda, pero hay que escribir
+de nuevo la vigencia.
 
 ## Descargar y enviar el PDF
 

@@ -696,34 +696,84 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Query().Get("emitida") == "1":
 		successMsg = "Cotización emitida."
 	}
-	q.renderBuilder(w, r, quote, lines, totals, margin.picker, successMsg, http.StatusOK, "")
+	q.renderBuilder(w, r, quote, lines, totals, margin.picker, successMsg, http.StatusOK, nil)
 }
 
 // maxDeliveryTime caps the free-text delivery time, which is printed on the PDF.
 const maxDeliveryTime = 120
 
-// takeDeliveryTime reads the builder form's delivery time onto quote for this request
-// (the caller decides whether to save it), and reports whether the quote's series asks
-// for one at all. Series that don't leave the quote's delivery time untouched.
-func takeDeliveryTime(r *http.Request, quote *store.Quote) (required bool) {
-	if !store.RequiresDeliveryTime(quote.SeriesTerms) {
-		return false
+// takeTermsInputs reads the builder form's per-quote inputs onto quote for this request
+// (the caller decides whether to save them): the delivery time and currency when the
+// series' terms hold their tokens, and the validity date for a free-lines-only series.
+// Inputs a series doesn't ask for are left untouched.
+func takeTermsInputs(r *http.Request, quote *store.Quote) {
+	if store.RequiresDeliveryTime(quote.SeriesTerms) {
+		v := strings.TrimSpace(r.FormValue("delivery_time"))
+		if runes := []rune(v); len(runes) > maxDeliveryTime {
+			v = string(runes[:maxDeliveryTime])
+		}
+		quote.DeliveryTime = v
 	}
-	v := strings.TrimSpace(r.FormValue("delivery_time"))
-	if runes := []rune(v); len(runes) > maxDeliveryTime {
-		v = string(runes[:maxDeliveryTime])
+	if store.RequiresCurrency(quote.SeriesTerms) {
+		quote.Currency = ""
+		if c := r.FormValue("currency"); store.ValidCurrency(c) {
+			quote.Currency = c
+		}
 	}
-	quote.DeliveryTime = v
-	return true
+	if quote.SeriesFreeLines {
+		quote.ValidUntil = nil
+		// An unparseable date (a browser without date inputs) is kept out of the row;
+		// Emitir then asks for it again.
+		if v := strings.TrimSpace(r.FormValue("valid_until")); v != "" {
+			if _, err := time.Parse("2006-01-02", v); err == nil {
+				quote.ValidUntil = &v
+			}
+		}
+	}
+}
+
+// termsInputs is the quote's per-quote values as the terms tokens take them.
+func termsInputs(quote store.Quote) store.TermsInputs {
+	return store.TermsInputs{DeliveryTime: quote.DeliveryTime, Currency: quote.Currency}
+}
+
+// saveTermsInputs persists what takeTermsInputs read.
+func (q *Quotes) saveTermsInputs(ctx context.Context, quote *store.Quote) error {
+	validUntil := ""
+	if quote.ValidUntil != nil {
+		validUntil = *quote.ValidUntil
+	}
+	return q.store.SetQuoteTermsInputs(ctx, quote.ID, quote.DeliveryTime, quote.Currency, validUntil)
+}
+
+// missingTermsInputs lists, by form field, what the quote's series still needs before it
+// can be issued. Empty means it can be.
+func missingTermsInputs(quote *store.Quote, today time.Time) map[string]string {
+	missing := map[string]string{}
+	if store.RequiresDeliveryTime(quote.SeriesTerms) && quote.DeliveryTime == "" {
+		missing["delivery_time"] = "Escribe el tiempo de entrega para poder emitir la cotización."
+	}
+	if store.RequiresCurrency(quote.SeriesTerms) && quote.Currency == "" {
+		missing["currency"] = "Elige la moneda (MXN o USD) para poder emitir la cotización."
+	}
+	if quote.SeriesFreeLines {
+		switch {
+		case quote.ValidUntil == nil:
+			missing["valid_until"] = "Escribe hasta qué fecha es vigente la cotización para poder emitirla."
+		case *quote.ValidUntil < today.Format("2006-01-02"):
+			missing["valid_until"] = "La vigencia no puede ser anterior a hoy."
+		}
+	}
+	return missing
 }
 
 // renderBuilder renders the full builder page with the given (possibly unsaved) lines,
 // carrying the product picker's q/solo_familia/pagina over from the request so a no-JS
 // round trip keeps the picker where the user left it.
-func (q *Quotes) renderBuilder(w http.ResponseWriter, r *http.Request, quote *store.Quote, lines []views.QuoteLineView, totals pricing.Totals, margin views.MarginPicker, successMsg string, status int, deliveryErr string) {
+func (q *Quotes) renderBuilder(w http.ResponseWriter, r *http.Request, quote *store.Quote, lines []views.QuoteLineView, totals pricing.Totals, margin views.MarginPicker, successMsg string, status int, fieldErrs map[string]string) {
 	ctx := r.Context()
 	var picker views.ProductPicker
-	if quote.Status == "borrador" {
+	if quote.Status == "borrador" && !quote.SeriesFreeLines {
 		var err error
 		picker, err = q.productPicker(ctx, r, quote)
 		if err != nil {
@@ -740,7 +790,7 @@ func (q *Quotes) renderBuilder(w http.ResponseWriter, r *http.Request, quote *st
 	commentsLV := views.ListView{Base: "/cotizaciones/" + quote.Folio, Pager: pager, Anchor: "comentarios"}
 	user, _ := UserFromContext(ctx)
 	w.WriteHeader(status)
-	views.QuoteBuilder(*quote, lines, totals, margin, successMsg, deliveryErr, picker, comments, commentsLV, navUserView(user)).Render(ctx, w)
+	views.QuoteBuilder(*quote, lines, totals, margin, successMsg, fieldErrs, picker, comments, commentsLV, navUserView(user)).Render(ctx, w)
 }
 
 // Recalcular handles POST /cotizaciones/{folio}/recalcular: the endpoint behind every
@@ -769,7 +819,7 @@ func (q *Quotes) Recalcular(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
-	takeDeliveryTime(r, quote)
+	takeTermsInputs(r, quote)
 	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin)
 	totals := computeQuoteTotals(lines)
 
@@ -777,7 +827,7 @@ func (q *Quotes) Recalcular(w http.ResponseWriter, r *http.Request) {
 		views.QuoteLinesFragment(*quote, lines, totals, margin.picker.Error).Render(ctx, w)
 		return
 	}
-	q.renderBuilder(w, r, quote, lines, totals, margin.picker, "", http.StatusOK, "")
+	q.renderBuilder(w, r, quote, lines, totals, margin.picker, "", http.StatusOK, nil)
 }
 
 // BuscarProductos handles GET /cotizaciones/{folio}/productos: the htmx-driven live
@@ -820,13 +870,13 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
-	hasDeliveryTime := takeDeliveryTime(r, quote)
+	takeTermsInputs(r, quote)
 	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin)
 	totals := computeQuoteTotals(lines)
 
 	for _, l := range lines {
 		if l.Error != "" {
-			q.renderBuilder(w, r, quote, lines, totals, margin.picker, "", http.StatusUnprocessableEntity, "")
+			q.renderBuilder(w, r, quote, lines, totals, margin.picker, "", http.StatusUnprocessableEntity, nil)
 			return
 		}
 	}
@@ -847,11 +897,9 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
-	if hasDeliveryTime {
-		if err := q.store.SetQuoteDeliveryTime(ctx, quote.ID, quote.DeliveryTime); err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
-			return
-		}
+	if err := q.saveTermsInputs(ctx, quote); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
 	}
 	http.Redirect(w, r, fmt.Sprintf("/cotizaciones/%s?guardado=1", quote.Folio), http.StatusSeeOther)
 }
@@ -899,7 +947,13 @@ func docLinesFrom(lines []views.QuoteLineView) []pdf.QuoteLineDoc {
 // lines and totals: current customer and salesperson names, current per-prefix terms,
 // no vencimiento yet.
 func draftQuoteDocument(quote store.Quote, lines []views.QuoteLineView, totals pricing.Totals) pdf.QuoteDocument {
+	vencimiento := ""
+	if quote.ValidUntil != nil {
+		vencimiento = formatFechaDate(*quote.ValidUntil)
+	}
 	return pdf.QuoteDocument{
+		Vencimiento:  vencimiento,
+		Currency:     quote.Currency,
 		Folio:        quote.Folio,
 		CustomerName: quote.CustomerName,
 		Vendedor:     quote.UserName,
@@ -908,7 +962,7 @@ func draftQuoteDocument(quote store.Quote, lines []views.QuoteLineView, totals p
 		Subtotal:     totals.Subtotal.String(),
 		IVA:          totals.IVA.String(),
 		Total:        totals.Total.String(),
-		Terms:        store.RenderTerms(quote.SeriesTerms, quote.DeliveryTime),
+		Terms:        store.RenderTerms(quote.SeriesTerms, termsInputs(quote)),
 	}
 }
 
@@ -936,6 +990,7 @@ func issuedQuoteDocument(quote store.Quote, persisted []store.QuoteLine) (pdf.Qu
 		Vendedor:     *quote.VendedorSnapshot,
 		Fecha:        formatFecha(quote.CreatedAt),
 		Vencimiento:  vencimiento,
+		Currency:     quote.Currency,
 		Lines:        docLinesFrom(frozenQuoteLines(persisted)),
 		Subtotal:     quote.Subtotal.String(),
 		IVA:          quote.IVA.String(),
@@ -1029,22 +1084,21 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
-	hasDeliveryTime := takeDeliveryTime(r, quote)
+	takeTermsInputs(r, quote)
 	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin)
 	totals := computeQuoteTotals(lines)
 
-	if hasDeliveryTime && quote.DeliveryTime == "" {
-		q.renderBuilder(w, r, quote, lines, totals, margin.picker, "", http.StatusUnprocessableEntity,
-			"Escribe el tiempo de entrega para poder emitir la cotización.")
+	if missing := missingTermsInputs(quote, time.Now()); len(missing) > 0 {
+		q.renderBuilder(w, r, quote, lines, totals, margin.picker, "", http.StatusUnprocessableEntity, missing)
 		return
 	}
 	if len(lines) == 0 || !margin.usable() {
-		q.renderBuilder(w, r, quote, lines, totals, margin.picker, "", http.StatusUnprocessableEntity, "")
+		q.renderBuilder(w, r, quote, lines, totals, margin.picker, "", http.StatusUnprocessableEntity, nil)
 		return
 	}
 	for _, l := range lines {
 		if l.Error != "" {
-			q.renderBuilder(w, r, quote, lines, totals, margin.picker, "", http.StatusUnprocessableEntity, "")
+			q.renderBuilder(w, r, quote, lines, totals, margin.picker, "", http.StatusUnprocessableEntity, nil)
 			return
 		}
 	}
@@ -1066,19 +1120,21 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if hasDeliveryTime {
-		if err := q.store.SetQuoteDeliveryTime(ctx, quote.ID, quote.DeliveryTime); err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
-			return
-		}
+	if err := q.saveTermsInputs(ctx, quote); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
 	}
 
 	validUntil := time.Now().AddDate(0, 0, defaultValidityDays).Format("2006-01-02")
+	if quote.SeriesFreeLines {
+		// missingTermsInputs has already checked it is set.
+		validUntil = *quote.ValidUntil
+	}
 	issue := store.Issue{
 		// Whole seconds: that's the resolution Typst embeds, and the one reprints
 		// parse back out of issued_at.
 		IssuedAt:             time.Now().UTC().Truncate(time.Second).Format("2006-01-02T15:04:05.000Z"),
-		TermsSnapshot:        strings.Join(store.RenderTerms(quote.SeriesTerms, quote.DeliveryTime), "\n"),
+		TermsSnapshot:        strings.Join(store.RenderTerms(quote.SeriesTerms, termsInputs(*quote)), "\n"),
 		ValidUntil:           &validUntil,
 		CustomerNameSnapshot: quote.CustomerName,
 		VendedorSnapshot:     quote.UserName,

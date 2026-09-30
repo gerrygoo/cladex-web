@@ -1102,6 +1102,18 @@ terms hold it shows a "Tiempo de entrega" field on the builder and can't be issu
 without it (`quotes.delivery_time`, copied onto revisions, frozen into the terms at
 issue). Not specific to QL: any admin-created series can opt in by writing the token.
 
+**QL currency and vigencia (issue #12, second round).** Migration 0015: `quotes.currency`
+(MXN | USD, NULL until chosen; the column existed before 0009 removed the fx machinery and
+is back as a plain label, no exchange rate). A terms block may hold `{moneda}`, rendered
+"pesos mexicanos (MXN)" or "dólares americanos (USD)"; a quote whose series' terms hold it
+shows a Moneda select and can't be issued without one. QL's first term became
+"Precios en {moneda}, no incluyen IVA" (replacing 0014's USD clause, only while unedited).
+Prices are typed in the chosen currency, the PDF still shows subtotal + IVA 16% + total, and
+labels the amounts with the currency (only when one is set, so other series render exactly
+as before). A `free_lines_only` series' quotes have no catalog picker and take a required,
+typed vigencia (`valid_until`, held on the draft, not before today) instead of the 30-day
+default; a revision keeps the currency but must have its vigencia typed again.
+
 **Migration note:** 0013 rebuilds `quotes` with foreign keys off, (and `folio_sequences`) to drop the prefix CHECKs, unlike 0012's park-and-defer
 approach. A migration whose first line is
 `-- cladex:foreign-keys-off` gets that from the runner, which runs

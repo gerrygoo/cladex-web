@@ -95,7 +95,7 @@ especial). Tú escribes su descripción y su precio.
 ## Vigencia
 
 Los 30 días a partir de la emisión durante los cuales es válida una cotización. Aparece
-en el PDF.
+en el PDF. En las cotizaciones QL la vigencia es una fecha que escribe el vendedor.
 
 ## IVA
 

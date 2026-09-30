@@ -169,20 +169,57 @@ func SplitTerms(terms string) []string {
 // without it; RenderTerms puts the value in place.
 const DeliveryTimeToken = "{tiempo_de_entrega}"
 
+// CurrencyToken marks where a quote's currency goes in a terms block, the same way: a
+// series whose terms hold it asks each quote for MXN or USD and won't issue one without.
+const CurrencyToken = "{moneda}"
+
+// Currencies are the currencies a quote can be priced in, in the order the builder
+// offers them. Prices are typed in the chosen one; nothing is converted.
+var Currencies = []string{"MXN", "USD"}
+
+// currencyNames is how each currency reads inside a terms line.
+var currencyNames = map[string]string{
+	"MXN": "pesos mexicanos (MXN)",
+	"USD": "dólares americanos (USD)",
+}
+
+// ValidCurrency reports whether c is one of Currencies.
+func ValidCurrency(c string) bool {
+	_, ok := currencyNames[c]
+	return ok
+}
+
 // RequiresDeliveryTime reports whether a terms block asks each quote for a delivery time.
 func RequiresDeliveryTime(terms string) bool {
 	return strings.Contains(terms, DeliveryTimeToken)
 }
 
-// RenderTerms splits a terms block into lines and fills in the delivery time. An empty
-// deliveryTime (a draft that hasn't got one yet) renders as "por definir".
-func RenderTerms(terms, deliveryTime string) []string {
-	if deliveryTime = strings.TrimSpace(deliveryTime); deliveryTime == "" {
+// RequiresCurrency reports whether a terms block asks each quote for a currency.
+func RequiresCurrency(terms string) bool {
+	return strings.Contains(terms, CurrencyToken)
+}
+
+// TermsInputs are the per-quote values a terms block can hold tokens for.
+type TermsInputs struct {
+	DeliveryTime string
+	Currency     string
+}
+
+// RenderTerms splits a terms block into lines and fills in the tokens. A value a draft
+// hasn't got yet renders as "por definir".
+func RenderTerms(terms string, in TermsInputs) []string {
+	deliveryTime := strings.TrimSpace(in.DeliveryTime)
+	if deliveryTime == "" {
 		deliveryTime = "por definir"
+	}
+	currency, ok := currencyNames[in.Currency]
+	if !ok {
+		currency = "moneda por definir"
 	}
 	lines := SplitTerms(terms)
 	for i, l := range lines {
-		lines[i] = strings.ReplaceAll(l, DeliveryTimeToken, deliveryTime)
+		l = strings.ReplaceAll(l, DeliveryTimeToken, deliveryTime)
+		lines[i] = strings.ReplaceAll(l, CurrencyToken, currency)
 	}
 	return lines
 }

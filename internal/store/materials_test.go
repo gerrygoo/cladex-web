@@ -213,7 +213,9 @@ func TestMigration0009(t *testing.T) {
 	}
 	for _, c := range []struct{ table, column string }{
 		{"products", "unit_price_micros"}, {"products", "currency"},
-		{"quotes", "currency"}, {"quotes", "fx_rate_used_micros"},
+		// quotes.currency is not checked: 0015 brings the column back as a plain label
+		// (no fx rate), for QL quotes.
+		{"quotes", "fx_rate_used_micros"},
 	} {
 		var n int
 		if err := s.db.QueryRowContext(ctx,

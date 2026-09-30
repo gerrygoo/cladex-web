@@ -57,6 +57,12 @@ type Quote struct {
 	// DeliveryTime is what the salesperson typed for the series' {tiempo_de_entrega}
 	// term; empty when the series doesn't ask for one or none is set yet.
 	DeliveryTime string
+	// Currency is MXN or USD once chosen, for a series whose terms hold {moneda}; a
+	// quote is priced in it and the PDF names it. SeriesFreeLines marks a series whose
+	// quotes hold only free lines: no catalog picker, and a validity date the salesperson
+	// types (held in ValidUntil while the quote is a draft).
+	Currency        string
+	SeriesFreeLines bool
 }
 
 // QuoteLine is a quote_lines row. ProductID is nil for a free-text ("Cotizador libre")
@@ -126,7 +132,8 @@ const quoteSelectCols = `
 	q.margin_snapshot_micros, q.custom_margin_micros,
 	(SELECT o.folio FROM quotes o WHERE o.id = q.supersedes_quote_id),
 	(SELECT r.folio FROM quotes r WHERE r.supersedes_quote_id = q.id),
-	CASE WHEN f.free_lines_only = 0 THEN f.name END, COALESCE(f.terms, ''), COALESCE(q.delivery_time, '')`
+	CASE WHEN f.free_lines_only = 0 THEN f.name END, COALESCE(f.terms, ''), COALESCE(q.delivery_time, ''),
+	COALESCE(q.currency, ''), COALESCE(f.free_lines_only, 0)`
 
 const quoteFrom = `
 	FROM quotes q
@@ -144,7 +151,8 @@ func scanQuote(row interface{ Scan(...any) error }) (*Quote, error) {
 		&q.Status, &q.Subtotal, &q.IVA, &q.Total, &termsSnapshot, &q.CreatedAt,
 		&issuedAt, &validUntil, &supersedesQuoteID, &customerNameSnapshot, &vendedorSnapshot, &pdfSHA256,
 		&marginOptionID, &marginNameSnapshot, &marginSnapshotMicros, &customMarginMicros,
-		&supersedesFolio, &supersededByFolio, &seriesFamily, &q.SeriesTerms, &q.DeliveryTime)
+		&supersedesFolio, &supersededByFolio, &seriesFamily, &q.SeriesTerms, &q.DeliveryTime,
+		&q.Currency, &q.SeriesFreeLines)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -429,10 +437,12 @@ func (s *Store) ReplaceQuoteLines(ctx context.Context, quoteID int64, marginOpti
 	return tx.Commit()
 }
 
-// SetQuoteDeliveryTime saves the delivery time a draft's terms ask for.
-func (s *Store) SetQuoteDeliveryTime(ctx context.Context, quoteID int64, deliveryTime string) error {
-	if _, err := s.exec(ctx, `UPDATE quotes SET delivery_time = NULLIF(?, '') WHERE id = ?`, deliveryTime, quoteID); err != nil {
-		return fmt.Errorf("store: set delivery time on quote %d: %w", quoteID, err)
+// SetQuoteTermsInputs saves what a draft's terms and series ask the salesperson for: the
+// delivery time, the currency, and the validity date. Empty values clear the column.
+func (s *Store) SetQuoteTermsInputs(ctx context.Context, quoteID int64, deliveryTime, currency, validUntil string) error {
+	if _, err := s.exec(ctx, `UPDATE quotes SET delivery_time = NULLIF(?, ''), currency = NULLIF(?, ''), valid_until = NULLIF(?, '') WHERE id = ?`,
+		deliveryTime, currency, validUntil, quoteID); err != nil {
+		return fmt.Errorf("store: set terms inputs on quote %d: %w", quoteID, err)
 	}
 	return nil
 }
@@ -587,10 +597,10 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 		return nil, fmt.Errorf("store: create revision of quote %d: %w", originalID, err)
 	}
 	res, err := tx.ExecContext(ctx, `
-		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, supersedes_quote_id, margin_option_id, custom_margin_micros, delivery_time)
-		VALUES (?, ?, ?, ?, 'borrador', ?, ?, ?, NULLIF(?, ''))`,
+		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, supersedes_quote_id, margin_option_id, custom_margin_micros, delivery_time, currency)
+		VALUES (?, ?, ?, ?, 'borrador', ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''))`,
 		newFolio, original.Prefix, original.CustomerID, userID, originalID,
-		original.MarginOptionID, original.CustomMarginMicros, original.DeliveryTime,
+		original.MarginOptionID, original.CustomMarginMicros, original.DeliveryTime, original.Currency,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: create revision of quote %d: insert: %w", originalID, err)

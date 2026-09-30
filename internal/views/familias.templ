@@ -70,6 +70,7 @@ templ FamiliasList(families []store.Family, values FamiliaFormValues, fieldError
 				<input type="text" name="series_label" value={ values.SeriesLabel } placeholder="p. ej. Cobijas ignífugas"/>
 			</label>
 			<p>Escribe <code>{ store.DeliveryTimeToken }</code> donde va el tiempo de entrega, p. ej. <em>Tiempo de entrega: { store.DeliveryTimeToken }</em>. Cada cotización de esta serie pedirá ese dato y no se podrá emitir sin él.</p>
+			<p>Escribe <code>{ store.CurrencyToken }</code> donde va la moneda (MXN o USD), p. ej. <em>Precios en { store.CurrencyToken }, no incluyen IVA</em>. Cada cotización pedirá elegirla.</p>
 			<label>
 				Términos y condiciones del PDF (uno por línea)
 				<textarea name="terms" rows="6">{ values.Terms }</textarea>
@@ -97,6 +98,7 @@ templ FamiliaEdit(f store.Family, seriesLabel string, terms string, user *NavUse
 				<input type="text" name="series_label" value={ seriesLabel }/>
 			</label>
 			<p>Escribe <code>{ store.DeliveryTimeToken }</code> donde va el tiempo de entrega, p. ej. <em>Tiempo de entrega: { store.DeliveryTimeToken }</em>. Cada cotización de esta serie pedirá ese dato y no se podrá emitir sin él.</p>
+			<p>Escribe <code>{ store.CurrencyToken }</code> donde va la moneda (MXN o USD), p. ej. <em>Precios en { store.CurrencyToken }, no incluyen IVA</em>. Cada cotización pedirá elegirla.</p>
 			<label>
 				Términos y condiciones del PDF (uno por línea)
 				<textarea name="terms" rows="10">{ terms }</textarea>

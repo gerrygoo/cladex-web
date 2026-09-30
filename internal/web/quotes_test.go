@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
 	"github.com/gerrygoo/cladex-web/internal/pricing"
@@ -1044,6 +1045,101 @@ func TestQuotesLibreSeries(t *testing.T) {
 	}
 }
 
+// TestQuotesCurrencyAndVigenciaOnQL covers issue #12's second round: a QL quote asks for a
+// currency and a validity date, has no catalog picker, refuses to issue without them, and
+// freezes the currency into its terms, its PDF and its valid_until.
+func TestQuotesCurrencyAndVigenciaOnQL(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	ctx := context.Background()
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, userID)
+	pv := func(folio string) map[string]string { return map[string]string{"folio": folio} }
+	future := time.Now().AddDate(0, 0, 10).Format("2006-01-02")
+	past := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	form := func(currency, validUntil string) url.Values {
+		return url.Values{
+			"line_keys":             {"0"},
+			"lines[0][kind]":        {"free"},
+			"lines[0][description]": {"Servicio de instalación"},
+			"lines[0][unit_price]":  {"1000"},
+			"lines[0][qty]":         {"1"},
+			"delivery_time":         {"5 días"},
+			"currency":              {currency},
+			"valid_until":           {validUntil},
+		}
+	}
+
+	ql, err := a.store.CreateDraftQuote(ctx, customerID, userID, "QL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+ql.Folio, pv(ql.Folio), nil, false).Body.String()
+	for _, want := range []string{`name="currency"`, `name="valid_until"`, `name="delivery_time"`, "Línea libre"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("QL builder is missing %q", want)
+		}
+	}
+	for _, unwanted := range []string{"product-search-results", "Buscar producto"} {
+		if strings.Contains(page, unwanted) {
+			t.Errorf("QL builder still shows the catalog picker (%q)", unwanted)
+		}
+	}
+	qa, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QA")
+	page = doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+qa.Folio, pv(qa.Folio), nil, false).Body.String()
+	if strings.Contains(page, `name="currency"`) || strings.Contains(page, `name="valid_until"`) || !strings.Contains(page, "product-search-results") {
+		t.Error("QA builder changed: it should keep its picker and ask for neither currency nor vigencia")
+	}
+
+	refused := func(currency, validUntil, wantMsg string) {
+		t.Helper()
+		rec := doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+ql.Folio+"/emitir", pv(ql.Folio), form(currency, validUntil), false)
+		if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), wantMsg) {
+			t.Fatalf("Emitir(%q, %q) = %d, want 422 with %q; body = %s", currency, validUntil, rec.Code, wantMsg, rec.Body.String())
+		}
+		if got, _ := a.store.QuoteByID(ctx, ql.ID); got.Status != "borrador" {
+			t.Fatalf("status after refused issue = %q", got.Status)
+		}
+	}
+	refused("", future, "Elige la moneda")
+	refused("EUR", future, "Elige la moneda")
+	refused("USD", "", "hasta qué fecha es vigente")
+	refused("USD", "mañana", "hasta qué fecha es vigente")
+	refused("USD", past, "no puede ser anterior a hoy")
+
+	// Saving keeps what was chosen, even incomplete.
+	rec := doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+ql.Folio+"/guardar", pv(ql.Folio), form("USD", ""), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if got, _ := a.store.QuoteByID(ctx, ql.ID); got.Currency != "USD" || got.ValidUntil != nil {
+		t.Fatalf("saved currency %q, valid_until %v", got.Currency, got.ValidUntil)
+	}
+
+	rec = doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+ql.Folio+"/emitir", pv(ql.Folio), form("USD", future), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	issued, _ := a.store.QuoteByID(ctx, ql.ID)
+	if issued.ValidUntil == nil || *issued.ValidUntil != future {
+		t.Fatalf("valid_until = %v; want the typed %s, not the 30-day default", issued.ValidUntil, future)
+	}
+	if issued.TermsSnapshot == nil || !strings.Contains(*issued.TermsSnapshot, "Precios en dólares americanos (USD), no incluyen IVA") {
+		t.Fatalf("frozen terms = %v", issued.TermsSnapshot)
+	}
+	doc, err := issuedQuoteDocument(*issued, nil)
+	if err != nil || doc.Currency != "USD" {
+		t.Fatalf("issued document currency = %q, %v", doc.Currency, err)
+	}
+
+	// A revision keeps the currency, but its vigencia has to be typed again.
+	rev, err := a.store.CreateRevision(ctx, ql.ID, userID)
+	if err != nil || rev.Currency != "USD" || rev.ValidUntil != nil {
+		t.Fatalf("revision = %+v, %v", rev, err)
+	}
+}
+
 // TestQuotesDeliveryTimeRequiredToIssue covers QL's {tiempo_de_entrega} term (issue #14):
 // the builder asks for a delivery time, saving keeps it, issuing without one is refused
 // with nothing written, and the value ends up in the frozen terms and on a revision.
@@ -1066,6 +1162,9 @@ func TestQuotesDeliveryTimeRequiredToIssue(t *testing.T) {
 		if len(delivery) > 0 {
 			f.Set("delivery_time", delivery[0])
 		}
+		// QL also wants a currency and a vigencia (issue #12); QA ignores both.
+		f.Set("currency", "MXN")
+		f.Set("valid_until", time.Now().AddDate(0, 0, 10).Format("2006-01-02"))
 		return f
 	}
 	pv := func(folio string) map[string]string { return map[string]string{"folio": folio} }

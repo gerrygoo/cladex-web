@@ -183,11 +183,30 @@ func TestRenderTermsFillsTheDeliveryTime(t *testing.T) {
 	if !RequiresDeliveryTime(terms) || RequiresDeliveryTime("Precios en MXN") {
 		t.Fatal("RequiresDeliveryTime misjudged the token")
 	}
-	if got := strings.Join(RenderTerms(terms, " 5 días "), "|"); got != "Precios en MXN|Tiempo de entrega: 5 días|Pago por adelantado" {
+	if got := strings.Join(RenderTerms(terms, TermsInputs{DeliveryTime: " 5 días "}), "|"); got != "Precios en MXN|Tiempo de entrega: 5 días|Pago por adelantado" {
 		t.Fatalf("RenderTerms = %q", got)
 	}
-	if got := RenderTerms(terms, "")[1]; got != "Tiempo de entrega: por definir" {
+	if got := RenderTerms(terms, TermsInputs{})[1]; got != "Tiempo de entrega: por definir" {
 		t.Fatalf("no delivery time yet renders as %q", got)
+	}
+}
+
+func TestRenderTermsFillsTheCurrency(t *testing.T) {
+	terms := "Precios en " + CurrencyToken + ", no incluyen IVA"
+	if !RequiresCurrency(terms) || RequiresCurrency("Precios en MXN") {
+		t.Fatal("RequiresCurrency misjudged the token")
+	}
+	for currency, want := range map[string]string{
+		"MXN": "Precios en pesos mexicanos (MXN), no incluyen IVA",
+		"USD": "Precios en dólares americanos (USD), no incluyen IVA",
+		"":    "Precios en moneda por definir, no incluyen IVA",
+	} {
+		if got := RenderTerms(terms, TermsInputs{Currency: currency})[0]; got != want {
+			t.Errorf("currency %q renders %q; want %q", currency, got, want)
+		}
+	}
+	if ValidCurrency("EUR") || !ValidCurrency("USD") || !ValidCurrency("MXN") {
+		t.Fatal("ValidCurrency misjudged")
 	}
 }
 
@@ -205,12 +224,12 @@ func TestQLTermsMigration(t *testing.T) {
 
 	fresh := newTestStore(t)
 	got := qlTerms(fresh)
-	for _, want := range []string{"(a menos que se haya indicado que esa cotización se emitirá en USD)", "Tiempo de entrega: " + DeliveryTimeToken, "Pago por adelantado para colocar OC"} {
+	for _, want := range []string{"Precios en " + CurrencyToken + ", no incluyen IVA", "Tiempo de entrega: " + DeliveryTimeToken, "Pago por adelantado para colocar OC"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("QL terms are missing %q:\n%s", want, got)
 		}
 	}
-	if !RequiresDeliveryTime(got) || strings.Contains(got, "Flete") {
+	if !RequiresDeliveryTime(got) || !RequiresCurrency(got) || strings.Contains(got, "Flete") {
 		t.Errorf("QL terms still look like the placeholder:\n%s", got)
 	}
 
@@ -239,6 +258,6 @@ func TestQLTermsMigration(t *testing.T) {
 	}
 	defer s.Close()
 	if got := qlTerms(s); got != "Editado por un admin" {
-		t.Fatalf("0014 overwrote an admin's edit of QL's terms: %q", got)
+		t.Fatalf("0014/0015 overwrote an admin's edit of QL's terms: %q", got)
 	}
 }

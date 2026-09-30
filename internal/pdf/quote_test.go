@@ -94,3 +94,22 @@ func TestRenderQuoteIsDeterministic(t *testing.T) {
 		t.Fatal("two renders of the same document with the same Created differ")
 	}
 }
+
+// TestQuoteTypstNamesTheCurrency pins that a quote's currency labels the amounts, and
+// that without one the layout is exactly what it was before currencies existed.
+func TestQuoteTypstNamesTheCurrency(t *testing.T) {
+	doc := QuoteDocument{Folio: "QL0001", Subtotal: "$1,000.00", IVA: "$160.00", Total: "$1,160.00"}
+	plain := buildQuoteTypst(doc)
+	for _, label := range []string{"[Precio unitario]", "[Subtotal]", "[IVA]", "[*Total*]"} {
+		if !strings.Contains(plain, label) {
+			t.Errorf("layout without a currency lost %q", label)
+		}
+	}
+	doc.Currency = "USD"
+	usd := buildQuoteTypst(doc)
+	for _, label := range []string{"[Precio unitario (USD)]", "[Subtotal (USD)]", "[IVA (USD)]", "[*Total (USD)*]"} {
+		if !strings.Contains(usd, label) {
+			t.Errorf("USD layout is missing %q", label)
+		}
+	}
+}

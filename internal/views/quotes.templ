@@ -536,7 +536,16 @@ templ quoteTotalRow(label, amount string, trailing int, grand bool) {
 // issue metadata, the button that moves it to the next stage (with an admin-only one to
 // go back), a "Revisar" button while it is 'emitida' (the active version), or a note
 // pointing at whichever revision superseded it (revisada).
-templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, deliveryErr string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser) {
+// validUntilValue is the quote's validity date as a date input's value: the ISO date,
+// or empty while none is set.
+func validUntilValue(quote store.Quote) string {
+	if quote.ValidUntil == nil {
+		return ""
+	}
+	return *quote.ValidUntil
+}
+
+templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, fieldErrs map[string]string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser) {
 	@Layout("Cotización "+quote.Folio, user) {
 		<script src="/static/margin.js" defer></script>
 		<div class="page-title">
@@ -641,10 +650,40 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 								value={ quote.DeliveryTime }
 								maxlength="120"
 								placeholder="p. ej. 5 días hábiles"
-								{ errAttrs(map[string]string{"delivery_time": deliveryErr}, "delivery_time")... }
+								{ errAttrs(fieldErrs, "delivery_time")... }
 							/>
 						</label>
-						@FieldError(map[string]string{"delivery_time": deliveryErr}, "delivery_time")
+						@FieldError(fieldErrs, "delivery_time")
+					</div>
+				}
+				if store.RequiresCurrency(quote.SeriesTerms) {
+					<div class="quote-meta">
+						<label>
+							Moneda (obligatoria para emitir)
+							<select name="currency" id="currency" { errAttrs(fieldErrs, "currency")... }>
+								<option value="" selected?={ quote.Currency == "" }>Elige la moneda</option>
+								for _, c := range store.Currencies {
+									<option value={ c } selected?={ quote.Currency == c }>{ c }</option>
+								}
+							</select>
+						</label>
+						<p class="hint">Los precios de las líneas se escriben en esta moneda; no se convierte nada.</p>
+						@FieldError(fieldErrs, "currency")
+					</div>
+				}
+				if quote.SeriesFreeLines {
+					<div class="quote-meta">
+						<label>
+							Vigencia: válida hasta (obligatoria para emitir)
+							<input
+								type="date"
+								name="valid_until"
+								id="valid-until"
+								value={ validUntilValue(quote) }
+								{ errAttrs(fieldErrs, "valid_until")... }
+							/>
+						</label>
+						@FieldError(fieldErrs, "valid_until")
 					</div>
 				}
 				@QuoteLinesFragment(quote, lines, totals, margin.Error)
@@ -671,43 +710,47 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 				</div>
 				<section class="quote-add" aria-labelledby="agregar-lineas">
 					<h2 id="agregar-lineas">Agregar líneas</h2>
-					<div class="toolbar">
-						<input
-							type="search"
-							name="q"
-							placeholder="Buscar producto por SKU o descripción…"
-							aria-label="Buscar producto por SKU o descripción"
-							value={ picker.Query }
-							hx-get={ productPickerPath(quote.Folio) }
-							hx-trigger="keyup changed delay:400ms, search"
-							data-guard-ignore
-							hx-include="#linea-form [name='solo_familia']"
-							hx-target="#product-search-results"
-							hx-swap="outerHTML"
-						/>
-						<button type="submit" formmethod="get" formaction={ "/cotizaciones/" + quote.Folio }>Buscar</button>
-						if family := quote.SeriesFamily; family != "" {
-							<input type="hidden" name="solo_familia" value="0"/>
-							<label>
-								<input
-									type="checkbox"
-									name="solo_familia"
-									value="1"
-									checked?={ picker.SoloFamilia }
-									data-guard-ignore
-									hx-get={ productPickerPath(quote.Folio) }
-									hx-trigger="change"
-									hx-include="#linea-form [name='q'], #linea-form [name='solo_familia']"
-									hx-target="#product-search-results"
-									hx-swap="outerHTML"
-								/>
-								Solo productos de la familia { family }
-							</label>
-						}
-					</div>
-					@ProductSearchResults(picker)
+					if !quote.SeriesFreeLines {
+						<div class="toolbar">
+							<input
+								type="search"
+								name="q"
+								placeholder="Buscar producto por SKU o descripción…"
+								aria-label="Buscar producto por SKU o descripción"
+								value={ picker.Query }
+								hx-get={ productPickerPath(quote.Folio) }
+								hx-trigger="keyup changed delay:400ms, search"
+								data-guard-ignore
+								hx-include="#linea-form [name='solo_familia']"
+								hx-target="#product-search-results"
+								hx-swap="outerHTML"
+							/>
+							<button type="submit" formmethod="get" formaction={ "/cotizaciones/" + quote.Folio }>Buscar</button>
+							if family := quote.SeriesFamily; family != "" {
+								<input type="hidden" name="solo_familia" value="0"/>
+								<label>
+									<input
+										type="checkbox"
+										name="solo_familia"
+										value="1"
+										checked?={ picker.SoloFamilia }
+										data-guard-ignore
+										hx-get={ productPickerPath(quote.Folio) }
+										hx-trigger="change"
+										hx-include="#linea-form [name='q'], #linea-form [name='solo_familia']"
+										hx-target="#product-search-results"
+										hx-swap="outerHTML"
+									/>
+									Solo productos de la familia { family }
+								</label>
+							}
+						</div>
+						@ProductSearchResults(picker)
+					}
 					<p class="picker-free">
-						¿No está en el catálogo?
+						if !quote.SeriesFreeLines {
+							¿No está en el catálogo?
+						}
 						<button
 							type="submit"
 							name="add_free"

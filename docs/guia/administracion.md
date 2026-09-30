@@ -163,6 +163,8 @@ su propia [[serie]] de folio (QA, QS, QI…) con sus *Términos y condiciones* d
    Si quieres que cada cotización de la serie pida un tiempo de entrega, escribe
    `{tiempo_de_entrega}` donde debe ir, p. ej. `Tiempo de entrega: {tiempo_de_entrega}`.
    El vendedor tendrá que escribirlo antes de [emitir](cotizaciones.md#tiempo-de-entrega).
+   Igual con `{moneda}`: el vendedor elige MXN o USD y el texto pasa a *pesos mexicanos
+   (MXN)* o *dólares americanos (USD)*, p. ej. `Precios en {moneda}, no incluyen IVA`.
 6. Marca *"Sin productos de catálogo"* solo si la familia es para líneas libres, como QL:
    no aparecerá al dar de alta productos.
 7. Haz clic en **Crear familia**.
@@ -177,8 +179,10 @@ La serie nueva aparece de inmediato en **Nueva cotización**.
 Los cambios se ven en los borradores y en las cotizaciones que se emitan de ahora en
 adelante. Las cotizaciones ya emitidas conservan los términos con que se emitieron.
 
-> Los términos de **QL** incluyen el tiempo de entrega (`{tiempo_de_entrega}`), así que sus
-> cotizaciones lo piden. Si los editas, conserva esa línea para que se siga pidiendo.
+> Los términos de **QL** incluyen la moneda (`{moneda}`) y el tiempo de entrega
+> (`{tiempo_de_entrega}`), así que sus cotizaciones los piden. Si los editas, conserva
+> esas líneas para que se sigan pidiendo. Las series sin productos (como QL) además piden
+> una [vigencia](cotizaciones.md#moneda-y-vigencia-en-ql) escrita a mano.
 
 El nombre y la serie de una familia no se pueden cambiar ni eliminar desde la app.
 

@@ -29,11 +29,14 @@ type QuoteDocument struct {
 	Vendedor     string
 	Fecha        string
 	Vencimiento  string // empty when not set — rendered as "—"
-	Lines        []QuoteLineDoc
-	Subtotal     string
-	IVA          string
-	Total        string
-	Terms        []string
+	// Currency (MXN or USD) names the currency the amounts are in, on the totals and the
+	// unit price header; empty for a series that prices in pesos without saying so.
+	Currency string
+	Lines    []QuoteLineDoc
+	Subtotal string
+	IVA      string
+	Total    string
+	Terms    []string
 	// Created is the PDF's embedded creation date: issued_at for an issued quote, so
 	// every reprint is byte-identical; zero (render time) for a draft preview.
 	Created time.Time
@@ -82,7 +85,7 @@ func buildQuoteTypst(doc QuoteDocument) string {
 	}
 	b.WriteString(")\n")
 
-	b.WriteString(`
+	b.WriteString(currencyLabels(doc.Currency, `
 #grid(
   columns: (auto, 1fr),
   align: (left, right),
@@ -133,13 +136,28 @@ func buildQuoteTypst(doc QuoteDocument) string {
 #for t in terms [
   - #t
 ]
-`)
+`))
 
 	return b.String()
 }
 
+// currencyLabels names the currency on the amount labels of the static layout. With no
+// currency the layout is returned untouched, so quotes that don't carry one render
+// byte-for-byte as they always did.
+func currencyLabels(currency, layout string) string {
+	if currency == "" {
+		return layout
+	}
+	return strings.NewReplacer(
+		"[Precio unitario]", "[Precio unitario ("+currency+")]",
+		"[Subtotal]", "[Subtotal ("+currency+")]",
+		"[IVA]", "[IVA ("+currency+")]",
+		"[*Total*]", "[*Total ("+currency+")*]",
+	).Replace(layout)
+}
+
 // orDash returns s, or "—" when s is empty — used for optional display fields like
-// vencimiento, which no UI sets yet (quotes.valid_until is 2.4's job).
+// vencimiento, which a draft only has once its series asks the salesperson to type one.
 func orDash(s string) string {
 	if s == "" {
 		return "—"
