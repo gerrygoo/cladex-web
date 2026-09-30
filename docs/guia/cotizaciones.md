@@ -236,7 +236,8 @@ de nuevo la vigencia.
 
 ## Descargar y enviar el PDF
 
-1. Abre la cotización: en **Cotizaciones**, haz clic en su folio.
+1. Abre la cotización: en el menú **Cotizaciones**, elige **Ver cotizaciones** y haz clic
+   en su folio.
 2. Haz clic en **Descargar PDF**. Se abre en otra pestaña; desde ahí guárdalo o
    imprímelo.
 3. Envíalo al cliente por tu medio habitual (correo, WhatsApp). La app no envía
@@ -305,8 +306,8 @@ puede regresar más atrás.
 
 ## Ver el detalle de una cotización
 
-Desde **Cotizaciones**, haz clic en el folio de cualquier cotización que no sea
-[[borrador]]. Debajo del nombre de la cotización y del cliente verás este resumen, y luego las líneas y los totales:
+En el menú **Cotizaciones**, elige **Ver cotizaciones** y haz clic en el folio de
+cualquier cotización que no sea [[borrador]]. Debajo del nombre de la cotización y del cliente verás este resumen, y luego las líneas y los totales:
 
 - **Estado** de la cotización.
 - **Emitió**: quién la emitió.

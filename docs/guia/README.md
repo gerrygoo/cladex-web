@@ -10,7 +10,7 @@ parte de esta guía que la explica.
 
 | Página | Qué cubre |
 |---|---|
-| [Acceso y cuenta](acceso.md) | Iniciar sesión, cambiar tu contraseña, salir |
+| [Acceso y cuenta](acceso.md) | Iniciar sesión, cambiar tu contraseña, cerrar sesión |
 | [Clientes](clientes.md) | Dar de alta, buscar, editar y eliminar clientes |
 | [Cotizaciones](cotizaciones.md) | Crear una cotización, agregar productos por SKU, líneas libres, guardar, emitir, descargar el PDF, revisar |
 | [Productos](productos.md) | Buscar, dar de alta y editar productos; cómo se calcula cada precio; conversiones de unidades |
