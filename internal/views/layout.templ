@@ -32,10 +32,17 @@ templ Layout(title string, user *NavUser) {
 					<a href="/" class="brand-link"><img src="/static/cladex-logo.svg" alt="Cladex" width="168" height="32"/></a>
 					if user != nil {
 						<nav class="app-nav">
-							<a href="/cotizaciones">Cotizaciones</a>
-							// The supporting tables, in one disclosure menu so the bar stays short on a
-							// phone. A native <details>: it opens and closes without JS; static/app.js
-							// only closes it on Escape or a click elsewhere.
+							// Each section is a disclosure menu so the bar stays short on a phone. A
+							// native <details>: it opens and closes without JS; static/app.js only
+							// closes it on Escape or a click elsewhere.
+							<details class="nav-menu">
+								<summary>Cotizaciones</summary>
+								<ul>
+									<li><a href="/cotizaciones/nueva">Nueva cotización</a></li>
+									<li><a href="/cotizaciones">Ver cotizaciones</a></li>
+								</ul>
+							</details>
+							// The supporting tables.
 							<details class="nav-menu">
 								<summary>Catálogos</summary>
 								<ul>

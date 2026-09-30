@@ -8,16 +8,20 @@
     if (msg && !window.confirm(msg)) e.preventDefault();
   }, true);
 
-  // Mark the nav link of the section this page belongs to (/cotizaciones/QS0001 is under
-  // Cotizaciones).
+  // Mark the nav link of the page, or else of the section it belongs to
+  // (/cotizaciones/nueva is Nueva cotización; /cotizaciones/QS0001 is under Ver
+  // cotizaciones).
   document.addEventListener("DOMContentLoaded", function () {
+    var links = document.querySelectorAll("nav.app-nav a, div.nav-user a");
     var section = "/" + location.pathname.split("/")[1];
-    document.querySelectorAll("nav.app-nav a, div.nav-user a").forEach(function (a) {
-      if (a.getAttribute("href") === section) a.setAttribute("aria-current", "page");
-    });
+    var match = function (path) {
+      return Array.prototype.find.call(links, function (a) { return a.getAttribute("href") === path; });
+    };
+    var current = match(location.pathname) || match(section);
+    if (current) current.setAttribute("aria-current", "page");
   });
 
-  // The "Catálogos" menu is a <details>: it closes on Escape (focus back on its
+  // The nav menus are <details>: it closes on Escape (focus back on its
   // summary) or on a click anywhere outside it, like any other menu.
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;

@@ -20,7 +20,7 @@ El flujo completo, de principio a fin:
 
 **Antes:** el cliente tiene que existir. Si no está, [dalo de alta](clientes.md#dar-de-alta-un-cliente).
 
-1. En el menú, entra a **Cotizaciones** y haz clic en **Nueva cotización**.
+1. En el menú **Cotizaciones**, elige **Nueva cotización**.
 2. En **Cliente**, elige al cliente de la lista (está en orden alfabético).
 3. En **Serie de folio**, elige una:
    - **QA — Cable CCA**
@@ -331,7 +331,7 @@ Cualquier usuario puede comentar. Los comentarios no se editan ni se borran.
 
 ## Buscar una cotización
 
-1. En el menú, entra a **Cotizaciones**.
+1. En el menú **Cotizaciones**, elige **Ver cotizaciones**.
 2. Escribe el folio o el nombre del cliente en *"Buscar por folio o cliente…"*.
 3. Para ordenar, haz clic en el encabezado **Folio**, **Cliente**, **Autor**,
    **Estado**, **Total** o **Fecha**. Otro clic invierte el orden. Sin ordenar, van de la más

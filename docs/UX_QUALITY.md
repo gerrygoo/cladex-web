@@ -382,3 +382,6 @@ heuristic and severity. Tick when fixed, with the commit.
       user; on a phone it takes two short lines under the logo. Ajustes became
       "Configuración del sistema", so it doesn't read as personal preferences. Signing
       out moved to Mi cuenta as "Cerrar sesión", next to who you're signed in as.
+- [x] **#37 · Navigation.** Cotizaciones is a menu too, with "Nueva cotización" and "Ver
+      cotizaciones", so creating a quote is one path from every page. Inicio drops its
+      "Nueva cotización" button and is a read-only overview with no main action.

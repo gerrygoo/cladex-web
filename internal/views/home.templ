@@ -27,10 +27,7 @@ templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavU
 			<h1>Cladex</h1>
 			@HelpLink(HelpInicio)
 		</div>
-		<div class="toolbar">
-			<h2>Cotizaciones por etapa</h2>
-			<a class="button primary" href="/cotizaciones/nueva">Nueva cotización</a>
-		</div>
+		<h2>Cotizaciones por etapa</h2>
 		<div class="overview-stages">
 			for _, st := range ov.Stages {
 				<section class="overview-stage">

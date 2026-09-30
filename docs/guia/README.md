@@ -47,7 +47,8 @@ las tuyas):
 - **Cotizaciones por etapa**: cuántas hay en cada etapa de [[emitida]], [[Pipeline]],
   [[OC emitida]], [[entregada]], [[cerrada]] y [[revisada]] (los borradores no se cuentan
   aquí), la suma de sus totales y las 3 de mayor total en cada etapa. Haz clic en un folio
-  para abrirla. El botón **Nueva cotización** lleva a [crear una](cotizaciones.md#crear-una-cotización).
+  para abrirla. Para [crear una](cotizaciones.md#crear-una-cotización), usa el menú
+  **Cotizaciones** → **Nueva cotización**.
   Para mover una cotización de etapa, mira [darle seguimiento](cotizaciones.md#dar-seguimiento-a-una-cotización).
 - **Vendedores**: una fila por cada persona que ha creado cotizaciones, ordenadas por
   **Monto en pipeline** (la suma de sus cotizaciones en Pipeline). Junto están el

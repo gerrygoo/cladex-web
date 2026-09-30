@@ -5,6 +5,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gerrygoo/cladex-web/internal/pricing"
@@ -113,11 +114,12 @@ func TestCommentsLeadWithTheirText(t *testing.T) {
 	assertContains(t, empty, `<p class="comments-empty">Sin comentarios.</p>`)
 }
 
-// The supporting tables live in one "Catálogos" disclosure menu, and signing out is
-// on Mi cuenta, not in the bar.
+// Quotes and the supporting tables are each a disclosure menu, and signing out is on Mi
+// cuenta, not in the bar. Creating a quote starts from the menu, not from Inicio.
 func TestNavGroupsTablesAndLeavesLogoutToMiCuenta(t *testing.T) {
 	admin := render(t, CustomersList(nil, ListView{Base: "/clientes"}, "", &NavUser{Username: "ana", IsAdmin: true}))
 	assertContains(t, admin,
+		`<details class="nav-menu"><summary>Cotizaciones</summary><ul><li><a href="/cotizaciones/nueva">Nueva cotización</a></li><li><a href="/cotizaciones">Ver cotizaciones</a></li></ul></details>`,
 		`<details class="nav-menu"><summary>Catálogos</summary><ul><li><a href="/productos">Productos</a></li><li><a href="/clientes">Clientes</a></li><li><a href="/usuarios">Usuarios</a></li><li><a href="/familias">Familias</a></li><li><a href="/unidades">Unidades</a></li><li><a href="/ajustes">Configuración del sistema</a></li></ul></details>`)
 	if strings.Contains(admin, `action="/logout"`) {
 		t.Error("the nav bar should not carry the logout form")
@@ -125,6 +127,11 @@ func TestNavGroupsTablesAndLeavesLogoutToMiCuenta(t *testing.T) {
 	vendedor := render(t, CustomersList(nil, ListView{Base: "/clientes"}, "", &NavUser{Username: "rodolfo"}))
 	assertContains(t, vendedor,
 		`<ul><li><a href="/productos">Productos</a></li><li><a href="/clientes">Clientes</a></li></ul></details>`)
+
+	home := render(t, Home(time.Time{}, time.Time{}, "", &store.Overview{}, &NavUser{Username: "ana"}))
+	if strings.Count(home, `href="/cotizaciones/nueva"`) != 1 {
+		t.Error("Inicio should reach Nueva cotización only through the nav menu")
+	}
 
 	cuenta := render(t, MiCuenta(nil, "", &NavUser{Username: "ana"}))
 	assertContains(t, cuenta, `Entraste como <strong>ana</strong>.`,
