@@ -204,6 +204,13 @@ and date follow in a muted `--fs-small` line).
 Status per screen. `—` is not yet audited; otherwise ✅ pass, ⚠️ open issues (see log), ❌ blocking.
 Date and commit the audit in the header when refreshing.
 
+_Palette re-check, 2026-09-30 (Cladex logo colours): axe-core 4.13, light and dark, zero
+violations on login, home, quotes list, new quote, products and customers lists and forms,
+users, settings, units, families, my account and help, on an empty scratch DB. Screens that
+need data (builder, issued quote, status badges, messages) were not re-run; their colours
+were checked by calculation only (all ≥ 5.5:1 on cream and on their 10% tints, except
+danger in dark mode at 5.15:1 on its tint, still above AA)._
+
 _Last audit: 2026-09-28, first pass of both tiers complete. axe-core 4.13 in the Chromium
 preview pane, light and dark schemes, on every screen including an issued, a revised and a
 revision-draft quote. Real-keyboard pass (Tab through every stop, checking order, visible
