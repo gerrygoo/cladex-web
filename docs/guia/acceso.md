@@ -6,8 +6,8 @@
 2. Escribe tu **Usuario** y tu **Contraseña**.
 3. Haz clic en **Entrar**.
 
-Llegas a la página de inicio. El menú de arriba tiene **Cotizaciones** y **Base de
-datos**. Haz clic en **Base de datos** para abrir la lista de **Productos** y **Clientes**
+Llegas a la página de inicio. El menú de arriba tiene **Cotizaciones** y **Catálogos**.
+Haz clic en **Catálogos** para abrir la lista de **Productos** y **Clientes**
 (y, si eres administrador, **Usuarios**, **Familias**, **Unidades** y **Configuración
 del sistema**). A la derecha están **Ayuda** y tu nombre de usuario, que abre
 [Mi cuenta](#cambiar-tu-contraseña).

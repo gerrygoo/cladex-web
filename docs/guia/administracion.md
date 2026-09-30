@@ -1,7 +1,7 @@
 # Administración
 
-Solo para cuentas con rol **Administrador**. Estas opciones están en el menú **Base de
-datos**, debajo de Productos y Clientes: **Usuarios**, **Familias**, **Unidades** y
+Solo para cuentas con rol **Administrador**. Estas opciones están en el menú **Catálogos**,
+debajo de Productos y Clientes: **Usuarios**, **Familias**, **Unidades** y
 **Configuración del sistema**.
 
 En **Configuración del sistema** están los dos datos de los que salen los precios, además del costo de
@@ -93,7 +93,7 @@ escritas en ella. Los materiales no se pueden eliminar.
 
 ## Cambiar el rol de un usuario
 
-1. En el menú **Base de datos**, entra a **Usuarios**.
+1. En el menú **Catálogos**, entra a **Usuarios**.
 2. En la fila del usuario, elige **Administrador** o **Vendedor**.
 3. Haz clic en **Guardar rol**.
 
@@ -138,7 +138,7 @@ pantalla. Entrégasela al usuario por un medio privado y pídele que la
 
 Las unidades (metro, caja, pieza…) que se pueden asignar a los productos.
 
-1. En el menú **Base de datos**, entra a **Unidades**. Arriba ves la lista actual.
+1. En el menú **Catálogos**, entra a **Unidades**. Arriba ves la lista actual.
 2. En **Nueva unidad**, escribe el **Código** (corto, p. ej. `caja`) y el **Nombre**
    (p. ej. `Caja`).
 3. Haz clic en **Agregar**.
@@ -154,7 +154,7 @@ su propia [[serie]] de folio (QA, QS, QI…) con sus *Términos y condiciones* d
 
 ### Crear una familia
 
-1. En el menú **Base de datos**, entra a **Familias**. Arriba ves la lista actual.
+1. En el menú **Catálogos**, entra a **Familias**. Arriba ves la lista actual.
 2. En **Nueva familia**, escribe el **Nombre**.
 3. En **Serie**, escribe dos letras que empiecen con Q (p. ej. `QF`). Cada familia
    tiene una serie distinta. Es el prefijo de sus folios (`QF0001`).

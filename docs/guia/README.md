@@ -37,7 +37,7 @@ parte de esta guía que la explica.
 | Cotizaciones, Clientes, Productos | ✓ | ✓ |
 | Usuarios, Familias, Unidades, Configuración del sistema | — | ✓ |
 
-Si en el menú **Base de datos** solo ves **Productos** y **Clientes**, tu cuenta es de vendedor.
+Si en el menú **Catálogos** solo ves **Productos** y **Clientes**, tu cuenta es de vendedor.
 
 ## La página de inicio
 

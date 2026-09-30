@@ -6,7 +6,7 @@ borradores que incluyen el producto.
 
 ## Buscar un producto
 
-1. En el menú **Base de datos**, entra a **Productos**.
+1. En el menú **Catálogos**, entra a **Productos**.
 2. Escribe en *"Buscar por SKU o descripción…"*. La lista se filtra mientras escribes.
 3. Para ordenar, haz clic en el encabezado de una columna (**SKU**, **Descripción**,
    **Familia**, **Costo**, **Unidad**).

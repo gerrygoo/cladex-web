@@ -378,7 +378,7 @@ heuristic and severity. Tick when fixed, with the commit.
       horizontally; its text stays left-aligned.
 - [x] **#36 · Navigation.** The bar had ten items for an admin (seven sections, Ayuda,
       the user, Salir) and crowded a phone screen. The six supporting tables are now one
-      "Base de datos" disclosure menu, so the bar has Cotizaciones, Base de datos, Ayuda
-      and the user; on a phone it takes two short lines under the logo. Ajustes became "Configuración del sistema", so it doesn't read as
-      personal preferences. Signing out moved to Mi cuenta as "Cerrar sesión", next to
-      who you're signed in as.
+      "Catálogos" disclosure menu, so the bar has Cotizaciones, Catálogos, Ayuda and the
+      user; on a phone it takes two short lines under the logo. Ajustes became
+      "Configuración del sistema", so it doesn't read as personal preferences. Signing
+      out moved to Mi cuenta as "Cerrar sesión", next to who you're signed in as.

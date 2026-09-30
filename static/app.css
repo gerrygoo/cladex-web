@@ -183,7 +183,7 @@ details.nav-menu:has(a[aria-current="page"]) > summary {
   text-underline-offset: 0.35em;
 }
 
-/* "Base de datos": the supporting tables. The summary reads as a nav link with a caret;
+/* "Catálogos": the supporting tables. The summary reads as a nav link with a caret;
    the list opens over the page instead of pushing it down. */
 details.nav-menu {
   position: relative;

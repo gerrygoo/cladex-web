@@ -17,7 +17,7 @@
     });
   });
 
-  // The "Base de datos" menu is a <details>: it closes on Escape (focus back on its
+  // The "Catálogos" menu is a <details>: it closes on Escape (focus back on its
   // summary) or on a click anywhere outside it, like any other menu.
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;

@@ -54,7 +54,7 @@ func Layout(title string, user *NavUser) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if user != nil {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<nav class=\"app-nav\"><a href=\"/cotizaciones\">Cotizaciones</a><details class=\"nav-menu\"><summary>Base de datos</summary><ul><li><a href=\"/productos\">Productos</a></li><li><a href=\"/clientes\">Clientes</a></li>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<nav class=\"app-nav\"><a href=\"/cotizaciones\">Cotizaciones</a><details class=\"nav-menu\"><summary>Catálogos</summary><ul><li><a href=\"/productos\">Productos</a></li><li><a href=\"/clientes\">Clientes</a></li>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
