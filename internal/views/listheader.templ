@@ -47,15 +47,7 @@ templ columnHeader(lv ListView, label, col string, f ColumnFilter) {
 				switch f.Kind {
 					case store.FilterText:
 						if len(f.Options) > 0 {
-							<label>
-								{ label }
-								<select name={ filterParam(col + ".is") }>
-									<option value="">Todos</option>
-									for _, o := range f.Options {
-										<option value={ o.Value } selected?={ lv.FilterValue(col + ".is") == o.Value }>{ o.Label }</option>
-									}
-								</select>
-							</label>
+							@filterChoices(lv, label, col+".is", f.Options)
 						} else {
 							<label>
 								{ label } contiene
@@ -63,15 +55,7 @@ templ columnHeader(lv ListView, label, col string, f ColumnFilter) {
 							</label>
 						}
 					case store.FilterEnum:
-						<label>
-							{ label }
-							<select name={ filterParam(col) }>
-								<option value="">Todos</option>
-								for _, o := range f.Options {
-									<option value={ o.Value } selected?={ lv.FilterValue(col) == o.Value }>{ o.Label }</option>
-								}
-							</select>
-						</label>
+						@filterChoices(lv, label, col, f.Options)
 					case store.FilterNumber:
 						<label>
 							Desde
@@ -98,6 +82,20 @@ templ columnHeader(lv ListView, label, col string, f ColumnFilter) {
 			</form>
 		</details>
 	</th>
+}
+
+// filterChoices is a column's list of options as checkboxes: tick any number, or none
+// for no filter.
+templ filterChoices(lv ListView, label, key string, opts []FilterOption) {
+	<fieldset class="filter-choices">
+		<legend>{ label }</legend>
+		for _, o := range opts {
+			<label>
+				<input type="checkbox" name={ filterParam(key) } value={ o.Value } checked?={ lv.FilterSelected(key, o.Value) }/>
+				{ o.Label }
+			</label>
+		}
+	</fieldset>
 }
 
 // listPager is the page navigation under a table (an empty placeholder when everything

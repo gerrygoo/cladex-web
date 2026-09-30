@@ -2,6 +2,7 @@ package views
 
 import (
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -67,11 +68,13 @@ func (lv ListView) values(skip string) url.Values {
 	if lv.Pager.PerPage != 0 && lv.Pager.PerPage != DefaultPerPage && skip != "per" {
 		v.Set("per", strconv.Itoa(lv.Pager.PerPage))
 	}
-	for k, val := range lv.Filters {
+	for k, vals := range lv.Filters {
 		if skip != "" && columnOfFilterKey(k) == skip {
 			continue
 		}
-		v.Set(filterParam(k), val)
+		for _, val := range vals {
+			v.Add(filterParam(k), val)
+		}
 	}
 	return v
 }
@@ -96,7 +99,17 @@ func (lv ListView) FilterActive(col string) bool {
 }
 
 // FilterValue returns the active filter value for key ("" if none).
-func (lv ListView) FilterValue(key string) string { return lv.Filters[key] }
+func (lv ListView) FilterValue(key string) string {
+	if v := lv.Filters[key]; len(v) > 0 {
+		return v[0]
+	}
+	return ""
+}
+
+// FilterSelected reports whether value is one of the values selected for key.
+func (lv ListView) FilterSelected(key, value string) bool {
+	return slices.ContainsFunc(lv.Filters[key], func(v string) bool { return strings.EqualFold(v, value) })
+}
 
 // ClearHref is the page's URL without column col's filter ("" clears all filters).
 func (lv ListView) ClearHref(col string) string {
@@ -166,7 +179,7 @@ func enumFilter(opts ...FilterOption) ColumnFilter {
 	return ColumnFilter{Kind: store.FilterEnum, Options: opts}
 }
 
-// choiceFilter is a text column that offers its known values as a dropdown, falling
+// choiceFilter is a text column that offers its known values as a checkbox list, falling
 // back to the plain text box when there are none (too many to list).
 func choiceFilter(values []string) ColumnFilter {
 	if len(values) == 0 {

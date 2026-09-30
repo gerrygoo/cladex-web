@@ -21,8 +21,8 @@ func sortParams(r *http.Request) (sort, dir string) {
 }
 
 // filterParams reads the column filters from the "f.<column>" query params (text and
-// choice columns) and "f.<column>.min" / "f.<column>.max" (number and date columns).
-// Blank values are dropped; each store List* method ignores columns it doesn't know.
+// choice columns) and "f.<column>.min" / "f.<column>.max" (number and date columns). Choice columns may
+// repeat their param to select several values. Blank values are dropped; each store List* method ignores columns it doesn't know.
 func filterParams(r *http.Request) store.Filters {
 	f := store.Filters{}
 	for k, vals := range r.URL.Query() {
@@ -30,8 +30,10 @@ func filterParams(r *http.Request) store.Filters {
 		if !ok || key == "" || len(vals) == 0 {
 			continue
 		}
-		if v := strings.TrimSpace(vals[0]); v != "" {
-			f[key] = v
+		for _, v := range vals {
+			if v = strings.TrimSpace(v); v != "" {
+				f[key] = append(f[key], v)
+			}
 		}
 	}
 	return f

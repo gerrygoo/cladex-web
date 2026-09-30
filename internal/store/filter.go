@@ -22,8 +22,17 @@ const (
 // Filters holds a list page's active column filters, keyed by column name. Text and
 // enum columns use the bare name (text columns also accept "<name>.is" for an exact
 // match); number and date columns use "<name>.min" and "<name>.max". Empty values are
-// never stored.
-type Filters map[string]string
+// never stored. Columns that offer options (enum, and text with ".is") take several
+// values, any of which matches; the other kinds use only the first.
+type Filters map[string][]string
+
+// first is the filter's first value, "" when it isn't set.
+func (f Filters) first(key string) string {
+	if v := f[key]; len(v) > 0 {
+		return v[0]
+	}
+	return ""
+}
 
 type filterColumn struct {
 	name  string
@@ -43,26 +52,35 @@ func filterWhere(ctx context.Context, cols []filterColumn, f Filters) (string, [
 		sb.WriteString(" AND " + cond)
 		args = append(args, arg)
 	}
+	// addAny matches any of vals exactly: "expr IN (?, ?)" plus a collation suffix.
+	addAny := func(expr, collate string, vals []string) {
+		var marks []string
+		for _, v := range vals {
+			if v != "" {
+				marks = append(marks, "?")
+				args = append(args, v)
+			}
+		}
+		if len(marks) > 0 {
+			sb.WriteString(" AND " + expr + collate + " IN (" + strings.Join(marks, ", ") + ")")
+		}
+	}
 	for _, c := range cols {
 		switch c.kind {
 		case FilterText:
 			// "<name>.is" is the exact-match form a dropdown of known values submits;
 			// the bare name stays the typed substring.
-			if v := f[c.name+".is"]; v != "" {
-				add(c.expr+" = ? COLLATE NOCASE", v)
-			}
-			if v := f[c.name]; v != "" {
+			addAny(c.expr, " COLLATE NOCASE", f[c.name+".is"])
+			if v := f.first(c.name); v != "" {
 				add(c.expr+` LIKE ? ESCAPE '\' COLLATE NOCASE`, "%"+escapeLike(v)+"%")
 			}
 		case FilterEnum:
-			if v := f[c.name]; v != "" {
-				add(c.expr+" = ?", v)
-			}
+			addAny(c.expr, "", f[c.name])
 		case FilterNumber:
-			if n, ok := parseFilterNumber(f[c.name+".min"], c.scale); ok {
+			if n, ok := parseFilterNumber(f.first(c.name+".min"), c.scale); ok {
 				add(c.expr+" >= ?", n)
 			}
-			if n, ok := parseFilterNumber(f[c.name+".max"], c.scale); ok {
+			if n, ok := parseFilterNumber(f.first(c.name+".max"), c.scale); ok {
 				add(c.expr+" <= ?", n)
 			}
 		case FilterDate:
@@ -70,10 +88,10 @@ func filterWhere(ctx context.Context, cols []filterColumn, f Filters) (string, [
 			// midnights: from the start of the first day up to (not including) the start
 			// of the day after the last.
 			loc := LocationFromContext(ctx)
-			if d, ok := parseFilterDate(f[c.name+".min"], loc); ok {
+			if d, ok := parseFilterDate(f.first(c.name+".min"), loc); ok {
 				add(c.expr+" >= ?", d.UTC().Format(storedTimeLayout))
 			}
-			if d, ok := parseFilterDate(f[c.name+".max"], loc); ok {
+			if d, ok := parseFilterDate(f.first(c.name+".max"), loc); ok {
 				add(c.expr+" < ?", d.AddDate(0, 0, 1).UTC().Format(storedTimeLayout))
 			}
 		}

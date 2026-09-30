@@ -9,10 +9,10 @@ import (
 
 func TestFilterWhereIgnoresUnknownAndInvalid(t *testing.T) {
 	where, args := filterWhere(context.Background(), quoteFilterColumns, Filters{
-		"nope":      "x",
-		"total.min": "abc",
-		"fecha.max": "31/12/2026",
-		"folio":     "QA",
+		"nope":      {"x"},
+		"total.min": {"abc"},
+		"fecha.max": {"31/12/2026"},
+		"folio":     {"QA"},
 	})
 	if where != ` AND q.folio LIKE ? ESCAPE '\' COLLATE NOCASE` || fmt.Sprint(args) != "[%QA%]" {
 		t.Errorf("where = %q, args = %v; want only the folio filter", where, args)
@@ -50,15 +50,17 @@ func TestListQuotesColumnFilters(t *testing.T) {
 		want    string
 	}{
 		{"none", nil, "[QA0002 QA0001 QI0001]"},
-		{"estado", Filters{"estado": "emitida"}, "[QA0002 QI0001]"},
-		{"autor contains", Filters{"autor": "bet"}, "[QI0001]"},
-		{"autor exact", Filters{"autor.is": "ana"}, "[QA0002 QA0001]"},
-		{"autor exact is not a substring", Filters{"autor.is": "an"}, "[]"},
-		{"total range", Filters{"total.min": "200", "total.max": "600"}, "[QA0002]"},
-		{"total min only", Filters{"total.min": "500.00"}, "[QA0002 QI0001]"},
-		{"fecha range", Filters{"fecha.min": "2026-02-01", "fecha.max": "2026-02-28"}, "[QA0002]"},
-		{"combined", Filters{"estado": "emitida", "autor": "ana"}, "[QA0002]"},
-		{"folio literal wildcard", Filters{"folio": "%"}, "[]"},
+		{"estado", Filters{"estado": {"emitida"}}, "[QA0002 QI0001]"},
+		{"autor contains", Filters{"autor": {"bet"}}, "[QI0001]"},
+		{"autor exact", Filters{"autor.is": {"ana"}}, "[QA0002 QA0001]"},
+		{"autor exact is not a substring", Filters{"autor.is": {"an"}}, "[]"},
+		{"total range", Filters{"total.min": {"200"}, "total.max": {"600"}}, "[QA0002]"},
+		{"total min only", Filters{"total.min": {"500.00"}}, "[QA0002 QI0001]"},
+		{"fecha range", Filters{"fecha.min": {"2026-02-01"}, "fecha.max": {"2026-02-28"}}, "[QA0002]"},
+		{"estado several", Filters{"estado": {"emitida", "borrador"}}, "[QA0002 QA0001 QI0001]"},
+		{"autor exact several", Filters{"autor.is": {"ana", "beto"}}, "[QA0002 QA0001 QI0001]"},
+		{"combined", Filters{"estado": {"emitida"}, "autor": {"ana"}}, "[QA0002]"},
+		{"folio literal wildcard", Filters{"folio": {"%"}}, "[]"},
 	}
 	for _, tt := range tests {
 		quotes, err := s.ListQuotes(ctx, "", "", "", tt.filters)
@@ -91,8 +93,8 @@ func TestListQuotesDateFilterUsesViewerZone(t *testing.T) {
 		}
 		return len(qs)
 	}
-	on27 := Filters{"fecha.min": "2026-09-27", "fecha.max": "2026-09-27"}
-	on28 := Filters{"fecha.min": "2026-09-28", "fecha.max": "2026-09-28"}
+	on27 := Filters{"fecha.min": {"2026-09-27"}, "fecha.max": {"2026-09-27"}}
+	on28 := Filters{"fecha.min": {"2026-09-28"}, "fecha.max": {"2026-09-28"}}
 	local := WithLocation(context.Background(), mexico)
 	if count(local, on27) != 1 || count(local, on28) != 0 {
 		t.Error("in Mexico City the quote belongs to the 27th")
@@ -115,12 +117,12 @@ func TestListUsersStatusFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	for filters, want := range map[string]string{"activo": "ana", "deshabilitado": "beto"} {
-		users, err := s.ListUsers(ctx, "", "", Filters{"status": filters})
+		users, err := s.ListUsers(ctx, "", "", Filters{"status": {filters}})
 		if err != nil || len(users) != 1 || users[0].Username != want {
 			t.Errorf("status=%s: got %+v, %v; want just %s", filters, users, err, want)
 		}
 	}
-	if users, _ := s.ListUsers(ctx, "", "", Filters{"role": "admin"}); len(users) != 1 || users[0].Username != "beto" {
+	if users, _ := s.ListUsers(ctx, "", "", Filters{"role": {"admin"}}); len(users) != 1 || users[0].Username != "beto" {
 		t.Errorf("role=admin: got %+v", users)
 	}
 }

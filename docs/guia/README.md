@@ -69,7 +69,8 @@ filtrar por cualquier columna, además de buscar y ordenar:
    - **Texto** (folio, nombre, RFC…): escribe una parte; no importan las
      mayúsculas.
    - **Elección** (estado, rol, familia, unidad, y en Cotizaciones cliente y autor):
-     elige un valor de la lista. Si hay demasiados clientes o autores para listarlos
+     marca uno o varios valores de la lista (se muestran las filas que coincidan con
+     cualquiera de los marcados; sin marcar ninguno, no se filtra). Si hay demasiados clientes o autores para listarlos
      (más de 200), esas dos columnas se filtran escribiendo, como el texto.
    - **Número** (total, costo): pon un mínimo, un máximo o ambos.
    - **Fecha**: pon la fecha *Desde*, *Hasta* o ambas (los dos días cuentan, según la zona horaria de tu navegador).
