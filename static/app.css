@@ -173,12 +173,89 @@ nav.app-nav {
   gap: 0.25rem 1.25rem;
 }
 
-/* static/app.js marks the section the page belongs to. */
-nav.app-nav a[aria-current="page"] {
+/* static/app.js marks the section the page belongs to; inside the menu, its summary is
+   marked too, so the bar still shows where you are while the menu is closed. */
+nav.app-nav a[aria-current="page"],
+details.nav-menu:has(a[aria-current="page"]) > summary {
   color: var(--text);
   font-weight: 700;
   text-decoration-thickness: 3px;
   text-underline-offset: 0.35em;
+}
+
+/* "Base de datos": the supporting tables. The summary reads as a nav link with a caret;
+   the list opens over the page instead of pushing it down. */
+details.nav-menu {
+  position: relative;
+}
+
+details.nav-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+details.nav-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.nav-menu > summary::after {
+  content: "";
+  display: inline-block;
+  margin-left: 0.4rem;
+  vertical-align: 0.15em;
+  border: 0.3rem solid transparent;
+  border-top-color: currentColor;
+  border-bottom-width: 0;
+}
+
+details.nav-menu[open] > summary::after {
+  border-top-width: 0;
+  border-bottom: 0.3rem solid currentColor;
+}
+
+details.nav-menu > ul {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 50;
+  width: max-content;
+  margin: 0;
+  padding: 0.35rem 0;
+  list-style: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+}
+
+/* On a phone the summary sits mid-screen and the list would run off the right edge;
+   there it hangs from the start of the nav, at the page's left gutter. */
+@media (max-width: 40rem) {
+  nav.app-nav {
+    position: relative;
+  }
+
+  details.nav-menu {
+    position: static;
+  }
+}
+
+details.nav-menu li a {
+  display: block;
+  padding: 0.5rem 1.25rem 0.5rem 1rem;
+  border-left: 4px solid transparent;
+}
+
+details.nav-menu li a:hover {
+  background: var(--surface);
+}
+
+details.nav-menu li a[aria-current="page"] {
+  border-left-color: var(--primary);
+  text-decoration: none;
 }
 
 div.nav-user {
@@ -186,10 +263,6 @@ div.nav-user {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem 1.25rem;
-}
-
-div.nav-user form {
-  margin: 0;
 }
 
 main.app-main {
@@ -352,15 +425,14 @@ label span.hint {
 }
 
 /* The buttons that submit or leave a form, in one row under it. Not for one-line forms
-   (search, row actions, logout), whose button sits beside its field. */
+   (search, row actions), whose button sits beside its field. */
 form > button[type="submit"],
 .form-actions {
   margin-top: 1.25rem;
 }
 
 div.toolbar form > button[type="submit"],
-td form > button[type="submit"],
-div.nav-user form > button[type="submit"] {
+td form > button[type="submit"] {
   margin-top: 0;
 }
 
@@ -439,11 +511,6 @@ td form {
 
 td form select {
   margin-top: 0;
-  min-height: 2rem;
-}
-
-/* The logout button reads as part of the nav bar, not as a form action. */
-div.nav-user button {
   min-height: 2rem;
 }
 

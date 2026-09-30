@@ -5,7 +5,7 @@ existir antes de cotizarle.
 
 ## Dar de alta un cliente
 
-1. En el menú, entra a **Clientes**.
+1. En el menú **Base de datos**, entra a **Clientes**.
 2. Haz clic en **Nuevo cliente**.
 3. Escribe el **Nombre**. Es el único campo obligatorio y es el nombre que aparece en
    las cotizaciones y en el PDF, así que escríbelo como el cliente espera verlo.

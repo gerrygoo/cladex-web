@@ -6,8 +6,11 @@
 2. Escribe tu **Usuario** y tu **Contraseña**.
 3. Haz clic en **Entrar**.
 
-Llegas a la página de inicio. El menú de arriba tiene **Cotizaciones**, **Productos** y
-**Clientes** (y, si eres administrador, **Usuarios**, **Unidades** y **Ajustes**).
+Llegas a la página de inicio. El menú de arriba tiene **Cotizaciones** y **Base de
+datos**. Haz clic en **Base de datos** para abrir la lista de **Productos** y **Clientes**
+(y, si eres administrador, **Usuarios**, **Familias**, **Unidades** y **Configuración
+del sistema**). A la derecha están **Ayuda** y tu nombre de usuario, que abre
+[Mi cuenta](#cambiar-tu-contraseña).
 
 > **¿No tienes usuario u olvidaste tu contraseña?** La app no tiene registro ni "olvidé
 > mi contraseña": las cuentas las crea y las restablece un administrador. Pídeselo; te
@@ -24,7 +27,9 @@ Llegas a la página de inicio. El menú de arriba tiene **Cotizaciones**, **Prod
    **Confirmar contraseña nueva**.
 4. Haz clic en **Cambiar contraseña**.
 
-## Salir
+## Cerrar sesión
 
-Haz clic en **Salir**, arriba a la derecha. Hazlo siempre que uses una computadora
-compartida.
+1. Haz clic en tu nombre de usuario, arriba a la derecha. Se abre **Mi cuenta**.
+2. Haz clic en **Cerrar sesión**.
+
+Hazlo siempre que uses una computadora compartida.

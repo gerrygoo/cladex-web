@@ -1,13 +1,14 @@
 # Administración
 
-Solo para cuentas con rol **Administrador**. Estas opciones aparecen en el menú como
-**Usuarios**, **Unidades**, **Familias** y **Ajustes**.
+Solo para cuentas con rol **Administrador**. Estas opciones están en el menú **Base de
+datos**, debajo de Productos y Clientes: **Usuarios**, **Familias**, **Unidades** y
+**Configuración del sistema**.
 
-En **Ajustes** están los dos datos de los que salen los precios, además del costo de
+En **Configuración del sistema** están los dos datos de los que salen los precios, además del costo de
 cada producto: los [márgenes](#márgenes) y los [materiales](#materiales). Ver
 [cómo se calcula el precio de un producto](productos.md#cómo-se-calcula-el-precio-de-un-producto).
 
-Efecto de cualquier cambio en Ajustes:
+Efecto de cualquier cambio en Configuración del sistema:
 
 - **Inmediato** en las cotizaciones nuevas y en **todos los borradores** (toman los
   valores nuevos la próxima vez que se abren o recalculan).
@@ -23,7 +24,7 @@ el costo ya convertido a pesos.
 
 Los [[margen|márgenes]] son una lista de opciones con nombre (p. ej. *Estándar (12.34%)*).
 Cada cotización se calcula con **una** de ellas, que el vendedor elige al armarla. Solo
-un administrador puede cambiar la lista. Están abajo en **Ajustes**, en **Márgenes**.
+un administrador puede cambiar la lista. Están en **Configuración del sistema**, en **Márgenes**.
 
 El margen es sobre el precio de venta: el precio es costo ÷ (1 − margen). Con 35 %, un
 costo de $65.00 se cotiza a $100.00. Afecta a todos los productos del catálogo; las
@@ -65,7 +66,7 @@ clic en **Hacer predeterminado** en otro margen.
 Los [[material|materiales]] (p. ej. *CCS 30%*) y su precio. Los productos hechos de un
 material se cotizan con la cantidad que llevan × el precio del material, más el margen
 de la cotización. Ver [materiales de un producto](productos.md#materiales-de-un-producto).
-Están abajo en **Ajustes**, en **Materiales**.
+Están en **Configuración del sistema**, en **Materiales**.
 
 El precio es el **costo** del material, sin margen: el margen lo pone cada cotización.
 
@@ -92,7 +93,7 @@ escritas en ella. Los materiales no se pueden eliminar.
 
 ## Cambiar el rol de un usuario
 
-1. En el menú, entra a **Usuarios**.
+1. En el menú **Base de datos**, entra a **Usuarios**.
 2. En la fila del usuario, elige **Administrador** o **Vendedor**.
 3. Haz clic en **Guardar rol**.
 
@@ -137,7 +138,7 @@ pantalla. Entrégasela al usuario por un medio privado y pídele que la
 
 Las unidades (metro, caja, pieza…) que se pueden asignar a los productos.
 
-1. En el menú, entra a **Unidades**. Arriba ves la lista actual.
+1. En el menú **Base de datos**, entra a **Unidades**. Arriba ves la lista actual.
 2. En **Nueva unidad**, escribe el **Código** (corto, p. ej. `caja`) y el **Nombre**
    (p. ej. `Caja`).
 3. Haz clic en **Agregar**.
@@ -153,7 +154,7 @@ su propia [[serie]] de folio (QA, QS, QI…) con sus *Términos y condiciones* d
 
 ### Crear una familia
 
-1. En el menú, entra a **Familias**. Arriba ves la lista actual.
+1. En el menú **Base de datos**, entra a **Familias**. Arriba ves la lista actual.
 2. En **Nueva familia**, escribe el **Nombre**.
 3. En **Serie**, escribe dos letras que empiecen con Q (p. ej. `QF`). Cada familia
    tiene una serie distinta. Es el prefijo de sus folios (`QF0001`).

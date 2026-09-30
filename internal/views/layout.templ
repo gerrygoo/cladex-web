@@ -33,14 +33,22 @@ templ Layout(title string, user *NavUser) {
 					if user != nil {
 						<nav class="app-nav">
 							<a href="/cotizaciones">Cotizaciones</a>
-							<a href="/productos">Productos</a>
-							<a href="/clientes">Clientes</a>
-							if user.IsAdmin {
-								<a href="/usuarios">Usuarios</a>
-								<a href="/unidades">Unidades</a>
-								<a href="/familias">Familias</a>
-								<a href="/ajustes">Ajustes</a>
-							}
+							// The supporting tables, in one disclosure menu so the bar stays short on a
+							// phone. A native <details>: it opens and closes without JS; static/app.js
+							// only closes it on Escape or a click elsewhere.
+							<details class="nav-menu">
+								<summary>Base de datos</summary>
+								<ul>
+									<li><a href="/productos">Productos</a></li>
+									<li><a href="/clientes">Clientes</a></li>
+									if user.IsAdmin {
+										<li><a href="/usuarios">Usuarios</a></li>
+										<li><a href="/familias">Familias</a></li>
+										<li><a href="/unidades">Unidades</a></li>
+										<li><a href="/ajustes">Configuración del sistema</a></li>
+									}
+								</ul>
+							</details>
 						</nav>
 					}
 				</div>
@@ -48,9 +56,6 @@ templ Layout(title string, user *NavUser) {
 					<div class="nav-user">
 						<a href="/ayuda">Ayuda</a>
 						<a href="/mi-cuenta">{ user.Username }</a>
-						<form method="post" action="/logout">
-							<button type="submit">Salir</button>
-						</form>
 					</div>
 				}
 			</header>

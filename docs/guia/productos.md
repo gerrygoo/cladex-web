@@ -6,7 +6,7 @@ borradores que incluyen el producto.
 
 ## Buscar un producto
 
-1. En el menú, entra a **Productos**.
+1. En el menú **Base de datos**, entra a **Productos**.
 2. Escribe en *"Buscar por SKU o descripción…"*. La lista se filtra mientras escribes.
 3. Para ordenar, haz clic en el encabezado de una columna (**SKU**, **Descripción**,
    **Familia**, **Costo**, **Unidad**).
@@ -29,7 +29,7 @@ Todos los productos se cotizan igual:
 
 El costo de los materiales es, por cada [[material]], la cantidad que lleva una unidad
 del producto × el precio del material. Los precios de los materiales los captura un
-administrador en [Ajustes](administracion.md#materiales). El margen lo elige el vendedor
+administrador en [Configuración del sistema](administracion.md#materiales). El margen lo elige el vendedor
 en cada cotización, de la [lista de márgenes](administracion.md#márgenes).
 
 Todo es en pesos mexicanos: si el proveedor cobra en dólares, captura el costo ya
@@ -80,7 +80,7 @@ Para los productos cuyo costo sale de lo que están hechos (p. ej. Cable CCS & A
 página de edición del producto, sección **Materiales**:
 
 1. En **Material**, elige el material (p. ej. *CCS 30% (kg)*). Los materiales los da de
-   alta un administrador en [Ajustes](administracion.md#materiales).
+   alta un administrador en [Configuración del sistema](administracion.md#materiales).
 2. En **Cantidad por unidad del producto**, escribe cuánto material lleva **una** unidad
    del producto, en la unidad del material. Por ejemplo, `0.1723` = 0.1723 kg por metro.
 3. Haz clic en **Agregar material**.

@@ -87,7 +87,7 @@ func TestGuiaMiCuentaMessages(t *testing.T) {
 
 // --- docs/guia/README.md, "Quién puede hacer qué" ---
 
-// "Si no ves Usuarios, Unidades, Familias o Ajustes en el menú, tu cuenta es de vendedor."
+// "Si en el menú Base de datos solo ves Productos y Clientes, tu cuenta es de vendedor."
 func TestGuiaNavLinksByRole(t *testing.T) {
 	a := newTestAuth(t)
 	products := NewProducts(a.store)

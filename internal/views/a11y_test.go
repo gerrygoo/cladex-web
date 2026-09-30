@@ -112,3 +112,21 @@ func TestCommentsLeadWithTheirText(t *testing.T) {
 	empty := render(t, QuoteComments("QA0001", nil, ListView{}))
 	assertContains(t, empty, `<p class="comments-empty">Sin comentarios.</p>`)
 }
+
+// The supporting tables live in one "Base de datos" disclosure menu, and signing out is
+// on Mi cuenta, not in the bar.
+func TestNavGroupsTablesAndLeavesLogoutToMiCuenta(t *testing.T) {
+	admin := render(t, CustomersList(nil, ListView{Base: "/clientes"}, "", &NavUser{Username: "ana", IsAdmin: true}))
+	assertContains(t, admin,
+		`<details class="nav-menu"><summary>Base de datos</summary><ul><li><a href="/productos">Productos</a></li><li><a href="/clientes">Clientes</a></li><li><a href="/usuarios">Usuarios</a></li><li><a href="/familias">Familias</a></li><li><a href="/unidades">Unidades</a></li><li><a href="/ajustes">Configuración del sistema</a></li></ul></details>`)
+	if strings.Contains(admin, `action="/logout"`) {
+		t.Error("the nav bar should not carry the logout form")
+	}
+	vendedor := render(t, CustomersList(nil, ListView{Base: "/clientes"}, "", &NavUser{Username: "rodolfo"}))
+	assertContains(t, vendedor,
+		`<ul><li><a href="/productos">Productos</a></li><li><a href="/clientes">Clientes</a></li></ul></details>`)
+
+	cuenta := render(t, MiCuenta(nil, "", &NavUser{Username: "ana"}))
+	assertContains(t, cuenta, `Entraste como <strong>ana</strong>.`,
+		`<form method="post" action="/logout"><button type="submit">Cerrar sesión</button></form>`)
+}

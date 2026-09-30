@@ -57,7 +57,20 @@ func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) t
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " <form method=\"post\" action=\"/mi-cuenta\"><label>Contraseña actual <input type=\"password\" name=\"current_password\" required autocomplete=\"current-password\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " <h2>Sesión</h2><p>Entraste como <strong>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var3 string
+			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(user.Username)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mi_cuenta.templ`, Line: 13, Col: 26}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</strong>. Cierra la sesión al terminar si la computadora es compartida.</p><form method=\"post\" action=\"/logout\"><button type=\"submit\">Cerrar sesión</button></form><h2>Cambiar contraseña</h2><form method=\"post\" action=\"/mi-cuenta\"><label>Contraseña actual <input type=\"password\" name=\"current_password\" required autocomplete=\"current-password\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -65,7 +78,7 @@ func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) t
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "></label>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "></label>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -73,7 +86,7 @@ func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) t
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<label>Contraseña nueva <span class=\"hint\">(mínimo 8 caracteres)</span> <input type=\"password\" name=\"new_password\" required autocomplete=\"new-password\" minlength=\"8\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<label>Contraseña nueva <span class=\"hint\">(mínimo 8 caracteres)</span> <input type=\"password\" name=\"new_password\" required autocomplete=\"new-password\" minlength=\"8\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -81,7 +94,7 @@ func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) t
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "></label>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "></label>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -89,7 +102,7 @@ func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) t
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<label>Confirmar contraseña nueva <input type=\"password\" name=\"confirm_password\" required autocomplete=\"new-password\" minlength=\"8\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<label>Confirmar contraseña nueva <input type=\"password\" name=\"confirm_password\" required autocomplete=\"new-password\" minlength=\"8\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -97,7 +110,7 @@ func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) t
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "></label>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "></label>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -105,7 +118,7 @@ func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) t
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<button type=\"submit\" class=\"primary\">Cambiar contraseña</button></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<button type=\"submit\" class=\"primary\">Cambiar contraseña</button></form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

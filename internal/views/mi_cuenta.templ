@@ -7,6 +7,16 @@ templ MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) 
 			@HelpLink(HelpMiCuenta)
 		</div>
 		@Flash(successMsg)
+		<h2>Sesión</h2>
+		<p>
+			Entraste como
+			<strong>{ user.Username }</strong>.
+			Cierra la sesión al terminar si la computadora es compartida.
+		</p>
+		<form method="post" action="/logout">
+			<button type="submit">Cerrar sesión</button>
+		</form>
+		<h2>Cambiar contraseña</h2>
 		<form method="post" action="/mi-cuenta">
 			<label>
 				Contraseña actual

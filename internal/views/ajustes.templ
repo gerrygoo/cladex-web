@@ -23,13 +23,15 @@ func marginPath(o store.MarginOption, action string) string {
 	return path
 }
 
-// Ajustes is the admin settings page: the margin options, each edited, made default,
-// retired or restored by its own small form, then the materials and their prices.
+// Ajustes is the admin settings page, shown as "Configuración del sistema" (it sets what
+// everyone's quotes use, not the admin's own preferences): the margin options, each
+// edited, made default, retired or restored by its own small form, then the materials
+// and their prices.
 // errorMsg is a refused margin or material action.
 templ Ajustes(margins []store.MarginOption, materials []store.Material, units []store.Unit, successMsg string, errorMsg string, user *NavUser) {
-	@Layout("Ajustes", user) {
+	@Layout("Configuración del sistema", user) {
 		<div class="page-title">
-			<h1>Ajustes</h1>
+			<h1>Configuración del sistema</h1>
 			@HelpLink(HelpAjustes)
 		</div>
 		@Flash(successMsg)

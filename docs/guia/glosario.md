@@ -106,12 +106,12 @@ en el PDF. En las cotizaciones QL la vigencia es una fecha que escribe el vended
 Una materia prima con su costo por unidad, p. ej. *CCS 30%* a $160.00 por kg. Un
 producto hecho de materiales (Cable CCS & AC) cuesta, por cada material, la cantidad que
 lleva × su precio, y a ese costo se le aplica el margen. Los precios los captura un
-administrador en Ajustes.
+administrador en Configuración del sistema.
 
 ## Margen
 
 La parte del precio de venta que es utilidad, como porcentaje (35 %). Todo producto del
 catálogo cuesta costo ÷ (1 − margen), donde el costo incluye el de sus materiales. Cada cotización usa uno
 de los márgenes de una lista con nombre (p. ej. *Estándar (12.34%)*) que mantiene un
-administrador en Ajustes; el vendedor lo elige al armar la cotización, o escribe uno propio
+administrador en Configuración del sistema; el vendedor lo elige al armar la cotización, o escribe uno propio
 (*Personalizado*), ya sea como porcentaje o como precio por kilo del cobre CCS.

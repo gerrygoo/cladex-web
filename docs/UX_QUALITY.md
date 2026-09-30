@@ -186,7 +186,9 @@ that look like buttons), messages (`p.success`, `p.error[role=alert]` boxed with
 rule; field errors as red text under the field), status badges (`StatusBadge`), `td.num`
 for figures, `td.actions` for row actions, `div.page-title` / `div.section-title` for a
 heading with its help link, `ol.comments` for a feed of notes (the text leads; author
-and date follow in a muted `--fs-small` line).
+and date follow in a muted `--fs-small` line), `details.nav-menu` for a group of nav
+links (a native disclosure; the list opens over the page, and its summary is marked when
+the current page is inside it).
 
 ### How Tier 3 is checked
 
@@ -374,3 +376,9 @@ heuristic and severity. Tick when fixed, with the commit.
 - [x] **#35 · Layout.** The login form hugged the left edge, leaving a wide window mostly
       empty beside two fields. Now it's a column as wide as its fields, centred
       horizontally; its text stays left-aligned.
+- [x] **#36 · Navigation.** The bar had ten items for an admin (seven sections, Ayuda,
+      the user, Salir) and crowded a phone screen. The six supporting tables are now one
+      "Base de datos" disclosure menu, so the bar has Cotizaciones, Base de datos, Ayuda
+      and the user; on a phone it takes two short lines under the logo. Ajustes became "Configuración del sistema", so it doesn't read as
+      personal preferences. Signing out moved to Mi cuenta as "Cerrar sesión", next to
+      who you're signed in as.

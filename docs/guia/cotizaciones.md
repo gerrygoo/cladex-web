@@ -118,7 +118,7 @@ Al terminar, los precios y totales se recalculan; [guarda el borrador](#guardar-
 para conservar el margen. Al emitir, la cotización queda con el margen *Personalizado*
 y su porcentaje. Si vuelves a elegir uno de la lista, el margen propio se descarta.
 
-> La lista de márgenes la mantiene un administrador en Ajustes. Si cambia el porcentaje
+> La lista de márgenes la mantiene un administrador en Configuración del sistema. Si cambia el porcentaje
 > de tu margen, tu borrador toma el valor nuevo; si lo retira, tienes que
 > [elegir otro](#problemas-comunes) antes de emitir.
 

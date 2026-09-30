@@ -35,9 +35,9 @@ parte de esta guía que la explica.
 | Sección | Vendedor | Administrador |
 |---|:---:|:---:|
 | Cotizaciones, Clientes, Productos | ✓ | ✓ |
-| Usuarios, Unidades, Ajustes | — | ✓ |
+| Usuarios, Familias, Unidades, Configuración del sistema | — | ✓ |
 
-Si no ves **Usuarios**, **Unidades**, **Familias** o **Ajustes** en el menú, tu cuenta es de vendedor.
+Si en el menú **Base de datos** solo ves **Productos** y **Clientes**, tu cuenta es de vendedor.
 
 ## La página de inicio
 

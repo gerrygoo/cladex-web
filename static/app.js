@@ -17,6 +17,21 @@
     });
   });
 
+  // The "Base de datos" menu is a <details>: it closes on Escape (focus back on its
+  // summary) or on a click anywhere outside it, like any other menu.
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    var open = document.querySelector("details.nav-menu[open]");
+    if (!open) return;
+    open.open = false;
+    open.querySelector("summary").focus();
+  });
+  document.addEventListener("click", function (e) {
+    document.querySelectorAll("details.nav-menu[open]").forEach(function (d) {
+      if (!d.contains(e.target)) d.open = false;
+    });
+  });
+
   // After a failed submit the server re-renders the form with aria-invalid fields;
   // start the user on the first one.
   document.addEventListener("DOMContentLoaded", function () {
