@@ -582,6 +582,18 @@ span.save-status.busy {
   color: var(--text-muted);
 }
 
+/* Warning under the draft's PDF link; shown only while there are unsaved changes, but
+   its space is always reserved so the page doesn't shift. */
+p.pdf-note {
+  visibility: hidden;
+  color: var(--warning);
+  font-weight: 600;
+}
+
+p.pdf-note.active {
+  visibility: visible;
+}
+
 /* A quote's status (StatusBadge). */
 span.badge {
   display: inline-block;

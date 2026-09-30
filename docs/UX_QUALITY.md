@@ -336,9 +336,11 @@ heuristic and severity. Tick when fixed, with the commit.
 - [x] **#20 · H8 / H6 Recognition · severity 2.** ([issue 6](https://github.com/gerrygoo/cladex-web/issues/6)) In the builder, the product picker lists
       a full page of products above the lines, so the quote itself (lines and totals)
       starts below the fold. Fixed with the Tier 3 work: the lines come first (#29).
-- [ ] **#21 · H1 Visibility / H2 Match · severity 2.** ([issue 7](https://github.com/gerrygoo/cladex-web/issues/7)) On a draft, "Descargar PDF" shows the
+- [x] **#21 · H1 Visibility / H2 Match · severity 2.** ([issue 7](https://github.com/gerrygoo/cladex-web/issues/7)) On a draft, "Descargar PDF" shows the
       last saved state, not what's on screen. The guide says so, but the screen doesn't.
-      Say so next to the link, or disable it while there are unsaved changes.
+      Say so next to the link, or disable it while there are unsaved changes. Fixed: a
+      warning under the link appears while "Hay cambios sin guardar." shows (its space is
+      reserved, so the layout doesn't shift).
 
 **Tier 3 — Visual design**
 

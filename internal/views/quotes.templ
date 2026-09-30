@@ -799,6 +799,9 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 			<a href={ templ.URL("/cotizaciones/" + quote.Folio + "/pdf") } target="_blank">Descargar PDF</a> ·
 			<a href="/cotizaciones">Volver a cotizaciones</a>
 		</p>
+		if quote.Status == "borrador" {
+			<p class="hint pdf-note" data-unsaved-note>El PDF muestra lo último guardado, sin los cambios de la pantalla.</p>
+		}
 		@QuoteComments(quote.Folio, comments, commentsLV)
 	}
 }

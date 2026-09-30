@@ -168,7 +168,9 @@ debajo de los totales, siempre ves en qué estado está la cotización:
 ## Ver una vista previa del PDF
 
 1. Primero [guarda el borrador](#guardar-el-borrador): la vista previa usa lo último
-   guardado, no lo que está en pantalla.
+   guardado, no lo que está en pantalla. Mientras haya cambios sin guardar, debajo de
+   **Descargar PDF** aparece el aviso *"El PDF muestra lo último guardado, sin los
+   cambios de la pantalla."*
 2. Haz clic en **Descargar PDF**. Se abre en otra pestaña.
 
 > La vista previa **no es el documento final**: no tiene fecha de vigencia y sus precios

@@ -99,6 +99,9 @@
     if (!form) return;
     var dirty = false;
     var status = form.querySelector("[data-unsaved-status]");
+    // Notes outside the form that only apply while there are unsaved changes (the PDF
+    // link's warning). Hidden with visibility so their space stays reserved.
+    var notes = document.querySelectorAll("[data-unsaved-note]");
     function show(state) {
       if (!status) return;
       status.textContent = status.dataset[state + "Text"];
@@ -108,6 +111,7 @@
     function setDirty(v) {
       dirty = v;
       show(v ? "unsaved" : "saved");
+      notes.forEach(function (n) { n.classList.toggle("active", v); });
     }
     // While a recalculation is in flight the same element says so.
     document.addEventListener("htmx:beforeRequest", function (e) {
