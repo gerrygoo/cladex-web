@@ -1,11 +1,13 @@
 /* ==== Palette =============================================================
-   The five colours the whole site is built from. Change one here and every shade
-   derived from it below (tints, borders, hover, dark mode) follows. Each keeps at
-   least 5.5:1 contrast on its own tint in both colour schemes; re-check with axe
-   after changing one (see docs/UX_QUALITY.md). */
+   Two brand colours from the logo (Cladex.svg) plus five working colours. Change one
+   here and every shade derived from it below (tints, borders, hover, dark mode)
+   follows. Each working colour keeps at least 5.5:1 contrast on its own tint in both
+   colour schemes; re-check with axe after changing one (see docs/UX_QUALITY.md). */
 :root {
-  --c-primary: #1f4e9c; /* the screen's main action, links, current page */
-  --c-neutral: #374151; /* text, borders, secondary buttons */
+  --c-paper: #fffbfa;   /* the logo's cream: the page in light mode, text in dark mode */
+  --c-ink: #1e1e1e;     /* the logo's near-black: the page in dark mode, text base in light */
+  --c-primary: #785340; /* the logo's terracotta (#bc7b5b) darkened until it passes as text; main action, links, current page */
+  --c-neutral: #3d3836; /* the logo's taupe (#827975) darkened; text, borders, secondary buttons */
   --c-success: #17663a; /* saved, issued */
   --c-warning: #8a4f00; /* unsaved changes, attention */
   --c-danger: #b3261e;  /* delete, errors */
@@ -13,35 +15,35 @@
 
 /* ==== Derived roles ======================================================
    light-dark(): first value for light mode, second for dark. Dark mode lightens each
-   colour towards white rather than defining a second palette. */
+   colour towards paper rather than defining a second palette. */
 :root {
   color-scheme: light dark;
 
-  --bg: light-dark(#ffffff, #15181d);
+  --bg: light-dark(var(--c-paper), var(--c-ink));
   --surface: light-dark(
-    color-mix(in srgb, var(--c-neutral) 5%, #ffffff),
-    color-mix(in srgb, #ffffff 5%, #15181d)
+    color-mix(in srgb, var(--c-neutral) 5%, var(--c-paper)),
+    color-mix(in srgb, var(--c-paper) 5%, var(--c-ink))
   );
-  --text: light-dark(color-mix(in srgb, var(--c-neutral), #000000 25%), #e6e8eb);
+  --text: light-dark(color-mix(in srgb, var(--c-neutral), var(--c-ink) 25%), color-mix(in srgb, var(--c-paper) 92%, var(--c-ink)));
   --text-muted: light-dark(
-    color-mix(in srgb, var(--c-neutral) 80%, #ffffff),
-    color-mix(in srgb, #ffffff 68%, #15181d)
+    color-mix(in srgb, var(--c-neutral) 80%, var(--c-paper)),
+    color-mix(in srgb, var(--c-paper) 68%, var(--c-ink))
   );
   /* Borders of controls (inputs, secondary buttons): ≥ 3:1, WCAG 1.4.11. */
   --border: light-dark(
-    color-mix(in srgb, var(--c-neutral) 60%, #ffffff),
-    color-mix(in srgb, #ffffff 45%, #15181d)
+    color-mix(in srgb, var(--c-neutral) 60%, var(--c-paper)),
+    color-mix(in srgb, var(--c-paper) 45%, var(--c-ink))
   );
   /* Hairlines between rows and around panels: decorative, no contrast minimum. */
   --rule: light-dark(
-    color-mix(in srgb, var(--c-neutral) 18%, #ffffff),
-    color-mix(in srgb, #ffffff 16%, #15181d)
+    color-mix(in srgb, var(--c-neutral) 18%, var(--c-paper)),
+    color-mix(in srgb, var(--c-paper) 16%, var(--c-ink))
   );
 
-  --primary: light-dark(var(--c-primary), color-mix(in srgb, var(--c-primary) 45%, #ffffff));
-  --success: light-dark(var(--c-success), color-mix(in srgb, var(--c-success) 45%, #ffffff));
-  --warning: light-dark(var(--c-warning), color-mix(in srgb, var(--c-warning) 45%, #ffffff));
-  --danger: light-dark(var(--c-danger), color-mix(in srgb, var(--c-danger) 45%, #ffffff));
+  --primary: light-dark(var(--c-primary), color-mix(in srgb, var(--c-primary) 45%, var(--c-paper)));
+  --success: light-dark(var(--c-success), color-mix(in srgb, var(--c-success) 45%, var(--c-paper)));
+  --warning: light-dark(var(--c-warning), color-mix(in srgb, var(--c-warning) 45%, var(--c-paper)));
+  --danger: light-dark(var(--c-danger), color-mix(in srgb, var(--c-danger) 45%, var(--c-paper)));
   /* Text on a solid primary button. */
   --on-primary: var(--bg);
 
@@ -156,9 +158,13 @@ div.brand {
 }
 
 a.brand-link {
-  color: var(--text);
-  font-size: var(--fs-h3);
-  text-decoration: none;
+  display: block;
+  line-height: 0;
+}
+
+a.brand-link img {
+  height: 1.6rem;
+  width: auto;
 }
 
 nav.app-nav {

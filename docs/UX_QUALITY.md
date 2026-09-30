@@ -156,18 +156,27 @@ look like links, and one obvious thing to do on each screen.
 
 ### Design system
 
-**Palette: five colours** (`--c-*` at the top of `static/app.css`). Every other shade
+**Palette: two brand colours plus five working colours** (`--c-*` at the top of
+`static/app.css`). The brand colours come from the logo sheet, `docs/brand/Cladex.svg`,
+which is the source of truth for the site's colours and logo (the PDFs' logos are set
+separately). The page is the logo's cream, never `#ffffff`. Every other shade
 (backgrounds, borders, muted text, hover, dark mode) is derived from them with
 `color-mix()`, so changing a colour is one line. After changing one, re-run axe in both
 schemes: each must stay ≥ 5.5:1 on its own 10% tint.
 
-| Token | Colour | Role | On white |
+| Token | Colour | Role | On cream |
 |---|---|---|---|
-| `--c-primary` | `#1f4e9c` navy | Primary action, links, current page | 8.0:1 |
-| `--c-neutral` | `#374151` slate | Text, borders, secondary buttons | 10.3:1 |
-| `--c-success` | `#17663a` green | Saved, issued | 7.0:1 |
-| `--c-warning` | `#8a4f00` amber | Unsaved changes, attention | 6.6:1 |
-| `--c-danger` | `#b3261e` red | Delete, errors | 6.5:1 |
+| `--c-paper` | `#fffbfa` cream | Page background (light), text (dark) | |
+| `--c-ink` | `#1e1e1e` near-black | Page background (dark), text base (light) | 16.2:1 |
+| `--c-primary` | `#785340` terracotta, darkened | Primary action, links, current page | 6.6:1 |
+| `--c-neutral` | `#3d3836` taupe, darkened | Text, borders, secondary buttons | 12.2:1 |
+| `--c-success` | `#17663a` green | Saved, issued | 6.8:1 |
+| `--c-warning` | `#8a4f00` amber | Unsaved changes, attention | 6.4:1 |
+| `--c-danger` | `#b3261e` red | Delete, errors | 6.4:1 |
+
+The logo's own terracotta (`#bc7b5b`) is only 3.3:1 on cream, so it can't carry text or a
+button; `--c-primary` is that colour darkened. The header shows `static/cladex-logo.svg`,
+the horizontal logo in ink (cream in dark mode, switched inside the file).
 
 **Type scale:** body 1rem (17 px), `--fs-small` 0.9rem, `--fs-h3` 1.15rem, `--fs-h2`
 1.35rem, `--fs-h1` 1.75rem. No other sizes.
