@@ -371,3 +371,6 @@ heuristic and severity. Tick when fixed, with the commit.
       as the note itself. Now a list: the comment text at body size, then author and date
       in a smaller, muted line beneath it. Newest first, as before; the order already
       carries the sequence.
+- [x] **#35 · Layout.** The login form hugged the left edge, leaving a wide window mostly
+      empty beside two fields. Now it's a column as wide as its fields, centred
+      horizontally; its text stays left-aligned.

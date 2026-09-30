@@ -202,6 +202,14 @@ main.app-main:focus {
   outline: none;
 }
 
+/* The login form is the only thing on its page: a column in the middle of the screen,
+   as wide as its fields, instead of hugging the left edge of a wide window. Text stays
+   left-aligned inside it. */
+div.login {
+  max-width: 28rem;
+  margin: 0 auto;
+}
+
 /* A heading with its "?" help link. The margins sit on the wrapper so the link centres
    on the heading's text, not on its margins. */
 div.page-title,
