@@ -47,7 +47,11 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	familias := NewFamilias(db)
 	help := NewHelp(guide)
 
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
+	static, err := newStaticHandler(staticFS)
+	if err != nil {
+		panic("static assets: " + err.Error())
+	}
+	mux.Handle("GET /static/", http.StripPrefix("/static/", static))
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")

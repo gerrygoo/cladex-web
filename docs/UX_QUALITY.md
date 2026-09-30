@@ -327,12 +327,16 @@ heuristic and severity. Tick when fixed, with the commit.
 - [x] **#18 · H4 Consistency / NN/g tables · severity 1.** ([issue 8](https://github.com/gerrygoo/cladex-web/issues/8)) Money and quantity columns are
       left-aligned. Right-align numbers (and use tabular figures) so amounts compare
       down a column. Fixed with the Tier 3 work (#30).
-- [ ] **#19 · Performance · severity 2.** ([issue 5](https://github.com/gerrygoo/cladex-web/issues/5)) Production's nginx serves static files
+- [x] **#19 · Performance · severity 2.** ([issue 5](https://github.com/gerrygoo/cladex-web/issues/5)) Production's nginx serves static files
       uncompressed and without cache headers, and the embedded files have no
       Last-Modified. Every page load re-downloads about 60 KB (htmx 50 KB took 567 ms on
       the measured load). Fix: gzip plus `Cache-Control` at nginx, or an ETag from the
       build SHA in the Go static handler. htmx is now `defer`, so it no longer blocks the
       first paint.
+      Fixed in the Go handler (`internal/web/static.go`): an ETag from each file's content
+      (304 on revalidation), `Cache-Control: no-cache` (reuse only after checking, so a
+      deploy shows at once) and gzip for text assets (htmx 51 KB → 17 KB). nginx is
+      untouched.
 - [x] **#20 · H8 / H6 Recognition · severity 2.** ([issue 6](https://github.com/gerrygoo/cladex-web/issues/6)) In the builder, the product picker lists
       a full page of products above the lines, so the quote itself (lines and totals)
       starts below the fold. Fixed with the Tier 3 work: the lines come first (#29).
