@@ -49,7 +49,7 @@ func Layout(title string, user *NavUser) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " · Cladex</title><link rel=\"stylesheet\" href=\"/static/app.css\"><script src=\"/static/htmx.min.js\" defer></script><script src=\"/static/filters.js\" defer></script><script src=\"/static/time.js\" defer></script><script src=\"/static/app.js\" defer></script></head><body><a class=\"skip-link\" href=\"#contenido\">Saltar al contenido</a><noscript><p class=\"noscript-banner\">JavaScript está desactivado. La aplicación funciona igual, pero cada acción recarga la página completa; actívalo para una experiencia más rápida.</p></noscript><header class=\"app-header\"><div class=\"brand\"><a href=\"/\" class=\"brand-link\"><img src=\"/static/cladex-logo.svg\" alt=\"Cladex\" width=\"168\" height=\"32\"></a> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " · Cladex</title><link rel=\"icon\" href=\"/static/favicon.svg\" type=\"image/svg+xml\"><link rel=\"icon\" href=\"/static/favicon.ico\" sizes=\"48x48\"><link rel=\"apple-touch-icon\" href=\"/static/apple-touch-icon.png\"><link rel=\"stylesheet\" href=\"/static/app.css\"><script src=\"/static/htmx.min.js\" defer></script><script src=\"/static/filters.js\" defer></script><script src=\"/static/time.js\" defer></script><script src=\"/static/app.js\" defer></script></head><body><a class=\"skip-link\" href=\"#contenido\">Saltar al contenido</a><noscript><p class=\"noscript-banner\">JavaScript está desactivado. La aplicación funciona igual, pero cada acción recarga la página completa; actívalo para una experiencia más rápida.</p></noscript><header class=\"app-header\"><div class=\"brand\"><a href=\"/\" class=\"brand-link\"><img src=\"/static/cladex-logo.svg\" alt=\"Cladex\" width=\"168\" height=\"32\"></a> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -81,7 +81,7 @@ func Layout(title string, user *NavUser) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(user.Username)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layout.templ`, Line: 65, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layout.templ`, Line: 68, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
