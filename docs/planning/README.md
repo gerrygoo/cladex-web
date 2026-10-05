@@ -32,3 +32,4 @@ documentation of shipped behavior.
 | Doc | Covers |
 |---|---|
 | [Ciclo de vida: cotización → proyecto → cobro](ciclo-de-vida-cotizacion-a-cobro.md) | The 2026-10-05 whiteboard: quote states, post-issue project pipeline, and a proposed payment sub-status (PPD/PUE) |
+| [Facturas: timbrado digital y envío](facturas-timbrado-y-envio.md) | CFDI stamping through an external PAC and delivery to recipients: states before/after each step, cancellation, tracking model, dependencies |
