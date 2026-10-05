@@ -15,9 +15,10 @@ timbre** from an external provider, and **before and after sending** the result 
 recipients. The provider is TBD, so everything below talks about a generic PAC
 (Proveedor Autorizado de Certificación) and avoids any one vendor's API shape.
 
-Facts about CFDI/SAT rules below are from general knowledge, not checked against the
-current SAT annexes; items marked **(confirm)** need the contador or the chosen PAC's
-docs before they become requirements.
+This doc deliberately does not specify SAT rules (cancellation motivos, deadlines,
+required attachments, catalogs). Learning them and keeping up with changes is part of
+the facturación work itself, driven by the chosen PAC's docs and the contador, not
+decided here.
 
 ## Why timbrado needs its own states
 
@@ -114,8 +115,8 @@ stateDiagram-v2
     end note
 ```
 
-- The CFDI is delivered to the receptor as the **XML plus a PDF representation**
-  **(confirm that both are required by the SAT rules for this use)**.
+- What exactly gets attached (XML, PDF) is a SAT/PAC matter, settled during the
+  facturación work.
 - "`enviada`" means the mail provider accepted the message, not that the client read it.
   Open/read tracking is out of scope unless asked for. A later bounce flips it to
   `envío fallido`, which is why that edge exists.
@@ -125,8 +126,8 @@ stateDiagram-v2
 ## 3. Cancelación
 
 Only reachable from `timbrada`. Cancelling is also a call to the PAC/SAT and is not
-instant: depending on the case the receptor may have to accept or reject it.
-**(confirm exact rules and amounts with the contador)**
+necessarily instant: the diagram allows for a wait on the receptor, and the real rules
+are to be established during the facturación work.
 
 ```mermaid
 stateDiagram-v2
@@ -147,10 +148,9 @@ stateDiagram-v2
     cancelada --> [*]
 ```
 
-- A cancellation request carries a **motivo** (the SAT defines four codes; one of them
-  requires pointing at the UUID of a replacement factura). That ties "corregir una
-  factura timbrada" to: create replacement draft → stamp it → cancel the original with
-  its UUID. The UI should drive that sequence rather than expose raw cancellation.
+- A cancellation request carries a motivo, and correcting a stamped factura probably
+  means replacement draft → stamp it → cancel the original. The UI should drive that
+  sequence rather than expose raw cancellation.
 - `cancelación rechazada` returns to `timbrada`: the invoice is still valid and the
   rejection stays in the history.
 - Sending a cancellation notice to the receptor is a send event like §2 and should be
@@ -164,19 +164,12 @@ hangs off the factura:
 | Method | Factura | Later |
 |---|---|---|
 | **P.U.E.** | factura `timbrada` + `enviada` | pago recibido → `pagado` |
-| **P.P.D.** | factura `timbrada` + `enviada` | each payment needs a **complemento de pago** (itself a CFDI: its own timbrado + envío), then `pagado` |
+| **P.P.D.** | *factura de anticipo* `timbrada` + `enviada` | payment completed → *comprobante de pago* (a second document with its own timbrado + envío), then `pagado` |
 
-Consequence: the §1–§2 machines must be reusable for a **second document type**
-(complemento de pago), not hard-wired to "factura de venta". Modeling a generic
-"comprobante" with a `tipo` (ingreso, pago, later egreso/nota de crédito) costs little
-now and avoids a rewrite. **(confirm)** the deadline for issuing the complemento after a
-payment, since that is what the "recordatorios de seguimiento y facturación" note on the
-whiteboard would be driven by.
-
-Terminology to settle: the whiteboard's P.P.D. branch says *"factura de anticipo"*.
-In SAT usage an anticipo is its own thing (an advance payment CFDI later related to the
-final invoice), distinct from a PPD invoice (deferred payment, settled via complementos).
-They may be the same thing in Cladex's actual process or not; this affects the model.
+This follows the whiteboard's wording as drawn. Consequence: the §1–§2 machines must be
+reusable for a **second document type** (the comprobante de pago), not hard-wired to
+"factura de venta". Modeling a generic "comprobante" with a `tipo` costs little now and
+avoids a rewrite.
 
 ## 5. Dependencies this exposes
 
@@ -193,9 +186,12 @@ They may be the same thing in Cladex's actual process or not; this affects the m
   free-form trade name today), nor a default **uso de CFDI**. Both are likely needed.
 - **Emisor settings**: Cladex's own RFC, régimen, lugar de expedición, factura
   series/folio sequence (parallel to `folio_sequences` for quotes), CSD.
-- **Network**: PAC calls are outbound from the NAS, which is fine behind NAT, but
-  timeouts and retries need to run off the request path (a background worker or a
-  polling job), unlike everything else in the app today.
+- **Network**: PAC calls are outbound from the NAS, which is fine behind NAT. Long
+  term, timeouts and retries belong off the request path in a background job system
+  (tracked separately). The **first milestone does not need one**: stamping and
+  sending are triggered manually and retried by hand (the `timbrado incierto` and
+  `envío fallido` states exist precisely so a person can see and redo them), which is
+  enough to learn the PAC's behavior.
 
 ## 6. Tracking model (sketch)
 
@@ -226,15 +222,14 @@ anything secret. Like `quote_lines`, a `timbrada` factura's content is never rew
    lifecycle is derived from a factura or is its own manual state.
 3. **One factura per OC, or several** (partial deliveries, advance + final)? Affects the
    relation between `en entrega`, `facturado` and `pagado`.
-4. **Anticipo vs. PPD** — see §4.
-5. **Who may stamp and cancel?** Ties into the sysadmin/admin/sales RBAC gap in the
+4. **Who may stamp and cancel?** Ties into the sysadmin/admin/sales RBAC gap in the
    backlog; stamping is irreversible enough that it probably wants a narrower role than
    drafting.
-6. **Send automatically on timbrado, or require a manual "Enviar"?** The whiteboard's
+5. **Send automatically on timbrado, or require a manual "Enviar"?** The whiteboard's
    "emisión de copias" note suggests copies to several people.
-7. **Do we need delivery confirmation beyond "provider accepted"?**
-8. **Retention**: how long XML/PDF must be kept and where they live (the NAS backup
-   story covers files under the data dir) **(confirm)**.
-9. **Test vs. real environment**: the PAC sandbox stamps are not valid. Prod
+6. **Do we need delivery confirmation beyond "provider accepted"?**
+7. **Retention**: where the stamped XML/PDF live (the NAS backup story covers files
+   under the data dir).
+8. **Test vs. real environment**: the PAC sandbox stamps are not valid. Prod
    currently holds mock quotes; the same separation must hold for facturas so a test
    stamp can never be confused with a real one.

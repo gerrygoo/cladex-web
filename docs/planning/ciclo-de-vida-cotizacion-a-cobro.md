@@ -102,13 +102,11 @@ stateDiagram-v2
     facturado_anticipo --> pagado: pago completado (emisión de comprobante de pago)
 ```
 
-- **P.P.D.** (Pago en Parcialidades o Diferido) and **P.U.E.** (Pago en Una sola
-  Exhibición) are SAT/CFDI payment-method classifications, not Cladex inventions —
-  this is Mexican invoicing terminology, and the branch choice is presumably made at
-  invoicing time based on whether the client pays in full immediately or on terms.
-  PUE skips straight to `pagado` on receipt; PPD requires an advance invoice
-  (`facturado de anticipo`) now and a `comprobante de pago` (payment-complement CFDI)
-  later to close it out.
+- **P.P.D.** and **P.U.E.** are taken as drawn on the board: P.U.E. goes straight to
+  `pagado` on payment receipt (with the factura issued); P.P.D. issues a factura de
+  anticipo first, and a comprobante de pago once the payment completes. SAT rules
+  behind these terms are not specified here; they get learned during the facturación
+  work (see [facturas](facturas-timbrado-y-envio.md)).
 - The board draws a self-loop on `pagado` that isn't transcribed above — unclear
   whether it means partial/multiple payments reconciling against the same invoice, or
   is just a stray mark. Needs confirming against the source image before it's encoded.
