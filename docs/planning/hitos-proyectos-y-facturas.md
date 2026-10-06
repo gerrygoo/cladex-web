@@ -1,0 +1,143 @@
+# Hitos: proyectos y facturas
+
+**Proposed, nothing shipped.** The implementation order for the two design docs in this
+directory: the [quote → project → payment lifecycle](ciclo-de-vida-cotizacion-a-cobro.md)
+and [facturas: timbrado y envío](facturas-timbrado-y-envio.md). Milestone numbers
+continue `docs/PLAN.md` (M0–M3 are shipped); a milestone moves there, slice by slice,
+when it is actually started.
+
+## Decisions this plan rests on (user, 2026-10-06)
+
+1. **A proyecto is its own table**, not more values of `quotes.status`. It owns the
+   lifecycle (`prospecto` → `cerrado`), and later the facturas and payment state.
+   `quotes.status` shrinks back to `borrador` / `emitida` / `revisada`.
+2. **Proyectos first.** The lifecycle has no external dependency and ships before any
+   facturación code. PAC choice and the other facturación decisions are researched
+   meanwhile.
+3. **Strict gates.** No `en entrega` without a factura, no `cerrado` without `pagado`.
+   This settles open questions 2 and 3 of the lifecycle doc.
+4. **A proyecto needs a quote to exist**, in some 1:1 relationship (Emilio's intent as
+   the user recalls it; the exact shape is not settled, see [questions for Emilio](#questions-for-emilio)).
+   Working assumption below: issuing a quote opens the proyecto, and a revision
+   (`QA0012-R1`) takes over the same proyecto instead of opening a second one, so at
+   any time a proyecto has exactly one current quote.
+
+## Order and dependencies
+
+```mermaid
+flowchart TD
+    M4["M4 Proyectos<br/>ciclo de vida, perdido,<br/>seguimiento, pago manual"]
+    M5["M5 Bases de facturación<br/>PAC, secretos, datos fiscales"]
+    M6["M6 Timbrado<br/>borrador → timbrada"]
+    M7["M7 Envío<br/>correo saliente, XML + PDF"]
+    M8["M8 Cancelación y<br/>comprobante de pago"]
+    J["#19 Trabajos en segundo plano"]
+    R["Roles sysadmin / admin / ventas"]
+
+    M4 --> M6
+    M5 --> M6
+    M6 --> M7
+    M6 --> M8
+    M7 -.-> M8
+    M6 -.-> J
+    M7 -.-> J
+    R -.-> M6
+```
+
+Solid arrows are hard dependencies; dotted ones are "informs" or "nice to have first".
+M4 and M5 run in parallel: M4 is code, M5 starts as research and decisions.
+
+## M4 — Proyectos
+
+Everything here is manual and internal: no PAC, no email. Facturas keep being issued
+outside the app as today, and the proyecto records their reference by hand, so the
+strict gates work from day one and M6 later replaces the typed reference with a real
+comprobante.
+
+| # | Slice | Done when |
+|---|---|---|
+| 4.1 | `projects` table; a proyecto opens when a quote is issued and follows its revisions. Migration moves the shipped pipeline stages off `quotes` (`emitida` + `pipeline` → `prospecto`, `oc_emitida` → `oc_recibida`, `entregada` → `en_entrega`, `cerrada` → `cerrado`) and rebuilds `quotes` with the narrower CHECK. `MoveQuote` becomes a project move; home board, filters and the quote page read the stage from the proyecto. | The home board shows the same cards as before under the new stage names; revising a quote in `oc_recibida` leaves the proyecto in `oc_recibida` with the new folio as its current quote; issued PDFs reprint byte-identically. |
+| 4.2 | `perdido`: "perder con comentario" from `prospecto` and `oc_recibida`, reason required, recorded in the history. Admin can reopen. | A lost proyecto leaves the active columns, shows its reason, and is filterable. |
+| 4.3 | Seguimiento del prospecto: probabilidad de cierre (5–90%), fecha esperada de O.C., próximo seguimiento (a date; overdue ones are flagged on the home board, no email). Weighted total per column. | A vendedor sees which prospectos are due for follow-up today and the board's expected value. |
+| 4.4 | Recibir O.C.: moving to `oc_recibida` captures the client's OC number, date and file, and the forma de pago (P.U.E. / P.P.D.), which is the "estado de tramitación de pago" the board requires. | A proyecto can't enter `oc_recibida` without an OC number and a forma de pago; the OC file downloads from the proyecto. |
+| 4.5 | Estado de pago (manual) and the gates. P.U.E.: `oc_recibida` → `pagado` on payment, with the factura reference typed in. P.P.D.: → `facturado de anticipo` with the anticipo's reference, then → `pagado`. `facturado` requires a factura reference, `en_entrega` requires `facturado`, `cerrado` requires `pagado`. | Each blocked move explains what is missing; a P.P.D. proyecto can be delivered while unpaid but not closed. |
+
+Notes:
+
+- 4.1 is the only slice that rewrites production data. Production quotes are still test
+  data, but it gets the usual dry run on a live-DB copy and the user's go-ahead.
+- The follow-up history (`quote_comments` today) should read as one timeline per
+  proyecto across its revisions. Whether that means moving the rows to the proyecto or
+  just listing the chain's comments together is decided in 4.1.
+- "Facturado de anticipo" for P.P.D. counts as `facturado` for the delivery gate.
+  Under P.U.E. as drawn, the factura is issued on payment, so a P.U.E. proyecto is
+  paid before it is delivered. That is what "strict gates" plus the board imply;
+  confirm with Emilio (question 3).
+- Each slice updates `docs/guia/` in the same commit (glosario "Estados",
+  cotizaciones, a new proyectos page).
+- Not in M4: generating Cladex's own OC to suppliers and "comunicación y copias al
+  cliente" (both on the board's `O.C. recibida` note). The first needs its own design;
+  the second needs email (M7).
+
+## M5 — Bases de facturación
+
+Starts as decisions, in parallel with M4. No user-visible feature except 5.2.
+
+| # | Slice | Done when |
+|---|---|---|
+| 5.1 | Choose the PAC ([#20](https://github.com/gerrygoo/cladex-web/issues/20)): compare 2–3 on sandbox, price per stamp, lookup by our own reference, cancellation. Decide where PAC credentials and the CSD live on the NAS, and how a sandbox stamp can never pass for a real one. | The choice and the secrets plan are written into the facturas doc and #20; a sandbox account exists. |
+| 5.2 | Customer fiscal fields ([#17](https://github.com/gerrygoo/cladex-web/issues/17)): razón social as registered with the SAT, default uso de CFDI, plus whatever 5.1's PAC requires. Optional on the form. | Fields are editable, audited and documented in the guide. |
+| 5.3 | Emisor settings (RFC, régimen, lugar de expedición), factura series and folio sequence, CSD and PAC credentials loaded from config, never the DB. | The app starts with and without facturación configured, and says which it is on `/ajustes`. |
+
+## M6 — Timbrado
+
+The first milestone of #20. Manual actions only, no job system. Admin-only until the
+roles work says otherwise.
+
+| # | Slice | Done when |
+|---|---|---|
+| 6.1 | `comprobantes` (with a `tipo`, so the comprobante de pago reuses it) and its append-only event log. A factura `borrador` is built from the proyecto's current quote once it is `oc_recibida`; editable; "validar" freezes the payload and its hash as `lista para timbrar`. | A draft with incomplete receptor data can't be validated and says why; editing a `lista` factura returns it to `borrador`. |
+| 6.2 | PAC client against the sandbox: `timbrando` → `timbrada` / `rechazada por PAC`. Attempt row written before the call. Stamped XML and a PDF stored under the data dir; `timbrada` is immutable. | A sandbox factura is stamped end to end and downloads as XML and PDF; a rejected one shows the PAC's error and returns to `borrador`. |
+| 6.3 | `timbrado incierto`: timeouts and unreadable responses land here; "consultar al PAC" resolves to `timbrada` or back to `lista`. No blind retry. | A simulated timeout can't produce two stamps. |
+| 6.4 | The proyecto's gates read real comprobantes: `facturado` means a `timbrada` factura exists, replacing 4.5's typed reference (kept for proyectos invoiced before M6). First real stamp in production. | A proyecto reaches `facturado` only through a stamp; one real factura is stamped and checked by the contador. |
+
+## M7 — Envío
+
+| # | Slice | Done when |
+|---|---|---|
+| 7.1 | Outbound email ([#18](https://github.com/gerrygoo/cladex-web/issues/18)): provider, sender domain (SPF/DKIM), a send API with a recorded outcome per send. | A test message from production arrives and its outcome is recorded. |
+| 7.2 | Send a `timbrada` factura (XML + PDF): `por enviar` → `enviada` / `envío fallido` / `sin destinatario`, manual retry, resends listed in the history. | A factura is sent to several recipients; a bad address shows as failed and can be fixed and resent. |
+
+## M8 — Cancelación y comprobante de pago
+
+| # | Slice | Done when |
+|---|---|---|
+| 8.1 | Cancellation with motivo, including the wait on the receptor, driven as "replace this factura" where a correction is meant. | A sandbox factura is replaced and the original ends `cancelada`, with the full exchange in its event log. |
+| 8.2 | Comprobante de pago for P.P.D.: a second `tipo` through the same stamp-and-send machinery; stamping it is what moves the proyecto to `pagado`. | A P.P.D. proyecto goes anticipo → pago completado → `cerrado` without a typed reference anywhere. |
+
+## Later, not scheduled
+
+- **Background jobs** ([#19](https://github.com/gerrygoo/cladex-web/issues/19)), once
+  M6–M7 have shown what retries and timeouts really need.
+- **Roles** (sysadmin / admin / ventas) and who may stamp and cancel. M6 ships
+  admin-only as a stopgap.
+- **OC to suppliers**, follow-up reminders by email, copies to the client.
+
+## Questions for Emilio
+
+None of these block 4.1–4.3. The first two block 4.2's final shape and 4.5.
+
+1. **Quote and proyecto, 1:1 how?** Is "one proyecto per quote, and a revision
+   continues the same proyecto" right? Can a proyecto ever hold two live quotes
+   (alternatives offered to the same client), or exist before any quote is issued?
+2. **Is losing a quote the same as losing the proyecto?** The board draws `perdida`
+   and `perdido` as separate nodes. This plan builds only the proyecto one.
+3. **P.U.E. and delivery.** With strict gates, a P.U.E. proyecto is invoiced and paid
+   before delivery. Is that always true, or are there clients invoiced P.U.E. on
+   delivery?
+4. **One factura per O.C. or several** (partial deliveries)? M6 assumes one, plus the
+   anticipo/pago pair for P.P.D.
+5. **The self-loop on `pagado`** on the board: partial payments, or a stray mark?
+6. **Does `prospecto` still need the "pipeline" split**, or does the probability
+   replace it? 4.1 merges the two and 4.3 adds the probability.
+7. **Send on timbrado or on a manual "Enviar"**, and to whom ("emisión de copias")?

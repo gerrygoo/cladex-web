@@ -122,7 +122,11 @@ stateDiagram-v2
 
 ## 4. Open questions
 
-Not resolved by the sketch alone — confirm before any of this becomes a slice:
+Not resolved by the sketch alone — confirm before any of this becomes a slice.
+**Update 2026-10-06:** questions 2 and 3 are settled as strict gates (no `en entrega`
+without a factura, no `cerrado` without `pagado`), and the lifecycle moves to its own
+`projects` table; see [the milestone plan](hitos-proyectos-y-facturas.md), which also
+carries the questions still open for Emilio.
 
 1. **Is `perdida` (quote) the same concept as `perdido` (project)?** If a quote is
    marked lost, does the project automatically become `perdido`, or can a project be
