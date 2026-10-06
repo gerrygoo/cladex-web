@@ -16,11 +16,13 @@ when it is actually started.
    meanwhile.
 3. **Strict gates.** No `en entrega` without a factura, no `cerrado` without `pagado`.
    This settles open questions 2 and 3 of the lifecycle doc.
-4. **A proyecto needs a quote to exist**, in some 1:1 relationship (Emilio's intent as
-   the user recalls it; the exact shape is not settled, see [questions for Emilio](#questions-for-emilio)).
-   Working assumption below: issuing a quote opens the proyecto, and a revision
-   (`QA0012-R1`) takes over the same proyecto instead of opening a second one, so at
-   any time a proyecto has exactly one current quote.
+4. **A proyecto needs a quote to exist, 1:1.** Issuing a quote opens the proyecto, and
+   a revision (`QA0012-R1`) takes over the same proyecto instead of opening a second
+   one, so at any time a proyecto has exactly one current quote. Confirmed as what was
+   last discussed with Emilio.
+5. **P.U.E. is invoiced and paid before delivery**, as the board draws it and the
+   strict gates imply.
+6. **Stamping is admin-only** until the roles work says otherwise.
 
 ## Order and dependencies
 
@@ -70,9 +72,8 @@ Notes:
   proyecto across its revisions. Whether that means moving the rows to the proyecto or
   just listing the chain's comments together is decided in 4.1.
 - "Facturado de anticipo" for P.P.D. counts as `facturado` for the delivery gate.
-  Under P.U.E. as drawn, the factura is issued on payment, so a P.U.E. proyecto is
-  paid before it is delivered. That is what "strict gates" plus the board imply;
-  confirm with Emilio (question 3).
+  Under P.U.E. the factura is issued on payment, so a P.U.E. proyecto is paid before
+  it is delivered (decision 5).
 - Each slice updates `docs/guia/` in the same commit (glosario "Estados",
   cotizaciones, a new proyectos page).
 - Not in M4: generating Cladex's own OC to suppliers and "comunicación y copias al
@@ -91,8 +92,7 @@ Starts as decisions, in parallel with M4. No user-visible feature except 5.2.
 
 ## M6 — Timbrado
 
-The first milestone of #20. Manual actions only, no job system. Admin-only until the
-roles work says otherwise.
+The first milestone of #20. Manual actions only, no job system. Admin-only (decision 6).
 
 | # | Slice | Done when |
 |---|---|---|
@@ -125,19 +125,13 @@ roles work says otherwise.
 
 ## Questions for Emilio
 
-None of these block 4.1–4.3. The first two block 4.2's final shape and 4.5.
+None of these block M4 from starting. The first affects 4.2's final shape.
 
-1. **Quote and proyecto, 1:1 how?** Is "one proyecto per quote, and a revision
-   continues the same proyecto" right? Can a proyecto ever hold two live quotes
-   (alternatives offered to the same client), or exist before any quote is issued?
-2. **Is losing a quote the same as losing the proyecto?** The board draws `perdida`
+1. **Is losing a quote the same as losing the proyecto?** The board draws `perdida`
    and `perdido` as separate nodes. This plan builds only the proyecto one.
-3. **P.U.E. and delivery.** With strict gates, a P.U.E. proyecto is invoiced and paid
-   before delivery. Is that always true, or are there clients invoiced P.U.E. on
-   delivery?
-4. **One factura per O.C. or several** (partial deliveries)? M6 assumes one, plus the
+2. **One factura per O.C. or several** (partial deliveries)? M6 assumes one, plus the
    anticipo/pago pair for P.P.D.
-5. **The self-loop on `pagado`** on the board: partial payments, or a stray mark?
-6. **Does `prospecto` still need the "pipeline" split**, or does the probability
+3. **The self-loop on `pagado`** on the board: partial payments, or a stray mark?
+4. **Does `prospecto` still need the "pipeline" split**, or does the probability
    replace it? 4.1 merges the two and 4.3 adds the probability.
-7. **Send on timbrado or on a manual "Enviar"**, and to whom ("emisión de copias")?
+5. **Send on timbrado or on a manual "Enviar"**, and to whom ("emisión de copias")?
