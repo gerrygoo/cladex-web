@@ -72,9 +72,6 @@ Notes:
 
 - 4.1 is the only slice that rewrites production data. Production quotes are still test
   data, but it gets the usual dry run on a live-DB copy and the user's go-ahead.
-- The follow-up history (`quote_comments` today) should read as one timeline per
-  proyecto across its revisions. Whether that means moving the rows to the proyecto or
-  just listing the chain's comments together is decided in 4.1.
 - "Facturado de anticipo" for P.P.D. counts as `facturado` for the delivery gate.
   Under P.U.E. the factura is issued on payment, so a P.U.E. proyecto is paid before
   it is delivered (decision 5).
@@ -83,6 +80,68 @@ Notes:
 - Not in M4: generating Cladex's own OC to suppliers and "comunicación y copias al
   cliente" (both on the board's `O.C. recibida` note). The first needs its own design;
   the second needs email (M7).
+
+### Diseño de 4.1: la tabla `projects`
+
+Checked against the code as of 2026-10-06 (`internal/store/quotes.go`, `pipeline.go`,
+`overview.go`, migrations 0011–0015).
+
+**Storage.**
+
+- `projects`: `id`, `folio` (unique), `customer_id`, `user_id` (the vendedor who owns
+  it), `status`, `probability`, `probability_updated_at`, `created_at`, with audit
+  triggers like every other table. Later slices add their own columns.
+- `projects.folio` is the base folio of the quote that opened it (`QA0105`, what
+  `baseFolio` already computes). It is the proyecto's name in the UI and its URL,
+  `/proyectos/QA0105`. No new numbering.
+- `projects.status` takes all six values from the start (`prospecto`, `oc_recibida`,
+  `facturado`, `en_entrega`, `cerrado`, `perdido`), since SQLite can't widen a CHECK
+  without rebuilding the table. 4.1 only uses the four that exist today.
+- `quotes.project_id`: NULL on a first draft, set when it is issued (`IssueQuote`
+  creates the proyecto in the same transaction), and copied onto the draft by
+  `CreateRevision`.
+- **No `current_quote_id` column.** The current quote is the one quote of the proyecto
+  that is not `revisada`: the `emitida` one, or the `borrador` revision being worked
+  on. Deriving it means it can't point at the wrong row, and while a revision is in
+  draft the proyecto shows that draft's amount marked "en revisión".
+- `quotes.status` goes back to `borrador` / `emitida` / `revisada`. Rebuilding
+  `quotes` for the narrower CHECK follows migrations 0012 and 0013.
+
+**Migration.** One proyecto per revision chain that has an issued quote; drafts that
+were never issued get none.
+
+| Chain's live quote is | Proyecto | Quote becomes |
+|---|---|---|
+| `emitida` | `prospecto`, Inicial | `emitida` |
+| `pipeline` | `prospecto`, Alta | `emitida` |
+| `oc_emitida` | `oc_recibida` | `emitida` |
+| `entregada` | `en_entrega` | `emitida` |
+| `cerrada` | `cerrado` | `emitida` |
+| `borrador` revision of a `revisada` quote | `prospecto`, Inicial | unchanged |
+
+**Behavior that changes.**
+
+- Today only an `emitida` quote can be revised, so a quote that has moved to
+  `pipeline` or beyond can't be. Once the stage lives on the proyecto every live quote
+  is `emitida`, so the rule has to be restated: **revisions are allowed while the
+  proyecto is a `prospecto`**, which newly allows revising what is today `pipeline`,
+  and refused from `oc_recibida` on, as today.
+- `MoveQuote` becomes a move of the proyecto, with the same one-step and
+  admin-only-backwards rules. `facturado` is skipped until 4.5 gives it meaning, so
+  `oc_recibida` → `en_entrega` keeps working as `oc_emitida` → `entregada` does now.
+- **History**: `quote_comments` stays as it is. The proyecto's history is the comments
+  of all its quotes in one timeline, and stage moves keep being written as comments
+  on the current quote. No new events table until something needs one.
+- The home board groups by proyecto stage instead of quote status; `revisada` stops
+  being a column, since a superseded quote is not a proyecto.
+
+**Two commits, so the data change is reviewed apart from the UI change.**
+
+1. Schema, migration and store. Screens look the same but read the stage from the
+   proyecto, under the new stage names. This is the one with the production dry run.
+2. The proyecto page (`/proyectos/{folio}`: stage, history, its quotes) and a
+   Proyectos list. The quote page links to its proyecto and loses the stage buttons;
+   the stage filters move from Cotizaciones to Proyectos.
 
 ### Probabilidad de cierre y pronóstico
 
@@ -182,7 +241,8 @@ The first milestone of #20. Manual actions only, no job system. Admin-only (deci
 - **Roles** (sysadmin / admin / ventas) and who may stamp and cancel. M6 ships
   admin-only as a stopgap.
 - **Órdenes de compra a proveedores**: a separate product goal, tracked in
-  [its own doc](ordenes-de-compra-a-proveedores.md).
+  [its own doc](ordenes-de-compra-a-proveedores.md) and
+  [#21](https://github.com/gerrygoo/cladex-web/issues/21).
 - Follow-up reminders by email, copies to the client.
 
 ## Questions for Emilio
