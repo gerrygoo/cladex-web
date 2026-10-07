@@ -23,6 +23,10 @@ when it is actually started.
 5. **P.U.E. is invoiced and paid before delivery**, as the board draws it and the
    strict gates imply.
 6. **Stamping is admin-only** until the roles work says otherwise.
+7. **Confidence is one control, and "relevante para pronóstico" is derived from it.**
+   A prospecto with probabilidad de cierre of 75% or more is relevante para pronóstico
+   and is highlighted; there is no separate mark to set. This is what the team calls
+   "en pipeline" in its review meeting. Design in [its own section](#probabilidad-de-cierre-y-pronóstico).
 
 ## Order and dependencies
 
@@ -58,9 +62,9 @@ comprobante.
 
 | # | Slice | Done when |
 |---|---|---|
-| 4.1 | `projects` table; a proyecto opens when a quote is issued and follows its revisions. Migration moves the shipped pipeline stages off `quotes` (`emitida` + `pipeline` → `prospecto`, `oc_emitida` → `oc_recibida`, `entregada` → `en_entrega`, `cerrada` → `cerrado`) and rebuilds `quotes` with the narrower CHECK. `MoveQuote` becomes a project move; home board, filters and the quote page read the stage from the proyecto. | The home board shows the same cards as before under the new stage names; revising a quote in `oc_recibida` leaves the proyecto in `oc_recibida` with the new folio as its current quote; issued PDFs reprint byte-identically. |
+| 4.1 | `projects` table; a proyecto opens when a quote is issued and follows its revisions. Migration moves the shipped pipeline stages off `quotes` (`emitida` → `prospecto`, `pipeline` → `prospecto` at 75% so it stays relevante para pronóstico, `oc_emitida` → `oc_recibida`, `entregada` → `en_entrega`, `cerrada` → `cerrado`) and rebuilds `quotes` with the narrower CHECK. `MoveQuote` becomes a project move; home board, filters and the quote page read the stage from the proyecto. | The home board shows the same cards as before under the new stage names; revising a quote in `oc_recibida` leaves the proyecto in `oc_recibida` with the new folio as its current quote; issued PDFs reprint byte-identically. |
 | 4.2 | `perdido`: "perder con comentario" from `prospecto` and `oc_recibida`, reason required, recorded in the history. Admin can reopen. | A lost proyecto leaves the active columns, shows its reason, and is filterable. |
-| 4.3 | Seguimiento del prospecto: probabilidad de cierre (5–90%), fecha esperada de O.C., próximo seguimiento (a date; overdue ones are flagged on the home board, no email). Weighted total per column. | A vendedor sees which prospectos are due for follow-up today and the board's expected value. |
+| 4.3 | Probabilidad de cierre y pronóstico, as designed [below](#probabilidad-de-cierre-y-pronóstico): the five-step control, fecha esperada de O.C., próximo seguimiento (a date; overdue ones are flagged, no email), the highlight at 75% and up, and the Pronóstico review view with weighted totals. | In the review meeting, the team opens one page, sees the prospectos at 75% and up sorted by expected O.C. date, and updates probability, note and next follow-up without leaving it. |
 | 4.4 | Recibir O.C.: moving to `oc_recibida` captures the client's OC number, date and file, and the forma de pago (P.U.E. / P.P.D.), which is the "estado de tramitación de pago" the board requires. | A proyecto can't enter `oc_recibida` without an OC number and a forma de pago; the OC file downloads from the proyecto. |
 | 4.5 | Estado de pago (manual) and the gates. P.U.E.: `oc_recibida` → `pagado` on payment, with the factura reference typed in. P.P.D.: → `facturado de anticipo` with the anticipo's reference, then → `pagado`. `facturado` requires a factura reference, `en_entrega` requires `facturado`, `cerrado` requires `pagado`. | Each blocked move explains what is missing; a P.P.D. proyecto can be delivered while unpaid but not closed. |
 
@@ -79,6 +83,41 @@ Notes:
 - Not in M4: generating Cladex's own OC to suppliers and "comunicación y copias al
   cliente" (both on the board's `O.C. recibida` note). The first needs its own design;
   the second needs email (M7).
+
+### Probabilidad de cierre y pronóstico
+
+The use case, from Emilio: everyone meets to go over the proyectos that are close to
+closing, which they call "en pipeline". Industry CRMs (Salesforce, SAP, Oracle,
+Dynamics; recalled, not re-checked) converge on the same three things: a probability
+that is in practice a few preset steps, an expected close date, and a marker for what
+counts in the forecast. SAP's name for the marker, "relevant for forecast", is the one
+adopted here.
+
+- **Probabilidad de cierre** exists only while a proyecto is a `prospecto`. It takes
+  one of five fixed steps, proposed as 10, 25, 50, 75 and 90, never 0 or 100:
+  receiving the O.C. or losing the proyecto is what ends the guess. A new proyecto
+  starts at the lowest step. The value lives on the `projects` row from 4.1 on, so
+  the migration keeps the shipped `emitida` / `pipeline` distinction.
+- **Relevante para pronóstico** is derived: probabilidad ≥ 75%. It is never stored or
+  set by hand, so it can't disagree with the probability. The threshold is a constant
+  next to the steps.
+- **Control**: a row of five radio-style buttons, not a slider and not a typed number.
+  It works with keyboard and screen reader, and nobody has to defend 35% against 40%.
+  Changing it saves in place and writes "Probabilidad: 25% → 75%" to the proyecto's
+  history, with an optional note.
+- **Highlight**: relevante para pronóstico proyectos are marked wherever prospectos
+  are listed (home board, lists, the proyecto page), with a text label and not colour
+  alone.
+- **Pronóstico view**: the meeting page. Relevante para pronóstico proyectos sorted by
+  fecha esperada de O.C., each row editable in place, with the total and the weighted
+  total (amount × probability) at the bottom. A toggle shows the remaining prospectos
+  so one can be promoted during the meeting.
+- **Staleness**: each row shows when the probability was last changed.
+
+```
+QA0012-R1  Constructora X   $482,000   O.C. esperada 15 oct   ( 10 | 25 | 50 |[75]| 90 )   act. hace 3 días
+           "Compras pidió ajustar entrega" · próximo seguimiento 9 oct
+```
 
 ## M5 — Bases de facturación
 
@@ -132,6 +171,6 @@ None of these block M4 from starting. The first affects 4.2's final shape.
 2. **One factura per O.C. or several** (partial deliveries)? M6 assumes one, plus the
    anticipo/pago pair for P.P.D.
 3. **The self-loop on `pagado`** on the board: partial payments, or a stray mark?
-4. **Does `prospecto` still need the "pipeline" split**, or does the probability
-   replace it? 4.1 merges the two and 4.3 adds the probability.
+4. **The probability steps and their names.** 10 / 25 / 50 / 75 / 90 is a proposal;
+   if the team already speaks in certain percentages or words, use theirs.
 5. **Send on timbrado or on a manual "Enviar"**, and to whom ("emisión de copias")?
