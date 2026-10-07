@@ -123,9 +123,10 @@ were never issued get none.
 
 - Today only an `emitida` quote can be revised, so a quote that has moved to
   `pipeline` or beyond can't be. Once the stage lives on the proyecto every live quote
-  is `emitida`, so the rule has to be restated: **revisions are allowed while the
+  is `emitida`, so the rule is restated: **revisions are allowed while the
   proyecto is a `prospecto`**, which newly allows revising what is today `pipeline`,
-  and refused from `oc_recibida` on, as today.
+  and locked from `oc_recibida` on (user, 2026-10-06), so the O.C. and later the
+  factura always refer to one fixed quote.
 - `MoveQuote` becomes a move of the proyecto, with the same one-step and
   admin-only-backwards rules. `facturado` is skipped until 4.5 gives it meaning, so
   `oc_recibida` → `en_entrega` keeps working as `oc_emitida` → `entregada` does now.
