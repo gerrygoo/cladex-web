@@ -98,7 +98,8 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("GET /proyectos", auth.RequireAuth(http.HandlerFunc(projects.List)))
 	mux.Handle("GET /proyectos/{folio}", auth.RequireAuth(http.HandlerFunc(projects.Page)))
 	mux.Handle("POST /proyectos/{folio}/etapa", auth.RequireAuth(http.HandlerFunc(projects.Etapa)))
-	mux.Handle("POST /proyectos/{folio}/probabilidad", auth.RequireAuth(http.HandlerFunc(projects.Probabilidad)))
+	mux.Handle("POST /proyectos/{folio}/seguimiento", auth.RequireAuth(http.HandlerFunc(projects.Seguimiento)))
+	mux.Handle("GET /pronostico", auth.RequireAuth(http.HandlerFunc(projects.Pronostico)))
 	mux.Handle("POST /proyectos/{folio}/comentarios", auth.RequireAuth(http.HandlerFunc(projects.Comentar)))
 	mux.Handle("POST /proyectos/{folio}/perder", auth.RequireAuth(http.HandlerFunc(projects.Perder)))
 	mux.Handle("POST /proyectos/{folio}/reabrir", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(projects.Reabrir))))
@@ -129,7 +130,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("GET /ayuda/{pagina}", auth.RequireAuth(http.HandlerFunc(help.Page)))
 
 	mux.Handle("GET /{$}", auth.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ov, err := db.ProjectOverview(r.Context())
+		ov, err := db.ProjectOverview(r.Context(), today(r))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

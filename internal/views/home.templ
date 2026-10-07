@@ -34,7 +34,17 @@ templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavU
 					<h3><a href={ templ.URL("/proyectos?f.etapa=" + st.Status) }>{ stageLabels[st.Status] }</a></h3>
 					<p class="overview-figure"><strong>{ strconv.Itoa(st.Count) }</strong> · { st.Total.String() }</p>
 					if st.Status == "prospecto" {
-						<p><small>{ forecastLabel }: { strconv.Itoa(st.ForecastCount) } · { st.ForecastTotal.String() }</small></p>
+						<p>
+							<small>
+								<a href="/pronostico">{ forecastLabel }</a>: { strconv.Itoa(st.ForecastCount) } · { st.ForecastTotal.String() }
+								<br/>
+								Valor esperado: { st.Weighted.String() }
+								if st.FollowUpsDue > 0 {
+									<br/>
+									<a href="/pronostico?todos=1"><strong class="overdue">Seguimientos para hoy o vencidos: { strconv.Itoa(st.FollowUpsDue) }</strong></a>
+								}
+							</small>
+						</p>
 					}
 					if len(st.Top) == 0 {
 						<p><small>Ninguno.</small></p>

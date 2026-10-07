@@ -95,6 +95,12 @@ Un prospecto con probabilidad de cierre Alta o Inminente. Son los proyectos que 
 equipo revisa cuando ve qué está por cerrar (lo que antes se llamaba "en pipeline"). No
 se marca a mano: depende solo de la probabilidad.
 
+## Pronóstico
+
+La página donde el equipo repasa los prospectos relevantes para pronóstico: lo que está
+por cerrar, cuándo se espera la orden de compra y cuánto suma. Está en el menú
+**Proyectos**.
+
 ## O.C. recibida
 
 El cliente ya mandó su orden de compra. Desde este momento la cotización del proyecto

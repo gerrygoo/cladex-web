@@ -1014,6 +1014,10 @@ ol.comments li:last-child {
 
 p.comment-body {
   margin: 0;
+}
+
+/* A comment keeps its line breaks wherever it is shown */
+.comment-body {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1212,6 +1216,25 @@ form.stage-form {
 
 form.stage-form textarea {
   width: 100%;
+}
+
+/* A date that is due: the words carry it, the colour only helps */
+strong.overdue {
+  color: var(--warning);
+}
+
+/* The two follow-up dates, side by side while there is room */
+div.followup-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.5rem;
+}
+
+/* One prospecto on the Pronóstico page */
+article.forecast-card {
+  margin-block: 1.5rem;
+  padding-top: 0.5rem;
+  border-top: 2px solid var(--rule);
 }
 
 /* The probabilidad de cierre steps, side by side */

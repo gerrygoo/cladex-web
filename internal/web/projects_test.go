@@ -56,7 +56,7 @@ func TestProjectsFollowUp(t *testing.T) {
 		return doForm(t, a, userID, p.Etapa, "POST", base+"/etapa", pv, url.Values{"to": {to}, "note": {note}}, false)
 	}
 	prob := func(userID int64, value, note string) *httptest.ResponseRecorder {
-		return doForm(t, a, userID, p.Probabilidad, "POST", base+"/probabilidad", pv,
+		return doForm(t, a, userID, p.Seguimiento, "POST", base+"/seguimiento", pv,
 			url.Values{"probabilidad": {value}, "note": {note}}, false)
 	}
 	page := func(userID int64) string {
@@ -68,7 +68,7 @@ func TestProjectsFollowUp(t *testing.T) {
 
 	// Issuing opened the proyecto as a prospecto at the lowest probability.
 	body := page(ana)
-	for _, want := range []string{"Proyecto " + folio, "Prospecto", "Inicial (10%)", "Guardar probabilidad",
+	for _, want := range []string{"Proyecto " + folio, "Prospecto", "Inicial (10%)", "Guardar seguimiento",
 		"Pasar a O.C. recibida", "Cotización vigente", `href="/cotizaciones/` + folio + `"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("prospecto page missing %q", want)
@@ -87,7 +87,7 @@ func TestProjectsFollowUp(t *testing.T) {
 			t.Errorf("quote page missing %q", want)
 		}
 	}
-	for _, gone := range []string{"Pasar a", "Guardar probabilidad"} {
+	for _, gone := range []string{"Pasar a", "Guardar seguimiento"} {
 		if strings.Contains(body, gone) {
 			t.Errorf("quote page still shows %q", gone)
 		}
@@ -130,7 +130,7 @@ func TestProjectsFollowUp(t *testing.T) {
 			t.Errorf("oc_recibida page missing %q", want)
 		}
 	}
-	for _, gone := range []string{"Guardar probabilidad", "Relevante para pronóstico"} {
+	for _, gone := range []string{"Guardar seguimiento", "Relevante para pronóstico"} {
 		if strings.Contains(body, gone) {
 			t.Errorf("oc_recibida page still shows %q", gone)
 		}
@@ -209,7 +209,7 @@ func TestProjectsWithARevisionInDraft(t *testing.T) {
 	pv := map[string]string{"folio": folio}
 
 	body := doForm(t, a, ana, p.Page, "GET", "/proyectos/"+folio, pv, nil, false).Body.String()
-	for _, want := range []string{rev.Folio, "revisión en borrador", "primero emite la revisión", "Revisada", "Guardar probabilidad"} {
+	for _, want := range []string{rev.Folio, "revisión en borrador", "primero emite la revisión", "Revisada", "Guardar seguimiento"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("proyecto page missing %q", want)
 		}
@@ -316,7 +316,7 @@ func TestProjectsLoseAndReopen(t *testing.T) {
 			t.Errorf("lost proyecto page missing %q", want)
 		}
 	}
-	for _, gone := range []string{"Marcar como perdido", "Guardar probabilidad", "Pasar a", "Reabrir como"} {
+	for _, gone := range []string{"Marcar como perdido", "Guardar seguimiento", "Pasar a", "Reabrir como"} {
 		if strings.Contains(body, gone) {
 			t.Errorf("lost proyecto page shows %q to a vendedor", gone)
 		}
@@ -350,5 +350,83 @@ func TestProjectsLoseAndReopen(t *testing.T) {
 	}
 	if rec := doForm(t, a, beto, p.Reabrir, "POST", base+"/reabrir", pv, nil, false); rec.Code != http.StatusConflict {
 		t.Errorf("Reabrir(not lost) status = %d, want 409", rec.Code)
+	}
+}
+
+func TestProjectsFollowUpDatesAndForecast(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	p := NewProjects(a.store)
+	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
+	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, ana)
+
+	forecast := func(query string) string {
+		return doForm(t, a, ana, p.Pronostico, "GET", "/pronostico?"+query, nil, nil, false).Body.String()
+	}
+	if body := forecast(""); !strings.Contains(body, "Ningún prospecto es relevante para pronóstico todavía.") {
+		t.Error("empty forecast doesn't say so")
+	}
+
+	first := issueTestQuote(t, a, q, ana, customerID, costProductID)
+	second := issueTestQuote(t, a, q, ana, customerID, costProductID)
+	save := func(folio string, form url.Values) *httptest.ResponseRecorder {
+		return doForm(t, a, ana, p.Seguimiento, "POST", "/proyectos/"+folio+"/seguimiento", map[string]string{"folio": folio}, form, false)
+	}
+
+	if rec := save(first, url.Values{"probabilidad": {"75"}, "oc_esperada": {"15/10/2026"}}); rec.Code != http.StatusBadRequest {
+		t.Errorf("Seguimiento(malformed date) status = %d, want 400", rec.Code)
+	}
+	// A new prospecto is not in the forecast, but is among all prospectos.
+	if body := forecast(""); strings.Contains(body, `id="p-`+first+`"`) {
+		t.Error("a prospecto at Inicial is in the forecast")
+	}
+	body := forecast("todos=1")
+	for _, want := range []string{`id="p-` + first + `"`, `id="p-` + second + `"`, "Ver solo los relevantes para pronóstico",
+		"Guardar seguimiento", "Sin fecha", "Vence la vigencia · ", "Sin comentarios", "Total ponderado"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("all-prospects page missing %q", want)
+		}
+	}
+
+	// Saved from the full list, it returns there, at the same proyecto.
+	rec := save(first, url.Values{"probabilidad": {"75"}, "oc_esperada": {"2030-10-15"}, "proximo_seguimiento": {"2020-01-09"},
+		"note": {"Compras pidió ajustar entrega"}, "volver": {"pronostico-todos"}})
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/pronostico?todos=1#p-"+first {
+		t.Fatalf("Seguimiento status = %d, Location = %q", rec.Code, rec.Header().Get("Location"))
+	}
+	if rec := save(second, url.Values{"probabilidad": {"90"}, "volver": {"pronostico"}}); rec.Header().Get("Location") != "/pronostico#p-"+second {
+		t.Fatalf("Seguimiento Location = %q", rec.Header().Get("Location"))
+	}
+	if rec := save(second, url.Values{"probabilidad": {"90"}}); rec.Header().Get("Location") != "/proyectos/"+second+"#historial" {
+		t.Fatalf("Seguimiento Location = %q", rec.Header().Get("Location"))
+	}
+
+	body = forecast("")
+	for _, want := range []string{`id="p-` + first + `"`, `id="p-` + second + `"`, "Ver todos los prospectos",
+		"Alta (75%)", "Inminente (90%)", "Relevante para pronóstico", "15/10/2030", "Vence la vigencia · ",
+		"Vencido: Seguimiento · 09/01/2020", "Compras pidió ajustar entrega", "Sin contacto capturado", "Total ponderado"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("forecast page missing %q", want)
+		}
+	}
+	// The dated proyecto comes before the undated one.
+	if strings.Index(body, `id="p-`+first+`"`) > strings.Index(body, `id="p-`+second+`"`) {
+		t.Error("the forecast doesn't put the soonest expected O.C. first")
+	}
+	// Two proyectos of $74.58 each (a $64.29 line plus IVA): 75% + 90% of it is $123.06.
+	for _, want := range []string{"$149.16", "$123.06"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("forecast totals missing %s", want)
+		}
+	}
+
+	// The proyecto page shows the dates and that the follow-up is due.
+	page := doForm(t, a, ana, p.Page, "GET", "/proyectos/"+first, map[string]string{"folio": first}, nil, false).Body.String()
+	for _, want := range []string{"15/10/2030", "09/01/2020", "toca darle seguimiento", `value="2030-10-15"`,
+		"O.C. esperada: 15/10/2030.", "Próximo seguimiento: 09/01/2020."} {
+		if !strings.Contains(page, want) {
+			t.Errorf("proyecto page missing %q", want)
+		}
 	}
 }

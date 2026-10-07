@@ -543,7 +543,7 @@ func TestLoseAndReopenProject(t *testing.T) {
 		t.Errorf("CreateRevision(perdido) = %v, want ErrProjectLocked", err)
 	}
 	// It is off the board, counted apart.
-	ov, err := s.ProjectOverview(ctx)
+	ov, err := s.ProjectOverview(ctx, "2026-10-07")
 	if err != nil {
 		t.Fatalf("ProjectOverview: %v", err)
 	}
@@ -593,5 +593,142 @@ func TestLoseAndReopenProject(t *testing.T) {
 		SELECT count(*) FROM audit_log WHERE table_name = 'projects' AND op = 'update'
 		AND json_extract(new_values, '$.lost_reason') = 'Cancelaron la OC'`).Scan(&n); err != nil || n != 1 {
 		t.Errorf("audit rows with the reason = %d, %v", n, err)
+	}
+}
+
+func TestFollowUpProject(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	q, user := projectFixture(t, s)
+	project := *q.ProjectID
+	str := func(v string) *string { return &v }
+	num := func(v int) *int { return &v }
+	load := func() *Project {
+		t.Helper()
+		p, err := s.ProjectByFolio(ctx, "QA0001")
+		if err != nil || p == nil {
+			t.Fatalf("ProjectByFolio: %v, %v", p, err)
+		}
+		return p
+	}
+
+	for name, bad := range map[string]FollowUp{
+		"not a step":     {Probability: num(40)},
+		"malformed date": {ExpectedOC: str("15/10/2026")},
+		"impossible day": {NextFollowUp: str("2026-02-31")},
+	} {
+		if err := s.FollowUpProject(ctx, project, user, bad); !errors.Is(err, ErrBadTransition) {
+			t.Errorf("FollowUpProject(%s) = %v, want ErrBadTransition", name, err)
+		}
+	}
+
+	err := s.FollowUpProject(ctx, project, user, FollowUp{
+		Probability: num(75), ExpectedOC: str("2026-10-15"), NextFollowUp: str("2026-10-09"), Note: "Compras pidió ajustar entrega",
+	})
+	if err != nil {
+		t.Fatalf("FollowUpProject: %v", err)
+	}
+	p := load()
+	if p.Probability != 75 || p.ExpectedOCDate != "2026-10-15" || p.NextFollowUpDate != "2026-10-09" {
+		t.Fatalf("project = %+v", p)
+	}
+	want := "Probabilidad: Inicial → Alta.\nO.C. esperada: 15/10/2026.\nPróximo seguimiento: 09/10/2026.\nCompras pidió ajustar entrega"
+	if p.LastBody != want || p.LastUserName != "Rodolfo" || p.LastAt == "" {
+		t.Errorf("last comment = %q by %q", p.LastBody, p.LastUserName)
+	}
+	if p.FollowUpDue("2026-10-08") || !p.FollowUpDue("2026-10-09") || !p.FollowUpDue("2026-10-20") {
+		t.Error("FollowUpDue is wrong around the follow-up day")
+	}
+
+	// Nil leaves a field alone, the same value says nothing, "" clears a date.
+	if err := s.FollowUpProject(ctx, project, user, FollowUp{Probability: num(75), ExpectedOC: str("2026-10-15")}); err != nil {
+		t.Fatalf("FollowUpProject(unchanged): %v", err)
+	}
+	if err := s.FollowUpProject(ctx, project, user, FollowUp{NextFollowUp: str("")}); err != nil {
+		t.Fatalf("FollowUpProject(clear): %v", err)
+	}
+	p = load()
+	if p.Probability != 75 || p.ExpectedOCDate != "2026-10-15" || p.NextFollowUpDate != "" || p.LastBody != "Próximo seguimiento: sin fecha." {
+		t.Errorf("after clearing = %+v", p)
+	}
+	if comments, _ := s.ListProjectComments(ctx, project); len(comments) != 2 {
+		t.Errorf("comments = %d, want 2 (the unchanged save wrote none)", len(comments))
+	}
+	if p.FollowUpDue("2026-12-31") {
+		t.Error("a prospecto with no follow-up date is due")
+	}
+
+	// The dates are audited, and only a prospecto takes a follow-up.
+	var n int
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT count(*) FROM audit_log WHERE table_name = 'projects'
+		AND json_extract(new_values, '$.expected_oc_date') = '2026-10-15'`).Scan(&n); err != nil || n == 0 {
+		t.Errorf("audit rows with the expected date = %d, %v", n, err)
+	}
+	if err := s.MoveProject(ctx, project, user, "prospecto", "oc_recibida", ""); err != nil {
+		t.Fatalf("MoveProject: %v", err)
+	}
+	if err := s.FollowUpProject(ctx, project, user, FollowUp{ExpectedOC: str("2026-11-01")}); !errors.Is(err, ErrBadTransition) {
+		t.Errorf("FollowUpProject(oc_recibida) = %v, want ErrBadTransition", err)
+	}
+}
+
+func TestListProspectsAndWeights(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	customerID, err := s.CreateCustomer(ctx, Customer{Name: "Grupo PEME", ContactName: "Ing. Pérez", Phone: "55 1234 5678", Email: "perez@peme.mx"})
+	if err != nil {
+		t.Fatalf("CreateCustomer: %v", err)
+	}
+	user, err := s.CreateUser(ctx, "rfm", "Rodolfo", "hash", "vendedor")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	insertProject(t, s, "QA0001", customerID, user, "prospecto", 75, 1_000_00)
+	insertProject(t, s, "QA0002", customerID, user, "prospecto", 90, 2_000_00)
+	insertProject(t, s, "QA0003", customerID, user, "prospecto", 75, 3_000_00)
+	insertProject(t, s, "QA0004", customerID, user, "prospecto", 25, 4_000_01)
+	insertProject(t, s, "QA0005", customerID, user, "oc_recibida", 90, 5_000_00)
+	if _, err := s.db.ExecContext(ctx, `
+		UPDATE projects SET expected_oc_date = CASE folio WHEN 'QA0001' THEN '2026-11-01' WHEN 'QA0003' THEN '2026-10-15' END,
+			next_followup_date = CASE folio WHEN 'QA0003' THEN '2026-10-07' WHEN 'QA0004' THEN '2026-10-06' WHEN 'QA0002' THEN '2026-10-08' END;
+		UPDATE quotes SET valid_until = '2026-10-30', issued_at = '2026-09-30T15:00:00.000Z' WHERE folio = 'QA0003'`); err != nil {
+		t.Fatalf("seed dates: %v", err)
+	}
+	folios := func(all bool) string {
+		t.Helper()
+		ps, err := s.ListProspects(ctx, all)
+		if err != nil {
+			t.Fatalf("ListProspects: %v", err)
+		}
+		var out []string
+		for _, p := range ps {
+			out = append(out, p.Folio)
+		}
+		return strings.Join(out, ",")
+	}
+	// Soonest expected O.C. first, undated last; QA0005 is past prospecto.
+	if got := folios(false); got != "QA0003,QA0001,QA0002" {
+		t.Errorf("forecast prospects = %s", got)
+	}
+	if got := folios(true); got != "QA0003,QA0001,QA0002,QA0004" {
+		t.Errorf("all prospects = %s", got)
+	}
+	ps, _ := s.ListProspects(ctx, false)
+	if p := ps[0]; p.ContactName != "Ing. Pérez" || p.ContactPhone != "55 1234 5678" || p.ContactEmail != "perez@peme.mx" ||
+		p.QuoteValidUntil != "2026-10-30" || p.QuoteIssuedAt == "" || p.LastBody != "" {
+		t.Errorf("first prospect = %+v", p)
+	}
+
+	// 1,000 × 75% + 2,000 × 90% + 3,000 × 75% + 4,000.01 × 25% = 5,800.0025 → $5,800.00.
+	ov, err := s.ProjectOverview(ctx, "2026-10-07")
+	if err != nil {
+		t.Fatalf("ProjectOverview: %v", err)
+	}
+	if pros := ov.Stages[0]; pros.Weighted != 5_800_00 || pros.FollowUpsDue != 2 {
+		t.Errorf("prospectos weighted = %v, follow-ups due = %d; want $5,800.00 and 2", pros.Weighted, pros.FollowUpsDue)
+	}
+	if oc := ov.Stages[1]; oc.Weighted != 0 || oc.FollowUpsDue != 0 {
+		t.Errorf("oc_recibida weighted = %v, due = %d; want none", oc.Weighted, oc.FollowUpsDue)
 	}
 }

@@ -13,7 +13,7 @@ parte de este manual que la explica.
 | [Acceso y cuenta](acceso.md) | Iniciar sesión, cambiar tu contraseña, cerrar sesión |
 | [Clientes](clientes.md) | Dar de alta, buscar, editar y eliminar clientes |
 | [Cotizaciones](cotizaciones.md) | Crear una cotización, agregar productos por SKU, líneas libres, guardar, emitir, descargar el PDF, revisar |
-| [Proyectos](proyectos.md) | Dar seguimiento después de emitir: etapas, probabilidad de cierre, historial |
+| [Proyectos](proyectos.md) | Dar seguimiento después de emitir: etapas, probabilidad de cierre, fechas, pronóstico, perdidos, historial |
 | [Productos](productos.md) | Buscar, dar de alta y editar productos; cómo se calcula cada precio; conversiones de unidades |
 :::admin
 | [Administración](administracion.md) | Márgenes; materiales; usuarios; unidades; familias y series (solo administradores) |
@@ -55,7 +55,10 @@ que nunca se emitieron no aparecen aquí:
   **Nueva cotización**.
   Para mover un proyecto de etapa, mira [darle seguimiento](proyectos.md#dar-seguimiento-a-un-proyecto).
 - En **Prospectos** verás además cuántos son [[relevante para pronóstico|relevantes para pronóstico]]
-  y cuánto suman, y la [[probabilidad de cierre]] de cada uno de los tres que se listan.
+  y cuánto suman (el enlace abre el [pronóstico](proyectos.md#revisar-el-pronóstico)), el
+  **Valor esperado** (cada total por su [[probabilidad de cierre]]) y, si los hay,
+  **Seguimientos para hoy o vencidos**: los prospectos cuyo próximo seguimiento ya llegó.
+  De los tres que se listan se muestra también la probabilidad.
 - **Perdidos**: debajo de las etapas, cuántos proyectos se
   [marcaron como perdidos](proyectos.md#marcar-un-proyecto-como-perdido) y cuánto
   suman. Haz clic para verlos. No cuentan en ninguna etapa ni en la tabla de vendedores.

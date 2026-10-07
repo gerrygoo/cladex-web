@@ -91,7 +91,9 @@ over every old stage, `TestProjectReads` for the list and page queries) and repl
 `TestQuotesEtapa` with `internal/web/projects_test.go`: `TestProjectsFollowUp` (stage
 moves, the probability control, the revision lock after the O.C., comments),
 `TestProjectsWithARevisionInDraft`, `TestProjectsList` and, for slice 4.2,
-`TestProjectsLoseAndReopen` (with `TestLoseAndReopenProject` in the store). Those also pin the strings
+`TestProjectsLoseAndReopen` (with `TestLoseAndReopenProject` in the store) and, for
+4.3, `TestProjectsFollowUpDatesAndForecast` (with `TestFollowUpProject` and
+`TestListProspectsAndWeights`). Those also pin the strings
 `docs/guia/proyectos.md` quotes, so they double as its guide-conformance tests.
 
 ## Tracked gaps

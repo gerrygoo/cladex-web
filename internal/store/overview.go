@@ -19,7 +19,12 @@ type StageSummary struct {
 	Total         money.Centavos
 	ForecastCount int
 	ForecastTotal money.Centavos
-	Top           []Project // only Folio, CustomerName, UserName, Total, CreatedAt, Status, Probability are set
+	// Weighted is the prospectos' expected amount, each total times its probability,
+	// and FollowUpsDue how many have a next follow-up that is today or overdue. Both are
+	// zero for every other stage.
+	Weighted     money.Centavos
+	FollowUpsDue int
+	Top          []Project // only Folio, CustomerName, UserName, Total, CreatedAt, Status, Probability are set
 }
 
 // VendedorSummary is one salesperson's row on the home overview. A "vendedor" here is
@@ -50,8 +55,9 @@ const overviewFrom = `
 	FROM projects p
 	JOIN quotes q ON q.project_id = p.id AND q.status != 'revisada'`
 
-// ProjectOverview summarizes proyectos by stage and by vendedor.
-func (s *Store) ProjectOverview(ctx context.Context) (*Overview, error) {
+// ProjectOverview summarizes proyectos by stage and by vendedor. today (YYYY-MM-DD, in
+// the viewer's zone) decides which follow-ups are due.
+func (s *Store) ProjectOverview(ctx context.Context, today string) (*Overview, error) {
 	ov := &Overview{}
 	byStatus := map[string]*StageSummary{}
 	for _, st := range ProjectFlow {
@@ -64,17 +70,21 @@ func (s *Store) ProjectOverview(ctx context.Context) (*Overview, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT p.status, count(*), coalesce(sum(q.total), 0),
 			coalesce(sum(p.status = 'prospecto' AND p.probability >= ?), 0),
-			coalesce(sum(CASE WHEN p.status = 'prospecto' AND p.probability >= ? THEN q.total END), 0)
-		`+overviewFrom+` GROUP BY p.status`, ForecastThreshold, ForecastThreshold)
+			coalesce(sum(CASE WHEN p.status = 'prospecto' AND p.probability >= ? THEN q.total END), 0),
+			coalesce(sum(CASE WHEN p.status = 'prospecto' THEN q.total * p.probability END), 0),
+			coalesce(sum(p.status = 'prospecto' AND p.next_followup_date <= ?), 0)
+		`+overviewFrom+` GROUP BY p.status`, ForecastThreshold, ForecastThreshold, today)
 	if err != nil {
 		return nil, fmt.Errorf("store: overview stages: %w", err)
 	}
 	for rows.Next() {
 		var sum StageSummary
-		if err := rows.Scan(&sum.Status, &sum.Count, &sum.Total, &sum.ForecastCount, &sum.ForecastTotal); err != nil {
+		var weight int64
+		if err := rows.Scan(&sum.Status, &sum.Count, &sum.Total, &sum.ForecastCount, &sum.ForecastTotal, &weight, &sum.FollowUpsDue); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("store: overview stages: %w", err)
 		}
+		sum.Weighted = WeightedTotal(weight)
 		if st := byStatus[sum.Status]; st != nil {
 			*st = sum
 		} else if sum.Status == "perdido" {

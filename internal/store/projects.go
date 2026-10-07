@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
 )
@@ -160,62 +161,117 @@ func (s *Store) MoveProject(ctx context.Context, projectID, userID int64, from, 
 	return nil
 }
 
-// SetProjectProbability sets a prospecto's probabilidad de cierre to one of
-// ProbabilitySteps and records it as a comment on its current quote — "Probabilidad:
-// Baja → Alta." plus the user's note, if any. Setting the value it already has changes
-// nothing, though a note is still saved as a comment.
-func (s *Store) SetProjectProbability(ctx context.Context, projectID, userID int64, percent int, note string) error {
-	if ProbabilityLabel(percent) == "" {
+// FollowUp is what a salesperson reports about a prospecto in one go. A nil field is
+// left as it is. Probability must be one of ProbabilitySteps; the dates are days
+// (YYYY-MM-DD) and "" clears them.
+type FollowUp struct {
+	Probability  *int
+	ExpectedOC   *string // when the client's purchase order is expected
+	NextFollowUp *string // when to follow up next
+	Note         string
+}
+
+// FollowUpProject saves a prospecto's follow-up — probabilidad de cierre, the expected
+// purchase order date and the next follow-up date — and records what changed as one
+// comment on its current quote ("Probabilidad: Baja → Alta." and so on), ending with
+// the user's note, if any. Fields that already hold the given value change nothing and
+// say nothing; a note alone is still saved as a comment. A proyecto that is no longer a
+// prospecto, a probability that isn't a step and a malformed date are ErrBadTransition.
+func (s *Store) FollowUpProject(ctx context.Context, projectID, userID int64, f FollowUp) error {
+	if f.Probability != nil && ProbabilityLabel(*f.Probability) == "" {
 		return ErrBadTransition
 	}
-	note = strings.TrimSpace(note)
+	for _, d := range []*string{f.ExpectedOC, f.NextFollowUp} {
+		if d != nil && *d != "" {
+			if _, err := time.Parse("2006-01-02", *d); err != nil {
+				return ErrBadTransition
+			}
+		}
+	}
+	note := strings.TrimSpace(f.Note)
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("store: set probability of project %d: %w", projectID, err)
+		return fmt.Errorf("store: follow up project %d: %w", projectID, err)
 	}
 	defer tx.Rollback()
 	if err := stampActor(ctx, tx); err != nil {
-		return fmt.Errorf("store: set probability of project %d: %w", projectID, err)
+		return fmt.Errorf("store: follow up project %d: %w", projectID, err)
 	}
-	var old int
-	err = tx.QueryRowContext(ctx,
-		`SELECT probability FROM projects WHERE id = ? AND status = 'prospecto'`, projectID).Scan(&old)
+	var probability int
+	var expectedOC, nextFollowUp string
+	err = tx.QueryRowContext(ctx, `
+		SELECT probability, COALESCE(expected_oc_date, ''), COALESCE(next_followup_date, '')
+		FROM projects WHERE id = ? AND status = 'prospecto'`, projectID).Scan(&probability, &expectedOC, &nextFollowUp)
 	if err == sql.ErrNoRows {
 		return ErrBadTransition
 	}
 	if err != nil {
-		return fmt.Errorf("store: set probability of project %d: %w", projectID, err)
+		return fmt.Errorf("store: follow up project %d: %w", projectID, err)
 	}
 	quoteID, _, err := currentQuote(ctx, tx, projectID)
 	if err != nil {
-		return fmt.Errorf("store: set probability of project %d: %w", projectID, err)
+		return fmt.Errorf("store: follow up project %d: %w", projectID, err)
 	}
 	if quoteID == 0 {
 		return ErrBadTransition
 	}
-	body := note
-	if old != percent {
+
+	var changes []string
+	if f.Probability != nil && *f.Probability != probability {
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE projects SET probability = ?, probability_updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-			WHERE id = ?`, percent, projectID); err != nil {
-			return fmt.Errorf("store: set probability of project %d: %w", projectID, err)
+			WHERE id = ?`, *f.Probability, projectID); err != nil {
+			return fmt.Errorf("store: follow up project %d: %w", projectID, err)
 		}
-		body = fmt.Sprintf("Probabilidad: %s → %s.", ProbabilityLabel(old), ProbabilityLabel(percent))
-		if note != "" {
-			body += "\n" + note
-		}
+		changes = append(changes, fmt.Sprintf("Probabilidad: %s → %s.", ProbabilityLabel(probability), ProbabilityLabel(*f.Probability)))
 	}
-	if body != "" {
+	for _, d := range []struct {
+		value  *string
+		old    string
+		column string
+		label  string
+	}{
+		{f.ExpectedOC, expectedOC, "expected_oc_date", "O.C. esperada"},
+		{f.NextFollowUp, nextFollowUp, "next_followup_date", "Próximo seguimiento"},
+	} {
+		if d.value == nil || *d.value == d.old {
+			continue
+		}
+		// d.column is one of the two literals above, never user input.
+		if _, err := tx.ExecContext(ctx, `UPDATE projects SET `+d.column+` = NULLIF(?, '') WHERE id = ?`, *d.value, projectID); err != nil {
+			return fmt.Errorf("store: follow up project %d: %w", projectID, err)
+		}
+		changes = append(changes, fmt.Sprintf("%s: %s.", d.label, dayText(*d.value)))
+	}
+	if note != "" {
+		changes = append(changes, note)
+	}
+	if len(changes) > 0 {
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`, quoteID, userID, body); err != nil {
-			return fmt.Errorf("store: set probability of project %d: comment: %w", projectID, err)
+			`INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`,
+			quoteID, userID, strings.Join(changes, "\n")); err != nil {
+			return fmt.Errorf("store: follow up project %d: comment: %w", projectID, err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: set probability of project %d: %w", projectID, err)
+		return fmt.Errorf("store: follow up project %d: %w", projectID, err)
 	}
 	return nil
+}
+
+// dayText is a YYYY-MM-DD day as the history shows it (15/10/2026), or "sin fecha".
+func dayText(day string) string {
+	if t, err := time.Parse("2006-01-02", day); err == nil {
+		return t.Format("02/01/2006")
+	}
+	return "sin fecha"
+}
+
+// SetProjectProbability sets only a prospecto's probabilidad de cierre; see
+// FollowUpProject.
+func (s *Store) SetProjectProbability(ctx context.Context, projectID, userID int64, percent int, note string) error {
+	return s.FollowUpProject(ctx, projectID, userID, FollowUp{Probability: &percent, Note: note})
 }
 
 // LostFromStages are the stages a proyecto can be marked lost from.
@@ -356,15 +412,59 @@ type Project struct {
 	LostReason string
 	LostFrom   string
 	LostAt     string
+	// ExpectedOCDate and NextFollowUpDate are the days (YYYY-MM-DD) a salesperson keeps
+	// on a prospecto: when the purchase order is expected and when to follow up next.
+	// Either may be empty.
+	ExpectedOCDate   string
+	NextFollowUpDate string
+	// QuoteIssuedAt and QuoteValidUntil are the current quote's issue time and vigencia,
+	// empty while it is a draft. Contact* is the customer's contact. Last* is the newest
+	// entry of the proyecto's history, empty when there is none.
+	QuoteIssuedAt   string
+	QuoteValidUntil string
+	ContactName     string
+	ContactPhone    string
+	ContactEmail    string
+	LastBody        string
+	LastUserName    string
+	LastAt          string
+}
+
+// FollowUpDue reports whether the prospecto's next follow-up is today or overdue.
+func (p Project) FollowUpDue(today string) bool {
+	return p.Status == "prospecto" && p.NextFollowUpDate != "" && p.NextFollowUpDate <= today
+}
+
+// Weight is the proyecto's amount times its probability, in centavo-percent: add them up
+// and divide by 100 (see WeightedTotal) so the rounding happens once.
+func (p Project) Weight() int64 { return int64(p.Total) * int64(p.Probability) }
+
+// WeightedTotal turns a sum of Project.Weight into the expected amount.
+func WeightedTotal(weight int64) money.Centavos {
+	return money.Centavos(money.RoundHalfUp(weight, 100))
 }
 
 // ForecastRelevant reports whether the proyecto counts for the forecast.
 func (p Project) ForecastRelevant() bool { return ForecastRelevant(p.Status, p.Probability) }
 
-const projectSelectCols = `
+var projectSelectCols = `
 	p.id, p.folio, p.customer_id, c.name, p.user_id, u.name, p.status, p.probability,
 	p.probability_updated_at, p.created_at, q.id, q.folio, q.status, q.total,
-	COALESCE(p.lost_reason, ''), COALESCE(p.lost_from, ''), COALESCE(p.lost_at, '')`
+	COALESCE(p.lost_reason, ''), COALESCE(p.lost_from, ''), COALESCE(p.lost_at, ''),
+	COALESCE(p.expected_oc_date, ''), COALESCE(p.next_followup_date, ''),
+	COALESCE(q.issued_at, ''), COALESCE(q.valid_until, ''),
+	COALESCE(c.contact_name, ''), COALESCE(c.phone, ''), COALESCE(c.email, ''),
+	COALESCE((` + projectLastComment("lc.body") + `), ''),
+	COALESCE((` + projectLastComment("lu.name") + `), ''),
+	COALESCE((` + projectLastComment("lc.created_at") + `), '')`
+
+// projectLastComment selects one column of the newest comment on any of the proyecto's
+// quotes, for projectSelectCols.
+func projectLastComment(col string) string {
+	return `SELECT ` + col + ` FROM quote_comments lc
+		JOIN quotes lq ON lq.id = lc.quote_id JOIN users lu ON lu.id = lc.user_id
+		WHERE lq.project_id = p.id ORDER BY lc.created_at DESC, lc.id DESC LIMIT 1`
+}
 
 const projectFrom = `
 	FROM projects p
@@ -377,7 +477,10 @@ func scanProject(row interface{ Scan(...any) error }) (*Project, error) {
 	err := row.Scan(&p.ID, &p.Folio, &p.CustomerID, &p.CustomerName, &p.UserID, &p.UserName, &p.Status,
 		&p.Probability, &p.ProbabilityUpdatedAt, &p.CreatedAt,
 		&p.CurrentQuoteID, &p.CurrentQuoteFolio, &p.CurrentQuoteStatus, &p.Total,
-		&p.LostReason, &p.LostFrom, &p.LostAt)
+		&p.LostReason, &p.LostFrom, &p.LostAt,
+		&p.ExpectedOCDate, &p.NextFollowUpDate, &p.QuoteIssuedAt, &p.QuoteValidUntil,
+		&p.ContactName, &p.ContactPhone, &p.ContactEmail,
+		&p.LastBody, &p.LastUserName, &p.LastAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -455,6 +558,34 @@ func (s *Store) ListProjects(ctx context.Context, query, sort, dir string, filte
 		p, err := scanProject(rows)
 		if err != nil {
 			return nil, fmt.Errorf("store: list projects: %w", err)
+		}
+		projects = append(projects, *p)
+	}
+	return projects, rows.Err()
+}
+
+// ListProspects returns the prospectos for the Pronóstico view, the ones the team goes
+// over when it reviews what is about to close: only those relevante para pronóstico, or
+// every prospecto when all is set. Soonest expected purchase order first, those without
+// a date last, then the likeliest and the largest.
+func (s *Store) ListProspects(ctx context.Context, all bool) ([]Project, error) {
+	minProbability := ForecastThreshold
+	if all {
+		minProbability = 0
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT `+projectSelectCols+projectFrom+`
+		WHERE p.status = 'prospecto' AND p.probability >= ?
+		ORDER BY p.expected_oc_date IS NULL, p.expected_oc_date, p.probability DESC, q.total DESC, p.id`, minProbability)
+	if err != nil {
+		return nil, fmt.Errorf("store: list prospects: %w", err)
+	}
+	defer rows.Close()
+	var projects []Project
+	for rows.Next() {
+		p, err := scanProject(rows)
+		if err != nil {
+			return nil, fmt.Errorf("store: list prospects: %w", err)
 		}
 		projects = append(projects, *p)
 	}

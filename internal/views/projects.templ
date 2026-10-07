@@ -16,10 +16,10 @@ func etapaPath(folio string) string {
 	return projectPath(folio) + "/etapa"
 }
 
-// probabilidadPath is the action for the probabilidad de cierre buttons on a prospecto,
-// see store.SetProjectProbability.
-func probabilidadPath(folio string) string {
-	return projectPath(folio) + "/probabilidad"
+// seguimientoPath is the action of a prospecto's follow-up form (probabilidad de cierre
+// and its two dates), see store.FollowUpProject.
+func seguimientoPath(folio string) string {
+	return projectPath(folio) + "/seguimiento"
 }
 
 // stageHint says what moving a proyecto out of its current stage means.
@@ -117,7 +117,7 @@ templ ProjectsTableBody(projects []store.Project) {
 // ProjectPage is a proyecto: where it stands, the controls that move it (probability
 // while it is a prospecto, the next stage, and an admin-only step back), every quote it
 // has had, and its history — the comments of all those quotes in one timeline.
-templ ProjectPage(p store.Project, quotes []store.Quote, comments []store.ProjectComment, commentsLV ListView, user *NavUser) {
+templ ProjectPage(p store.Project, today string, quotes []store.Quote, comments []store.ProjectComment, commentsLV ListView, user *NavUser) {
 	@Layout("Proyecto "+p.Folio, user) {
 		<div class="page-title">
 			<h1>Proyecto { p.Folio }</h1>
@@ -141,6 +141,27 @@ templ ProjectPage(p store.Project, quotes []store.Quote, comments []store.Projec
 						{ "Actualizada " }
 						@Timestamp(p.ProbabilityUpdatedAt)
 					</small>
+				</dd>
+			}
+			if p.Status == "prospecto" {
+				<dt>O.C. esperada</dt>
+				<dd>
+					if p.ExpectedOCDate != "" {
+						{ dateText(p.ExpectedOCDate) }
+					} else {
+						Sin fecha
+					}
+				</dd>
+				<dt>Próximo seguimiento</dt>
+				<dd>
+					if p.NextFollowUpDate != "" {
+						{ dateText(p.NextFollowUpDate) }
+						if p.FollowUpDue(today) {
+							· <strong class="overdue">toca darle seguimiento</strong>
+						}
+					} else {
+						Sin fecha
+					}
 				</dd>
 			}
 			<dt>Vendedor</dt>
@@ -186,24 +207,7 @@ templ ProjectPage(p store.Project, quotes []store.Quote, comments []store.Projec
 			<h2>Seguimiento</h2>
 		}
 		if p.Status == "prospecto" {
-			<form method="post" action={ templ.URL(probabilidadPath(p.Folio)) } class="stage-form">
-				<fieldset class="probability">
-					<legend>Probabilidad de cierre</legend>
-					for _, st := range store.ProbabilitySteps {
-						<label>
-							<input type="radio" name="probabilidad" value={ strconv.Itoa(st.Percent) } checked?={ st.Percent == p.Probability } required/>
-							{ st.Label }
-							<small>{ strconv.Itoa(st.Percent) }%</small>
-						</label>
-					}
-				</fieldset>
-				<p class="hint">Desde Alta, el proyecto es relevante para pronóstico: es de los que se revisan cuando el equipo ve qué está por cerrar.</p>
-				<label>
-					Comentario (opcional)
-					<textarea name="note" rows="2" maxlength="2000"></textarea>
-				</label>
-				<button type="submit">Guardar probabilidad</button>
-			</form>
+			@FollowUpForm(p, "")
 		}
 		if next := store.NextStage(p.Status); next != "" {
 			if p.Status == "prospecto" && p.CurrentQuoteStatus != "emitida" {
@@ -297,5 +301,170 @@ templ ProjectPage(p store.Project, quotes []store.Quote, comments []store.Projec
 			}
 			@listPager(commentsLV, false)
 		</section>
+	}
+}
+
+// FollowUpForm is where a prospecto's follow-up is kept: the probabilidad de cierre as
+// five radio buttons, the day the purchase order is expected, the day to follow up next
+// and an optional note. volver says where saving returns to ("" is the proyecto's page).
+templ FollowUpForm(p store.Project, volver string) {
+	<form method="post" action={ templ.URL(seguimientoPath(p.Folio)) } class="stage-form">
+		if volver != "" {
+			<input type="hidden" name="volver" value={ volver }/>
+		}
+		<fieldset class="probability">
+			<legend>Probabilidad de cierre</legend>
+			for _, st := range store.ProbabilitySteps {
+				<label>
+					<input type="radio" name="probabilidad" value={ strconv.Itoa(st.Percent) } checked?={ st.Percent == p.Probability } required/>
+					{ st.Label }
+					<small>{ strconv.Itoa(st.Percent) }%</small>
+				</label>
+			}
+		</fieldset>
+		if volver == "" {
+			<p class="hint">Desde Alta, el proyecto es relevante para pronóstico: es de los que se revisan cuando el equipo ve qué está por cerrar.</p>
+		}
+		<div class="followup-dates">
+			<label>
+				O.C. esperada
+				<input type="date" name="oc_esperada" value={ p.ExpectedOCDate }/>
+			</label>
+			<label>
+				Próximo seguimiento
+				<input type="date" name="proximo_seguimiento" value={ p.NextFollowUpDate }/>
+			</label>
+		</div>
+		<label>
+			Comentario (opcional)
+			<textarea name="note" rows="2" maxlength="2000"></textarea>
+		</label>
+		<button type="submit">Guardar seguimiento<span class="visually-hidden">{ " de " + p.Folio }</span></button>
+	</form>
+}
+
+// ForecastPage is the Pronóstico view, the page the team goes over when it reviews what
+// is about to close: each prospecto with its dates, what comes next, its latest news and
+// contact, and its follow-up form to update on the spot. Totals close the page.
+templ ForecastPage(f Forecast, user *NavUser) {
+	@Layout("Pronóstico", user) {
+		<div class="page-title">
+			<h1>Pronóstico</h1>
+			@HelpLink(HelpPronostico)
+		</div>
+		if f.All {
+			<p>
+				Todos los prospectos, por fecha esperada de O.C.
+				<a href="/pronostico">Ver solo los relevantes para pronóstico</a>
+			</p>
+		} else {
+			<p>
+				Prospectos relevantes para pronóstico (probabilidad Alta o Inminente), por fecha esperada de O.C.
+				<a href="/pronostico?todos=1">Ver todos los prospectos</a>
+			</p>
+		}
+		if len(f.Projects) == 0 {
+			if f.All {
+				<p>No hay prospectos. Un proyecto se abre al emitir una cotización.</p>
+			} else {
+				<p>Ningún prospecto es relevante para pronóstico todavía.</p>
+			}
+		}
+		for _, p := range f.Projects {
+			<article class="forecast-card" id={ "p-" + p.Folio }>
+				<h2>
+					<a href={ templ.URL(projectPath(p.Folio)) }>{ p.Folio }</a>
+					{ " · " + p.CustomerName }
+				</h2>
+				<p class="overview-figure">
+					<strong>{ p.Total.String() }</strong>
+					{ " · " + probabilityText(p.Probability) }
+					if p.ForecastRelevant() {
+						· <strong class="forecast">{ forecastLabel }</strong>
+					}
+				</p>
+				<dl class="quote-info">
+					<dt>Vendedor</dt>
+					<dd>{ p.UserName }</dd>
+					<dt>Cotización</dt>
+					<dd>
+						<a href={ templ.URL("/cotizaciones/" + p.CurrentQuoteFolio) }>{ p.CurrentQuoteFolio }</a>
+						if p.CurrentQuoteStatus == "borrador" {
+							· revisión en borrador, aún sin emitir
+						} else if p.QuoteIssuedAt != "" {
+							{ " · emitida " }
+							@Timestamp(p.QuoteIssuedAt)
+						}
+						if p.QuoteValidUntil != "" {
+							{ " · vigencia " + dateText(p.QuoteValidUntil) }
+						}
+					</dd>
+					<dt>O.C. esperada</dt>
+					<dd>
+						if p.ExpectedOCDate != "" {
+							{ dateText(p.ExpectedOCDate) }
+						} else {
+							Sin fecha
+						}
+					</dd>
+					<dt>Próximo evento</dt>
+					<dd>
+						if next := NextProjectEvent(p, f.Today); next != nil {
+							{ next.Label + " · " + dateText(next.Date) }
+							if next.Date == f.Today {
+								· <strong>hoy</strong>
+							}
+						} else {
+							Ninguno con fecha
+						}
+						for _, e := range OverdueProjectEvents(p, f.Today) {
+							<br/>
+							<strong class="overdue">Vencido: { e.Label + " · " + dateText(e.Date) }</strong>
+						}
+					</dd>
+					<dt>Última novedad</dt>
+					<dd>
+						if p.LastBody != "" {
+							<span class="comment-body">{ p.LastBody }</span>
+							<br/>
+							<small>
+								{ p.LastUserName + " · " }
+								@Timestamp(p.LastAt)
+							</small>
+						} else {
+							Sin comentarios
+						}
+					</dd>
+					<dt>Contacto</dt>
+					<dd>
+						if p.ContactName == "" && p.ContactPhone == "" && p.ContactEmail == "" {
+							Sin contacto capturado
+						} else {
+							{ joinNonEmpty(" · ", p.ContactName, p.ContactPhone, p.ContactEmail) }
+						}
+					</dd>
+					<dt>Probabilidad actualizada</dt>
+					<dd>
+						@Timestamp(p.ProbabilityUpdatedAt)
+					</dd>
+				</dl>
+				@FollowUpForm(p, f.forecastReturn())
+			</article>
+		}
+		if len(f.Projects) > 0 {
+			{{ total, weighted := f.Total() }}
+			<dl class="quote-info forecast-totals">
+				<dt>Proyectos</dt>
+				<dd>{ strconv.Itoa(len(f.Projects)) }</dd>
+				<dt>Total</dt>
+				<dd>{ total }</dd>
+				<dt>Total ponderado</dt>
+				<dd>
+					{ weighted }
+					<br/>
+					<small>Cada total por su probabilidad de cierre.</small>
+				</dd>
+			</dl>
+		}
 	}
 }

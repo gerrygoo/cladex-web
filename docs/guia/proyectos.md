@@ -20,7 +20,7 @@ y sale de estas etapas.
 
 ## Buscar un proyecto
 
-1. En el menú de arriba, haz clic en **Proyectos**.
+1. En el menú **Proyectos**, elige **Ver proyectos**.
 2. Escribe el folio o el nombre del cliente en *"Buscar por folio o cliente…"*.
 3. Para ordenar, haz clic en el encabezado **Proyecto**, **Cliente**, **Vendedor**,
    **Etapa**, **Probabilidad**, **Total** o **Abierto**. Otro clic invierte el orden. Sin
@@ -45,14 +45,16 @@ Debajo del folio y del cliente verás este resumen:
 - **Etapa** del proyecto.
 - **Probabilidad**: la [[probabilidad de cierre]] y cuándo se actualizó por última vez
   (solo mientras es prospecto). Si dice *Relevante para pronóstico*, es de los que el
-  equipo revisa cuando ve qué está por cerrar.
+  equipo revisa en el [pronóstico](#revisar-el-pronóstico).
+- **O.C. esperada** y **Próximo seguimiento**: las fechas que anotaste (solo mientras
+  es prospecto).
 - **Vendedor**: quien creó la cotización que abrió el proyecto.
 - **Abierto**: cuándo se emitió esa cotización.
 - **Cotización vigente**: la más reciente del proyecto, con enlace. Si dice *"revisión
   en borrador, aún sin emitir"*, alguien la está revisando.
 - **Total**: el de la cotización vigente.
 
-Más abajo están **Seguimiento** (los botones para moverlo), **Cotizaciones** (la
+Más abajo están **Seguimiento** (el formulario y los botones para moverlo), **Cotizaciones** (la
 vigente y las que fueron revisadas, cada una con su enlace) e **Historial**.
 
 ## Dar seguimiento a un proyecto
@@ -61,22 +63,30 @@ Todo el seguimiento se hace en la página del proyecto, en la sección **Seguimi
 Así el equipo sabe en qué punto está cada uno y el resumen de la
 [página de inicio](README.md#la-página-de-inicio) se mantiene al día.
 
-### Anotar la probabilidad de cierre
+### Anotar el seguimiento
 
-Mientras el proyecto es prospecto, anota qué tan cerca está de cerrarse:
+Mientras el proyecto es prospecto, anota qué tan cerca está de cerrarse y qué sigue:
 
 1. Abre el proyecto.
 2. En **Probabilidad de cierre**, elige un paso: **Inicial**, **Baja**, **Media**,
    **Alta** o **Inminente**. El porcentaje junto a cada uno es solo una referencia.
-3. Escribe en **Comentario** por qué cambió (opcional pero recomendado).
-4. Haz clic en **Guardar probabilidad**.
+3. En **O.C. esperada**, pon la fecha en que esperas la orden de compra del cliente.
+4. En **Próximo seguimiento**, pon la fecha en que hay que volver a buscar al cliente.
+5. Escribe en **Comentario** qué pasó (opcional pero recomendado).
+6. Haz clic en **Guardar seguimiento**.
 
-En **Historial** aparece una línea como *"Probabilidad: Baja → Alta."* con tu nota.
+En **Historial** aparece una línea por cada cosa que cambió, como *"Probabilidad: Baja
+→ Alta."*, *"O.C. esperada: 15/10/2026."* o *"Próximo seguimiento: 09/10/2026."*, y
+debajo tu nota.
 
 - Desde **Alta**, el proyecto es [[relevante para pronóstico]]. No hay que marcarlo
   aparte.
-- Un proyecto nuevo empieza en **Inicial**. Actualiza la probabilidad cada vez que haya
-  noticias del cliente, hacia arriba o hacia abajo.
+- Un proyecto nuevo empieza en **Inicial** y sin fechas. Actualiza el seguimiento cada
+  vez que haya noticias del cliente.
+- Las dos fechas son opcionales. Para quitar una, bórrala y guarda.
+- Cuando llega el día del **Próximo seguimiento**, el resumen del proyecto dice *"toca
+  darle seguimiento"* y la [página de inicio](README.md#la-página-de-inicio) lo cuenta
+  en **Seguimientos para hoy o vencidos**. La app no manda recordatorios por correo.
 
 ### Pasar el proyecto a la siguiente etapa
 
@@ -87,7 +97,7 @@ En **Historial** aparece una línea como *"Probabilidad: Baja → Alta."* con tu
 | [[cerrado]] | Ya se entregó, se facturó, se cobró y se emitió el complemento de pago (si aplica). | **Pasar a Cerrado** |
 
 1. Abre el proyecto.
-2. Debajo de la probabilidad, escribe en **Comentario** lo que dijo el cliente y los
+2. Debajo del formulario de seguimiento, escribe en **Comentario** lo que dijo el cliente y los
    siguientes pasos (opcional pero recomendado).
 3. Haz clic en el botón de la siguiente etapa.
 
@@ -108,6 +118,38 @@ Un administrador ve además el botón **Regresar a …** para devolver el proyec
 etapa anterior (queda un comentario *"Regresó a …"*). Un proyecto que regresa a
 prospecto conserva la probabilidad que tenía y su cotización se puede volver a revisar.
 :::
+
+## Revisar el pronóstico
+
+El [[pronóstico]] es la página para la junta en que el equipo repasa lo que está por
+cerrar. En el menú **Proyectos**, elige **Pronóstico**.
+
+Muestra los prospectos [[relevante para pronóstico|relevantes para pronóstico]]
+(probabilidad Alta o Inminente), ordenados por **O.C. esperada**: primero la más
+próxima y al final los que no tienen fecha. De cada uno verás:
+
+- El folio (con enlace al proyecto), el cliente, el total y la probabilidad.
+- **Vendedor** y **Cotización**: la vigente, cuándo se emitió y su [[vigencia]].
+- **O.C. esperada**.
+- **Próximo evento**: lo más cercano de hoy en adelante entre el próximo seguimiento,
+  la O.C. esperada y el fin de la vigencia. Lo que ya pasó sale abajo como *"Vencido"*.
+- **Última novedad**: el comentario más reciente del historial, quién lo escribió y
+  cuándo.
+- **Contacto**: el contacto, teléfono y correo del [cliente](clientes.md).
+- **Probabilidad actualizada**: cuándo se cambió por última vez, para notar las que
+  llevan tiempo sin revisarse.
+
+Debajo de cada proyecto está su formulario de seguimiento, igual al de la página del
+proyecto: cambia la probabilidad o las fechas, escribe un comentario y haz clic en
+**Guardar seguimiento**. Regresas al mismo proyecto en la lista.
+
+Al final, **Total** suma los proyectos listados y **Total ponderado** suma cada total
+multiplicado por su probabilidad de cierre.
+
+- Para subir a pronóstico un prospecto que no aparece, haz clic en **Ver todos los
+  prospectos**, cámbiale la probabilidad a Alta o Inminente y guarda. **Ver solo los
+  relevantes para pronóstico** regresa a la lista corta.
+- Si le bajas la probabilidad a un proyecto, deja de aparecer en la lista corta.
 
 ## Marcar un proyecto como perdido
 

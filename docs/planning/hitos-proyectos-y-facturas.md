@@ -88,7 +88,8 @@ Notes:
 **Status (2026-10-06):** both commits are written, with the probability control pulled
 forward from 4.3 so the old "Pasar a Pipeline" has a replacement. The as-built notes are
 in [`docs/PLAN.md`](../PLAN.md#m4--proyectos), with the production dry run's result.
-Deployed 2026-10-06, and 4.2 (`perdido`) followed the same day.
+Deployed 2026-10-06; 4.2 (`perdido`) followed the same day and 4.3 (follow-up dates
+and the Pronóstico view) on 2026-10-07.
 
 Checked against the code as of 2026-10-06 (`internal/store/quotes.go`, `pipeline.go`,
 `overview.go`, migrations 0011–0015).

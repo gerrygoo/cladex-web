@@ -1051,6 +1051,7 @@ milestones that follow.
 |---|---|---|---|
 | 4.1 | `projects` table; a proyecto opens when a quote is issued and follows its revisions; the pipeline stages leave `quotes.status`; a proyecto page and list | me | A proyecto opens on issue and keeps its stage through revisions; production migrated with the same result as the dry run — ✅¹⁵ ¹⁶ |
 | 4.2 | `perdido`: mark a proyecto lost with a required reason, from prospecto or O.C. recibida; admin reopen | me | A lost proyecto leaves the active stages, shows its reason, and is filterable — ✅¹⁷ |
+| 4.3 | Follow-up dates on a prospecto (expected O.C., next follow-up) and the Pronóstico meeting view with weighted totals | me | The team opens one page, sees the prospectos at Alta and up by expected O.C. date, and updates probability, note and dates without leaving it — ✅¹⁸ |
 
 ¹⁵ `migrations/0016_projects.sql` adds `projects` (`folio` = the base folio of the quote
 that opened it, `customer_id`, owner `user_id`, `status`, `probability`,
@@ -1132,6 +1133,27 @@ revised, it is off the home board's stages and the vendedor table, and the board
 a Perdidos count and sum linking to the list filtered by that stage. Verified with
 `go test ./...` (`TestLoseAndReopenProject`, `TestProjectsLoseAndReopen`, the route
 table) and in a browser on the scratch DB.
+
+¹⁸ `migrations/0018_project_followup_dates.sql` adds `expected_oc_date` and
+`next_followup_date` to `projects` (schema only) and recreates its audit triggers with
+them. `FollowUpProject` saves a prospecto's probability and the two dates in one go and
+writes one history comment listing what changed; `SetProjectProbability` is now a
+wrapper over it. The proyecto page's probability form became that follow-up form
+(`POST /proyectos/{folio}/seguimiento`, replacing `/probabilidad`), and the page flags a
+follow-up that is due.
+
+`GET /pronostico` is the meeting view: prospectos relevante para pronóstico (or all,
+with `?todos=1`), soonest expected O.C. first and undated last. Each shows its amount
+and probability, vendedor, current quote with issue date and vigencia, expected O.C.,
+the next dated event from today on with overdue ones flagged, the latest history entry,
+the client's contact, when the probability last changed, and the follow-up form, which
+returns to the same proyecto in the list. Total and weighted total (each total times
+its probability, rounded once) close the page. The home board's Prospectos card gained
+the expected value and a count of follow-ups due, and the nav's Proyectos became a menu
+with Pronóstico. "Today" is the viewer's day, from the time-zone cookie the date
+filters already use. Verified with `go test ./...` (`TestFollowUpProject`,
+`TestListProspectsAndWeights`, `TestProjectsFollowUpDatesAndForecast`) and in a browser
+on the scratch DB.
 
 ---
 

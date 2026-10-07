@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/gerrygoo/cladex-web/internal/store"
@@ -82,7 +83,7 @@ func (p *Projects) Page(w http.ResponseWriter, r *http.Request) {
 	comments, pager := paginate(r, comments)
 	commentsLV := views.ListView{Base: "/proyectos/" + project.Folio, Pager: pager, Anchor: "historial"}
 	user, _ := UserFromContext(ctx)
-	views.ProjectPage(*project, quotes, comments, commentsLV, navUserView(user)).Render(ctx, w)
+	views.ProjectPage(*project, today(r), quotes, comments, commentsLV, navUserView(user)).Render(ctx, w)
 }
 
 // Etapa handles POST /proyectos/{folio}/etapa: moves the proyecto one stage along the
@@ -118,11 +119,13 @@ func (p *Projects) Etapa(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/proyectos/"+project.Folio+"#historial", http.StatusSeeOther)
 }
 
-// Probabilidad handles POST /proyectos/{folio}/probabilidad: sets the probabilidad de
-// cierre to one of the fixed steps ("probabilidad" is the percentage; the optional
-// "note" goes into the comment that records the change). Any signed-in user can, while
-// the proyecto is a prospecto.
-func (p *Projects) Probabilidad(w http.ResponseWriter, r *http.Request) {
+// Seguimiento handles POST /proyectos/{folio}/seguimiento: saves a prospecto's
+// follow-up — "probabilidad" (the percentage of one of the fixed steps), "oc_esperada"
+// and "proximo_seguimiento" (days, either may be blank to clear it) — with an optional
+// "note" in the comment that records what changed. Any signed-in user can, while the
+// proyecto is a prospecto. "volver" sends the user back to the Pronóstico page it was
+// submitted from.
+func (p *Projects) Seguimiento(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := p.loadProjectOrNotFound(w, r)
 	if project == nil {
@@ -138,16 +141,53 @@ func (p *Projects) Probabilidad(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "elige una probabilidad de la lista", http.StatusBadRequest)
 		return
 	}
+	expectedOC := strings.TrimSpace(r.FormValue("oc_esperada"))
+	nextFollowUp := strings.TrimSpace(r.FormValue("proximo_seguimiento"))
+	for _, d := range []string{expectedOC, nextFollowUp} {
+		if _, err := time.Parse("2006-01-02", d); d != "" && err != nil {
+			http.Error(w, "las fechas deben tener el formato AAAA-MM-DD", http.StatusBadRequest)
+			return
+		}
+	}
 	user, _ := UserFromContext(ctx)
-	if err := p.store.SetProjectProbability(ctx, project.ID, user.ID, percent, note); err != nil {
+	err = p.store.FollowUpProject(ctx, project.ID, user.ID, store.FollowUp{
+		Probability: &percent, ExpectedOC: &expectedOC, NextFollowUp: &nextFollowUp, Note: note,
+	})
+	if err != nil {
 		if errors.Is(err, store.ErrBadTransition) {
-			http.Error(w, "solo un prospecto tiene probabilidad de cierre", http.StatusConflict)
+			http.Error(w, "solo a un prospecto se le anota probabilidad y fechas de seguimiento", http.StatusConflict)
 			return
 		}
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/proyectos/"+project.Folio+"#historial", http.StatusSeeOther)
+	switch r.FormValue("volver") {
+	case "pronostico":
+		http.Redirect(w, r, "/pronostico#p-"+project.Folio, http.StatusSeeOther)
+	case "pronostico-todos":
+		http.Redirect(w, r, "/pronostico?todos=1#p-"+project.Folio, http.StatusSeeOther)
+	default:
+		http.Redirect(w, r, "/proyectos/"+project.Folio+"#historial", http.StatusSeeOther)
+	}
+}
+
+// today is the viewer's current day (YYYY-MM-DD), in the zone their browser reported.
+func today(r *http.Request) string {
+	return time.Now().In(store.LocationFromContext(r.Context())).Format("2006-01-02")
+}
+
+// Pronostico handles GET /pronostico: the prospectos relevante para pronóstico, or every
+// prospecto with ?todos=1, each with its follow-up form.
+func (p *Projects) Pronostico(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	all := r.URL.Query().Get("todos") == "1"
+	projects, err := p.store.ListProspects(ctx, all)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	views.ForecastPage(views.Forecast{Projects: projects, All: all, Today: today(r)}, navUserView(user)).Render(ctx, w)
 }
 
 // Comentar handles POST /proyectos/{folio}/comentarios: any signed-in user adds a note

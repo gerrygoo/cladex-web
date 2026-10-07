@@ -12,7 +12,7 @@ func TestProjectOverview(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 
-	empty, err := s.ProjectOverview(ctx)
+	empty, err := s.ProjectOverview(ctx, "2026-10-07")
 	if err != nil {
 		t.Fatalf("ProjectOverview(empty): %v", err)
 	}
@@ -76,7 +76,7 @@ func TestProjectOverview(t *testing.T) {
 		t.Fatalf("revision: %v", err)
 	}
 
-	ov, err := s.ProjectOverview(ctx)
+	ov, err := s.ProjectOverview(ctx, "2026-10-07")
 	if err != nil {
 		t.Fatalf("ProjectOverview: %v", err)
 	}
