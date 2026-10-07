@@ -1049,7 +1049,8 @@ milestones that follow.
 
 | # | Slice | Owner | Done when |
 |---|---|---|---|
-| 4.1 | `projects` table; a proyecto opens when a quote is issued and follows its revisions; the pipeline stages leave `quotes.status`; a proyecto page and list | me | Written in two commits¹⁵ ¹⁶, tests green, production dry run clean. Pending: the deploy. |
+| 4.1 | `projects` table; a proyecto opens when a quote is issued and follows its revisions; the pipeline stages leave `quotes.status`; a proyecto page and list | me | A proyecto opens on issue and keeps its stage through revisions; production migrated with the same result as the dry run — ✅¹⁵ ¹⁶ |
+| 4.2 | `perdido`: mark a proyecto lost with a required reason, from prospecto or O.C. recibida; admin reopen | me | A lost proyecto leaves the active stages, shows its reason, and is filterable — ✅¹⁷ |
 
 ¹⁵ `migrations/0016_projects.sql` adds `projects` (`folio` = the base folio of the quote
 that opened it, `customer_id`, owner `user_id`, `status`, `probability`,
@@ -1118,6 +1119,19 @@ Verified with `go test ./...` (store: `TestProjectReads`; web: `TestProjectsFoll
 `TestProjectsWithARevisionInDraft`, `TestProjectsList`, the route table, the help-topic
 check) and in a browser on the scratch DB: the list, a proyecto with a revision in
 draft, the quote page of a proyecto past prospecto, and the guide page.
+
+¹⁷ Losing a quote and losing its proyecto are the same thing (user, 2026-10-06), so it is
+stored once: `migrations/0017_project_lost.sql` adds `lost_reason`, `lost_from` and
+`lost_at` to `projects` (schema only, no rows change) and recreates its audit triggers
+with the reason and stage. `LoseProject` takes a proyecto from prospecto or O.C. recibida
+to `perdido` with a required reason and writes "Se perdió." plus the reason to the
+history; `ReopenProject` returns it to the stage it was lost from, with the probability
+it had. `POST /proyectos/{folio}/perder` is open to any signed-in user and `/reabrir` is
+admin-only at the router. A lost proyecto has no follow-up controls, its quote can't be
+revised, it is off the home board's stages and the vendedor table, and the board shows
+a Perdidos count and sum linking to the list filtered by that stage. Verified with
+`go test ./...` (`TestLoseAndReopenProject`, `TestProjectsLoseAndReopen`, the route
+table) and in a browser on the scratch DB.
 
 ---
 

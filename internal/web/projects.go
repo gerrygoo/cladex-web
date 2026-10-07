@@ -171,3 +171,55 @@ func (p *Projects) Comentar(w http.ResponseWriter, r *http.Request) {
 	}
 	http.Redirect(w, r, "/proyectos/"+project.Folio+"#historial", http.StatusSeeOther)
 }
+
+// Perder handles POST /proyectos/{folio}/perder: marks the proyecto lost with a required
+// "reason". Any signed-in user can, while it is a prospecto or has its purchase order
+// in; a proyecto already being delivered or closed can't be lost.
+func (p *Projects) Perder(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	project := p.loadProjectOrNotFound(w, r)
+	if project == nil {
+		return
+	}
+	reason := strings.TrimSpace(r.FormValue("reason"))
+	if reason == "" || utf8.RuneCountInString(reason) > maxCommentLen {
+		http.Error(w, "escribe el motivo, de no más de 2000 caracteres", http.StatusBadRequest)
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	if err := p.store.LoseProject(ctx, project.ID, user.ID, project.Status, reason); err != nil {
+		if errors.Is(err, store.ErrBadTransition) {
+			http.Error(w, "este proyecto ya no se puede marcar como perdido", http.StatusConflict)
+			return
+		}
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/proyectos/"+project.Folio, http.StatusSeeOther)
+}
+
+// Reabrir handles POST /proyectos/{folio}/reabrir: brings a lost proyecto back to the
+// stage it was lost from (the optional "note" goes into the comment that records it).
+// Admin-only, enforced by the router, like going back a stage.
+func (p *Projects) Reabrir(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	project := p.loadProjectOrNotFound(w, r)
+	if project == nil {
+		return
+	}
+	note := strings.TrimSpace(r.FormValue("note"))
+	if utf8.RuneCountInString(note) > maxCommentLen {
+		http.Error(w, "el comentario no puede pasar de 2000 caracteres", http.StatusBadRequest)
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	if err := p.store.ReopenProject(ctx, project.ID, user.ID, note); err != nil {
+		if errors.Is(err, store.ErrBadTransition) {
+			http.Error(w, "este proyecto no está perdido", http.StatusConflict)
+			return
+		}
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/proyectos/"+project.Folio+"#historial", http.StatusSeeOther)
+}

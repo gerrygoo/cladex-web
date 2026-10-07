@@ -159,6 +159,29 @@ templ ProjectPage(p store.Project, quotes []store.Quote, comments []store.Projec
 			<dt>Total</dt>
 			<dd>{ p.Total.String() }</dd>
 		</dl>
+		if p.Status == "perdido" {
+			<h2>Proyecto perdido</h2>
+			<dl class="quote-info">
+				<dt>Motivo</dt>
+				<dd class="comment-body">{ p.LostReason }</dd>
+				<dt>Se perdió</dt>
+				<dd>
+					@Timestamp(p.LostAt)
+					{ " · estaba en " + store.StageLabels[p.LostFrom] }
+				</dd>
+			</dl>
+			if user != nil && user.IsAdmin {
+				<form method="post" action={ templ.URL(projectPath(p.Folio) + "/reabrir") } class="stage-form">
+					<label>
+						Comentario (opcional)
+						<textarea name="note" rows="2" maxlength="2000"></textarea>
+					</label>
+					<button type="submit">Reabrir como { store.StageLabels[p.LostFrom] }</button>
+				</form>
+			} else {
+				<p class="hint">Si el proyecto revive, pídele a un administrador que lo reabra.</p>
+			}
+		}
 		if p.Status == "prospecto" || store.NextStage(p.Status) != "" {
 			<h2>Seguimiento</h2>
 		}
@@ -203,6 +226,17 @@ templ ProjectPage(p store.Project, quotes []store.Quote, comments []store.Projec
 			<form method="post" action={ templ.URL(etapaPath(p.Folio)) } class="stage-form">
 				<input type="hidden" name="to" value={ prev }/>
 				<button type="submit">Regresar a { store.StageLabels[prev] }</button>
+			</form>
+		}
+		if store.CanLose(p.Status) {
+			<form method="post" action={ templ.URL(projectPath(p.Folio) + "/perder") } class="stage-form">
+				<h2>Perder el proyecto</h2>
+				<p>Márcalo como perdido si el cliente ya no va a comprar. Sale de las etapas activas y su cotización ya no se puede revisar.</p>
+				<label>
+					Motivo
+					<textarea name="reason" rows="2" maxlength="2000" required></textarea>
+				</label>
+				<button type="submit" class="danger" data-confirm="¿Marcar este proyecto como perdido?">Marcar como perdido</button>
 			</form>
 		}
 		<h2>Cotizaciones</h2>

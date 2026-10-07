@@ -55,7 +55,8 @@ Al emitirla se abre su [[proyecto]], que es el que avanza por etapas:
   <span class="estado">cerrado</span>
 </div>
 
-La etapa se ve y se cambia en la [página del proyecto](proyectos.md). Mientras el proyecto es prospecto, si el cliente pide cambios,
+Un proyecto que no se concreta se marca como [[perdido]]. La etapa se ve y se cambia en
+la [página del proyecto](proyectos.md). Mientras el proyecto es prospecto, si el cliente pide cambios,
 [Revisar](cotizaciones.md#revisar-una-cotización-emitida) crea una nueva cotización
 (`QA0012-R1`) en borrador y la original pasa a **revisada**; el proyecto sigue siendo el
 mismo. Cómo mover un proyecto de etapa: [darle seguimiento](proyectos.md#dar-seguimiento-a-un-proyecto).
@@ -107,6 +108,12 @@ El pedido ya va en camino o se le entregó al cliente; falta facturar y cobrar.
 
 Un proyecto que ya se entregó, se facturó, se cobró y tiene su complemento de pago (si
 aplica).
+
+## Perdido
+
+Un proyecto que no se concretó: el cliente ya no va a comprar. Se marca con un motivo,
+sale de las etapas activas y ya no cuenta para el pronóstico. Solo un administrador
+puede reabrirlo.
 
 ## Revisada
 

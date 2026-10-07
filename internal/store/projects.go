@@ -19,8 +19,9 @@ import (
 // ProjectFlow is the order a proyecto follows: the client has the quote and it is being
 // followed up (prospecto), the client's purchase order arrived (oc_recibida), the goods
 // are on their way or delivered (en_entrega), and it was invoiced and collected
-// (cerrado). A proyecto moves one step at a time. The schema also knows facturado and
-// perdido, which no code uses yet.
+// (cerrado). A proyecto moves one step at a time. perdido is not a step: a proyecto is
+// marked lost from prospecto or oc_recibida (LoseProject) and only an admin's reopen
+// brings it back. The schema also knows facturado, which no code uses yet.
 var ProjectFlow = []string{"prospecto", "oc_recibida", "en_entrega", "cerrado"}
 
 // StatusLabels are the words users see for each quote status.
@@ -217,6 +218,108 @@ func (s *Store) SetProjectProbability(ctx context.Context, projectID, userID int
 	return nil
 }
 
+// LostFromStages are the stages a proyecto can be marked lost from.
+var LostFromStages = []string{"prospecto", "oc_recibida"}
+
+// CanLose reports whether a proyecto in stage can be marked lost.
+func CanLose(stage string) bool {
+	return stage == "prospecto" || stage == "oc_recibida"
+}
+
+// LoseProject marks a proyecto lost, from `from` (one of LostFromStages), with the
+// reason, which is required. It records it as a comment on the current quote — "Se
+// perdió." plus the reason — and remembers the stage it was lost from. Like MoveProject
+// it is conditional on the proyecto still being in `from`. There is no lost status on a
+// quote: losing a quote and losing its proyecto are the same thing.
+func (s *Store) LoseProject(ctx context.Context, projectID, userID int64, from, reason string) error {
+	reason = strings.TrimSpace(reason)
+	if !CanLose(from) || reason == "" {
+		return ErrBadTransition
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: lose project %d: %w", projectID, err)
+	}
+	defer tx.Rollback()
+	if err := stampActor(ctx, tx); err != nil {
+		return fmt.Errorf("store: lose project %d: %w", projectID, err)
+	}
+	quoteID, _, err := currentQuote(ctx, tx, projectID)
+	if err != nil {
+		return fmt.Errorf("store: lose project %d: %w", projectID, err)
+	}
+	if quoteID == 0 {
+		return ErrBadTransition
+	}
+	res, err := tx.ExecContext(ctx, `
+		UPDATE projects SET status = 'perdido', lost_reason = ?, lost_from = ?,
+			lost_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+		WHERE id = ? AND status = ?`, reason, from, projectID, from)
+	if err != nil {
+		return fmt.Errorf("store: lose project %d: %w", projectID, err)
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return ErrBadTransition
+	}
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`,
+		quoteID, userID, "Se perdió.\n"+reason); err != nil {
+		return fmt.Errorf("store: lose project %d: comment: %w", projectID, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: lose project %d: %w", projectID, err)
+	}
+	return nil
+}
+
+// ReopenProject brings a lost proyecto back to the stage it was lost from and clears the
+// reason, which stays in the history as the comment LoseProject wrote. It records the
+// reopening as a comment too, with the user's note if any. Who may reopen is the
+// caller's decision.
+func (s *Store) ReopenProject(ctx context.Context, projectID, userID int64, note string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: reopen project %d: %w", projectID, err)
+	}
+	defer tx.Rollback()
+	if err := stampActor(ctx, tx); err != nil {
+		return fmt.Errorf("store: reopen project %d: %w", projectID, err)
+	}
+	var back string
+	err = tx.QueryRowContext(ctx,
+		`SELECT lost_from FROM projects WHERE id = ? AND status = 'perdido'`, projectID).Scan(&back)
+	if err == sql.ErrNoRows {
+		return ErrBadTransition
+	}
+	if err != nil {
+		return fmt.Errorf("store: reopen project %d: %w", projectID, err)
+	}
+	quoteID, _, err := currentQuote(ctx, tx, projectID)
+	if err != nil {
+		return fmt.Errorf("store: reopen project %d: %w", projectID, err)
+	}
+	if quoteID == 0 {
+		return ErrBadTransition
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE projects SET status = ?, lost_reason = NULL, lost_from = NULL, lost_at = NULL
+		WHERE id = ?`, back, projectID); err != nil {
+		return fmt.Errorf("store: reopen project %d: %w", projectID, err)
+	}
+	body := fmt.Sprintf("Se reabrió como %s.", StageLabels[back])
+	if note = strings.TrimSpace(note); note != "" {
+		body += "\n" + note
+	}
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`, quoteID, userID, body); err != nil {
+		return fmt.Errorf("store: reopen project %d: comment: %w", projectID, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: reopen project %d: %w", projectID, err)
+	}
+	return nil
+}
+
 // currentQuote finds a proyecto's current quote, the one that is not revisada, and its
 // status (emitida, or borrador for a revision in progress). The id is 0 when the
 // proyecto has none.
@@ -248,6 +351,11 @@ type Project struct {
 	CurrentQuoteFolio    string
 	CurrentQuoteStatus   string
 	Total                money.Centavos
+	// LostReason, LostFrom and LostAt say why, from which stage and when a perdido
+	// proyecto was lost; they are empty on any other.
+	LostReason string
+	LostFrom   string
+	LostAt     string
 }
 
 // ForecastRelevant reports whether the proyecto counts for the forecast.
@@ -255,7 +363,8 @@ func (p Project) ForecastRelevant() bool { return ForecastRelevant(p.Status, p.P
 
 const projectSelectCols = `
 	p.id, p.folio, p.customer_id, c.name, p.user_id, u.name, p.status, p.probability,
-	p.probability_updated_at, p.created_at, q.id, q.folio, q.status, q.total`
+	p.probability_updated_at, p.created_at, q.id, q.folio, q.status, q.total,
+	COALESCE(p.lost_reason, ''), COALESCE(p.lost_from, ''), COALESCE(p.lost_at, '')`
 
 const projectFrom = `
 	FROM projects p
@@ -267,7 +376,8 @@ func scanProject(row interface{ Scan(...any) error }) (*Project, error) {
 	var p Project
 	err := row.Scan(&p.ID, &p.Folio, &p.CustomerID, &p.CustomerName, &p.UserID, &p.UserName, &p.Status,
 		&p.Probability, &p.ProbabilityUpdatedAt, &p.CreatedAt,
-		&p.CurrentQuoteID, &p.CurrentQuoteFolio, &p.CurrentQuoteStatus, &p.Total)
+		&p.CurrentQuoteID, &p.CurrentQuoteFolio, &p.CurrentQuoteStatus, &p.Total,
+		&p.LostReason, &p.LostFrom, &p.LostAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

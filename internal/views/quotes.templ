@@ -756,7 +756,11 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 					<button type="submit">Revisar</button>
 				</form>
 			} else if quote.Status == "emitida" {
-				<p>Esta cotización ya no se puede revisar: su proyecto está en { statusLabel(quote.Stage) }.</p>
+				if quote.Stage == "perdido" {
+					<p>Esta cotización ya no se puede revisar: su proyecto se marcó como perdido.</p>
+				} else {
+					<p>Esta cotización ya no se puede revisar: su proyecto está en { statusLabel(quote.Stage) }.</p>
+				}
 			} else if quote.Status == "revisada" && quote.SupersededByFolio != "" {
 				<p>Esta cotización fue revisada. Ver <a href={ templ.URL("/cotizaciones/" + quote.SupersededByFolio) }>{ quote.SupersededByFolio }</a>.</p>
 			}

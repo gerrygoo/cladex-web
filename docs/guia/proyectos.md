@@ -15,6 +15,9 @@ Un proyecto avanza por estas etapas:
 | [[en entrega]] | El pedido ya va en camino o se le entregó al cliente. |
 | [[cerrado]] | Ya se entregó, se facturó, se cobró y se emitió el complemento de pago (si aplica). |
 
+Un proyecto que no se concreta se [marca como perdido](#marcar-un-proyecto-como-perdido)
+y sale de estas etapas.
+
 ## Buscar un proyecto
 
 1. En el menú de arriba, haz clic en **Proyectos**.
@@ -104,6 +107,34 @@ El proyecto queda en la etapa nueva y en **Historial** aparece una línea como
 Un administrador ve además el botón **Regresar a …** para devolver el proyecto a la
 etapa anterior (queda un comentario *"Regresó a …"*). Un proyecto que regresa a
 prospecto conserva la probabilidad que tenía y su cotización se puede volver a revisar.
+:::
+
+## Marcar un proyecto como perdido
+
+Cuando el cliente ya no va a comprar. Se puede mientras el proyecto es [[prospecto]] o
+tiene la [[O.C. recibida]]; uno que ya está en entrega o cerrado no se puede perder.
+Perder el proyecto es lo mismo que perder su cotización: no hay que marcar nada en la
+cotización.
+
+1. Abre el proyecto.
+2. En **Perder el proyecto**, escribe el **Motivo** (obligatorio): por qué se perdió.
+3. Haz clic en **Marcar como perdido** y confirma *"¿Marcar este proyecto como perdido?"*.
+
+Qué pasa al perderlo:
+
+- Su etapa pasa a [[perdido]] y la página muestra **Proyecto perdido** con el motivo,
+  cuándo se perdió y en qué etapa estaba.
+- En **Historial** queda una línea *"Se perdió."* con el motivo.
+- Sale de las etapas de la [página de inicio](README.md#la-página-de-inicio) y ya no
+  cuenta para el pronóstico. Ahí mismo, **Perdidos** dice cuántos hay y cuánto suman.
+- Su cotización ya no se puede revisar.
+- Para verlos todos, en **Proyectos** filtra la columna **Etapa** por *Perdido*.
+
+Si el proyecto revive, pídele a un administrador que lo reabra.
+:::admin
+Un administrador ve en un proyecto perdido el botón **Reabrir como …**, que lo regresa
+a la etapa en que estaba, con la probabilidad que tenía. Queda un comentario
+*"Se reabrió como …"* y el motivo original se conserva en el historial.
 :::
 
 ## Comentar un proyecto

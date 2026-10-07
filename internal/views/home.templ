@@ -57,6 +57,9 @@ templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavU
 				</section>
 			}
 		</div>
+		<p>
+			<a href="/proyectos?f.etapa=perdido">Perdidos</a>: { strconv.Itoa(ov.Lost.Count) } · { ov.Lost.Total.String() }
+		</p>
 		<h2>Vendedores</h2>
 		if len(ov.Vendedores) == 0 {
 			<p>Aún no hay proyectos: se abre uno al emitir una cotización.</p>

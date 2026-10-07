@@ -27,6 +27,8 @@ when it is actually started.
    A prospecto with probabilidad de cierre of 75% or more is relevante para pronóstico
    and is highlighted; there is no separate mark to set. This is what the team calls
    "en pipeline" in its review meeting. Design in [its own section](#probabilidad-de-cierre-y-pronóstico).
+8. **Losing a quote is losing its proyecto** (user, 2026-10-06, "for now"). It is
+   stored once, on the proyecto; a quote has no lost status of its own.
 
 ## Order and dependencies
 
@@ -86,7 +88,7 @@ Notes:
 **Status (2026-10-06):** both commits are written, with the probability control pulled
 forward from 4.3 so the old "Pasar a Pipeline" has a replacement. The as-built notes are
 in [`docs/PLAN.md`](../PLAN.md#m4--proyectos), with the production dry run's result.
-Pending: the deploy.
+Deployed 2026-10-06, and 4.2 (`perdido`) followed the same day.
 
 Checked against the code as of 2026-10-06 (`internal/store/quotes.go`, `pipeline.go`,
 `overview.go`, migrations 0011–0015).
@@ -255,8 +257,9 @@ The first milestone of #20. Manual actions only, no job system. Admin-only (deci
 
 None of these block M4 from starting. The first affects 4.2's final shape.
 
-1. **Is losing a quote the same as losing the proyecto?** The board draws `perdida`
-   and `perdido` as separate nodes. This plan builds only the proyecto one.
+1. **Is losing a quote ever different from losing the proyecto?** Built as the same
+   thing for now (decision 8). The board draws `perdida` and `perdido` as separate
+   nodes, so confirm nobody needs a quote lost on its own.
 2. **One factura per O.C. or several** (partial deliveries)? M6 assumes one, plus the
    anticipo/pago pair for P.P.D.
 3. **The self-loop on `pagado`** on the board: partial payments, or a stray mark?

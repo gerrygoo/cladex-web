@@ -90,7 +90,8 @@ steps, a proyecto opening on issue and following revisions, and `TestMigration00
 over every old stage, `TestProjectReads` for the list and page queries) and replaced
 `TestQuotesEtapa` with `internal/web/projects_test.go`: `TestProjectsFollowUp` (stage
 moves, the probability control, the revision lock after the O.C., comments),
-`TestProjectsWithARevisionInDraft` and `TestProjectsList`. Those also pin the strings
+`TestProjectsWithARevisionInDraft`, `TestProjectsList` and, for slice 4.2,
+`TestProjectsLoseAndReopen` (with `TestLoseAndReopenProject` in the store). Those also pin the strings
 `docs/guia/proyectos.md` quotes, so they double as its guide-conformance tests.
 
 ## Tracked gaps

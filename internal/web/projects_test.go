@@ -277,3 +277,78 @@ func TestProjectsList(t *testing.T) {
 		t.Errorf("htmx search body = %s", body)
 	}
 }
+
+func TestProjectsLoseAndReopen(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	p := NewProjects(a.store)
+	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
+	beto := createTestUser(t, a, "beto", "admin", "hunter2")
+	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, ana)
+
+	folio := issueTestQuote(t, a, q, ana, customerID, costProductID)
+	pv := map[string]string{"folio": folio}
+	base := "/proyectos/" + folio
+	page := func(userID int64) string {
+		return doForm(t, a, userID, p.Page, "GET", base, pv, nil, false).Body.String()
+	}
+	lose := func(reason string) *httptest.ResponseRecorder {
+		return doForm(t, a, ana, p.Perder, "POST", base+"/perder", pv, url.Values{"reason": {reason}}, false)
+	}
+
+	if body := page(ana); !strings.Contains(body, "Marcar como perdido") || !strings.Contains(body, "Perder el proyecto") {
+		t.Error("a prospecto doesn't offer marking it lost")
+	}
+	for _, bad := range []string{"", "   ", strings.Repeat("x", maxCommentLen+1)} {
+		if rec := lose(bad); rec.Code != http.StatusBadRequest {
+			t.Errorf("Perder(reason of %d chars) status = %d, want 400", len(bad), rec.Code)
+		}
+	}
+	if rec := lose("Se fueron con otro proveedor"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Perder status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+
+	body := page(ana)
+	for _, want := range []string{"Perdido", "Proyecto perdido", "Se fueron con otro proveedor", "estaba en Prospecto",
+		"pídele a un administrador que lo reabra", "Se perdió."} {
+		if !strings.Contains(body, want) {
+			t.Errorf("lost proyecto page missing %q", want)
+		}
+	}
+	for _, gone := range []string{"Marcar como perdido", "Guardar probabilidad", "Pasar a", "Reabrir como"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("lost proyecto page shows %q to a vendedor", gone)
+		}
+	}
+	if rec := lose("otra vez"); rec.Code != http.StatusConflict {
+		t.Errorf("Perder(already lost) status = %d, want 409", rec.Code)
+	}
+	// Its quote says why it can't be revised, and the list finds it under Perdido.
+	quotePage := doForm(t, a, ana, q.Builder, "GET", "/cotizaciones/"+folio, pv, nil, false).Body.String()
+	if strings.Contains(quotePage, ">Revisar<") || !strings.Contains(quotePage, "su proyecto se marcó como perdido") {
+		t.Error("the quote of a lost proyecto offers Revisar, or doesn't say why not")
+	}
+	list := doForm(t, a, ana, p.List, "GET", "/proyectos?f.etapa=perdido", nil, nil, false).Body.String()
+	if !strings.Contains(list, `href="/proyectos/`+folio+`"`) {
+		t.Error("the list filtered by Perdido doesn't show the lost proyecto")
+	}
+
+	// An admin reopens it, back to where it was. (The router keeps vendedores out.)
+	if !strings.Contains(page(beto), "Reabrir como Prospecto") {
+		t.Fatal("admin is not offered reopening")
+	}
+	rec := doForm(t, a, beto, p.Reabrir, "POST", base+"/reabrir", pv, url.Values{"note": {"Volvieron a llamar"}}, false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Reabrir status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	body = page(ana)
+	for _, want := range []string{"Prospecto", "Marcar como perdido", "Se reabrió como Prospecto.", "Volvieron a llamar"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("reopened proyecto page missing %q", want)
+		}
+	}
+	if rec := doForm(t, a, beto, p.Reabrir, "POST", base+"/reabrir", pv, nil, false); rec.Code != http.StatusConflict {
+		t.Errorf("Reabrir(not lost) status = %d, want 409", rec.Code)
+	}
+}

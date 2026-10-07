@@ -629,6 +629,11 @@ span.badge-en_entrega {
   background: color-mix(in srgb, var(--warning) 8%, var(--bg));
 }
 
+span.badge-perdido {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--bg));
+}
+
 span.badge-cerrado {
   color: var(--success);
   background: color-mix(in srgb, var(--success) 8%, var(--bg));

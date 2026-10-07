@@ -56,6 +56,9 @@ que nunca se emitieron no aparecen aquí:
   Para mover un proyecto de etapa, mira [darle seguimiento](proyectos.md#dar-seguimiento-a-un-proyecto).
 - En **Prospectos** verás además cuántos son [[relevante para pronóstico|relevantes para pronóstico]]
   y cuánto suman, y la [[probabilidad de cierre]] de cada uno de los tres que se listan.
+- **Perdidos**: debajo de las etapas, cuántos proyectos se
+  [marcaron como perdidos](proyectos.md#marcar-un-proyecto-como-perdido) y cuánto
+  suman. Haz clic para verlos. No cuentan en ninguna etapa ni en la tabla de vendedores.
 - **Vendedores**: una fila por cada persona con proyectos, ordenadas por
   **Monto para pronóstico** (la suma de sus prospectos relevantes para pronóstico).
   Junto están el **Monto en prospectos** (todos sus prospectos) y cuántos proyectos

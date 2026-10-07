@@ -37,6 +37,7 @@ type VendedorSummary struct {
 // current quote's total, and amounts are summed as-is.
 type Overview struct {
 	Stages     []StageSummary    // one per ProjectFlow entry, in order
+	Lost       StageSummary      // the perdido proyectos: count and total only, they are off the board
 	Vendedores []VendedorSummary // ranked by forecast amount, then prospecto amount, then name
 }
 
@@ -76,6 +77,8 @@ func (s *Store) ProjectOverview(ctx context.Context) (*Overview, error) {
 		}
 		if st := byStatus[sum.Status]; st != nil {
 			*st = sum
+		} else if sum.Status == "perdido" {
+			ov.Lost = sum
 		}
 	}
 	rows.Close()
@@ -130,16 +133,17 @@ func (s *Store) ProjectOverview(ctx context.Context) (*Overview, error) {
 		if err := rows.Scan(&id, &name, &status, &count, &total, &forecast); err != nil {
 			return nil, fmt.Errorf("store: overview vendedores: %w", err)
 		}
+		if byStatus[status] == nil {
+			continue // lost proyectos are off the board
+		}
 		v := byUser[id]
 		if v == nil {
 			v = &VendedorSummary{UserID: id, Name: name, Count: map[string]int{}, Total: map[string]money.Centavos{}}
 			byUser[id] = v
 			order = append(order, id)
 		}
-		if byStatus[status] != nil {
-			v.Count[status], v.Total[status] = count, total
-			v.Forecast += forecast
-		}
+		v.Count[status], v.Total[status] = count, total
+		v.Forecast += forecast
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("store: overview vendedores: %w", err)

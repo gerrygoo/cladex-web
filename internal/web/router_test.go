@@ -59,6 +59,8 @@ var appRoutes = []route{
 	{"POST", "/proyectos/QA0001/etapa", false},
 	{"POST", "/proyectos/QA0001/probabilidad", false},
 	{"POST", "/proyectos/QA0001/comentarios", false},
+	{"POST", "/proyectos/QA0001/perder", false},
+	{"POST", "/proyectos/QA0001/reabrir", true},
 	{"POST", "/cotizaciones/QA0001/comentarios", false},
 	{"GET", "/cotizaciones/QA0001/pdf", false},
 

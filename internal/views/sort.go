@@ -198,7 +198,8 @@ var (
 		FilterOption{"borrador", "Borrador"}, FilterOption{"emitida", "Emitida"}, FilterOption{"revisada", "Revisada"})
 	projectStageFilter = enumFilter(
 		FilterOption{"prospecto", "Prospecto"}, FilterOption{"oc_recibida", "O.C. recibida"},
-		FilterOption{"en_entrega", "En entrega"}, FilterOption{"cerrado", "Cerrado"})
+		FilterOption{"en_entrega", "En entrega"}, FilterOption{"cerrado", "Cerrado"},
+		FilterOption{"perdido", "Perdido"})
 	projectProbabilityFilter = enumFilter(
 		FilterOption{"10", "Inicial"}, FilterOption{"25", "Baja"}, FilterOption{"50", "Media"},
 		FilterOption{"75", "Alta"}, FilterOption{"90", "Inminente"})

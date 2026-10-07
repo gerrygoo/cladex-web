@@ -489,3 +489,109 @@ func TestProjectReads(t *testing.T) {
 		t.Errorf("ProjectFilterChoices = %v, %v, %v", customers, owners, err)
 	}
 }
+
+func TestLoseAndReopenProject(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	q, user := projectFixture(t, s)
+	project := *q.ProjectID
+	load := func() *Project {
+		t.Helper()
+		p, err := s.ProjectByFolio(ctx, "QA0001")
+		if err != nil || p == nil {
+			t.Fatalf("ProjectByFolio: %v, %v", p, err)
+		}
+		return p
+	}
+
+	// A reason is required, and the stage has to be the one the proyecto is in.
+	for _, c := range []struct{ from, reason string }{
+		{"prospecto", ""}, {"prospecto", "   "}, {"oc_recibida", "No hubo presupuesto"}, {"cerrado", "x"},
+	} {
+		if err := s.LoseProject(ctx, project, user, c.from, c.reason); !errors.Is(err, ErrBadTransition) {
+			t.Errorf("LoseProject(%q, %q) = %v, want ErrBadTransition", c.from, c.reason, err)
+		}
+	}
+	if err := s.ReopenProject(ctx, project, user, ""); !errors.Is(err, ErrBadTransition) {
+		t.Errorf("ReopenProject(not lost) = %v, want ErrBadTransition", err)
+	}
+
+	if err := s.SetProjectProbability(ctx, project, user, 75, ""); err != nil {
+		t.Fatalf("SetProjectProbability: %v", err)
+	}
+	if err := s.LoseProject(ctx, project, user, "prospecto", "  Se fueron con otro proveedor  "); err != nil {
+		t.Fatalf("LoseProject: %v", err)
+	}
+	p := load()
+	if p.Status != "perdido" || p.LostReason != "Se fueron con otro proveedor" || p.LostFrom != "prospecto" || p.LostAt == "" {
+		t.Fatalf("lost project = %+v", p)
+	}
+	// Lost is the end of the line: no forecast, no moves, no probability, no revision.
+	if p.ForecastRelevant() {
+		t.Error("a lost proyecto still counts for the forecast")
+	}
+	if err := s.MoveProject(ctx, project, user, "perdido", "oc_recibida", ""); !errors.Is(err, ErrBadTransition) {
+		t.Errorf("MoveProject(perdido) = %v, want ErrBadTransition", err)
+	}
+	if err := s.SetProjectProbability(ctx, project, user, 90, ""); !errors.Is(err, ErrBadTransition) {
+		t.Errorf("SetProjectProbability(perdido) = %v, want ErrBadTransition", err)
+	}
+	if err := s.LoseProject(ctx, project, user, "perdido", "otra vez"); !errors.Is(err, ErrBadTransition) {
+		t.Errorf("LoseProject(perdido) = %v, want ErrBadTransition", err)
+	}
+	if _, err := s.CreateRevision(ctx, q.ID, user); !errors.Is(err, ErrProjectLocked) {
+		t.Errorf("CreateRevision(perdido) = %v, want ErrProjectLocked", err)
+	}
+	// It is off the board, counted apart.
+	ov, err := s.ProjectOverview(ctx)
+	if err != nil {
+		t.Fatalf("ProjectOverview: %v", err)
+	}
+	if ov.Stages[0].Count != 0 || ov.Lost.Count != 1 || len(ov.Vendedores) != 0 {
+		t.Errorf("overview with one lost proyecto: prospectos %d, lost %d, vendedores %d", ov.Stages[0].Count, ov.Lost.Count, len(ov.Vendedores))
+	}
+
+	// Reopening returns it to where it was, with the probability it had.
+	if err := s.ReopenProject(ctx, project, user, "Volvieron a llamar"); err != nil {
+		t.Fatalf("ReopenProject: %v", err)
+	}
+	p = load()
+	if p.Status != "prospecto" || p.Probability != 75 || p.LostReason != "" || p.LostFrom != "" || p.LostAt != "" {
+		t.Fatalf("reopened project = %+v", p)
+	}
+	comments, err := s.ListProjectComments(ctx, project)
+	if err != nil || len(comments) != 3 {
+		t.Fatalf("comments = %d, %v; want 3", len(comments), err)
+	}
+	if comments[0].Body != "Se reabrió como Prospecto.\nVolvieron a llamar" || comments[1].Body != "Se perdió.\nSe fueron con otro proveedor" {
+		t.Errorf("comments = %q, %q", comments[0].Body, comments[1].Body)
+	}
+
+	// From O.C. recibida it goes back to O.C. recibida; later stages can't be lost.
+	if err := s.MoveProject(ctx, project, user, "prospecto", "oc_recibida", ""); err != nil {
+		t.Fatalf("MoveProject: %v", err)
+	}
+	if err := s.LoseProject(ctx, project, user, "oc_recibida", "Cancelaron la OC"); err != nil {
+		t.Fatalf("LoseProject(oc_recibida): %v", err)
+	}
+	if err := s.ReopenProject(ctx, project, user, ""); err != nil {
+		t.Fatalf("ReopenProject: %v", err)
+	}
+	if p = load(); p.Status != "oc_recibida" {
+		t.Fatalf("reopened to %q, want oc_recibida", p.Status)
+	}
+	if err := s.MoveProject(ctx, project, user, "oc_recibida", "en_entrega", ""); err != nil {
+		t.Fatalf("MoveProject: %v", err)
+	}
+	if err := s.LoseProject(ctx, project, user, "en_entrega", "tarde"); !errors.Is(err, ErrBadTransition) {
+		t.Errorf("LoseProject(en_entrega) = %v, want ErrBadTransition", err)
+	}
+
+	// Losing and reopening are audited with the reason.
+	var n int
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT count(*) FROM audit_log WHERE table_name = 'projects' AND op = 'update'
+		AND json_extract(new_values, '$.lost_reason') = 'Cancelaron la OC'`).Scan(&n); err != nil || n != 1 {
+		t.Errorf("audit rows with the reason = %d, %v", n, err)
+	}
+}
