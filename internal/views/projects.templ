@@ -1,0 +1,267 @@
+package views
+
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+func projectPath(folio string) string {
+	return "/proyectos/" + folio
+}
+
+// etapaPath is the action for the stage buttons on a proyecto — moves it one step along
+// the flow, see store.MoveProject.
+func etapaPath(folio string) string {
+	return projectPath(folio) + "/etapa"
+}
+
+// probabilidadPath is the action for the probabilidad de cierre buttons on a prospecto,
+// see store.SetProjectProbability.
+func probabilidadPath(folio string) string {
+	return projectPath(folio) + "/probabilidad"
+}
+
+// stageHint says what moving a proyecto out of its current stage means.
+func stageHint(stage string) string {
+	switch stage {
+	case "prospecto":
+		return "Pásalo a O.C. recibida cuando el cliente mande su orden de compra. Desde ese momento la cotización ya no se puede revisar."
+	case "oc_recibida":
+		return "Pásalo a En entrega cuando el pedido ya va en camino o se le entregó al cliente."
+	case "en_entrega":
+		return "Ciérralo cuando ya se entregó, se facturó, se cobró y se emitió el complemento de pago (si aplica)."
+	}
+	return ""
+}
+
+templ ProjectsList(projects []store.Project, lv ListView, customers, owners []string, user *NavUser) {
+	@Layout("Proyectos", user) {
+		<div class="page-title">
+			<h1>Proyectos</h1>
+			@HelpLink(HelpProyectos)
+		</div>
+		<div class="toolbar">
+			<form method="get" action="/proyectos" role="search">
+				<input
+					type="search"
+					name="q"
+					placeholder="Buscar por folio o cliente…"
+					aria-label="Buscar por folio o cliente"
+					value={ lv.Query }
+					hx-get="/proyectos"
+					hx-trigger="keyup changed delay:400ms, search"
+					hx-target="#proyectos-tbody"
+					hx-swap="outerHTML"
+					hx-include="closest form"
+					hx-push-url="true"
+				/>
+				@listHiddenInputs(lv, "q")
+				<button type="submit">Buscar</button>
+			</form>
+		</div>
+		@listActiveFilters(lv)
+		<div class="table-scroll">
+			<table>
+				<thead>
+					<tr>
+						@columnHeader(lv, "Proyecto", "folio", textFilter)
+						@columnHeader(lv, "Cliente", "cliente", choiceFilter(customers))
+						@columnHeader(lv, "Vendedor", "vendedor", choiceFilter(owners))
+						@columnHeader(lv, "Etapa", "etapa", projectStageFilter)
+						@columnHeader(lv, "Probabilidad", "probabilidad", projectProbabilityFilter)
+						@columnHeader(lv, "Total", "total", numberFilter)
+						@columnHeader(lv, "Abierto", "fecha", dateFilter)
+					</tr>
+				</thead>
+				@ProjectsTableBody(projects)
+			</table>
+		</div>
+		@listPager(lv, false)
+	}
+}
+
+templ ProjectsTableBody(projects []store.Project) {
+	<tbody id="proyectos-tbody" data-announce={ countAnnouncement(len(projects), "proyecto", "proyectos") }>
+		if len(projects) == 0 {
+			<tr>
+				<td colspan="7">No se encontraron proyectos. Un proyecto se abre al emitir una cotización.</td>
+			</tr>
+		}
+		for _, p := range projects {
+			<tr>
+				<td><a href={ templ.URL(projectPath(p.Folio)) }>{ p.Folio }</a></td>
+				<td>{ p.CustomerName }</td>
+				<td>{ p.UserName }</td>
+				<td>
+					@StatusBadge(p.Status)
+				</td>
+				<td>
+					if p.Status == "prospecto" {
+						{ probabilityText(p.Probability) }
+						if p.ForecastRelevant() {
+							<br/>
+							<strong class="forecast">{ forecastLabel }</strong>
+						}
+					}
+				</td>
+				<td class="num">{ p.Total.String() }</td>
+				<td>
+					@Timestamp(p.CreatedAt)
+				</td>
+			</tr>
+		}
+	</tbody>
+}
+
+// ProjectPage is a proyecto: where it stands, the controls that move it (probability
+// while it is a prospecto, the next stage, and an admin-only step back), every quote it
+// has had, and its history — the comments of all those quotes in one timeline.
+templ ProjectPage(p store.Project, quotes []store.Quote, comments []store.ProjectComment, commentsLV ListView, user *NavUser) {
+	@Layout("Proyecto "+p.Folio, user) {
+		<div class="page-title">
+			<h1>Proyecto { p.Folio }</h1>
+			@HelpLink(HelpProyecto)
+		</div>
+		<p>Cliente: { p.CustomerName }</p>
+		<dl class="quote-info">
+			<dt>Etapa</dt>
+			<dd>
+				@StatusBadge(p.Status)
+			</dd>
+			if p.Status == "prospecto" {
+				<dt>Probabilidad</dt>
+				<dd>
+					{ probabilityText(p.Probability) }
+					if p.ForecastRelevant() {
+						· <strong class="forecast">{ forecastLabel }</strong>
+					}
+					<br/>
+					<small>
+						{ "Actualizada " }
+						@Timestamp(p.ProbabilityUpdatedAt)
+					</small>
+				</dd>
+			}
+			<dt>Vendedor</dt>
+			<dd>{ p.UserName }</dd>
+			<dt>Abierto</dt>
+			<dd>
+				@Timestamp(p.CreatedAt)
+			</dd>
+			<dt>Cotización vigente</dt>
+			<dd>
+				<a href={ templ.URL("/cotizaciones/" + p.CurrentQuoteFolio) }>{ p.CurrentQuoteFolio }</a>
+				if p.CurrentQuoteStatus == "borrador" {
+					· revisión en borrador, aún sin emitir
+				}
+			</dd>
+			<dt>Total</dt>
+			<dd>{ p.Total.String() }</dd>
+		</dl>
+		if p.Status == "prospecto" || store.NextStage(p.Status) != "" {
+			<h2>Seguimiento</h2>
+		}
+		if p.Status == "prospecto" {
+			<form method="post" action={ templ.URL(probabilidadPath(p.Folio)) } class="stage-form">
+				<fieldset class="probability">
+					<legend>Probabilidad de cierre</legend>
+					for _, st := range store.ProbabilitySteps {
+						<label>
+							<input type="radio" name="probabilidad" value={ strconv.Itoa(st.Percent) } checked?={ st.Percent == p.Probability } required/>
+							{ st.Label }
+							<small>{ strconv.Itoa(st.Percent) }%</small>
+						</label>
+					}
+				</fieldset>
+				<p class="hint">Desde Alta, el proyecto es relevante para pronóstico: es de los que se revisan cuando el equipo ve qué está por cerrar.</p>
+				<label>
+					Comentario (opcional)
+					<textarea name="note" rows="2" maxlength="2000"></textarea>
+				</label>
+				<button type="submit">Guardar probabilidad</button>
+			</form>
+		}
+		if next := store.NextStage(p.Status); next != "" {
+			if p.Status == "prospecto" && p.CurrentQuoteStatus != "emitida" {
+				<p>Para pasarlo a { store.StageLabels[next] }, primero emite la revisión <a href={ templ.URL("/cotizaciones/" + p.CurrentQuoteFolio) }>{ p.CurrentQuoteFolio }</a>.</p>
+			} else {
+				<form method="post" action={ templ.URL(etapaPath(p.Folio)) } class="stage-form">
+					<p>{ stageHint(p.Status) }</p>
+					<input type="hidden" name="to" value={ next }/>
+					<label>
+						Comentario (opcional)
+						<textarea name="note" rows="2" maxlength="2000"></textarea>
+					</label>
+					<button type="submit" class="primary">Pasar a { store.StageLabels[next] }</button>
+				</form>
+			}
+		} else if p.Status == "cerrado" {
+			<p>Este proyecto está cerrado.</p>
+		}
+		if prev := store.PrevStage(p.Status); prev != "" && user != nil && user.IsAdmin {
+			<form method="post" action={ templ.URL(etapaPath(p.Folio)) } class="stage-form">
+				<input type="hidden" name="to" value={ prev }/>
+				<button type="submit">Regresar a { store.StageLabels[prev] }</button>
+			</form>
+		}
+		<h2>Cotizaciones</h2>
+		<div class="table-scroll">
+			<table>
+				<thead>
+					<tr>
+						<th>Folio</th>
+						<th>Estado</th>
+						<th class="num">Total</th>
+						<th>Emitida</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, q := range quotes {
+						<tr>
+							<td><a href={ templ.URL("/cotizaciones/" + q.Folio) }>{ q.Folio }</a></td>
+							<td>
+								@StatusBadge(q.Status)
+							</td>
+							<td class="num">{ q.Total.String() }</td>
+							<td>
+								if q.IssuedAt != nil {
+									@Timestamp(*q.IssuedAt)
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		<p><a href="/proyectos">Volver a proyectos</a></p>
+		<section id="historial">
+			<h2>Historial</h2>
+			<form method="post" action={ templ.URL(projectPath(p.Folio) + "/comentarios") }>
+				<label>
+					Agregar un comentario
+					<textarea name="comment" rows="3" maxlength="2000" required></textarea>
+				</label>
+				<button type="submit">Comentar</button>
+			</form>
+			if len(comments) == 0 {
+				<p class="comments-empty">Sin comentarios.</p>
+			} else {
+				<ol class="comments">
+					for _, c := range comments {
+						<li>
+							<p class="comment-body">{ c.Body }</p>
+							<p class="comment-meta">
+								{ c.UserName + " · " }
+								@Timestamp(c.CreatedAt)
+								{ " · en " }
+								<a href={ templ.URL("/cotizaciones/" + c.QuoteFolio) }>{ c.QuoteFolio }</a>
+							</p>
+						</li>
+					}
+				</ol>
+			}
+			@listPager(commentsLV, false)
+		</section>
+	}
+}

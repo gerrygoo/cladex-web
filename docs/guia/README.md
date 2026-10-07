@@ -13,6 +13,7 @@ parte de este manual que la explica.
 | [Acceso y cuenta](acceso.md) | Iniciar sesión, cambiar tu contraseña, cerrar sesión |
 | [Clientes](clientes.md) | Dar de alta, buscar, editar y eliminar clientes |
 | [Cotizaciones](cotizaciones.md) | Crear una cotización, agregar productos por SKU, líneas libres, guardar, emitir, descargar el PDF, revisar |
+| [Proyectos](proyectos.md) | Dar seguimiento después de emitir: etapas, probabilidad de cierre, historial |
 | [Productos](productos.md) | Buscar, dar de alta y editar productos; cómo se calcula cada precio; conversiones de unidades |
 :::admin
 | [Administración](administracion.md) | Márgenes; materiales; usuarios; unidades; familias y series (solo administradores) |
@@ -48,10 +49,11 @@ que nunca se emitieron no aparecen aquí:
 - **Proyectos por etapa**: cuántos hay en cada etapa de [[prospecto]],
   [[O.C. recibida]], [[en entrega]] y [[cerrado]], la suma de sus totales y los 3 de
   mayor total en cada etapa. El monto de un proyecto es el total de su cotización
-  vigente. Haz clic en un folio para abrir esa cotización. Para
+  vigente. Haz clic en un folio para abrir el proyecto, o en el nombre de una etapa
+  para ver todos los que están en ella. Para
   [crear una](cotizaciones.md#crear-una-cotización), usa el menú **Cotizaciones** →
   **Nueva cotización**.
-  Para mover un proyecto de etapa, mira [darle seguimiento](cotizaciones.md#dar-seguimiento-a-una-cotización).
+  Para mover un proyecto de etapa, mira [darle seguimiento](proyectos.md#dar-seguimiento-a-un-proyecto).
 - En **Prospectos** verás además cuántos son [[relevante para pronóstico|relevantes para pronóstico]]
   y cuánto suman, y la [[probabilidad de cierre]] de cada uno de los tres que se listan.
 - **Vendedores**: una fila por cada persona con proyectos, ordenadas por

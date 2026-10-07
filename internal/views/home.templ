@@ -31,7 +31,7 @@ templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavU
 		<div class="overview-stages">
 			for _, st := range ov.Stages {
 				<section class="overview-stage">
-					<h3>{ stageLabels[st.Status] }</h3>
+					<h3><a href={ templ.URL("/proyectos?f.etapa=" + st.Status) }>{ stageLabels[st.Status] }</a></h3>
 					<p class="overview-figure"><strong>{ strconv.Itoa(st.Count) }</strong> · { st.Total.String() }</p>
 					if st.Status == "prospecto" {
 						<p><small>{ forecastLabel }: { strconv.Itoa(st.ForecastCount) } · { st.ForecastTotal.String() }</small></p>
@@ -42,11 +42,11 @@ templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavU
 						<ol>
 							for _, q := range st.Top {
 								<li>
-									<a href={ templ.URL("/cotizaciones/" + q.Folio) }>{ q.Folio }</a>
+									<a href={ templ.URL(projectPath(q.Folio)) }>{ q.Folio }</a>
 									{ q.Total.String() }
 									<br/>
 									<small>{ q.CustomerName } · { q.UserName }</small>
-									if q.Stage == "prospecto" {
+									if q.Status == "prospecto" {
 										<br/>
 										@ProbabilityTag(q.Probability)
 									}

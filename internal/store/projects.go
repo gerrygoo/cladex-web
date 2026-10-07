@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/gerrygoo/cladex-web/internal/money"
 )
 
 // A proyecto is what an issued quote opens: the deal itself, followed from the day the
@@ -225,4 +227,214 @@ func currentQuote(ctx context.Context, tx *sql.Tx, projectID int64) (id int64, s
 		return 0, "", nil
 	}
 	return id, status, err
+}
+
+// Project is a projects row with what its screens show next to it: the customer's and
+// the owner's current names (joins) and its current quote, whose total is the
+// proyecto's amount. CurrentQuoteStatus is emitida, or borrador while a revision is
+// being worked on.
+type Project struct {
+	ID                   int64
+	Folio                string
+	CustomerID           int64
+	CustomerName         string
+	UserID               int64
+	UserName             string
+	Status               string // one of StageLabels' keys
+	Probability          int
+	ProbabilityUpdatedAt string
+	CreatedAt            string
+	CurrentQuoteID       int64
+	CurrentQuoteFolio    string
+	CurrentQuoteStatus   string
+	Total                money.Centavos
+}
+
+// ForecastRelevant reports whether the proyecto counts for the forecast.
+func (p Project) ForecastRelevant() bool { return ForecastRelevant(p.Status, p.Probability) }
+
+const projectSelectCols = `
+	p.id, p.folio, p.customer_id, c.name, p.user_id, u.name, p.status, p.probability,
+	p.probability_updated_at, p.created_at, q.id, q.folio, q.status, q.total`
+
+const projectFrom = `
+	FROM projects p
+	JOIN customers c ON c.id = p.customer_id
+	JOIN users u ON u.id = p.user_id
+	JOIN quotes q ON q.project_id = p.id AND q.status != 'revisada'`
+
+func scanProject(row interface{ Scan(...any) error }) (*Project, error) {
+	var p Project
+	err := row.Scan(&p.ID, &p.Folio, &p.CustomerID, &p.CustomerName, &p.UserID, &p.UserName, &p.Status,
+		&p.Probability, &p.ProbabilityUpdatedAt, &p.CreatedAt,
+		&p.CurrentQuoteID, &p.CurrentQuoteFolio, &p.CurrentQuoteStatus, &p.Total)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+// ProjectByFolio returns the proyecto with the given folio, or nil if none exists.
+func (s *Store) ProjectByFolio(ctx context.Context, folio string) (*Project, error) {
+	row := s.db.QueryRowContext(ctx, `SELECT `+projectSelectCols+projectFrom+` WHERE p.folio = ?`, folio)
+	p, err := scanProject(row)
+	if err != nil {
+		return nil, fmt.Errorf("store: project by folio %q: %w", folio, err)
+	}
+	return p, nil
+}
+
+// projectStageOrder sorts by where a stage sits in the lifecycle rather than by its name.
+const projectStageOrder = `CASE p.status WHEN 'prospecto' THEN 1 WHEN 'oc_recibida' THEN 2
+	WHEN 'facturado' THEN 3 WHEN 'en_entrega' THEN 4 WHEN 'cerrado' THEN 5 ELSE 6 END`
+
+// projectSortColumns is the sortable-column whitelist for ListProjects. When sort
+// doesn't match a known column, ListProjects uses projectDefaultOrder instead.
+var projectSortColumns = []sortColumn{
+	{"folio", "p.folio"},
+	{"cliente", "c.name"},
+	{"vendedor", "u.name COLLATE NOCASE"},
+	{"etapa", projectStageOrder},
+	{"probabilidad", "p.probability"},
+	{"total", "q.total"},
+	{"fecha", "p.created_at"},
+}
+
+// projectDefaultOrder is the list's order when no sort column is chosen: newest first.
+const projectDefaultOrder = `ORDER BY p.created_at DESC, p.id DESC`
+
+// projectFilterColumns are the per-column filters ListProjects accepts. The probability
+// filter only matches prospectos, the one stage where it means something.
+var projectFilterColumns = []filterColumn{
+	{name: "folio", expr: "p.folio", kind: FilterText},
+	{name: "cliente", expr: "c.name", kind: FilterText},
+	{name: "vendedor", expr: "u.name", kind: FilterText},
+	{name: "etapa", expr: "p.status", kind: FilterEnum},
+	{name: "probabilidad", expr: "CASE WHEN p.status = 'prospecto' THEN CAST(p.probability AS TEXT) END", kind: FilterEnum},
+	{name: "total", expr: "q.total", kind: FilterNumber, scale: 100},
+	{name: "fecha", expr: "p.created_at", kind: FilterDate},
+}
+
+// ListProjects returns proyectos, optionally filtered by a case-insensitive substring
+// match on folio or customer name and by per-column filters (see projectFilterColumns),
+// sorted per sort/dir (see projectSortColumns).
+func (s *Store) ListProjects(ctx context.Context, query, sort, dir string, filters Filters) ([]Project, error) {
+	like := "%" + escapeLike(query) + "%"
+	order := projectDefaultOrder
+	for _, c := range projectSortColumns {
+		if c.name == sort {
+			order = orderByClause(projectSortColumns, sort, dir)
+			break
+		}
+	}
+	extra, extraArgs := filterWhere(ctx, projectFilterColumns, filters)
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT `+projectSelectCols+projectFrom+`
+		WHERE (? = '' OR p.folio LIKE ? ESCAPE '\' COLLATE NOCASE OR c.name LIKE ? ESCAPE '\' COLLATE NOCASE)`+extra+`
+		`+order, append([]any{query, like, like}, extraArgs...)...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: list projects: %w", err)
+	}
+	defer rows.Close()
+	var projects []Project
+	for rows.Next() {
+		p, err := scanProject(rows)
+		if err != nil {
+			return nil, fmt.Errorf("store: list projects: %w", err)
+		}
+		projects = append(projects, *p)
+	}
+	return projects, rows.Err()
+}
+
+// ProjectFilterChoices returns the customer and owner names that appear on proyectos,
+// for the Cliente and Vendedor filter dropdowns. A column with more than
+// MaxFilterChoices distinct names returns nil, and its filter stays a free-text box.
+func (s *Store) ProjectFilterChoices(ctx context.Context) (customers, owners []string, err error) {
+	for i, expr := range []string{"c.name", "u.name"} {
+		rows, err := s.db.QueryContext(ctx, `
+			SELECT DISTINCT `+expr+projectFrom+`
+			ORDER BY `+expr+` COLLATE NOCASE LIMIT ?`, MaxFilterChoices+1)
+		if err != nil {
+			return nil, nil, fmt.Errorf("store: project filter choices: %w", err)
+		}
+		var names []string
+		for rows.Next() {
+			var n string
+			if err := rows.Scan(&n); err != nil {
+				rows.Close()
+				return nil, nil, fmt.Errorf("store: project filter choices: %w", err)
+			}
+			names = append(names, n)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, nil, fmt.Errorf("store: project filter choices: %w", err)
+		}
+		if len(names) > MaxFilterChoices {
+			names = nil
+		}
+		if i == 0 {
+			customers = names
+		} else {
+			owners = names
+		}
+	}
+	return customers, owners, nil
+}
+
+// ListProjectQuotes returns every quote of a proyecto, newest first: its current quote
+// and the ones revisions replaced.
+func (s *Store) ListProjectQuotes(ctx context.Context, projectID int64) ([]Quote, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT `+quoteSelectCols+quoteFrom+`
+		WHERE q.project_id = ? ORDER BY q.id DESC`, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("store: quotes of project %d: %w", projectID, err)
+	}
+	defer rows.Close()
+	var quotes []Quote
+	for rows.Next() {
+		q, err := scanQuote(rows)
+		if err != nil {
+			return nil, fmt.Errorf("store: quotes of project %d: %w", projectID, err)
+		}
+		quotes = append(quotes, *q)
+	}
+	return quotes, rows.Err()
+}
+
+// ProjectComment is a comment on any of a proyecto's quotes, with that quote's folio.
+type ProjectComment struct {
+	QuoteComment
+	QuoteFolio string
+}
+
+// ListProjectComments returns the proyecto's history, newest first: the comments of all
+// its quotes in one timeline, stage moves and probability changes included.
+func (s *Store) ListProjectComments(ctx context.Context, projectID int64) ([]ProjectComment, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT c.id, c.quote_id, c.user_id, u.name, c.body, c.created_at, q.folio
+		FROM quote_comments c
+		JOIN quotes q ON q.id = c.quote_id
+		JOIN users u ON u.id = c.user_id
+		WHERE q.project_id = ?
+		ORDER BY c.created_at DESC, c.id DESC`, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("store: comments of project %d: %w", projectID, err)
+	}
+	defer rows.Close()
+	var out []ProjectComment
+	for rows.Next() {
+		var c ProjectComment
+		if err := rows.Scan(&c.ID, &c.QuoteID, &c.UserID, &c.UserName, &c.Body, &c.CreatedAt, &c.QuoteFolio); err != nil {
+			return nil, fmt.Errorf("store: comments of project %d: %w", projectID, err)
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
 }

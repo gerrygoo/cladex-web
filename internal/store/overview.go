@@ -19,7 +19,7 @@ type StageSummary struct {
 	Total         money.Centavos
 	ForecastCount int
 	ForecastTotal money.Centavos
-	Top           []Quote // only Folio, CustomerName, UserName, Total, CreatedAt, Stage, Probability are set
+	Top           []Project // only Folio, CustomerName, UserName, Total, CreatedAt, Status, Probability are set
 }
 
 // VendedorSummary is one salesperson's row on the home overview. A "vendedor" here is
@@ -85,8 +85,8 @@ func (s *Store) ProjectOverview(ctx context.Context) (*Overview, error) {
 
 	rows, err = s.db.QueryContext(ctx, `
 		SELECT status, folio, customer, vendedor, total, created_at, probability FROM (
-			SELECT p.status, q.folio, c.name AS customer, u.name AS vendedor, q.total, q.created_at, p.probability,
-				row_number() OVER (PARTITION BY p.status ORDER BY q.total DESC, q.created_at DESC) AS rn
+			SELECT p.status, p.folio, c.name AS customer, u.name AS vendedor, q.total, p.created_at, p.probability,
+				row_number() OVER (PARTITION BY p.status ORDER BY q.total DESC, p.created_at DESC) AS rn
 			`+overviewFrom+`
 			JOIN customers c ON c.id = p.customer_id
 			JOIN users u ON u.id = p.user_id
@@ -95,13 +95,13 @@ func (s *Store) ProjectOverview(ctx context.Context) (*Overview, error) {
 		return nil, fmt.Errorf("store: overview top projects: %w", err)
 	}
 	for rows.Next() {
-		var q Quote
-		if err := rows.Scan(&q.Stage, &q.Folio, &q.CustomerName, &q.UserName, &q.Total, &q.CreatedAt, &q.Probability); err != nil {
+		var p Project
+		if err := rows.Scan(&p.Status, &p.Folio, &p.CustomerName, &p.UserName, &p.Total, &p.CreatedAt, &p.Probability); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("store: overview top projects: %w", err)
 		}
-		if st := byStatus[q.Stage]; st != nil {
-			st.Top = append(st.Top, q)
+		if st := byStatus[p.Status]; st != nil {
+			st.Top = append(st.Top, p)
 		}
 	}
 	rows.Close()

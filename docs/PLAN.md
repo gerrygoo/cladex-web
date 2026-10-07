@@ -1049,7 +1049,7 @@ milestones that follow.
 
 | # | Slice | Owner | Done when |
 |---|---|---|---|
-| 4.1 | `projects` table; a proyecto opens when a quote is issued and follows its revisions; the pipeline stages leave `quotes.status` | me | Part 1 of 2 done¹⁵: data, store and the existing screens. Part 2 (a proyecto page and list) is pending. |
+| 4.1 | `projects` table; a proyecto opens when a quote is issued and follows its revisions; the pipeline stages leave `quotes.status`; a proyecto page and list | me | Written in two commits¹⁵ ¹⁶, tests green. Pending: the production dry run and the deploy. |
 
 ¹⁵ `migrations/0016_projects.sql` adds `projects` (`folio` = the base folio of the quote
 that opened it, `customer_id`, owner `user_id`, `status`, `probability`,
@@ -1085,6 +1085,30 @@ Verified with `go test ./...` (store: stage moves, probability, issue and revisi
 scratch copy of the local dev DB: home board, quote page, a probability change and a
 move to O.C. recibida. **Not yet dry-run against a copy of the production DB, and not
 deployed.**
+
+¹⁶ The second commit gives the proyecto its own screens and takes the follow-up off the
+quote page. `GET /proyectos` lists proyectos (search by folio or client; sort and filter
+by client, vendedor, etapa, probabilidad, total and date; the probability filter only
+matches prospectos). `GET /proyectos/{folio}` shows the stage, the probability and when
+it last changed, the current quote (flagged while it is a revision in draft), the
+controls, every quote of the proyecto, and the history: `ListProjectComments` reads the
+comments of all its quotes as one timeline. The actions moved with it: `POST
+/proyectos/{folio}/etapa`, `/probabilidad` and `/comentarios` (a comment made there is
+saved on the current quote). The quote routes `/cotizaciones/{folio}/etapa` and
+`/probabilidad` from ¹⁵ are gone.
+
+The quote page keeps **Revisar** and its own comments, shows **Estado** as the quote's
+own status again (the combined `DisplayStatus` from ¹⁵ is removed) and links to its
+proyecto with the stage; a draft revision links to it too. The Cotizaciones list's
+Estado filter is back to borrador / emitida / revisada. The home board's folios and
+stage headings link to proyectos, and the nav gained **Proyectos**. The guide gained
+`docs/guia/proyectos.md` (served at `/ayuda/proyectos`), which took over the follow-up
+section from `cotizaciones.md`.
+
+Verified with `go test ./...` (store: `TestProjectReads`; web: `TestProjectsFollowUp`,
+`TestProjectsWithARevisionInDraft`, `TestProjectsList`, the route table, the help-topic
+check) and in a browser on the scratch DB: the list, a proyecto with a revision in
+draft, the quote page of a proyecto past prospecto, and the guide page.
 
 ---
 

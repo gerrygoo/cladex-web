@@ -57,9 +57,9 @@ func countAnnouncement(n int, one, many string) string {
 	}
 }
 
-// StatusBadge shows where a quote stands (store.Quote.DisplayStatus) as a pill: a draft
-// is neutral, a prospecto green, a proyecto with the purchase order in blue, one being
-// delivered amber until it is closed, a revised (superseded) quote muted. The word is
+// StatusBadge shows a quote's status or a proyecto's stage as a pill: a draft is
+// neutral, an issued quote and a prospecto green, a proyecto with the purchase order in
+// blue, one being delivered amber until it is closed, a revised (superseded) quote muted. The word is
 // always there, so the colour is never the only cue.
 // statusLabel is the word for a quote status or a proyecto stage.
 func statusLabel(status string) string {

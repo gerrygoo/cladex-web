@@ -195,9 +195,13 @@ func choiceFilter(values []string) ColumnFilter {
 // Choice lists for the enum column filters that don't depend on the database.
 var (
 	quoteStatusFilter = enumFilter(
-		FilterOption{"borrador", "Borrador"}, FilterOption{"prospecto", "Prospecto"},
-		FilterOption{"oc_recibida", "O.C. recibida"}, FilterOption{"en_entrega", "En entrega"},
-		FilterOption{"cerrado", "Cerrado"}, FilterOption{"revisada", "Revisada"})
+		FilterOption{"borrador", "Borrador"}, FilterOption{"emitida", "Emitida"}, FilterOption{"revisada", "Revisada"})
+	projectStageFilter = enumFilter(
+		FilterOption{"prospecto", "Prospecto"}, FilterOption{"oc_recibida", "O.C. recibida"},
+		FilterOption{"en_entrega", "En entrega"}, FilterOption{"cerrado", "Cerrado"})
+	projectProbabilityFilter = enumFilter(
+		FilterOption{"10", "Inicial"}, FilterOption{"25", "Baja"}, FilterOption{"50", "Media"},
+		FilterOption{"75", "Alta"}, FilterOption{"90", "Inminente"})
 	userRoleFilter   = enumFilter(FilterOption{"admin", "Administrador"}, FilterOption{"vendedor", "Vendedor"})
 	userStatusFilter = enumFilter(FilterOption{"activo", "Activo"}, FilterOption{"deshabilitado", "Deshabilitado"})
 )

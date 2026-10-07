@@ -87,9 +87,11 @@ and the FX/copper/flat-price paths). All tests pass; nothing is skipped.
 Since the snapshot, slice 4.1 (proyectos, 2026-10-06) moved the stage tests from
 `pipeline_test.go` to `internal/store/projects_test.go` (stage moves, the probability
 steps, a proyecto opening on issue and following revisions, and `TestMigration0016`
-over every old stage) and `TestQuotesEtapa` now also covers the probability control,
-the revision lock after the O.C. and the list's stage filter. `internal/store` is at
-81.0% and `internal/web` at 80.0%.
+over every old stage, `TestProjectReads` for the list and page queries) and replaced
+`TestQuotesEtapa` with `internal/web/projects_test.go`: `TestProjectsFollowUp` (stage
+moves, the probability control, the revision lock after the O.C., comments),
+`TestProjectsWithARevisionInDraft` and `TestProjectsList`. Those also pin the strings
+`docs/guia/proyectos.md` quotes, so they double as its guide-conformance tests.
 
 ## Tracked gaps
 

@@ -8,22 +8,23 @@ package views
 type HelpTopic string
 
 const (
-	HelpInicio                HelpTopic = "/ayuda#la-página-de-inicio"
-	HelpMiCuenta              HelpTopic = "/ayuda/acceso#cambiar-tu-contraseña"
-	HelpClientes              HelpTopic = "/ayuda/clientes"
-	HelpClienteNuevo          HelpTopic = "/ayuda/clientes#dar-de-alta-un-cliente"
-	HelpClienteEditar         HelpTopic = "/ayuda/clientes#editar-un-cliente"
-	HelpCotizaciones          HelpTopic = "/ayuda/cotizaciones"
-	HelpCotizacionNueva       HelpTopic = "/ayuda/cotizaciones#crear-una-cotización"
-	HelpCotizacionBorrador    HelpTopic = "/ayuda/cotizaciones#agregar-productos-por-sku"
-	HelpCotizacionEmitida     HelpTopic = "/ayuda/cotizaciones#descargar-y-enviar-el-pdf"
-	HelpCotizacionSeguimiento HelpTopic = "/ayuda/cotizaciones#dar-seguimiento-a-una-cotización"
-	HelpCotizacionRevisada    HelpTopic = "/ayuda/cotizaciones#revisar-una-cotización-emitida"
-	HelpProductos             HelpTopic = "/ayuda/productos"
-	HelpProductoNuevo         HelpTopic = "/ayuda/productos#dar-de-alta-un-producto"
-	HelpProductoEditar        HelpTopic = "/ayuda/productos#editar-un-producto"
-	HelpConversiones          HelpTopic = "/ayuda/productos#conversiones-de-unidades"
-	HelpProductoMateriales    HelpTopic = "/ayuda/productos#materiales-de-un-producto"
+	HelpInicio             HelpTopic = "/ayuda#la-página-de-inicio"
+	HelpMiCuenta           HelpTopic = "/ayuda/acceso#cambiar-tu-contraseña"
+	HelpClientes           HelpTopic = "/ayuda/clientes"
+	HelpClienteNuevo       HelpTopic = "/ayuda/clientes#dar-de-alta-un-cliente"
+	HelpClienteEditar      HelpTopic = "/ayuda/clientes#editar-un-cliente"
+	HelpCotizaciones       HelpTopic = "/ayuda/cotizaciones"
+	HelpCotizacionNueva    HelpTopic = "/ayuda/cotizaciones#crear-una-cotización"
+	HelpCotizacionBorrador HelpTopic = "/ayuda/cotizaciones#agregar-productos-por-sku"
+	HelpCotizacionEmitida  HelpTopic = "/ayuda/cotizaciones#descargar-y-enviar-el-pdf"
+	HelpProyectos          HelpTopic = "/ayuda/proyectos"
+	HelpProyecto           HelpTopic = "/ayuda/proyectos#dar-seguimiento-a-un-proyecto"
+	HelpCotizacionRevisada HelpTopic = "/ayuda/cotizaciones#revisar-una-cotización-emitida"
+	HelpProductos          HelpTopic = "/ayuda/productos"
+	HelpProductoNuevo      HelpTopic = "/ayuda/productos#dar-de-alta-un-producto"
+	HelpProductoEditar     HelpTopic = "/ayuda/productos#editar-un-producto"
+	HelpConversiones       HelpTopic = "/ayuda/productos#conversiones-de-unidades"
+	HelpProductoMateriales HelpTopic = "/ayuda/productos#materiales-de-un-producto"
 
 	// Admin-only screens link to the admin-only guide page.
 	HelpAjustes    HelpTopic = "/ayuda/administracion#márgenes"
@@ -35,36 +36,34 @@ const (
 
 // HelpTopics lists every topic with whether it is only linked from admin screens.
 var HelpTopics = map[HelpTopic]bool{
-	HelpInicio:                false,
-	HelpMiCuenta:              false,
-	HelpClientes:              false,
-	HelpClienteNuevo:          false,
-	HelpClienteEditar:         false,
-	HelpCotizaciones:          false,
-	HelpCotizacionNueva:       false,
-	HelpCotizacionBorrador:    false,
-	HelpCotizacionEmitida:     false,
-	HelpCotizacionSeguimiento: false,
-	HelpCotizacionRevisada:    false,
-	HelpProductos:             false,
-	HelpProductoNuevo:         false,
-	HelpProductoEditar:        false,
-	HelpConversiones:          false,
-	HelpProductoMateriales:    false,
-	HelpAjustes:               true,
-	HelpMateriales:            true,
-	HelpUsuarios:              true,
-	HelpUnidades:              true,
-	HelpFamilias:              true,
+	HelpInicio:             false,
+	HelpMiCuenta:           false,
+	HelpClientes:           false,
+	HelpClienteNuevo:       false,
+	HelpClienteEditar:      false,
+	HelpCotizaciones:       false,
+	HelpCotizacionNueva:    false,
+	HelpCotizacionBorrador: false,
+	HelpCotizacionEmitida:  false,
+	HelpProyectos:          false,
+	HelpProyecto:           false,
+	HelpCotizacionRevisada: false,
+	HelpProductos:          false,
+	HelpProductoNuevo:      false,
+	HelpProductoEditar:     false,
+	HelpConversiones:       false,
+	HelpProductoMateriales: false,
+	HelpAjustes:            true,
+	HelpMateriales:         true,
+	HelpUsuarios:           true,
+	HelpUnidades:           true,
+	HelpFamilias:           true,
 }
 
-// quoteHelpTopic picks the help for a quote page from what store.Quote.DisplayStatus says.
 func quoteHelpTopic(status string) HelpTopic {
 	switch status {
-	case "emitida", "prospecto":
+	case "emitida":
 		return HelpCotizacionEmitida
-	case "oc_recibida", "en_entrega", "cerrado":
-		return HelpCotizacionSeguimiento
 	case "revisada":
 		return HelpCotizacionRevisada
 	}

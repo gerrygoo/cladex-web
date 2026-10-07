@@ -96,7 +96,7 @@ func TestProjectOverview(t *testing.T) {
 		}
 	}
 	pros := ov.Stages[0]
-	if pros.Total != money.Centavos(9_200_00) || len(pros.Top) != 3 || pros.Top[0].Folio != "QA0006" || pros.Top[2].Folio != "QA0005-R1" {
+	if pros.Total != money.Centavos(9_200_00) || len(pros.Top) != 3 || pros.Top[0].Folio != "QA0006" || pros.Top[2].Folio != "QA0005" || pros.Top[2].Total != money.Centavos(1_500_00) {
 		t.Errorf("prospecto stage = %+v", pros)
 	}
 	if pros.ForecastCount != 2 || pros.ForecastTotal != money.Centavos(2_700_00) {

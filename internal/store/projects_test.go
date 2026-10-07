@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gerrygoo/cladex-web"
@@ -84,8 +85,8 @@ func TestIssueQuoteOpensProject(t *testing.T) {
 	if q.ProjectID == nil || q.ProjectFolio != "QA0001" || q.Stage != "prospecto" || q.Probability != 10 {
 		t.Fatalf("issued quote's proyecto = %+v, %q, %q, %d", q.ProjectID, q.ProjectFolio, q.Stage, q.Probability)
 	}
-	if q.Status != "emitida" || q.DisplayStatus() != "prospecto" {
-		t.Fatalf("status = %q, display = %q", q.Status, q.DisplayStatus())
+	if q.Status != "emitida" || !q.Revisable() {
+		t.Fatalf("status = %q, revisable = %v", q.Status, q.Revisable())
 	}
 	var owner, customer int64
 	if err := s.db.QueryRowContext(ctx, `SELECT user_id, customer_id FROM projects WHERE id = ?`, *q.ProjectID).Scan(&owner, &customer); err != nil {
@@ -100,7 +101,7 @@ func TestIssueQuoteOpensProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateRevision: %v", err)
 	}
-	if rev.ProjectID == nil || *rev.ProjectID != *q.ProjectID || rev.DisplayStatus() != "borrador" {
+	if rev.ProjectID == nil || *rev.ProjectID != *q.ProjectID || rev.Status != "borrador" {
 		t.Fatalf("revision = %+v", rev)
 	}
 	if err := s.IssueQuote(ctx, rev.ID, testIssue("sha2")); err != nil {
@@ -110,8 +111,8 @@ func TestIssueQuoteOpensProject(t *testing.T) {
 	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM projects`).Scan(&projects); err != nil || projects != 1 {
 		t.Fatalf("projects = %d, %v; want 1", projects, err)
 	}
-	if old, _ := s.QuoteByID(ctx, q.ID); old.DisplayStatus() != "revisada" {
-		t.Fatalf("superseded quote shows %q", old.DisplayStatus())
+	if old, _ := s.QuoteByID(ctx, q.ID); old.Status != "revisada" || old.Revisable() {
+		t.Fatalf("superseded quote = %q, revisable %v", old.Status, old.Revisable())
 	}
 
 	// The proyecto is audited: opened by the issuing user.
@@ -172,8 +173,8 @@ func TestMoveProject(t *testing.T) {
 		t.Errorf("MoveProject past the last stage = %v", err)
 	}
 	// The quote itself never left emitida.
-	if got, _ := s.QuoteByID(ctx, q.ID); got.Status != "emitida" || got.DisplayStatus() != "cerrado" {
-		t.Errorf("quote status = %q, display = %q", got.Status, got.DisplayStatus())
+	if got, _ := s.QuoteByID(ctx, q.ID); got.Status != "emitida" || got.Stage != "cerrado" || got.Revisable() {
+		t.Errorf("quote status = %q, stage = %q, revisable = %v", got.Status, got.Stage, got.Revisable())
 	}
 
 	// Each move left a comment, the first with the user's note.
@@ -396,5 +397,95 @@ func TestMigration0016(t *testing.T) {
 	}
 	if _, err := s.db.ExecContext(ctx, `UPDATE quotes SET status = 'pipeline' WHERE id = 2`); err == nil {
 		t.Error("quotes.status still accepts a pipeline stage")
+	}
+}
+
+// TestProjectReads covers what the proyecto screens read: one proyecto by folio, the
+// list with its search, sort and filters, a proyecto's quotes and its history.
+func TestProjectReads(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	q, user := projectFixture(t, s)
+	other, err := s.CreateCustomer(ctx, Customer{Name: "Constructora X"})
+	if err != nil {
+		t.Fatalf("CreateCustomer: %v", err)
+	}
+	insertProject(t, s, "QS0001", other, user, "oc_recibida", 90, 900_00)
+	insertProject(t, s, "QA0002", other, user, "prospecto", 90, 300_00)
+
+	if err := s.AddQuoteComment(ctx, q.ID, user, "Primera llamada"); err != nil {
+		t.Fatalf("AddQuoteComment: %v", err)
+	}
+	rev, err := s.CreateRevision(ctx, q.ID, user)
+	if err != nil {
+		t.Fatalf("CreateRevision: %v", err)
+	}
+	if _, err := s.db.ExecContext(ctx, `UPDATE quotes SET total = 150000 WHERE id = ?`, rev.ID); err != nil {
+		t.Fatalf("set total: %v", err)
+	}
+	if err := s.SetProjectProbability(ctx, *q.ProjectID, user, 50, ""); err != nil {
+		t.Fatalf("SetProjectProbability: %v", err)
+	}
+
+	p, err := s.ProjectByFolio(ctx, "QA0001")
+	if err != nil || p == nil {
+		t.Fatalf("ProjectByFolio: %v, %v", p, err)
+	}
+	if p.CustomerName != "Grupo PEME" || p.UserName != "Rodolfo" || p.Status != "prospecto" || p.Probability != 50 ||
+		p.CurrentQuoteFolio != "QA0001-R1" || p.CurrentQuoteStatus != "borrador" || p.Total != 150000 || p.ForecastRelevant() {
+		t.Errorf("project = %+v", p)
+	}
+	if none, err := s.ProjectByFolio(ctx, "QA0001-R1"); err != nil || none != nil {
+		t.Errorf("ProjectByFolio(a quote's folio) = %v, %v; want nil", none, err)
+	}
+
+	quotes, err := s.ListProjectQuotes(ctx, p.ID)
+	if err != nil || len(quotes) != 2 || quotes[0].Folio != "QA0001-R1" || quotes[1].Status != "revisada" {
+		t.Errorf("ListProjectQuotes = %+v, %v", quotes, err)
+	}
+	// The history spans both quotes: the note on the original, the change on the revision.
+	comments, err := s.ListProjectComments(ctx, p.ID)
+	if err != nil || len(comments) != 2 {
+		t.Fatalf("ListProjectComments = %d, %v; want 2", len(comments), err)
+	}
+	if comments[0].Body != "Probabilidad: Inicial → Media." || comments[0].QuoteFolio != "QA0001-R1" ||
+		comments[1].Body != "Primera llamada" || comments[1].QuoteFolio != "QA0001" {
+		t.Errorf("comments = %+v", comments)
+	}
+
+	folios := func(query, sort, dir string, f Filters) string {
+		t.Helper()
+		ps, err := s.ListProjects(ctx, query, sort, dir, f)
+		if err != nil {
+			t.Fatalf("ListProjects: %v", err)
+		}
+		var out []string
+		for _, p := range ps {
+			out = append(out, p.Folio)
+		}
+		return strings.Join(out, ",")
+	}
+	for _, c := range []struct {
+		name, query, sort, dir string
+		filters                Filters
+		want                   string
+	}{
+		{"by total", "", "total", "desc", nil, "QA0001,QS0001,QA0002"},
+		{"by stage, in lifecycle order", "", "etapa", "desc", nil, "QS0001,QA0001,QA0002"},
+		{"search by customer", "constructora", "folio", "asc", nil, "QA0002,QS0001"},
+		{"search by folio", "qs", "", "", nil, "QS0001"},
+		{"stage filter", "", "folio", "asc", Filters{"etapa": {"prospecto"}}, "QA0001,QA0002"},
+		// QS0001 kept its 90 but is past prospecto, so the probability filter skips it.
+		{"probability filter", "", "folio", "asc", Filters{"probabilidad": {"90"}}, "QA0002"},
+		{"probability filter, two steps", "", "folio", "asc", Filters{"probabilidad": {"50", "90"}}, "QA0001,QA0002"},
+	} {
+		if got := folios(c.query, c.sort, c.dir, c.filters); got != c.want {
+			t.Errorf("%s: got %s, want %s", c.name, got, c.want)
+		}
+	}
+
+	customers, owners, err := s.ProjectFilterChoices(ctx)
+	if err != nil || strings.Join(customers, ",") != "Constructora X,Grupo PEME" || strings.Join(owners, ",") != "Rodolfo" {
+		t.Errorf("ProjectFilterChoices = %v, %v, %v", customers, owners, err)
 	}
 }

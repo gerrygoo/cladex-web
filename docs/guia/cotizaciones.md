@@ -13,7 +13,7 @@ El flujo completo, de principio a fin:
 6. [Descargar el PDF](#descargar-y-enviar-el-pdf) y enviarlo al cliente.
 7. ¿El cliente pidió cambios? [Revisar](#revisar-una-cotización-emitida): se crea una
    nueva versión (`QA0012-R1`).
-8. Cuando la propuesta avanza, [dale seguimiento](#dar-seguimiento-a-una-cotización)
+8. Cuando la propuesta avanza, [dale seguimiento a su proyecto](proyectos.md#dar-seguimiento-a-un-proyecto)
    hasta que se entregue y se cobre.
 
 ## Crear una cotización
@@ -185,12 +185,13 @@ Cuando la cotización está lista para enviarse al cliente:
    un solo paso: no hace falta guardar antes.
 3. Confirma *"¿Emitir la cotización? Sus precios quedan congelados; para cambiarla
    después habrá que crear una revisión."*
-4. Verás *"Cotización emitida."* y, en el resumen debajo del cliente, **Estado** *Prospecto*.
+4. Verás *"Cotización emitida."* y, en el resumen debajo del cliente, **Estado** *Emitida*
+   y el enlace a su **Proyecto**.
 
 Qué pasa al emitir:
 
 - Se abre su [[proyecto]], como [[prospecto]] con [[probabilidad de cierre]] Inicial.
-  Desde ahí se le [da seguimiento](#dar-seguimiento-a-una-cotización). Si la cotización
+  Ahí se le [da seguimiento](proyectos.md#dar-seguimiento-a-un-proyecto). Si la cotización
   es una revisión, sigue en el proyecto de la original.
 - Se congelan los precios, el margen y los términos y condiciones. La
   cotización ya no se puede editar; aunque después cambien los ajustes o el catálogo,
@@ -270,7 +271,9 @@ Qué pasa al revisar:
   [[probabilidad de cierre]]. Mientras está en borrador, el proyecto cuenta con el total
   de ese borrador.
 - Solo se puede revisar mientras el proyecto es [[prospecto]]. Cuando el cliente ya
-  mandó su orden de compra, el botón **Revisar** desaparece.
+  mandó su orden de compra, en lugar del botón **Revisar** verás *"Esta cotización ya
+  no se puede revisar"*.
+- Arriba del borrador de la revisión, **Proyecto** tiene el enlace a su proyecto.
 - Una revisión de la `-R1` (ya emitida) será `-R2`, y así sucesivamente. Solo se puede
   revisar la versión emitida más reciente.
 - No se puede deshacer: al hacer clic en **Revisar**, la original queda como revisada.
@@ -280,69 +283,14 @@ Qué pasa al revisar:
 > y los ajustes **actuales**, no con los de la original. Revisa los precios antes de
 > emitirla.
 
-## Dar seguimiento a una cotización
-
-Al emitir una cotización se abre su [[proyecto]], con el mismo folio. El seguimiento se
-le da al proyecto, desde la página de su cotización vigente, en la sección
-**Seguimiento del proyecto**. Así el equipo sabe en qué punto está cada uno y el resumen
-de la [página de inicio](README.md#la-página-de-inicio) se mantiene al día.
-
-| Etapa | Cuándo pasarlo | Botón |
-|---|---|---|
-| [[prospecto]] | La cotización ya se emitió y se la compartimos al cliente. | — |
-| [[O.C. recibida]] | El cliente mandó su orden de compra. | **Pasar a O.C. recibida** |
-| [[en entrega]] | El pedido ya va en camino o se le entregó al cliente. | **Pasar a En entrega** |
-| [[cerrado]] | Ya se entregó, se facturó, se cobró y se emitió el complemento de pago (si aplica). | **Pasar a Cerrado** |
-
-### Anotar la probabilidad de cierre
-
-Mientras el proyecto es prospecto, anota qué tan cerca está de cerrarse:
-
-1. Abre la cotización.
-2. En **Probabilidad de cierre**, elige un paso: **Inicial**, **Baja**, **Media**,
-   **Alta** o **Inminente**. El porcentaje junto a cada uno es solo una referencia.
-3. Escribe en **Comentario** por qué cambió (opcional pero recomendado).
-4. Haz clic en **Guardar probabilidad**.
-
-En **Comentarios** aparece una línea como *"Probabilidad: Baja → Alta."* con tu nota.
-
-- Desde **Alta**, el proyecto es [[relevante para pronóstico]]: es de los que el equipo
-  revisa cuando ve qué está por cerrar. No hay que marcarlo aparte.
-- Un proyecto nuevo empieza en **Inicial**. Actualiza la probabilidad cada vez que haya
-  noticias del cliente, hacia arriba o hacia abajo.
-
-### Pasar el proyecto a la siguiente etapa
-
-1. Abre la cotización.
-2. Debajo de la probabilidad, escribe en **Comentario** lo que dijo el cliente y los
-   siguientes pasos (opcional pero recomendado).
-3. Haz clic en el botón de la siguiente etapa.
-
-El proyecto queda en la etapa nueva y en **Comentarios** aparece una línea como
-*"Pasó a O.C. recibida."* con tu nota, quién la escribió y cuándo. Ahí queda la historia.
-
-- Solo se avanza de una etapa a la siguiente, sin saltarse ninguna.
-- Si el cliente todavía pide cambios, usa [Revisar](#revisar-una-cotización-emitida)
-  **antes** de pasarlo a O.C. recibida. Con la orden de compra recibida la cotización
-  ya no se puede revisar: la orden responde a esa cotización.
-- Si hay una revisión en borrador, emítela primero: el proyecto no puede pasar a
-  O.C. recibida mientras su cotización vigente no esté emitida.
-- Cualquier usuario puede avanzar un proyecto. Si te equivocaste y lo pasaste de más,
-  pídele a un administrador que lo regrese.
-:::admin
-Un administrador ve además el botón **Regresar a …** para devolver el proyecto a la
-etapa anterior (queda un comentario *"Regresó a …"*). Un proyecto que regresa a
-prospecto conserva la probabilidad que tenía y su cotización se puede volver a revisar.
-:::
-
 ## Ver el detalle de una cotización
 
 En el menú **Cotizaciones**, elige **Ver cotizaciones** y haz clic en el folio de
 cualquier cotización que no sea [[borrador]]. Debajo del nombre de la cotización y del cliente verás este resumen, y luego las líneas y los totales:
 
-- **Estado**: la etapa de su [[proyecto]] (p. ej. *Prospecto*), o *Revisada* si una
-  revisión la reemplazó.
-- **Probabilidad**: la [[probabilidad de cierre]], mientras el proyecto es prospecto.
+- **Estado** de la cotización: *Emitida*, o *Revisada* si una revisión la reemplazó.
+- **Proyecto**: el enlace a su [[proyecto]] y la etapa en que está. El
+  [seguimiento](proyectos.md#dar-seguimiento-a-un-proyecto) se lleva ahí.
 - **Emitió**: quién la emitió.
 - **Emitida** y **Vigencia**: las fechas. Todas las fechas se ven como `28/09/2026 - 16:42`,
   en la zona horaria de tu navegador (la vigencia es solo un día, sin hora).
@@ -354,7 +302,9 @@ cualquier cotización que no sea [[borrador]]. Debajo del nombre de la cotizaci�
 
 Toda cotización, en cualquier estado, tiene una caja de **Comentarios** al final de la
 página, debajo de **Descargar PDF** y **Volver a cotizaciones**. Sirve para dar
-seguimiento (*"el cliente pidió otro precio"*, *"llamar el lunes"*).
+seguimiento (*"el cliente pidió otro precio"*, *"llamar el lunes"*). Los comentarios de
+todas las cotizaciones de un proyecto se leen juntos en el
+[historial del proyecto](proyectos.md#comentar-un-proyecto).
 
 1. Abre la cotización.
 2. Escribe en **Agregar un comentario** y haz clic en **Comentar**.

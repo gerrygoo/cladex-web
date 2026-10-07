@@ -73,16 +73,6 @@ type Quote struct {
 	Probability  int
 }
 
-// DisplayStatus is the one word that says where a quote stands: its proyecto's stage
-// when it is the proyecto's issued, current quote, and its own status otherwise (a
-// draft, or a quote a revision replaced).
-func (q Quote) DisplayStatus() string {
-	if q.Status == "emitida" && q.Stage != "" {
-		return q.Stage
-	}
-	return q.Status
-}
-
 // Revisable reports whether the quote can be revised: it is the issued, current quote
 // and its proyecto is still a prospecto. Once the client's purchase order is in, the
 // quote it answers is locked.
@@ -251,17 +241,13 @@ func (s *Store) QuoteByFolio(ctx context.Context, folio string) (*Quote, error) 
 	return q, nil
 }
 
-// quoteDisplayStatus is Quote.DisplayStatus in SQL, for sorting and filtering the list
-// by the word its Estado column shows.
-const quoteDisplayStatus = `CASE WHEN q.status = 'emitida' AND p.status IS NOT NULL THEN p.status ELSE q.status END`
-
 // quoteSortColumns is the sortable-column whitelist for ListQuotes. When sort doesn't
 // match a known column, ListQuotes uses quoteDefaultOrder instead.
 var quoteSortColumns = []sortColumn{
 	{"folio", "q.folio"},
 	{"cliente", "c.name"},
 	{"autor", "u.name COLLATE NOCASE"},
-	{"estado", quoteDisplayStatus},
+	{"estado", "q.status"},
 	{"total", "q.total"},
 	{"fecha", "q.created_at"},
 }
@@ -275,7 +261,7 @@ var quoteFilterColumns = []filterColumn{
 	{name: "folio", expr: "q.folio", kind: FilterText},
 	{name: "cliente", expr: "c.name", kind: FilterText},
 	{name: "autor", expr: "u.name", kind: FilterText},
-	{name: "estado", expr: quoteDisplayStatus, kind: FilterEnum},
+	{name: "estado", expr: "q.status", kind: FilterEnum},
 	{name: "total", expr: "q.total", kind: FilterNumber, scale: 100},
 	{name: "fecha", expr: "q.created_at", kind: FilterDate},
 }
