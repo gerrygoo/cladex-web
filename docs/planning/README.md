@@ -34,3 +34,4 @@ documentation of shipped behavior.
 | [Ciclo de vida: cotización → proyecto → cobro](ciclo-de-vida-cotizacion-a-cobro.md) | The 2026-10-05 whiteboard: quote states, post-issue project pipeline, and a proposed payment sub-status (PPD/PUE) |
 | [Hitos: proyectos y facturas](hitos-proyectos-y-facturas.md) | Implementation order for the two docs above: M4 proyectos, M5–M8 facturación, the decisions behind it and the questions still open for Emilio |
 | [Facturas: timbrado digital y envío](facturas-timbrado-y-envio.md) | CFDI stamping through an external PAC and delivery to recipients: states before/after each step, cancellation, tracking model, dependencies |
+| [Órdenes de compra a proveedores](ordenes-de-compra-a-proveedores.md) | Product goal, not yet designed: tracking and generating Cladex's own O.C. to suppliers for what a proyecto needs |

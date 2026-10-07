@@ -181,7 +181,9 @@ The first milestone of #20. Manual actions only, no job system. Admin-only (deci
   M6–M7 have shown what retries and timeouts really need.
 - **Roles** (sysadmin / admin / ventas) and who may stamp and cancel. M6 ships
   admin-only as a stopgap.
-- **OC to suppliers**, follow-up reminders by email, copies to the client.
+- **Órdenes de compra a proveedores**: a separate product goal, tracked in
+  [its own doc](ordenes-de-compra-a-proveedores.md).
+- Follow-up reminders by email, copies to the client.
 
 ## Questions for Emilio
 
