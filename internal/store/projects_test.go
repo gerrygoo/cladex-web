@@ -47,6 +47,9 @@ func TestForecastRelevant(t *testing.T) {
 	}
 }
 
+// testOC is a complete purchase order for tests that only need a proyecto past prospecto.
+var testOC = OC{Number: "4411", Date: "2026-10-07", PaymentMethod: "PUE"}
+
 // projectFixture issues one quote through the store, so it has a proyecto, and returns
 // the quote.
 func projectFixture(t *testing.T, s *Store) (quote *Quote, userID int64) {
@@ -140,6 +143,7 @@ func TestMoveProject(t *testing.T) {
 	for _, c := range []struct{ from, to string }{
 		{"prospecto", "en_entrega"}, {"prospecto", "prospecto"}, {"prospecto", ""}, {"prospecto", "perdido"},
 		{"prospecto", "facturado"},
+		{"prospecto", "oc_recibida"},  // that step needs the purchase order: ReceiveOC
 		{"oc_recibida", "en_entrega"}, // right step, but the proyecto is still a prospecto
 	} {
 		if err := s.MoveProject(ctx, project, user, c.from, c.to, ""); !errors.Is(err, ErrBadTransition) {
@@ -150,7 +154,7 @@ func TestMoveProject(t *testing.T) {
 		t.Fatalf("stage after refused moves = %q", got)
 	}
 
-	if err := s.MoveProject(ctx, project, user, "prospecto", "oc_recibida", "Llegó la OC 4411"); err != nil {
+	if err := s.ReceiveOC(ctx, project, user, testOC, nil, "Llegó la OC 4411"); err != nil {
 		t.Fatalf("MoveProject forward: %v", err)
 	}
 	if got := stage(); got != "oc_recibida" {
@@ -163,7 +167,10 @@ func TestMoveProject(t *testing.T) {
 	if err := s.MoveProject(ctx, project, user, "oc_recibida", "prospecto", ""); err != nil {
 		t.Fatalf("MoveProject back: %v", err)
 	}
-	for _, to := range []string{"oc_recibida", "en_entrega", "cerrado"} {
+	if err := s.ReceiveOC(ctx, project, user, testOC, nil, ""); err != nil {
+		t.Fatalf("ReceiveOC again: %v", err)
+	}
+	for _, to := range []string{"en_entrega", "cerrado"} {
 		from := PrevStage(to)
 		if err := s.MoveProject(ctx, project, user, from, to, ""); err != nil {
 			t.Fatalf("MoveProject %s → %s: %v", from, to, err)
@@ -185,7 +192,7 @@ func TestMoveProject(t *testing.T) {
 	if len(comments) != 5 {
 		t.Fatalf("comments = %d, want 5", len(comments))
 	}
-	if last := comments[len(comments)-1]; last.Body != "Pasó a O.C. recibida.\nLlegó la OC 4411" {
+	if last := comments[len(comments)-1]; last.Body != "Pasó a O.C. recibida.\nO.C. 4411 · 07/10/2026 · P.U.E.\nLlegó la OC 4411" {
 		t.Errorf("first comment = %q", last.Body)
 	}
 	if comments[len(comments)-2].Body != "Regresó a Prospecto." {
@@ -208,13 +215,13 @@ func TestMoveProjectFollowsTheCurrentQuote(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateRevision: %v", err)
 	}
-	if err := s.MoveProject(ctx, project, user, "prospecto", "oc_recibida", ""); !errors.Is(err, ErrBadTransition) {
+	if err := s.ReceiveOC(ctx, project, user, testOC, nil, ""); !errors.Is(err, ErrBadTransition) {
 		t.Fatalf("MoveProject with a draft revision = %v, want ErrBadTransition", err)
 	}
 	if err := s.IssueQuote(ctx, rev.ID, testIssue("sha2")); err != nil {
 		t.Fatalf("IssueQuote(revision): %v", err)
 	}
-	if err := s.MoveProject(ctx, project, user, "prospecto", "oc_recibida", ""); err != nil {
+	if err := s.ReceiveOC(ctx, project, user, testOC, nil, ""); err != nil {
 		t.Fatalf("MoveProject: %v", err)
 	}
 	if c, _ := s.ListQuoteComments(ctx, rev.ID); len(c) != 1 {
@@ -265,7 +272,7 @@ func TestSetProjectProbability(t *testing.T) {
 	}
 
 	// Only a prospecto has a probability to set; the value it had is kept.
-	if err := s.MoveProject(ctx, project, user, "prospecto", "oc_recibida", ""); err != nil {
+	if err := s.ReceiveOC(ctx, project, user, testOC, nil, ""); err != nil {
 		t.Fatalf("MoveProject: %v", err)
 	}
 	if err := s.SetProjectProbability(ctx, project, user, 90, ""); !errors.Is(err, ErrBadTransition) {
@@ -389,7 +396,7 @@ func TestMigration0016(t *testing.T) {
 		t.Fatalf("IssueQuote(QA0007-R1): %v", err)
 	}
 	q11, _ := s.QuoteByID(ctx, 11)
-	if err := s.MoveProject(ctx, *q11.ProjectID, 1, "prospecto", "oc_recibida", ""); err != nil {
+	if err := s.ReceiveOC(ctx, *q11.ProjectID, 1, testOC, nil, ""); err != nil {
 		t.Fatalf("MoveProject: %v", err)
 	}
 	if _, err := s.db.ExecContext(ctx, `UPDATE quotes SET status = 'emitida' WHERE id = 10`); err == nil {
@@ -568,7 +575,7 @@ func TestLoseAndReopenProject(t *testing.T) {
 	}
 
 	// From O.C. recibida it goes back to O.C. recibida; later stages can't be lost.
-	if err := s.MoveProject(ctx, project, user, "prospecto", "oc_recibida", ""); err != nil {
+	if err := s.ReceiveOC(ctx, project, user, testOC, nil, ""); err != nil {
 		t.Fatalf("MoveProject: %v", err)
 	}
 	if err := s.LoseProject(ctx, project, user, "oc_recibida", "Cancelaron la OC"); err != nil {
@@ -665,7 +672,7 @@ func TestFollowUpProject(t *testing.T) {
 		AND json_extract(new_values, '$.expected_oc_date') = '2026-10-15'`).Scan(&n); err != nil || n == 0 {
 		t.Errorf("audit rows with the expected date = %d, %v", n, err)
 	}
-	if err := s.MoveProject(ctx, project, user, "prospecto", "oc_recibida", ""); err != nil {
+	if err := s.ReceiveOC(ctx, project, user, testOC, nil, ""); err != nil {
 		t.Fatalf("MoveProject: %v", err)
 	}
 	if err := s.FollowUpProject(ctx, project, user, FollowUp{ExpectedOC: str("2026-11-01")}); !errors.Is(err, ErrBadTransition) {
@@ -730,5 +737,122 @@ func TestListProspectsAndWeights(t *testing.T) {
 	}
 	if oc := ov.Stages[1]; oc.Weighted != 0 || oc.FollowUpsDue != 0 {
 		t.Errorf("oc_recibida weighted = %v, due = %d; want none", oc.Weighted, oc.FollowUpsDue)
+	}
+}
+
+func TestReceiveOC(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	q, user := projectFixture(t, s)
+	project := *q.ProjectID
+	load := func() *Project {
+		t.Helper()
+		p, err := s.ProjectByFolio(ctx, "QA0001")
+		if err != nil || p == nil {
+			t.Fatalf("ProjectByFolio: %v, %v", p, err)
+		}
+		return p
+	}
+
+	// All three pieces of the purchase order are required, and a file can't be empty.
+	for name, oc := range map[string]OC{
+		"no number":         {Number: "  ", Date: "2026-10-07", PaymentMethod: "PUE"},
+		"no date":           {Number: "4411", PaymentMethod: "PUE"},
+		"malformed date":    {Number: "4411", Date: "07/10/2026", PaymentMethod: "PUE"},
+		"no payment method": {Number: "4411", Date: "2026-10-07"},
+		"unknown method":    {Number: "4411", Date: "2026-10-07", PaymentMethod: "contado"},
+	} {
+		if err := s.ReceiveOC(ctx, project, user, oc, nil, ""); !errors.Is(err, ErrBadTransition) {
+			t.Errorf("ReceiveOC(%s) = %v, want ErrBadTransition", name, err)
+		}
+	}
+	if err := s.ReceiveOC(ctx, project, user, testOC, &NewFile{Filename: "oc.pdf"}, ""); !errors.Is(err, ErrBadTransition) {
+		t.Errorf("ReceiveOC(empty file) = %v, want ErrBadTransition", err)
+	}
+	if p := load(); p.Status != "prospecto" || p.HasOC() {
+		t.Fatalf("after refused attempts = %+v", p)
+	}
+
+	// While a revision is in draft there is no issued quote for the O.C. to answer.
+	rev, err := s.CreateRevision(ctx, q.ID, user)
+	if err != nil {
+		t.Fatalf("CreateRevision: %v", err)
+	}
+	if err := s.ReceiveOC(ctx, project, user, testOC, nil, ""); !errors.Is(err, ErrBadTransition) {
+		t.Fatalf("ReceiveOC with a draft revision = %v, want ErrBadTransition", err)
+	}
+	if err := s.IssueQuote(ctx, rev.ID, testIssue("sha2")); err != nil {
+		t.Fatalf("IssueQuote(revision): %v", err)
+	}
+
+	pdf := &NewFile{Filename: " OC-4411.pdf ", ContentType: "application/pdf", Data: []byte("%PDF-1.7 one")}
+	if err := s.ReceiveOC(ctx, project, user, OC{Number: " 4411 ", Date: "2026-10-07", PaymentMethod: "PPD"}, pdf, "Llegó por correo"); err != nil {
+		t.Fatalf("ReceiveOC: %v", err)
+	}
+	p := load()
+	if p.Status != "oc_recibida" || p.OC != (OC{Number: "4411", Date: "2026-10-07", PaymentMethod: "PPD"}) || !p.HasOC() {
+		t.Fatalf("after ReceiveOC = %+v", p)
+	}
+	want := "Pasó a O.C. recibida.\nO.C. 4411 · 07/10/2026 · P.P.D.\nArchivo de la O.C.: OC-4411.pdf\nLlegó por correo"
+	if p.LastBody != want {
+		t.Errorf("history = %q", p.LastBody)
+	}
+
+	// In oc_recibida it corrects the data; saving the same thing says nothing.
+	if err := s.ReceiveOC(ctx, project, user, p.OC, nil, ""); err != nil {
+		t.Fatalf("ReceiveOC(unchanged): %v", err)
+	}
+	if got := load().LastBody; got != want {
+		t.Errorf("an unchanged save wrote to the history: %q", got)
+	}
+	corrected := &NewFile{Filename: "OC-4411-corregida.pdf", ContentType: "application/pdf", Data: []byte("%PDF-1.7 two")}
+	if err := s.ReceiveOC(ctx, project, user, OC{Number: "4411-A", Date: "2026-10-08", PaymentMethod: "PUE"}, corrected, ""); err != nil {
+		t.Fatalf("ReceiveOC(correction): %v", err)
+	}
+	p = load()
+	if p.OC.Number != "4411-A" || p.OC.PaymentMethod != "PUE" ||
+		p.LastBody != "O.C. actualizada: 4411-A · 08/10/2026 · P.U.E.\nArchivo de la O.C.: OC-4411-corregida.pdf" {
+		t.Errorf("after correction = %+v", p)
+	}
+
+	// Both files are kept, newest first, and only served to their own proyecto.
+	files, err := s.ListProjectFiles(ctx, project, "oc")
+	if err != nil || len(files) != 2 || files[0].Filename != "OC-4411-corregida.pdf" || files[1].Filename != "OC-4411.pdf" ||
+		files[1].Size != int64(len(pdf.Data)) || files[0].UploadedByName != "Rodolfo" {
+		t.Fatalf("ListProjectFiles = %+v, %v", files, err)
+	}
+	f, data, err := s.ProjectFileData(ctx, project, files[1].ID)
+	if err != nil || f == nil || string(data) != "%PDF-1.7 one" || f.ContentType != "application/pdf" {
+		t.Errorf("ProjectFileData = %+v, %q, %v", f, data, err)
+	}
+	if f, _, err := s.ProjectFileData(ctx, project+1, files[1].ID); err != nil || f != nil {
+		t.Errorf("another proyecto's file = %+v, %v; want nil", f, err)
+	}
+
+	// Sent back to prospecto it keeps the purchase order's data, but the way forward is
+	// still ReceiveOC; past oc_recibida the data is closed.
+	if err := s.MoveProject(ctx, project, user, "oc_recibida", "prospecto", ""); err != nil {
+		t.Fatalf("MoveProject back: %v", err)
+	}
+	if p = load(); !p.HasOC() {
+		t.Error("a proyecto sent back to prospecto lost its purchase order")
+	}
+	if err := s.MoveProject(ctx, project, user, "prospecto", "oc_recibida", ""); !errors.Is(err, ErrBadTransition) {
+		t.Errorf("MoveProject(prospecto → oc_recibida) = %v, want ErrBadTransition", err)
+	}
+	if err := s.ReceiveOC(ctx, project, user, p.OC, nil, ""); err != nil {
+		t.Fatalf("ReceiveOC again: %v", err)
+	}
+	if err := s.MoveProject(ctx, project, user, "oc_recibida", "en_entrega", ""); err != nil {
+		t.Fatalf("MoveProject: %v", err)
+	}
+	if err := s.ReceiveOC(ctx, project, user, testOC, nil, ""); !errors.Is(err, ErrBadTransition) {
+		t.Errorf("ReceiveOC(en_entrega) = %v, want ErrBadTransition", err)
+	}
+	var n int
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT count(*) FROM audit_log WHERE table_name = 'projects'
+		AND json_extract(new_values, '$.oc_number') = '4411-A' AND json_extract(new_values, '$.payment_method') = 'PUE'`).Scan(&n); err != nil || n == 0 {
+		t.Errorf("audit rows with the purchase order = %d, %v", n, err)
 	}
 }

@@ -11,7 +11,7 @@ Un proyecto avanza por estas etapas:
 | Etapa | Qué significa |
 |---|---|
 | [[prospecto]] | El cliente ya tiene la cotización y todavía no manda su orden de compra. |
-| [[O.C. recibida]] | El cliente mandó su orden de compra. |
+| [[O.C. recibida]] | El cliente mandó su orden de compra y [se capturaron sus datos](#recibir-la-orden-de-compra-del-cliente). |
 | [[en entrega]] | El pedido ya va en camino o se le entregó al cliente. |
 | [[cerrado]] | Ya se entregó, se facturó, se cobró y se emitió el complemento de pago (si aplica). |
 
@@ -54,7 +54,8 @@ Debajo del folio y del cliente verás este resumen:
   en borrador, aún sin emitir"*, alguien la está revisando.
 - **Total**: el de la cotización vigente.
 
-Más abajo están **Seguimiento** (el formulario y los botones para moverlo), **Cotizaciones** (la
+Más abajo están **Seguimiento** (el formulario y los botones para moverlo), **Orden de
+compra del cliente** (desde que se recibe), **Cotizaciones** (la
 vigente y las que fueron revisadas, cada una con su enlace) e **Historial**.
 
 ## Dar seguimiento a un proyecto
@@ -88,35 +89,66 @@ debajo tu nota.
   darle seguimiento"* y la [página de inicio](README.md#la-página-de-inicio) lo cuenta
   en **Seguimientos para hoy o vencidos**. La app no manda recordatorios por correo.
 
+### Recibir la orden de compra del cliente
+
+Cuando el cliente manda su orden de compra, el proyecto pasa de [[prospecto]] a
+[[O.C. recibida]]. Para eso hay que capturar los datos de la orden:
+
+1. Abre el proyecto.
+2. En **Recibir la orden de compra**, escribe el **No. de O.C.** del cliente.
+3. Revisa la **Fecha de la O.C.** (viene con la fecha de hoy; cámbiala si la orden es de
+   otro día).
+4. Elige la [[forma de pago]]: **P.U.E.** (pago en una sola exhibición) o **P.P.D.**
+   (pago en parcialidades o diferido).
+5. En **Archivo de la O.C.**, adjunta la orden si la tienes (opcional): un PDF, JPG o
+   PNG de hasta 10 MB.
+6. Escribe un **Comentario** si hace falta (opcional).
+7. Haz clic en **Pasar a O.C. recibida**.
+
+El proyecto queda en O.C. recibida, con la sección **Orden de compra del cliente**
+(número, fecha, forma de pago y el archivo para descargar). En **Historial** aparece
+*"Pasó a O.C. recibida."* con los datos de la orden.
+
+- El número, la fecha y la forma de pago son obligatorios; el archivo no.
+- Si el cliente todavía pide cambios,
+  [revisa la cotización](cotizaciones.md#revisar-una-cotización-emitida) **antes** de
+  recibir la orden. Con la orden recibida la cotización ya no se puede revisar: la
+  orden responde a esa cotización.
+- Si hay una revisión en borrador, en lugar del formulario verás *"primero emite la
+  revisión"* con un enlace a ella. Emítela y vuelve al proyecto.
+- ¿Te equivocaste en un dato o llegó una orden corregida? Mientras el proyecto está en
+  O.C. recibida, usa **Corregir la orden de compra**, en la misma sección, y haz clic
+  en **Guardar O.C.** Si adjuntas otro archivo, el anterior se conserva y el nuevo
+  queda marcado como *el vigente*.
+- Cuando el proyecto pasa a En entrega, los datos de la orden ya no se pueden cambiar.
+- Un proyecto que ya estaba en O.C. recibida sin estos datos dice *"primero captura la
+  orden de compra del cliente"*: captúralos ahí mismo para poder continuar.
+
 ### Pasar el proyecto a la siguiente etapa
+
+Después de recibir la orden de compra, el proyecto avanza con un botón:
 
 | Para pasar a | Cuándo | Botón |
 |---|---|---|
-| [[O.C. recibida]] | El cliente mandó su orden de compra. | **Pasar a O.C. recibida** |
 | [[en entrega]] | El pedido ya va en camino o se le entregó al cliente. | **Pasar a En entrega** |
 | [[cerrado]] | Ya se entregó, se facturó, se cobró y se emitió el complemento de pago (si aplica). | **Pasar a Cerrado** |
 
 1. Abre el proyecto.
-2. Debajo del formulario de seguimiento, escribe en **Comentario** lo que dijo el cliente y los
-   siguientes pasos (opcional pero recomendado).
+2. En **Seguimiento**, escribe en **Comentario** lo que pasó y los siguientes pasos
+   (opcional pero recomendado).
 3. Haz clic en el botón de la siguiente etapa.
 
 El proyecto queda en la etapa nueva y en **Historial** aparece una línea como
-*"Pasó a O.C. recibida."* con tu nota, quién la escribió y cuándo.
+*"Pasó a En entrega."* con tu nota, quién la escribió y cuándo.
 
 - Solo se avanza de una etapa a la siguiente, sin saltarse ninguna.
-- Si el cliente todavía pide cambios,
-  [revisa la cotización](cotizaciones.md#revisar-una-cotización-emitida) **antes** de
-  pasarlo a O.C. recibida. Con la orden de compra recibida la cotización ya no se puede
-  revisar: la orden responde a esa cotización.
-- Si hay una revisión en borrador, en lugar del botón verás *"primero emite la
-  revisión"* con un enlace a ella. Emítela y vuelve al proyecto.
 - Cualquier usuario puede avanzar un proyecto. Si te equivocaste y lo pasaste de más,
   pídele a un administrador que lo regrese.
 :::admin
 Un administrador ve además el botón **Regresar a …** para devolver el proyecto a la
 etapa anterior (queda un comentario *"Regresó a …"*). Un proyecto que regresa a
-prospecto conserva la probabilidad que tenía y su cotización se puede volver a revisar.
+prospecto conserva su probabilidad y los datos de la orden de compra, y su cotización
+se puede volver a revisar.
 :::
 
 ## Revisar el pronóstico

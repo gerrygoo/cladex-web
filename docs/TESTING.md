@@ -93,7 +93,10 @@ moves, the probability control, the revision lock after the O.C., comments),
 `TestProjectsWithARevisionInDraft`, `TestProjectsList` and, for slice 4.2,
 `TestProjectsLoseAndReopen` (with `TestLoseAndReopenProject` in the store) and, for
 4.3, `TestProjectsFollowUpDatesAndForecast` (with `TestFollowUpProject` and
-`TestListProspectsAndWeights`). Those also pin the strings
+`TestListProspectsAndWeights`). Slice 4.4 added `TestProjectsReceiveOC`, which posts the
+multipart form with real file bytes and checks the download's headers, and
+`TestProjectsLegacyOCRecibida`, which opens a second handle on the test database to
+write a state the store no longer allows. Those also pin the strings
 `docs/guia/proyectos.md` quotes, so they double as its guide-conformance tests.
 
 ## Tracked gaps

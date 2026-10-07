@@ -1,14 +1,26 @@
 package web
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/gerrygoo/cladex-web"
+	"github.com/gerrygoo/cladex-web/internal/store"
 )
+
+// testOCForm is a complete purchase order form, without a file.
+func testOCForm(note string) url.Values {
+	return url.Values{"oc_numero": {"4411"}, "oc_fecha": {"2026-10-07"}, "forma_pago": {"PUE"}, "note": {note}}
+}
 
 // issueTestQuote creates a QA draft with one catalog line and issues it through the
 // handler, which opens its proyecto. It returns the quote's folio, also the proyecto's.
@@ -116,11 +128,18 @@ func TestProjectsFollowUp(t *testing.T) {
 	if rec := move(ana, "en_entrega", ""); rec.Code != http.StatusConflict {
 		t.Errorf("Etapa(skip a stage) status = %d, want 409", rec.Code)
 	}
-	if rec := move(ana, "oc_recibida", strings.Repeat("x", maxCommentLen+1)); rec.Code != http.StatusBadRequest {
+	if rec := move(ana, "en_entrega", strings.Repeat("x", maxCommentLen+1)); rec.Code != http.StatusBadRequest {
 		t.Errorf("Etapa(note too long) status = %d, want 400", rec.Code)
 	}
-	if rec := move(ana, "oc_recibida", "OC 4411"); rec.Code != http.StatusSeeOther {
-		t.Fatalf("Etapa(→ oc_recibida) status = %d; body = %s", rec.Code, rec.Body.String())
+	// The stage button doesn't take a prospecto to O.C. recibida: the purchase order does.
+	if rec := move(ana, "oc_recibida", ""); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "primero captura la orden de compra") {
+		t.Errorf("Etapa(→ oc_recibida) = %d %q, want 409 asking for the purchase order", rec.Code, rec.Body.String())
+	}
+	receive := func(note string) *httptest.ResponseRecorder {
+		return doForm(t, a, ana, p.OC, "POST", base+"/oc", pv, testOCForm(note), false)
+	}
+	if rec := receive("OC 4411"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("OC status = %d; body = %s", rec.Code, rec.Body.String())
 	}
 
 	// With the purchase order in: no probability, and the quote can't be revised.
@@ -175,7 +194,10 @@ func TestProjectsFollowUp(t *testing.T) {
 	}
 
 	// Run it to the end: the last stage has no forward button.
-	for _, to := range []string{"oc_recibida", "en_entrega", "cerrado"} {
+	if rec := receive(""); rec.Code != http.StatusSeeOther {
+		t.Fatalf("OC again status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	for _, to := range []string{"en_entrega", "cerrado"} {
 		if rec := move(ana, to, ""); rec.Code != http.StatusSeeOther {
 			t.Fatalf("Etapa(→ %s) status = %d; body = %s", to, rec.Code, rec.Body.String())
 		}
@@ -217,9 +239,9 @@ func TestProjectsWithARevisionInDraft(t *testing.T) {
 	if strings.Contains(body, "Pasar a O.C. recibida") {
 		t.Error("a proyecto whose current quote is a draft offers O.C. recibida")
 	}
-	rec := doForm(t, a, ana, p.Etapa, "POST", "/proyectos/"+folio+"/etapa", pv, url.Values{"to": {"oc_recibida"}}, false)
+	rec := doForm(t, a, ana, p.OC, "POST", "/proyectos/"+folio+"/oc", pv, testOCForm(""), false)
 	if rec.Code != http.StatusConflict {
-		t.Errorf("Etapa with a draft revision status = %d, want 409", rec.Code)
+		t.Errorf("OC with a draft revision status = %d, want 409", rec.Code)
 	}
 	// Both quotes point at the same proyecto.
 	for _, f := range []string{folio, rev.Folio} {
@@ -251,8 +273,8 @@ func TestProjectsList(t *testing.T) {
 	if err := a.store.SetProjectProbability(context.Background(), project.ID, ana, 90, ""); err != nil {
 		t.Fatalf("SetProjectProbability: %v", err)
 	}
-	if err := a.store.MoveProject(context.Background(), project.ID, ana, "prospecto", "oc_recibida", ""); err != nil {
-		t.Fatalf("MoveProject: %v", err)
+	if err := a.store.ReceiveOC(context.Background(), project.ID, ana, store.OC{Number: "4411", Date: "2026-10-07", PaymentMethod: "PUE"}, nil, ""); err != nil {
+		t.Fatalf("ReceiveOC: %v", err)
 	}
 
 	link := func(folio string) string { return `href="/proyectos/` + folio + `"` }
@@ -429,4 +451,211 @@ func TestProjectsFollowUpDatesAndForecast(t *testing.T) {
 			t.Errorf("proyecto page missing %q", want)
 		}
 	}
+}
+
+// postOC sends the purchase order form as the browser does, multipart, with a file when
+// filename isn't empty.
+func postOC(t *testing.T, a *Auth, p *Projects, userID int64, folio string, fields map[string]string, filename string, data []byte) *httptest.ResponseRecorder {
+	t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	for k, v := range fields {
+		if err := mw.WriteField(k, v); err != nil {
+			t.Fatalf("WriteField: %v", err)
+		}
+	}
+	if filename != "" {
+		fw, err := mw.CreateFormFile("archivo", filename)
+		if err != nil {
+			t.Fatalf("CreateFormFile: %v", err)
+		}
+		fw.Write(data)
+	}
+	mw.Close()
+	req := httptest.NewRequest("POST", "/proyectos/"+folio+"/oc", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.SetPathValue("folio", folio)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: mustSessionToken(t, a, userID)})
+	rec := httptest.NewRecorder()
+	a.RequireAuth(http.HandlerFunc(p.OC)).ServeHTTP(rec, req)
+	return rec
+}
+
+func TestProjectsReceiveOC(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	p := NewProjects(a.store)
+	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
+	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, ana)
+
+	folio := issueTestQuote(t, a, q, ana, customerID, costProductID)
+	pv := map[string]string{"folio": folio}
+	page := func() string {
+		return doForm(t, a, ana, p.Page, "GET", "/proyectos/"+folio, pv, nil, false).Body.String()
+	}
+	fields := func(number, date, method string) map[string]string {
+		return map[string]string{"oc_numero": number, "oc_fecha": date, "forma_pago": method, "note": "Llegó por correo"}
+	}
+	pdf := []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")
+
+	body := page()
+	for _, want := range []string{"Recibir la orden de compra", "No. de O.C.", "Fecha de la O.C.", "Forma de pago",
+		"P.U.E. · pago en una sola exhibición", "P.P.D. · pago en parcialidades o diferido", "Pasar a O.C. recibida",
+		`enctype="multipart/form-data"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("prospecto page missing %q", want)
+		}
+	}
+	if strings.Contains(body, "Orden de compra del cliente") {
+		t.Error("a prospecto with no purchase order shows the purchase order section")
+	}
+
+	// Number, date and forma de pago are all required; the file has to be a real PDF or
+	// image, whatever it is called.
+	for name, c := range map[string]struct {
+		fields map[string]string
+		file   string
+		data   []byte
+		want   int
+	}{
+		"no number":      {fields("", "2026-10-07", "PUE"), "", nil, http.StatusBadRequest},
+		"no date":        {fields("4411", "", "PUE"), "", nil, http.StatusBadRequest},
+		"no forma":       {fields("4411", "2026-10-07", ""), "", nil, http.StatusBadRequest},
+		"unknown forma":  {fields("4411", "2026-10-07", "contado"), "", nil, http.StatusBadRequest},
+		"html as pdf":    {fields("4411", "2026-10-07", "PUE"), "oc.pdf", []byte("<html><script>alert(1)</script></html>"), http.StatusBadRequest},
+		"empty file":     {fields("4411", "2026-10-07", "PUE"), "oc.pdf", nil, http.StatusBadRequest},
+		"file too large": {fields("4411", "2026-10-07", "PUE"), "oc.pdf", append([]byte("%PDF-1.7\n"), make([]byte, maxOCFileBytes)...), http.StatusRequestEntityTooLarge},
+	} {
+		if rec := postOC(t, a, p, ana, folio, c.fields, c.file, c.data); rec.Code != c.want {
+			t.Errorf("OC(%s) status = %d, want %d; body = %s", name, rec.Code, c.want, rec.Body.String())
+		}
+	}
+	if project, _ := a.store.ProjectByFolio(context.Background(), folio); project.Status != "prospecto" || project.HasOC() {
+		t.Fatalf("after refused attempts = %+v", project)
+	}
+
+	rec := postOC(t, a, p, ana, folio, fields("4411", "2026-10-07", "PPD"), `C:\Users\ana\OC 4411.pdf`, pdf)
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/proyectos/"+folio+"#oc" {
+		t.Fatalf("OC status = %d, Location = %q; body = %s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
+	}
+	body = page()
+	for _, want := range []string{"O.C. recibida", "Orden de compra del cliente", "4411", "07/10/2026", "P.P.D. · pago en parcialidades o diferido",
+		"OC 4411.pdf", "Corregir la orden de compra", "Guardar O.C.", "Pasar a En entrega",
+		"O.C. 4411 · 07/10/2026 · P.P.D.", "Archivo de la O.C.: OC 4411.pdf", "Llegó por correo"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("oc_recibida page missing %q", want)
+		}
+	}
+	if strings.Contains(body, `C:\Users`) {
+		t.Error("the uploaded file kept its client-side path")
+	}
+
+	// The file downloads as an attachment, with the type its bytes have.
+	files, err := a.store.ListProjectFiles(context.Background(), mustProjectID(t, a, folio), "oc")
+	if err != nil || len(files) != 1 {
+		t.Fatalf("ListProjectFiles = %+v, %v", files, err)
+	}
+	id := strconv.FormatInt(files[0].ID, 10)
+	download := func(folio, id string) *httptest.ResponseRecorder {
+		return doForm(t, a, ana, p.Archivo, "GET", "/proyectos/"+folio+"/archivos/"+id, map[string]string{"folio": folio, "id": id}, nil, false)
+	}
+	rec = download(folio, id)
+	if rec.Code != http.StatusOK || !bytes.Equal(rec.Body.Bytes(), pdf) || rec.Header().Get("Content-Type") != "application/pdf" ||
+		!strings.HasPrefix(rec.Header().Get("Content-Disposition"), "attachment") || !strings.Contains(rec.Header().Get("Content-Disposition"), "OC 4411.pdf") ||
+		rec.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Errorf("download = %d, headers %v", rec.Code, rec.Header())
+	}
+	other := issueTestQuote(t, a, q, ana, customerID, costProductID)
+	for name, r := range map[string]*httptest.ResponseRecorder{
+		"another proyecto's url": download(other, id), "unknown id": download(folio, "9999"), "not a number": download(folio, "x"),
+	} {
+		if r.Code != http.StatusNotFound {
+			t.Errorf("download(%s) status = %d, want 404", name, r.Code)
+		}
+	}
+
+	// Correcting it keeps the first file and marks the new one as the one in force.
+	png := append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 32)...)
+	if rec := postOC(t, a, p, ana, folio, fields("4411-A", "2026-10-08", "PUE"), "oc-corregida.png", png); rec.Code != http.StatusSeeOther {
+		t.Fatalf("OC(correction) status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	body = page()
+	for _, want := range []string{"4411-A", "08/10/2026", "P.U.E. · pago en una sola exhibición", "oc-corregida.png", "OC 4411.pdf", "el vigente",
+		"O.C. actualizada: 4411-A · 08/10/2026 · P.U.E."} {
+		if !strings.Contains(body, want) {
+			t.Errorf("corrected page missing %q", want)
+		}
+	}
+
+	// Once it is being delivered the purchase order is shown but closed.
+	if rec := doForm(t, a, ana, p.Etapa, "POST", "/proyectos/"+folio+"/etapa", pv, url.Values{"to": {"en_entrega"}}, false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Etapa(→ en_entrega) status = %d", rec.Code)
+	}
+	body = page()
+	if !strings.Contains(body, "Orden de compra del cliente") || strings.Contains(body, "Guardar O.C.") {
+		t.Error("a proyecto in entrega doesn't show its purchase order, or still lets it be edited")
+	}
+	if rec := postOC(t, a, p, ana, folio, fields("9999", "2026-10-09", "PUE"), "", nil); rec.Code != http.StatusConflict {
+		t.Errorf("OC(en_entrega) status = %d, want 409", rec.Code)
+	}
+}
+
+// A proyecto that was in O.C. recibida before the purchase order was asked for has to
+// have it captured before it can go on.
+func TestProjectsLegacyOCRecibida(t *testing.T) {
+	// Its own database file, so the old state can be written behind the store's back.
+	dsn := filepath.Join(t.TempDir(), "test.db")
+	st, err := store.Open(context.Background(), dsn, cladex.MigrationsFS)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { st.Close() })
+	a := NewAuth(st, false)
+	q := newTestQuotes(t, a)
+	p := NewProjects(a.store)
+	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
+	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, ana)
+	folio := issueTestQuote(t, a, q, ana, customerID, costProductID)
+	pv := map[string]string{"folio": folio}
+	raw, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatalf("open raw: %v", err)
+	}
+	defer raw.Close()
+	if _, err := raw.Exec(`UPDATE projects SET status = 'oc_recibida' WHERE folio = ?`, folio); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	body := doForm(t, a, ana, p.Page, "GET", "/proyectos/"+folio, pv, nil, false).Body.String()
+	for _, want := range []string{"primero captura la orden de compra del cliente", "antes de que se pidieran los datos de la orden", "Guardar O.C."} {
+		if !strings.Contains(body, want) {
+			t.Errorf("legacy oc_recibida page missing %q", want)
+		}
+	}
+	if strings.Contains(body, "Pasar a En entrega") {
+		t.Error("a proyecto with no purchase order on record offers En entrega")
+	}
+	move := func() *httptest.ResponseRecorder {
+		return doForm(t, a, ana, p.Etapa, "POST", "/proyectos/"+folio+"/etapa", pv, url.Values{"to": {"en_entrega"}}, false)
+	}
+	if rec := move(); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "primero captura la orden de compra") {
+		t.Errorf("Etapa(→ en_entrega) without O.C. = %d %q", rec.Code, rec.Body.String())
+	}
+	if rec := doForm(t, a, ana, p.OC, "POST", "/proyectos/"+folio+"/oc", pv, testOCForm(""), false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("OC status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if rec := move(); rec.Code != http.StatusSeeOther {
+		t.Errorf("Etapa(→ en_entrega) with O.C. status = %d", rec.Code)
+	}
+}
+
+func mustProjectID(t *testing.T, a *Auth, folio string) int64 {
+	t.Helper()
+	p, err := a.store.ProjectByFolio(context.Background(), folio)
+	if err != nil || p == nil {
+		t.Fatalf("ProjectByFolio(%s): %v, %v", folio, p, err)
+	}
+	return p.ID
 }

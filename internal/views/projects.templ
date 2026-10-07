@@ -26,7 +26,7 @@ func seguimientoPath(folio string) string {
 func stageHint(stage string) string {
 	switch stage {
 	case "prospecto":
-		return "Pásalo a O.C. recibida cuando el cliente mande su orden de compra. Desde ese momento la cotización ya no se puede revisar."
+		return "Cuando el cliente mande su orden de compra, captura sus datos para pasar el proyecto a O.C. recibida. Desde ese momento la cotización ya no se puede revisar."
 	case "oc_recibida":
 		return "Pásalo a En entrega cuando el pedido ya va en camino o se le entregó al cliente."
 	case "en_entrega":
@@ -117,7 +117,7 @@ templ ProjectsTableBody(projects []store.Project) {
 // ProjectPage is a proyecto: where it stands, the controls that move it (probability
 // while it is a prospecto, the next stage, and an admin-only step back), every quote it
 // has had, and its history — the comments of all those quotes in one timeline.
-templ ProjectPage(p store.Project, today string, quotes []store.Quote, comments []store.ProjectComment, commentsLV ListView, user *NavUser) {
+templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []store.ProjectFile, comments []store.ProjectComment, commentsLV ListView, user *NavUser) {
 	@Layout("Proyecto "+p.Folio, user) {
 		<div class="page-title">
 			<h1>Proyecto { p.Folio }</h1>
@@ -209,9 +209,17 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, comments 
 		if p.Status == "prospecto" {
 			@FollowUpForm(p, "")
 		}
-		if next := store.NextStage(p.Status); next != "" {
-			if p.Status == "prospecto" && p.CurrentQuoteStatus != "emitida" {
-				<p>Para pasarlo a { store.StageLabels[next] }, primero emite la revisión <a href={ templ.URL("/cotizaciones/" + p.CurrentQuoteFolio) }>{ p.CurrentQuoteFolio }</a>.</p>
+		if p.Status == "prospecto" {
+			if p.CurrentQuoteStatus != "emitida" {
+				<p>Para pasarlo a { store.StageLabels["oc_recibida"] }, primero emite la revisión <a href={ templ.URL("/cotizaciones/" + p.CurrentQuoteFolio) }>{ p.CurrentQuoteFolio }</a>.</p>
+			} else {
+				<h2>Recibir la orden de compra</h2>
+				<p>{ stageHint(p.Status) }</p>
+				@OCForm(p, today, "Pasar a O.C. recibida", true)
+			}
+		} else if next := store.NextStage(p.Status); next != "" {
+			if p.Status == "oc_recibida" && !p.HasOC() {
+				<p>Para pasarlo a { store.StageLabels[next] }, primero captura la orden de compra del cliente, aquí abajo.</p>
 			} else {
 				<form method="post" action={ templ.URL(etapaPath(p.Folio)) } class="stage-form">
 					<p>{ stageHint(p.Status) }</p>
@@ -225,6 +233,50 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, comments 
 			}
 		} else if p.Status == "cerrado" {
 			<p>Este proyecto está cerrado.</p>
+		}
+		if p.HasOC() || p.Status == "oc_recibida" {
+			<section id="oc">
+				<h2>Orden de compra del cliente</h2>
+				if p.HasOC() {
+					<dl class="quote-info">
+						<dt>No. de O.C.</dt>
+						<dd>{ p.OC.Number }</dd>
+						<dt>Fecha</dt>
+						<dd>{ dateText(p.OC.Date) }</dd>
+						<dt>Forma de pago</dt>
+						<dd>{ paymentMethodText(p.OC.PaymentMethod) }</dd>
+						<dt>Archivo</dt>
+						<dd>
+							if len(files) == 0 {
+								Sin archivo
+							}
+							for i, f := range files {
+								if i > 0 {
+									<br/>
+								}
+								<a href={ templ.URL(projectFilePath(p.Folio, f.ID)) }>{ f.Filename }</a>
+								<small>
+									{ " · " + fileSizeText(f.Size) + " · " + f.UploadedByName + " · " }
+									@Timestamp(f.UploadedAt)
+									if i == 0 && len(files) > 1 {
+										{ " · el vigente" }
+									}
+								</small>
+							}
+						</dd>
+					</dl>
+				} else {
+					<p>Este proyecto llegó a O.C. recibida antes de que se pidieran los datos de la orden. Captúralos para poder continuar.</p>
+				}
+				if p.Status == "oc_recibida" {
+					if p.HasOC() {
+						<h3>Corregir la orden de compra</h3>
+						@OCForm(p, today, "Guardar O.C.", false)
+					} else {
+						@OCForm(p, today, "Guardar O.C.", true)
+					}
+				}
+			</section>
 		}
 		if prev := store.PrevStage(p.Status); prev != "" && user != nil && user.IsAdmin {
 			<form method="post" action={ templ.URL(etapaPath(p.Folio)) } class="stage-form">
@@ -467,4 +519,45 @@ templ ForecastPage(f Forecast, user *NavUser) {
 			</dl>
 		}
 	}
+}
+
+// OCForm captures the client's purchase order: number, date, forma de pago and,
+// optionally, its file. On a prospecto its button is what moves the proyecto to O.C.
+// recibida; afterwards the same form corrects the data. primary styles the button as
+// the page's main action.
+templ OCForm(p store.Project, today, button string, primary bool) {
+	<form method="post" action={ templ.URL(projectPath(p.Folio) + "/oc") } enctype="multipart/form-data" class="stage-form">
+		<div class="followup-dates">
+			<label>
+				No. de O.C.
+				<input type="text" name="oc_numero" value={ p.OC.Number } maxlength="100" required/>
+			</label>
+			<label>
+				Fecha de la O.C.
+				<input type="date" name="oc_fecha" value={ ocDateValue(p, today) } required/>
+			</label>
+		</div>
+		<fieldset class="probability">
+			<legend>Forma de pago</legend>
+			for _, m := range store.PaymentMethods {
+				<label>
+					<input type="radio" name="forma_pago" value={ m } checked?={ m == p.OC.PaymentMethod } required/>
+					{ paymentMethodText(m) }
+				</label>
+			}
+		</fieldset>
+		<label>
+			if p.HasOC() {
+				Archivo nuevo de la O.C. (opcional; PDF, JPG o PNG de hasta 10 MB)
+			} else {
+				Archivo de la O.C. (opcional; PDF, JPG o PNG de hasta 10 MB)
+			}
+			<input type="file" name="archivo" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"/>
+		</label>
+		<label>
+			Comentario (opcional)
+			<textarea name="note" rows="2" maxlength="2000"></textarea>
+		</label>
+		<button type="submit" class={ templ.KV("primary", primary) }>{ button }</button>
+	</form>
 }

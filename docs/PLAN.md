@@ -1052,6 +1052,7 @@ milestones that follow.
 | 4.1 | `projects` table; a proyecto opens when a quote is issued and follows its revisions; the pipeline stages leave `quotes.status`; a proyecto page and list | me | A proyecto opens on issue and keeps its stage through revisions; production migrated with the same result as the dry run — ✅¹⁵ ¹⁶ |
 | 4.2 | `perdido`: mark a proyecto lost with a required reason, from prospecto or O.C. recibida; admin reopen | me | A lost proyecto leaves the active stages, shows its reason, and is filterable — ✅¹⁷ |
 | 4.3 | Follow-up dates on a prospecto (expected O.C., next follow-up) and the Pronóstico meeting view with weighted totals | me | The team opens one page, sees the prospectos at Alta and up by expected O.C. date, and updates probability, note and dates without leaving it — ✅¹⁸ |
+| 4.4 | Receiving the client's O.C.: number, date, forma de pago (P.U.E. / P.P.D.) and file | me | A proyecto can't enter O.C. recibida without an O.C. number and a forma de pago; the O.C. file downloads from the proyecto — ✅¹⁹ |
 
 ¹⁵ `migrations/0016_projects.sql` adds `projects` (`folio` = the base folio of the quote
 that opened it, `customer_id`, owner `user_id`, `status`, `probability`,
@@ -1154,6 +1155,33 @@ with Pronóstico. "Today" is the viewer's day, from the time-zone cookie the dat
 filters already use. Verified with `go test ./...` (`TestFollowUpProject`,
 `TestListProspectsAndWeights`, `TestProjectsFollowUpDatesAndForecast`) and in a browser
 on the scratch DB.
+
+¹⁹ `migrations/0019_project_oc.sql` adds `oc_number`, `oc_date` and `payment_method`
+(`PUE` | `PPD`) to `projects`, recreates its audit triggers with them, and creates
+`project_files` (schema only, no rows change). `ReceiveOC` is now the only way from
+prospecto to `oc_recibida`: it needs the number, the date and the forma de pago, and an
+issued current quote; `MoveProject` refuses that step. On a proyecto already in
+`oc_recibida` the same call corrects the data, and from `en_entrega` on it is closed. A
+proyecto sent back to prospecto keeps the data. The one production proyecto that was
+already in `oc_recibida` (QS0011) has none, so `MoveProject` also refuses
+`oc_recibida` → `en_entrega` until it is captured, and the page says so.
+
+**The O.C. file is stored in the database**, as a BLOB in `project_files`, not on disk:
+the nightly backup and the Litestream replica only cover the database, so this is what
+keeps the file backed up without touching the NAS setup. The cap is 10 MB, the type is
+decided from the bytes (PDF, JPEG or PNG; an HTML file renamed `.pdf` is refused), and
+rows are append-only: a corrected O.C. adds a file and the newest is the one in force.
+Downloads (`GET /proyectos/{folio}/archivos/{id}`) are always attachments with
+`nosniff`, and a file is only served under its own proyecto's URL. If O.C.s turn out
+large or frequent enough to bloat the database, moving the bytes to the data directory
+means extending `backup.sh` first.
+
+`POST /proyectos/{folio}/oc` takes the multipart form. The proyecto page shows "Recibir
+la orden de compra" on a prospecto, and afterwards an "Orden de compra del cliente"
+section with the data, the files and, while in `oc_recibida`, the correction form.
+Verified with `go test ./...` (`TestReceiveOC`, `TestProjectsReceiveOC`,
+`TestProjectsLegacyOCRecibida`, the route table) and in a browser on the scratch DB:
+the form, an upload, and the download's headers.
 
 ---
 

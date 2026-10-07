@@ -103,8 +103,8 @@ func ForecastRelevant(stage string, probability int) bool {
 }
 
 // ErrBadTransition is returned by MoveProject when the proyecto isn't in the stage the
-// move starts from, the target isn't the stage right before or after it, or it would
-// leave prospecto while its current quote is a revision still in borrador. It is also
+// move starts from, the target isn't the stage right before or after it, or it is the
+// step from prospecto to oc_recibida, which only ReceiveOC takes. It is also
 // what SetProjectProbability returns for a proyecto that is no longer a prospecto or a
 // value that isn't a step.
 var ErrBadTransition = errors.New("store: project can't move to that stage")
@@ -113,11 +113,12 @@ var ErrBadTransition = errors.New("store: project can't move to that stage")
 // the next stage or the previous one), and records it as a comment on its current quote
 // — "Pasó a O.C. recibida." plus the user's note, if any — so the history reads in one
 // place. The change is conditional on the proyecto still being in `from`, so two people
-// clicking at once can't skip a stage. A prospecto whose current quote is an unissued
-// revision can't move on: the purchase order has to answer an issued quote. Whether the
-// user may go backwards is the caller's decision.
+// clicking at once can't skip a stage. It doesn't take a prospecto to oc_recibida: that
+// step needs the purchase order's data, so it is ReceiveOC's. Whether the user may go
+// backwards is the caller's decision. Going on from oc_recibida needs the purchase order
+// on record.
 func (s *Store) MoveProject(ctx context.Context, projectID, userID int64, from, to, note string) error {
-	if NextStage(from) != to && PrevStage(from) != to || to == "" {
+	if NextStage(from) != to && PrevStage(from) != to || to == "" || to == "oc_recibida" && from == "prospecto" {
 		return ErrBadTransition
 	}
 	verb := "Pasó a"
@@ -137,14 +138,20 @@ func (s *Store) MoveProject(ctx context.Context, projectID, userID int64, from, 
 	if err := stampActor(ctx, tx); err != nil {
 		return fmt.Errorf("store: move project %d: %w", projectID, err)
 	}
-	quoteID, quoteStatus, err := currentQuote(ctx, tx, projectID)
+	quoteID, _, err := currentQuote(ctx, tx, projectID)
 	if err != nil {
 		return fmt.Errorf("store: move project %d: %w", projectID, err)
 	}
-	if quoteID == 0 || from == "prospecto" && quoteStatus != "emitida" {
+	if quoteID == 0 {
 		return ErrBadTransition
 	}
-	res, err := tx.ExecContext(ctx, `UPDATE projects SET status = ? WHERE id = ? AND status = ?`, to, projectID, from)
+	// A proyecto that reached oc_recibida before the purchase order was asked for has to
+	// have it captured (ReceiveOC) before it goes on.
+	guard := ""
+	if from == "oc_recibida" && to == "en_entrega" {
+		guard = ` AND oc_number IS NOT NULL AND payment_method IS NOT NULL`
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE projects SET status = ? WHERE id = ? AND status = ?`+guard, to, projectID, from)
 	if err != nil {
 		return fmt.Errorf("store: move project %d: %w", projectID, err)
 	}
@@ -159,6 +166,173 @@ func (s *Store) MoveProject(ctx context.Context, projectID, userID int64, from, 
 		return fmt.Errorf("store: move project %d: %w", projectID, err)
 	}
 	return nil
+}
+
+// PaymentMethods are the formas de pago a purchase order can be received with, and
+// PaymentMethodLabels how users read them.
+var PaymentMethods = []string{"PUE", "PPD"}
+
+var PaymentMethodLabels = map[string]string{
+	"PUE": "P.U.E.",
+	"PPD": "P.P.D.",
+}
+
+// OC is the client's purchase order as recorded on a proyecto: its number, its date
+// (YYYY-MM-DD) and the forma de pago, one of PaymentMethods. All three are required.
+type OC struct {
+	Number        string
+	Date          string
+	PaymentMethod string
+}
+
+func (oc OC) valid() bool {
+	if strings.TrimSpace(oc.Number) == "" || PaymentMethodLabels[oc.PaymentMethod] == "" {
+		return false
+	}
+	_, err := time.Parse("2006-01-02", oc.Date)
+	return err == nil
+}
+
+// text is the purchase order as the history shows it: "4411 · 07/10/2026 · P.U.E.".
+func (oc OC) text() string {
+	return oc.Number + " · " + dayText(oc.Date) + " · " + PaymentMethodLabels[oc.PaymentMethod]
+}
+
+// NewFile is a file about to be attached to a proyecto.
+type NewFile struct {
+	Filename    string
+	ContentType string
+	Data        []byte
+}
+
+// ProjectFile is a project_files row without its bytes; UploadedByName is the uploader's
+// current name (join).
+type ProjectFile struct {
+	ID             int64
+	ProjectID      int64
+	Kind           string
+	Filename       string
+	ContentType    string
+	Size           int64
+	UploadedByName string
+	UploadedAt     string
+}
+
+// ReceiveOC records the client's purchase order on a proyecto, with its file if one is
+// given. On a prospecto it is what moves the proyecto to oc_recibida, the only way in:
+// that needs all of oc and an issued current quote (a revision still in borrador has to
+// be issued first). On a proyecto already in oc_recibida it corrects the data. Either
+// way the history gets one comment saying what happened, ending with the user's note.
+// Anything else is ErrBadTransition.
+func (s *Store) ReceiveOC(ctx context.Context, projectID, userID int64, oc OC, file *NewFile, note string) error {
+	oc.Number = strings.TrimSpace(oc.Number)
+	if !oc.valid() || file != nil && (strings.TrimSpace(file.Filename) == "" || len(file.Data) == 0) {
+		return ErrBadTransition
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: receive OC of project %d: %w", projectID, err)
+	}
+	defer tx.Rollback()
+	if err := stampActor(ctx, tx); err != nil {
+		return fmt.Errorf("store: receive OC of project %d: %w", projectID, err)
+	}
+	var status string
+	var old OC
+	err = tx.QueryRowContext(ctx, `
+		SELECT status, COALESCE(oc_number, ''), COALESCE(oc_date, ''), COALESCE(payment_method, '')
+		FROM projects WHERE id = ?`, projectID).Scan(&status, &old.Number, &old.Date, &old.PaymentMethod)
+	if err != nil && err != sql.ErrNoRows {
+		return fmt.Errorf("store: receive OC of project %d: %w", projectID, err)
+	}
+	if err == sql.ErrNoRows || status != "prospecto" && status != "oc_recibida" {
+		return ErrBadTransition
+	}
+	quoteID, quoteStatus, err := currentQuote(ctx, tx, projectID)
+	if err != nil {
+		return fmt.Errorf("store: receive OC of project %d: %w", projectID, err)
+	}
+	if quoteID == 0 || quoteStatus != "emitida" {
+		return ErrBadTransition
+	}
+
+	var changes []string
+	switch {
+	case status == "prospecto":
+		changes = append(changes, "Pasó a "+StageLabels["oc_recibida"]+".", "O.C. "+oc.text())
+	case old != oc:
+		changes = append(changes, "O.C. actualizada: "+oc.text())
+	}
+	if status == "prospecto" || old != oc {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE projects SET status = 'oc_recibida', oc_number = ?, oc_date = ?, payment_method = ?
+			WHERE id = ?`, oc.Number, oc.Date, oc.PaymentMethod, projectID); err != nil {
+			return fmt.Errorf("store: receive OC of project %d: %w", projectID, err)
+		}
+	}
+	if file != nil {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO project_files (project_id, kind, filename, content_type, size, data, uploaded_by)
+			VALUES (?, 'oc', ?, ?, ?, ?, ?)`,
+			projectID, strings.TrimSpace(file.Filename), file.ContentType, len(file.Data), file.Data, userID); err != nil {
+			return fmt.Errorf("store: receive OC of project %d: file: %w", projectID, err)
+		}
+		changes = append(changes, "Archivo de la O.C.: "+strings.TrimSpace(file.Filename))
+	}
+	if note = strings.TrimSpace(note); note != "" {
+		changes = append(changes, note)
+	}
+	if len(changes) > 0 {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`,
+			quoteID, userID, strings.Join(changes, "\n")); err != nil {
+			return fmt.Errorf("store: receive OC of project %d: comment: %w", projectID, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: receive OC of project %d: %w", projectID, err)
+	}
+	return nil
+}
+
+// ListProjectFiles returns a proyecto's files of one kind, newest first, without their
+// bytes. The first is the one in force.
+func (s *Store) ListProjectFiles(ctx context.Context, projectID int64, kind string) ([]ProjectFile, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT f.id, f.project_id, f.kind, f.filename, f.content_type, f.size, u.name, f.uploaded_at
+		FROM project_files f JOIN users u ON u.id = f.uploaded_by
+		WHERE f.project_id = ? AND f.kind = ? ORDER BY f.id DESC`, projectID, kind)
+	if err != nil {
+		return nil, fmt.Errorf("store: files of project %d: %w", projectID, err)
+	}
+	defer rows.Close()
+	var files []ProjectFile
+	for rows.Next() {
+		var f ProjectFile
+		if err := rows.Scan(&f.ID, &f.ProjectID, &f.Kind, &f.Filename, &f.ContentType, &f.Size, &f.UploadedByName, &f.UploadedAt); err != nil {
+			return nil, fmt.Errorf("store: files of project %d: %w", projectID, err)
+		}
+		files = append(files, f)
+	}
+	return files, rows.Err()
+}
+
+// ProjectFileData returns one of a proyecto's files with its bytes, or nil when the
+// proyecto has no file with that id.
+func (s *Store) ProjectFileData(ctx context.Context, projectID, fileID int64) (*ProjectFile, []byte, error) {
+	var f ProjectFile
+	var data []byte
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, project_id, kind, filename, content_type, size, uploaded_at, data
+		FROM project_files WHERE id = ? AND project_id = ?`, fileID, projectID).
+		Scan(&f.ID, &f.ProjectID, &f.Kind, &f.Filename, &f.ContentType, &f.Size, &f.UploadedAt, &data)
+	if err == sql.ErrNoRows {
+		return nil, nil, nil
+	}
+	if err != nil {
+		return nil, nil, fmt.Errorf("store: file %d of project %d: %w", fileID, projectID, err)
+	}
+	return &f, data, nil
 }
 
 // FollowUp is what a salesperson reports about a prospecto in one go. A nil field is
@@ -428,7 +602,13 @@ type Project struct {
 	LastBody        string
 	LastUserName    string
 	LastAt          string
+	// OC is the client's purchase order, zero until it is received (and on proyectos
+	// that reached oc_recibida before it was asked for).
+	OC OC
 }
+
+// HasOC reports whether the client's purchase order is on record.
+func (p Project) HasOC() bool { return p.OC.Number != "" }
 
 // FollowUpDue reports whether the prospecto's next follow-up is today or overdue.
 func (p Project) FollowUpDue(today string) bool {
@@ -456,7 +636,8 @@ var projectSelectCols = `
 	COALESCE(c.contact_name, ''), COALESCE(c.phone, ''), COALESCE(c.email, ''),
 	COALESCE((` + projectLastComment("lc.body") + `), ''),
 	COALESCE((` + projectLastComment("lu.name") + `), ''),
-	COALESCE((` + projectLastComment("lc.created_at") + `), '')`
+	COALESCE((` + projectLastComment("lc.created_at") + `), ''),
+	COALESCE(p.oc_number, ''), COALESCE(p.oc_date, ''), COALESCE(p.payment_method, '')`
 
 // projectLastComment selects one column of the newest comment on any of the proyecto's
 // quotes, for projectSelectCols.
@@ -480,7 +661,8 @@ func scanProject(row interface{ Scan(...any) error }) (*Project, error) {
 		&p.LostReason, &p.LostFrom, &p.LostAt,
 		&p.ExpectedOCDate, &p.NextFollowUpDate, &p.QuoteIssuedAt, &p.QuoteValidUntil,
 		&p.ContactName, &p.ContactPhone, &p.ContactEmail,
-		&p.LastBody, &p.LastUserName, &p.LastAt)
+		&p.LastBody, &p.LastUserName, &p.LastAt,
+		&p.OC.Number, &p.OC.Date, &p.OC.PaymentMethod)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

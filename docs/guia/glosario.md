@@ -103,8 +103,14 @@ por cerrar, cuándo se espera la orden de compra y cuánto suma. Está en el men
 
 ## O.C. recibida
 
-El cliente ya mandó su orden de compra. Desde este momento la cotización del proyecto
-ya no se puede revisar.
+El cliente ya mandó su orden de compra y el proyecto tiene su número, su fecha y la
+forma de pago. Desde este momento la cotización del proyecto ya no se puede revisar.
+
+## Forma de pago
+
+Cómo va a pagar el cliente, según su orden de compra. **P.U.E.**: pago en una sola
+exhibición. **P.P.D.**: pago en parcialidades o diferido. Se elige al recibir la orden
+de compra.
 
 ## En entrega
 

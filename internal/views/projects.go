@@ -2,6 +2,7 @@ package views
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
@@ -51,6 +52,38 @@ func OverdueProjectEvents(p store.Project, today string) []ProjectEvent {
 		}
 	}
 	return out
+}
+
+func projectFilePath(folio string, fileID int64) string {
+	return projectPath(folio) + "/archivos/" + strconv.FormatInt(fileID, 10)
+}
+
+// paymentMethodText is a forma de pago with what its initials stand for.
+func paymentMethodText(method string) string {
+	switch method {
+	case "PUE":
+		return "P.U.E. · pago en una sola exhibición"
+	case "PPD":
+		return "P.P.D. · pago en parcialidades o diferido"
+	}
+	return method
+}
+
+// ocDateValue is the purchase order form's date: the one on record, or today for a
+// proyecto that has none yet.
+func ocDateValue(p store.Project, today string) string {
+	if p.OC.Date != "" {
+		return p.OC.Date
+	}
+	return today
+}
+
+// fileSizeText is a file size as people read it: "84 KB", "2.3 MB".
+func fileSizeText(size int64) string {
+	if size < 1<<20 {
+		return strconv.FormatInt(max(1, (size+512)>>10), 10) + " KB"
+	}
+	return strconv.FormatFloat(float64(size)/(1<<20), 'f', 1, 64) + " MB"
 }
 
 // joinNonEmpty joins the parts that have something in them.
