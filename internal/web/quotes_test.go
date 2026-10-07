@@ -836,7 +836,7 @@ func TestQuotesComments(t *testing.T) {
 
 	rec = doForm(t, a, beto, q.Builder, "GET", "/cotizaciones/"+quote.Folio, pv, nil, false)
 	body := rec.Body.String()
-	for _, want := range []string{"Llamar al cliente el lunes", "Cliente pidió otro precio", "emitida", "Utilidad", "19.29"} { // 30% of $64.29
+	for _, want := range []string{"Llamar al cliente el lunes", "Cliente pidió otro precio", "Prospecto", "Utilidad", "19.29"} { // 30% of $64.29
 		if !strings.Contains(body, want) {
 			t.Errorf("issued page missing %q", want)
 		}
@@ -931,9 +931,17 @@ func TestQuotesEtapa(t *testing.T) {
 		return doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+quote.Folio, pv, nil, false).Body.String()
 	}
 
-	// A draft has no stages to move through.
-	if rec := move(ana, "pipeline", ""); rec.Code != http.StatusConflict {
+	prob := func(userID int64, value, note string) *httptest.ResponseRecorder {
+		return doForm(t, a, userID, q.Probabilidad, "POST", "/cotizaciones/"+quote.Folio+"/probabilidad", pv,
+			url.Values{"probabilidad": {value}, "note": {note}}, false)
+	}
+
+	// A draft has no proyecto yet: no stages to move through, no probability.
+	if rec := move(ana, "oc_recibida", ""); rec.Code != http.StatusConflict {
 		t.Fatalf("Etapa(draft) status = %d, want 409", rec.Code)
+	}
+	if rec := prob(ana, "75", ""); rec.Code != http.StatusConflict {
+		t.Fatalf("Probabilidad(draft) status = %d, want 409", rec.Code)
 	}
 	form := url.Values{
 		"line_keys":            {"0"},
@@ -945,59 +953,159 @@ func TestQuotesEtapa(t *testing.T) {
 		t.Fatalf("Emitir status = %d; body = %s", rec.Code, rec.Body.String())
 	}
 
+	// Issuing opened the proyecto as a prospecto at the lowest probability.
 	body := page(ana)
-	for _, want := range []string{"Pasar a Pipeline", "Revisar"} {
+	for _, want := range []string{"Seguimiento del proyecto " + quote.Folio, "Prospecto", "Inicial (10%)",
+		"Guardar probabilidad", "Pasar a O.C. recibida", ">Revisar<"} {
 		if !strings.Contains(body, want) {
-			t.Errorf("emitida page missing %q", want)
+			t.Errorf("prospecto page missing %q", want)
 		}
 	}
 	if strings.Contains(body, "Regresar a") {
 		t.Error("a vendedor is offered going back a stage")
 	}
-
-	if rec := move(ana, "oc_emitida", ""); rec.Code != http.StatusConflict {
-		t.Errorf("Etapa(skip a stage) status = %d, want 409", rec.Code)
-	}
-	if rec := move(ana, "pipeline", strings.Repeat("x", maxCommentLen+1)); rec.Code != http.StatusBadRequest {
-		t.Errorf("Etapa(note too long) status = %d, want 400", rec.Code)
-	}
-	if rec := move(ana, "pipeline", "Le interesa"); rec.Code != http.StatusSeeOther {
-		t.Fatalf("Etapa(→ pipeline) status = %d; body = %s", rec.Code, rec.Body.String())
+	if strings.Contains(body, "Relevante para pronóstico") {
+		t.Error("a prospecto at Inicial is shown as relevante para pronóstico")
 	}
 
-	body = page(ana)
-	for _, want := range []string{"Pasar a OC emitida", "Pasó a Pipeline.", "Le interesa"} {
-		if !strings.Contains(body, want) {
-			t.Errorf("pipeline page missing %q", want)
+	// The probability takes only the fixed steps, and from Alta the proyecto counts for
+	// the forecast. It can still be revised: only the purchase order locks the quote.
+	for _, bad := range []string{"", "40", "100", "alta"} {
+		if rec := prob(ana, bad, ""); rec.Code != http.StatusBadRequest {
+			t.Errorf("Probabilidad(%q) status = %d, want 400", bad, rec.Code)
 		}
 	}
-	if strings.Contains(body, ">Revisar<") {
-		t.Error("a quote in pipeline can still be revised")
+	if rec := prob(ana, "75", strings.Repeat("x", maxCommentLen+1)); rec.Code != http.StatusBadRequest {
+		t.Errorf("Probabilidad(note too long) status = %d, want 400", rec.Code)
+	}
+	if rec := prob(ana, "75", "Le interesa"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Probabilidad(75) status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	body = page(ana)
+	for _, want := range []string{"Alta (75%)", "Relevante para pronóstico", "Probabilidad: Inicial → Alta.", "Le interesa", ">Revisar<"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("prospecto page at Alta missing %q", want)
+		}
+	}
+
+	if rec := move(ana, "en_entrega", ""); rec.Code != http.StatusConflict {
+		t.Errorf("Etapa(skip a stage) status = %d, want 409", rec.Code)
+	}
+	if rec := move(ana, "oc_recibida", strings.Repeat("x", maxCommentLen+1)); rec.Code != http.StatusBadRequest {
+		t.Errorf("Etapa(note too long) status = %d, want 400", rec.Code)
+	}
+	if rec := move(ana, "oc_recibida", "OC 4411"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Etapa(→ oc_recibida) status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+
+	// With the purchase order in: no probability, no revision.
+	body = page(ana)
+	for _, want := range []string{"O.C. recibida", "Pasar a En entrega", "Pasó a O.C. recibida.", "OC 4411"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("oc_recibida page missing %q", want)
+		}
+	}
+	for _, gone := range []string{">Revisar<", "Guardar probabilidad", "Relevante para pronóstico"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("oc_recibida page still shows %q", gone)
+		}
+	}
+	if rec := prob(ana, "90", ""); rec.Code != http.StatusConflict {
+		t.Errorf("Probabilidad(oc_recibida) status = %d, want 409", rec.Code)
+	}
+	if rec := doForm(t, a, ana, q.Revisar, "POST", "/cotizaciones/"+quote.Folio+"/revisar", pv, nil, false); rec.Code != http.StatusConflict {
+		t.Errorf("Revisar(oc_recibida) status = %d, want 409", rec.Code)
 	}
 
 	// Going back is admin-only.
-	if rec := move(ana, "emitida", ""); rec.Code != http.StatusForbidden {
+	if rec := move(ana, "prospecto", ""); rec.Code != http.StatusForbidden {
 		t.Errorf("Etapa(back as vendedor) status = %d, want 403", rec.Code)
 	}
-	if !strings.Contains(page(beto), "Regresar a Emitida") {
+	if !strings.Contains(page(beto), "Regresar a Prospecto") {
 		t.Error("admin is not offered going back")
 	}
-	if rec := move(beto, "emitida", "Se cayó la junta"); rec.Code != http.StatusSeeOther {
+	if rec := move(beto, "prospecto", "Se cayó la junta"); rec.Code != http.StatusSeeOther {
 		t.Fatalf("Etapa(back as admin) status = %d", rec.Code)
+	}
+	// Back as a prospecto it has the probability it left with.
+	if !strings.Contains(page(ana), "Alta (75%)") {
+		t.Error("a proyecto sent back to prospecto lost its probability")
 	}
 
 	// Run it to the end: the last stage has no forward button.
-	for _, to := range []string{"pipeline", "oc_emitida", "entregada", "cerrada"} {
+	for _, to := range []string{"oc_recibida", "en_entrega", "cerrado"} {
 		if rec := move(ana, to, ""); rec.Code != http.StatusSeeOther {
 			t.Fatalf("Etapa(→ %s) status = %d; body = %s", to, rec.Code, rec.Body.String())
 		}
 	}
 	body = page(ana)
-	if !strings.Contains(body, "entregada y cerrada") && !strings.Contains(body, "Entregada y cerrada") {
-		t.Error("closed quote page doesn't say so")
+	if !strings.Contains(body, "Este proyecto está cerrado") {
+		t.Error("closed proyecto page doesn't say so")
 	}
 	if strings.Contains(body, "Pasar a") {
-		t.Error("closed quote still offers a next stage")
+		t.Error("closed proyecto still offers a next stage")
+	}
+
+	// The list shows the stage, and filters by it.
+	list := func(query string) string {
+		req := httptest.NewRequest("GET", "/cotizaciones?"+query, nil)
+		return doForm(t, a, ana, q.List, "GET", req.URL.String(), nil, nil, false).Body.String()
+	}
+	if body := list(""); !strings.Contains(body, "Cerrado") {
+		t.Error("the list doesn't show the proyecto's stage")
+	}
+	if body := list("f.estado=cerrado"); !strings.Contains(body, quote.Folio) {
+		t.Error("filtering the list by Cerrado loses the quote")
+	}
+	if body := list("f.estado=prospecto"); strings.Contains(body, ">"+quote.Folio+"<") {
+		t.Error("filtering the list by Prospecto keeps a closed proyecto's quote")
+	}
+}
+
+// A superseded quote and a revision still in draft carry no proyecto controls: those
+// live on the proyecto's issued, current quote.
+func TestQuotesEtapaOnlyOnTheCurrentQuote(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
+	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, ana)
+	ctx := context.Background()
+
+	quote, err := a.store.CreateDraftQuote(ctx, customerID, ana, "QA")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+	pv := map[string]string{"folio": quote.Folio}
+	form := url.Values{
+		"line_keys":            {"0"},
+		"lines[0][kind]":       {"product"},
+		"lines[0][product_id]": {strconv.FormatInt(costProductID, 10)},
+		"lines[0][qty]":        {"1"},
+	}
+	if rec := doForm(t, a, ana, q.Emitir, "POST", "/cotizaciones/"+quote.Folio+"/emitir", pv, form, false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	rev, err := a.store.CreateRevision(ctx, quote.ID, ana)
+	if err != nil {
+		t.Fatalf("CreateRevision: %v", err)
+	}
+	for _, folio := range []string{quote.Folio, rev.Folio} {
+		pv := map[string]string{"folio": folio}
+		body := doForm(t, a, ana, q.Builder, "GET", "/cotizaciones/"+folio, pv, nil, false).Body.String()
+		for _, gone := range []string{"Seguimiento del proyecto", "Pasar a O.C. recibida", "Guardar probabilidad"} {
+			if strings.Contains(body, gone) {
+				t.Errorf("%s page shows %q", folio, gone)
+			}
+		}
+		rec := doForm(t, a, ana, q.Etapa, "POST", "/cotizaciones/"+folio+"/etapa", pv, url.Values{"to": {"oc_recibida"}}, false)
+		if rec.Code != http.StatusConflict {
+			t.Errorf("Etapa(%s) status = %d, want 409", folio, rec.Code)
+		}
+		rec = doForm(t, a, ana, q.Probabilidad, "POST", "/cotizaciones/"+folio+"/probabilidad", pv, url.Values{"probabilidad": {"75"}}, false)
+		if rec.Code != http.StatusConflict {
+			t.Errorf("Probabilidad(%s) status = %d, want 409", folio, rec.Code)
+		}
 	}
 }
 

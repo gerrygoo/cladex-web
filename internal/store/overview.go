@@ -9,65 +9,73 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/money"
 )
 
-// QuoteStatuses are the lifecycle stages the home overview reports, in order: the
-// pipeline flow, then revisada (an issued quote a revision superseded). Drafts
-// (borrador) are work in progress and deliberately left out.
-var QuoteStatuses = append(append([]string{}, PipelineFlow...), "revisada")
-
-// StageSummary is one lifecycle stage on the home overview: how many quotes sit in it,
-// what they add up to, and the largest few by total.
+// StageSummary is one proyecto stage on the home overview: how many proyectos sit in it,
+// what their current quotes add up to, and the largest few by total. Forecast is the
+// part of a prospecto stage that is relevante para pronóstico (see ForecastRelevant);
+// it is zero for every other stage.
 type StageSummary struct {
-	Status string
-	Count  int
-	Total  money.Centavos
-	Top    []Quote // only Folio, CustomerName, UserName, Total, CreatedAt are set
+	Status        string
+	Count         int
+	Total         money.Centavos
+	ForecastCount int
+	ForecastTotal money.Centavos
+	Top           []Quote // only Folio, CustomerName, UserName, Total, CreatedAt, Stage, Probability are set
 }
 
 // VendedorSummary is one salesperson's row on the home overview. A "vendedor" here is
-// whoever created the quote (quotes.user_id), whatever their role: admins who quote
-// count the same as vendedores.
+// whoever owns the proyecto (projects.user_id, the user who created the quote that
+// opened it), whatever their role: admins who quote count the same as vendedores.
 type VendedorSummary struct {
-	UserID int64
-	Name   string
-	Count  map[string]int            // quotes per status (QuoteStatuses only)
-	Total  map[string]money.Centavos // their sum, per status
+	UserID   int64
+	Name     string
+	Count    map[string]int            // proyectos per stage (ProjectFlow only)
+	Total    map[string]money.Centavos // their sum, per stage
+	Forecast money.Centavos            // the sum of their prospectos that are relevante para pronóstico
 }
 
-// Overview is the home page's snapshot of the quote pipeline. Every quote is MXN, so
-// totals are summed as-is.
+// Overview is the home page's snapshot of the proyectos. A proyecto's amount is its
+// current quote's total, and amounts are summed as-is.
 type Overview struct {
-	Stages     []StageSummary    // one per QuoteStatuses entry, in order
-	Vendedores []VendedorSummary // ranked by pipeline amount, then emitida amount, then name
+	Stages     []StageSummary    // one per ProjectFlow entry, in order
+	Vendedores []VendedorSummary // ranked by forecast amount, then prospecto amount, then name
 }
 
-// topPerStage is how many of each stage's largest quotes the overview lists.
+// topPerStage is how many of each stage's largest proyectos the overview lists.
 const topPerStage = 3
 
-// QuoteOverview summarizes quotes by lifecycle stage and by vendedor.
-func (s *Store) QuoteOverview(ctx context.Context) (*Overview, error) {
+// overviewFrom joins each proyecto to its current quote, the one that isn't revisada.
+// Drafts that were never issued have no proyecto, so they are left out.
+const overviewFrom = `
+	FROM projects p
+	JOIN quotes q ON q.project_id = p.id AND q.status != 'revisada'`
+
+// ProjectOverview summarizes proyectos by stage and by vendedor.
+func (s *Store) ProjectOverview(ctx context.Context) (*Overview, error) {
 	ov := &Overview{}
 	byStatus := map[string]*StageSummary{}
-	for _, st := range QuoteStatuses {
+	for _, st := range ProjectFlow {
 		ov.Stages = append(ov.Stages, StageSummary{Status: st})
 	}
 	for i := range ov.Stages {
 		byStatus[ov.Stages[i].Status] = &ov.Stages[i]
 	}
 
-	rows, err := s.db.QueryContext(ctx, `SELECT status, count(*), coalesce(sum(total), 0) FROM quotes GROUP BY status`)
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT p.status, count(*), coalesce(sum(q.total), 0),
+			coalesce(sum(p.status = 'prospecto' AND p.probability >= ?), 0),
+			coalesce(sum(CASE WHEN p.status = 'prospecto' AND p.probability >= ? THEN q.total END), 0)
+		`+overviewFrom+` GROUP BY p.status`, ForecastThreshold, ForecastThreshold)
 	if err != nil {
 		return nil, fmt.Errorf("store: overview stages: %w", err)
 	}
 	for rows.Next() {
-		var status string
-		var count int
-		var total money.Centavos
-		if err := rows.Scan(&status, &count, &total); err != nil {
+		var sum StageSummary
+		if err := rows.Scan(&sum.Status, &sum.Count, &sum.Total, &sum.ForecastCount, &sum.ForecastTotal); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("store: overview stages: %w", err)
 		}
-		if st := byStatus[status]; st != nil {
-			st.Count, st.Total = count, total
+		if st := byStatus[sum.Status]; st != nil {
+			*st = sum
 		}
 	}
 	rows.Close()
@@ -76,39 +84,38 @@ func (s *Store) QuoteOverview(ctx context.Context) (*Overview, error) {
 	}
 
 	rows, err = s.db.QueryContext(ctx, `
-		SELECT status, folio, customer, vendedor, total, created_at FROM (
-			SELECT q.status, q.folio, c.name AS customer, u.name AS vendedor, q.total, q.created_at,
-				row_number() OVER (PARTITION BY q.status ORDER BY q.total DESC, q.created_at DESC) AS rn
-			FROM quotes q
-			JOIN customers c ON c.id = q.customer_id
-			JOIN users u ON u.id = q.user_id
+		SELECT status, folio, customer, vendedor, total, created_at, probability FROM (
+			SELECT p.status, q.folio, c.name AS customer, u.name AS vendedor, q.total, q.created_at, p.probability,
+				row_number() OVER (PARTITION BY p.status ORDER BY q.total DESC, q.created_at DESC) AS rn
+			`+overviewFrom+`
+			JOIN customers c ON c.id = p.customer_id
+			JOIN users u ON u.id = p.user_id
 		) WHERE rn <= ? ORDER BY status, rn`, topPerStage)
 	if err != nil {
-		return nil, fmt.Errorf("store: overview top quotes: %w", err)
+		return nil, fmt.Errorf("store: overview top projects: %w", err)
 	}
 	for rows.Next() {
-		var status string
 		var q Quote
-		if err := rows.Scan(&status, &q.Folio, &q.CustomerName, &q.UserName, &q.Total, &q.CreatedAt); err != nil {
+		if err := rows.Scan(&q.Stage, &q.Folio, &q.CustomerName, &q.UserName, &q.Total, &q.CreatedAt, &q.Probability); err != nil {
 			rows.Close()
-			return nil, fmt.Errorf("store: overview top quotes: %w", err)
+			return nil, fmt.Errorf("store: overview top projects: %w", err)
 		}
-		q.Status = status
-		if st := byStatus[status]; st != nil {
+		if st := byStatus[q.Stage]; st != nil {
 			st.Top = append(st.Top, q)
 		}
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: overview top quotes: %w", err)
+		return nil, fmt.Errorf("store: overview top projects: %w", err)
 	}
 
 	rows, err = s.db.QueryContext(ctx, `
-		SELECT u.id, u.name, q.status, count(*), coalesce(sum(q.total), 0)
-		FROM quotes q
-		JOIN users u ON u.id = q.user_id
-		GROUP BY u.id, q.status
-		ORDER BY u.id`)
+		SELECT u.id, u.name, p.status, count(*), coalesce(sum(q.total), 0),
+			coalesce(sum(CASE WHEN p.status = 'prospecto' AND p.probability >= ? THEN q.total END), 0)
+		`+overviewFrom+`
+		JOIN users u ON u.id = p.user_id
+		GROUP BY u.id, p.status
+		ORDER BY u.id`, ForecastThreshold)
 	if err != nil {
 		return nil, fmt.Errorf("store: overview vendedores: %w", err)
 	}
@@ -119,8 +126,8 @@ func (s *Store) QuoteOverview(ctx context.Context) (*Overview, error) {
 		var id int64
 		var name, status string
 		var count int
-		var total money.Centavos
-		if err := rows.Scan(&id, &name, &status, &count, &total); err != nil {
+		var total, forecast money.Centavos
+		if err := rows.Scan(&id, &name, &status, &count, &total, &forecast); err != nil {
 			return nil, fmt.Errorf("store: overview vendedores: %w", err)
 		}
 		v := byUser[id]
@@ -131,6 +138,7 @@ func (s *Store) QuoteOverview(ctx context.Context) (*Overview, error) {
 		}
 		if byStatus[status] != nil {
 			v.Count[status], v.Total[status] = count, total
+			v.Forecast += forecast
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -141,11 +149,11 @@ func (s *Store) QuoteOverview(ctx context.Context) (*Overview, error) {
 	}
 	sort.SliceStable(ov.Vendedores, func(i, j int) bool {
 		a, b := ov.Vendedores[i], ov.Vendedores[j]
-		if a.Total["pipeline"] != b.Total["pipeline"] {
-			return a.Total["pipeline"] > b.Total["pipeline"]
+		if a.Forecast != b.Forecast {
+			return a.Forecast > b.Forecast
 		}
-		if a.Total["emitida"] != b.Total["emitida"] {
-			return a.Total["emitida"] > b.Total["emitida"]
+		if a.Total["prospecto"] != b.Total["prospecto"] {
+			return a.Total["prospecto"] > b.Total["prospecto"]
 		}
 		return strings.ToLower(a.Name) < strings.ToLower(b.Name)
 	})

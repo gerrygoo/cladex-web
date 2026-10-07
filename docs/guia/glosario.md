@@ -33,25 +33,33 @@ una cotización.
 
 ## Estados
 
-Una cotización pasa por estos estados, en este orden:
+Una cotización tiene tres estados:
 
 <div class="estados">
   <span class="estado">borrador</span>
   <span class="flecha">Emitir →</span>
   <span class="estado">emitida</span>
-  <span class="flecha">Interesó →</span>
-  <span class="estado">Pipeline</span>
-  <span class="flecha">OC →</span>
-  <span class="estado">OC emitida</span>
-  <span class="flecha">Entrega →</span>
-  <span class="estado">entregada</span>
-  <span class="flecha">Cobro →</span>
-  <span class="estado">entregada y cerrada</span>
+  <span class="flecha">Revisar →</span>
+  <span class="estado">revisada</span>
 </div>
 
-Desde **emitida**, si el cliente pide cambios, [Revisar](cotizaciones.md#revisar-una-cotización-emitida)
-crea una nueva cotización (`QA0012-R1`) en borrador y la original pasa a **revisada**.
-Cómo mover una cotización de etapa: [darle seguimiento](cotizaciones.md#dar-seguimiento-a-una-cotización).
+Al emitirla se abre su [[proyecto]], que es el que avanza por etapas:
+
+<div class="estados">
+  <span class="estado">prospecto</span>
+  <span class="flecha">OC →</span>
+  <span class="estado">O.C. recibida</span>
+  <span class="flecha">Entrega →</span>
+  <span class="estado">en entrega</span>
+  <span class="flecha">Cobro →</span>
+  <span class="estado">cerrado</span>
+</div>
+
+En las listas y en el resumen, una cotización emitida muestra la etapa de su proyecto.
+Mientras el proyecto es prospecto, si el cliente pide cambios,
+[Revisar](cotizaciones.md#revisar-una-cotización-emitida) crea una nueva cotización
+(`QA0012-R1`) en borrador y la original pasa a **revisada**; el proyecto sigue siendo el
+mismo. Cómo mover un proyecto de etapa: [darle seguimiento](cotizaciones.md#dar-seguimiento-a-una-cotización).
 
 ## Borrador
 
@@ -63,24 +71,43 @@ su margen y los ajustes vigentes cada vez que la abres.
 Una cotización congelada: sus precios, margen, términos y PDF ya no cambian.
 Es la que se envía al cliente.
 
-## Pipeline
+## Proyecto
 
-Una cotización emitida que el cliente ya consideró y cuya propuesta avanza. Solo pasa a
-Pipeline cuando hay avance con el cliente; una que todavía se está revisando no cuenta,
-para no comprometer el Pipeline.
+El negocio que se abre al emitir una cotización: se le da seguimiento desde que el
+cliente la recibe hasta que se entrega y se cobra. Lleva el folio de la cotización que
+lo abrió (`QA0012`) y sigue siendo el mismo aunque la cotización se revise
+(`QA0012-R1`, `QA0012-R2`…): su cotización vigente es siempre la más reciente.
 
-## OC emitida
+## Prospecto
 
-El cliente ya mandó su orden de compra y la enviamos al fabricante.
+Un proyecto cuya cotización ya tiene el cliente y todavía no manda su orden de compra.
+Es la primera etapa: se le da seguimiento y se anota su [[probabilidad de cierre]].
 
-## Entregada
+## Probabilidad de cierre
 
-El cable ya se le entregó al cliente; falta facturar y cobrar.
+Qué tan cerca está un prospecto de convertirse en pedido. Se elige entre cinco pasos:
+Inicial (10%), Baja (25%), Media (50%), Alta (75%) e Inminente (90%). Un proyecto nuevo
+empieza en Inicial.
 
-## Cerrada
+## Relevante para pronóstico
 
-Entregada y cerrada: se entregó, se facturó, se cobró y se emitió el complemento de pago
-(si aplica).
+Un prospecto con probabilidad de cierre Alta o Inminente. Son los proyectos que el
+equipo revisa cuando ve qué está por cerrar (lo que antes se llamaba "en pipeline"). No
+se marca a mano: depende solo de la probabilidad.
+
+## O.C. recibida
+
+El cliente ya mandó su orden de compra. Desde este momento la cotización del proyecto
+ya no se puede revisar.
+
+## En entrega
+
+El pedido ya va en camino o se le entregó al cliente; falta facturar y cobrar.
+
+## Cerrado
+
+Un proyecto que ya se entregó, se facturó, se cobró y tiene su complemento de pago (si
+aplica).
 
 ## Revisada
 

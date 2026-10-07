@@ -605,7 +605,8 @@ span.badge {
   white-space: nowrap;
 }
 
-span.badge-emitida {
+span.badge-emitida,
+span.badge-prospecto {
   color: var(--success);
   background: color-mix(in srgb, var(--success) 8%, var(--bg));
 }
@@ -618,20 +619,24 @@ span.badge-revisada {
   color: var(--text-muted);
 }
 
-span.badge-pipeline,
-span.badge-oc_emitida {
+span.badge-oc_recibida {
   color: var(--primary);
   background: color-mix(in srgb, var(--primary) 8%, var(--bg));
 }
 
-span.badge-entregada {
+span.badge-en_entrega {
   color: var(--warning);
   background: color-mix(in srgb, var(--warning) 8%, var(--bg));
 }
 
-span.badge-cerrada {
+span.badge-cerrado {
   color: var(--success);
   background: color-mix(in srgb, var(--success) 8%, var(--bg));
+}
+
+/* A prospecto that counts for the forecast; the words carry it, the colour only helps */
+strong.forecast {
+  color: var(--primary);
 }
 
 /* ==== Tables ============================================================ */
@@ -1202,4 +1207,11 @@ form.stage-form {
 
 form.stage-form textarea {
   width: 100%;
+}
+
+/* The probabilidad de cierre steps, side by side */
+fieldset.probability {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
 }

@@ -84,6 +84,13 @@ Cross-package total, counting generated views and the `main` packages: **70.5%**
 (57.0% → 67.2% → 69.5% over the two gap-closing passes, before M3 deleted `cmd/import`
 and the FX/copper/flat-price paths). All tests pass; nothing is skipped.
 
+Since the snapshot, slice 4.1 (proyectos, 2026-10-06) moved the stage tests from
+`pipeline_test.go` to `internal/store/projects_test.go` (stage moves, the probability
+steps, a proyecto opening on issue and following revisions, and `TestMigration0016`
+over every old stage) and `TestQuotesEtapa` now also covers the probability control,
+the revision lock after the O.C. and the list's stage filter. `internal/store` is at
+81.0% and `internal/web` at 80.0%.
+
 ## Tracked gaps
 
 Ordered by how much a defect there would cost. Tick one off in the same commit that
@@ -103,7 +110,7 @@ closes it, and refresh the snapshot above when the numbers move.
       are now exercised by the router tests.
 - [x] **Untested store functions.** `DisableUser` and `DeleteSessionsByUserID` are
       covered in `internal/store/auth_test.go`. (`QuoteCount` was covered too until the
-      home page's pipeline overview replaced it.)
+      home page's overview replaced it.)
       The session tests assert the parts that matter operationally: disabling a user
       kills their live cookie through `SessionUser`, and a password reset ends *every*
       session that user has while leaving other users' sessions alone.

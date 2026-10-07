@@ -92,6 +92,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /cotizaciones/{folio}/emitir", auth.RequireAuth(http.HandlerFunc(quotes.Emitir)))
 	mux.Handle("POST /cotizaciones/{folio}/revisar", auth.RequireAuth(http.HandlerFunc(quotes.Revisar)))
 	mux.Handle("POST /cotizaciones/{folio}/etapa", auth.RequireAuth(http.HandlerFunc(quotes.Etapa)))
+	mux.Handle("POST /cotizaciones/{folio}/probabilidad", auth.RequireAuth(http.HandlerFunc(quotes.Probabilidad)))
 	mux.Handle("POST /cotizaciones/{folio}/comentarios", auth.RequireAuth(http.HandlerFunc(quotes.Comentar)))
 	mux.Handle("GET /cotizaciones/{folio}/pdf", auth.RequireAuth(http.HandlerFunc(quotes.PDF)))
 
@@ -121,7 +122,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("GET /ayuda/{pagina}", auth.RequireAuth(http.HandlerFunc(help.Page)))
 
 	mux.Handle("GET /{$}", auth.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ov, err := db.QuoteOverview(r.Context())
+		ov, err := db.ProjectOverview(r.Context())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

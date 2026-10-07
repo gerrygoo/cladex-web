@@ -41,20 +41,24 @@ Si en el menú **Catálogos** solo ves **Productos** y **Clientes**, tu cuenta e
 
 ## La página de inicio
 
-Al entrar ves un resumen de todas las cotizaciones (de todos los vendedores, no solo
-las tuyas):
+Al entrar ves un resumen de todos los [[proyecto|proyectos]] (de todos los vendedores,
+no solo los tuyos). Un proyecto se abre al emitir una cotización, así que los borradores
+que nunca se emitieron no aparecen aquí:
 
-- **Cotizaciones por etapa**: cuántas hay en cada etapa de [[emitida]], [[Pipeline]],
-  [[OC emitida]], [[entregada]], [[cerrada]] y [[revisada]] (los borradores no se cuentan
-  aquí), la suma de sus totales y las 3 de mayor total en cada etapa. Haz clic en un folio
-  para abrirla. Para [crear una](cotizaciones.md#crear-una-cotización), usa el menú
-  **Cotizaciones** → **Nueva cotización**.
-  Para mover una cotización de etapa, mira [darle seguimiento](cotizaciones.md#dar-seguimiento-a-una-cotización).
-- **Vendedores**: una fila por cada persona que ha creado cotizaciones, ordenadas por
-  **Monto en pipeline** (la suma de sus cotizaciones en Pipeline). Junto están el
-  **Monto emitido** (las que siguen en emitida) y cuántas tiene en cada etapa. Cuenta a
-  quien creó la cotización, sea vendedor o administrador. Una revisada ya no suma:
-  su lugar lo toma la revisión cuando se emite.
+- **Proyectos por etapa**: cuántos hay en cada etapa de [[prospecto]],
+  [[O.C. recibida]], [[en entrega]] y [[cerrado]], la suma de sus totales y los 3 de
+  mayor total en cada etapa. El monto de un proyecto es el total de su cotización
+  vigente. Haz clic en un folio para abrir esa cotización. Para
+  [crear una](cotizaciones.md#crear-una-cotización), usa el menú **Cotizaciones** →
+  **Nueva cotización**.
+  Para mover un proyecto de etapa, mira [darle seguimiento](cotizaciones.md#dar-seguimiento-a-una-cotización).
+- En **Prospectos** verás además cuántos son [[relevante para pronóstico|relevantes para pronóstico]]
+  y cuánto suman, y la [[probabilidad de cierre]] de cada uno de los tres que se listan.
+- **Vendedores**: una fila por cada persona con proyectos, ordenadas por
+  **Monto para pronóstico** (la suma de sus prospectos relevantes para pronóstico).
+  Junto están el **Monto en prospectos** (todos sus prospectos) y cuántos proyectos
+  tiene en cada etapa. Cuenta a quien creó la cotización que abrió el proyecto, sea
+  vendedor o administrador.
 - Abajo, **Compilado el …** indica cuándo se instaló la versión actual de la app.
 
 Todos los montos están en pesos (MXN) con IVA incluido.

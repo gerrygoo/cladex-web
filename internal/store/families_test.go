@@ -148,7 +148,8 @@ func TestFamilySeriesMigrationKeepsQuotes(t *testing.T) {
 	if err != nil || q == nil || q.TermsSnapshot == nil || *q.TermsSnapshot != "frozen terms" {
 		t.Fatalf("QA0001 after migration = %+v, %v", q, err)
 	}
-	if p, _ := s.QuoteByFolio(ctx, "QA0002"); p == nil || p.Status != "oc_emitida" {
+	// Migration 0016 later moved the stage onto the quote's proyecto.
+	if p, _ := s.QuoteByFolio(ctx, "QA0002"); p == nil || p.DisplayStatus() != "oc_recibida" {
 		t.Fatalf("a quote in a pipeline stage (migration 0012) must survive the rebuild: %+v", p)
 	}
 	if q.SeriesFamily != "CCA" {

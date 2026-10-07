@@ -7,19 +7,17 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-// stageLabels names each lifecycle stage as a heading on the home overview; the
-// singular status words become plural since each card counts quotes.
+// stageLabels names each proyecto stage as a heading on the home overview; the singular
+// stage words become plural since each card counts proyectos.
 var stageLabels = map[string]string{
-	"emitida":    "Emitidas",
-	"pipeline":   "Pipeline",
-	"oc_emitida": "OC emitidas",
-	"entregada":  "Entregadas",
-	"cerrada":    "Entregadas y cerradas",
-	"revisada":   "Revisadas",
+	"prospecto":   "Prospectos",
+	"oc_recibida": "O.C. recibidas",
+	"en_entrega":  "En entrega",
+	"cerrado":     "Cerrados",
 }
 
-// vendedorColumns are the per-status counts of the salesperson table, in order.
-var vendedorColumns = []string{"emitida", "pipeline", "oc_emitida", "entregada", "cerrada", "revisada"}
+// forecastLabel marks a prospecto that counts for the forecast (store.ForecastRelevant).
+const forecastLabel = "Relevante para pronóstico"
 
 templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavUser) {
 	@Layout("Inicio", user) {
@@ -27,7 +25,7 @@ templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavU
 		// readers and the heading outline, and the first section heading carries the help.
 		<h1 class="visually-hidden">Inicio</h1>
 		<div class="page-title">
-			<h2>Cotizaciones por etapa</h2>
+			<h2>Proyectos por etapa</h2>
 			@HelpLink(HelpInicio)
 		</div>
 		<div class="overview-stages">
@@ -35,8 +33,11 @@ templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavU
 				<section class="overview-stage">
 					<h3>{ stageLabels[st.Status] }</h3>
 					<p class="overview-figure"><strong>{ strconv.Itoa(st.Count) }</strong> · { st.Total.String() }</p>
+					if st.Status == "prospecto" {
+						<p><small>{ forecastLabel }: { strconv.Itoa(st.ForecastCount) } · { st.ForecastTotal.String() }</small></p>
+					}
 					if len(st.Top) == 0 {
-						<p><small>Ninguna.</small></p>
+						<p><small>Ninguno.</small></p>
 					} else {
 						<ol>
 							for _, q := range st.Top {
@@ -45,6 +46,10 @@ templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavU
 									{ q.Total.String() }
 									<br/>
 									<small>{ q.CustomerName } · { q.UserName }</small>
+									if q.Stage == "prospecto" {
+										<br/>
+										@ProbabilityTag(q.Probability)
+									}
 								</li>
 							}
 						</ol>
@@ -54,18 +59,18 @@ templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavU
 		</div>
 		<h2>Vendedores</h2>
 		if len(ov.Vendedores) == 0 {
-			<p>Aún no hay cotizaciones.</p>
+			<p>Aún no hay proyectos: se abre uno al emitir una cotización.</p>
 		} else {
-			<p><small>Ordenados por monto en pipeline. Cuenta a quien creó cada cotización, sea vendedor o administrador.</small></p>
+			<p><small>Ordenados por monto relevante para pronóstico. Cuenta a quien creó la cotización que abrió cada proyecto, sea vendedor o administrador.</small></p>
 			<div class="table-scroll">
 				<table>
 					<thead>
 						<tr>
 							<th class="num">#</th>
 							<th>Vendedor</th>
-							<th class="num">Monto en pipeline</th>
-							<th class="num">Monto emitido</th>
-							for _, st := range vendedorColumns {
+							<th class="num">Monto para pronóstico</th>
+							<th class="num">Monto en prospectos</th>
+							for _, st := range store.ProjectFlow {
 								<th class="num">{ stageLabels[st] }</th>
 							}
 						</tr>
@@ -75,9 +80,9 @@ templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavU
 							<tr>
 								<td class="num">{ strconv.Itoa(i + 1) }</td>
 								<td>{ v.Name }</td>
-								<td class="num">{ v.Total["pipeline"].String() }</td>
-								<td class="num">{ v.Total["emitida"].String() }</td>
-								for _, st := range vendedorColumns {
+								<td class="num">{ v.Forecast.String() }</td>
+								<td class="num">{ v.Total["prospecto"].String() }</td>
+								for _, st := range store.ProjectFlow {
 									<td class="num">{ strconv.Itoa(v.Count[st]) }</td>
 								}
 							</tr>

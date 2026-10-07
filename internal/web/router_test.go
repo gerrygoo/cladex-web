@@ -54,6 +54,8 @@ var appRoutes = []route{
 	{"POST", "/cotizaciones/QA0001/guardar", false},
 	{"POST", "/cotizaciones/QA0001/emitir", false},
 	{"POST", "/cotizaciones/QA0001/revisar", false},
+	{"POST", "/cotizaciones/QA0001/etapa", false},
+	{"POST", "/cotizaciones/QA0001/probabilidad", false},
 	{"POST", "/cotizaciones/QA0001/comentarios", false},
 	{"GET", "/cotizaciones/QA0001/pdf", false},
 

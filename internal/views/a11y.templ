@@ -57,16 +57,36 @@ func countAnnouncement(n int, one, many string) string {
 	}
 }
 
-// StatusBadge shows a quote's status as a pill, coloured by stage: a draft is neutral, an
-// issued quote green, one the client is following blue, a delivered one amber until it is
-// collected, a revised (superseded) one muted. The word is always there, so the colour is
-// never the only cue.
-// statusLabel is the word for a quote status.
+// StatusBadge shows where a quote stands (store.Quote.DisplayStatus) as a pill: a draft
+// is neutral, a prospecto green, a proyecto with the purchase order in blue, one being
+// delivered amber until it is closed, a revised (superseded) quote muted. The word is
+// always there, so the colour is never the only cue.
+// statusLabel is the word for a quote status or a proyecto stage.
 func statusLabel(status string) string {
 	if l, ok := store.StatusLabels[status]; ok {
 		return l
 	}
+	if l, ok := store.StageLabels[status]; ok {
+		return l
+	}
 	return status
+}
+
+// probabilityText is a probabilidad de cierre as users read it: the word, with the
+// percentage as a reference.
+func probabilityText(percent int) string {
+	return store.ProbabilityLabel(percent) + " (" + strconv.Itoa(percent) + "%)"
+}
+
+// ProbabilityTag shows a prospecto's probabilidad de cierre, and says so in words when
+// it makes the proyecto relevante para pronóstico.
+templ ProbabilityTag(percent int) {
+	<small>
+		Probabilidad: { probabilityText(percent) }
+		if store.ForecastRelevant("prospecto", percent) {
+			· <strong class="forecast">{ forecastLabel }</strong>
+		}
+	</small>
 }
 
 templ StatusBadge(status string) {

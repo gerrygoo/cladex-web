@@ -1041,6 +1041,51 @@ foreign-key checks ok, 0 USD products or quotes, 0 price breaks. Also smoke-test
 the old-format dev DB: the 4 m poste quotes at $37,932.76 at 20.28%. Each migration that touches production data gets a dry run against production
 and the user's go-ahead before it runs for real (see `docs/NAS_OPERATIONS.md`).
 
+## M4 — Proyectos
+
+Planned in [`docs/planning/hitos-proyectos-y-facturas.md`](planning/hitos-proyectos-y-facturas.md),
+which holds the decisions, the remaining slices (4.2–4.5) and the facturación
+milestones that follow.
+
+| # | Slice | Owner | Done when |
+|---|---|---|---|
+| 4.1 | `projects` table; a proyecto opens when a quote is issued and follows its revisions; the pipeline stages leave `quotes.status` | me | Part 1 of 2 done¹⁵: data, store and the existing screens. Part 2 (a proyecto page and list) is pending. |
+
+¹⁵ `migrations/0016_projects.sql` adds `projects` (`folio` = the base folio of the quote
+that opened it, `customer_id`, owner `user_id`, `status`, `probability`,
+`probability_updated_at`), audited, and `quotes.project_id`. It creates one proyecto per
+revision chain that was ever issued and rebuilds `quotes` with `status` narrowed to
+`borrador` / `emitida` / `revisada`: old `emitida` → prospecto at 10, `pipeline` →
+prospecto at 75, `oc_emitida` → `oc_recibida`, `entregada` → `en_entrega`, `cerrada` →
+`cerrado`. A proyecto's current quote is not stored: it is its one quote that isn't
+`revisada`, kept to one by a partial unique index.
+
+`pipeline.go` became `projects.go`: `ProjectFlow` (prospecto → oc_recibida → en_entrega
+→ cerrado; `facturado` and `perdido` are in the CHECK but unused until 4.2 and 4.5),
+`MoveProject` (same one-step rule and comment as `MoveQuote` had, refused while the
+current quote is an unissued revision) and `SetProjectProbability`. `IssueQuote` opens
+the proyecto in the same transaction, `CreateRevision` keeps the revision in it and
+refuses (`ErrProjectLocked`) once the proyecto has left prospecto. A quote read carries
+its proyecto's folio, stage and probability, and `Quote.DisplayStatus()` is what lists,
+badges and the Estado filter show. `QuoteOverview` became `ProjectOverview`: the home
+board groups proyectos by stage with the current quote's total, shows what part of the
+prospectos is relevante para pronóstico (probability ≥ 75), and ranks vendedores by it.
+The `revisada` column is gone from the home board.
+
+The probability control (five radio buttons, `POST /cotizaciones/{folio}/probabilidad`)
+shipped here rather than in 4.3, because merging `emitida` and `pipeline` into prospecto
+would otherwise have left no way to mark what used to be "en pipeline".
+
+Behavior change: a quote could not be revised once it reached `pipeline`; now it can
+while its proyecto is a prospecto, at any probability, and not from O.C. recibida on.
+
+Verified with `go test ./...` (store: stage moves, probability, issue and revision,
+`TestMigration0016` over every old stage and both kinds of chain; web: `TestQuotesEtapa`,
+`TestQuotesEtapaOnlyOnTheCurrentQuote`, the route table) and in a browser against a
+scratch copy of the local dev DB: home board, quote page, a probability change and a
+move to O.C. recibida. **Not yet dry-run against a copy of the production DB, and not
+deployed.**
+
 ---
 
 # Backlog — deprioritized, not scheduled

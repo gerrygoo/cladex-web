@@ -63,6 +63,31 @@ type Quote struct {
 	// types (held in ValidUntil while the quote is a draft).
 	Currency        string
 	SeriesFreeLines bool
+	// ProjectID is the proyecto the quote belongs to: nil on a first draft, set when it
+	// is issued, and shared by its revisions. ProjectFolio, Stage and Probability are
+	// that proyecto's folio, stage and probabilidad de cierre (joined, so always
+	// current); they are zero without one.
+	ProjectID    *int64
+	ProjectFolio string
+	Stage        string
+	Probability  int
+}
+
+// DisplayStatus is the one word that says where a quote stands: its proyecto's stage
+// when it is the proyecto's issued, current quote, and its own status otherwise (a
+// draft, or a quote a revision replaced).
+func (q Quote) DisplayStatus() string {
+	if q.Status == "emitida" && q.Stage != "" {
+		return q.Stage
+	}
+	return q.Status
+}
+
+// Revisable reports whether the quote can be revised: it is the issued, current quote
+// and its proyecto is still a prospecto. Once the client's purchase order is in, the
+// quote it answers is locked.
+func (q Quote) Revisable() bool {
+	return q.Status == "emitida" && (q.Stage == "" || q.Stage == "prospecto")
 }
 
 // QuoteLine is a quote_lines row. ProductID is nil for a free-text ("Cotizador libre")
@@ -133,26 +158,29 @@ const quoteSelectCols = `
 	(SELECT o.folio FROM quotes o WHERE o.id = q.supersedes_quote_id),
 	(SELECT r.folio FROM quotes r WHERE r.supersedes_quote_id = q.id),
 	CASE WHEN f.free_lines_only = 0 THEN f.name END, COALESCE(f.terms, ''), COALESCE(q.delivery_time, ''),
-	COALESCE(q.currency, ''), COALESCE(f.free_lines_only, 0)`
+	COALESCE(q.currency, ''), COALESCE(f.free_lines_only, 0),
+	q.project_id, COALESCE(p.folio, ''), COALESCE(p.status, ''), COALESCE(p.probability, 0)`
 
 const quoteFrom = `
 	FROM quotes q
 	JOIN customers c ON c.id = q.customer_id
 	JOIN users u ON u.id = q.user_id
-	LEFT JOIN product_families f ON f.series = q.prefix`
+	LEFT JOIN product_families f ON f.series = q.prefix
+	LEFT JOIN projects p ON p.id = q.project_id`
 
 func scanQuote(row interface{ Scan(...any) error }) (*Quote, error) {
 	var q Quote
 	var termsSnapshot, issuedAt, validUntil, customerNameSnapshot, vendedorSnapshot, pdfSHA256 sql.NullString
 	var supersedesFolio, supersededByFolio, seriesFamily sql.NullString
-	var supersedesQuoteID, marginOptionID, marginSnapshotMicros, customMarginMicros sql.NullInt64
+	var supersedesQuoteID, marginOptionID, marginSnapshotMicros, customMarginMicros, projectID sql.NullInt64
 	var marginNameSnapshot sql.NullString
 	err := row.Scan(&q.ID, &q.Folio, &q.Prefix, &q.CustomerID, &q.CustomerName, &q.UserID, &q.UserName,
 		&q.Status, &q.Subtotal, &q.IVA, &q.Total, &termsSnapshot, &q.CreatedAt,
 		&issuedAt, &validUntil, &supersedesQuoteID, &customerNameSnapshot, &vendedorSnapshot, &pdfSHA256,
 		&marginOptionID, &marginNameSnapshot, &marginSnapshotMicros, &customMarginMicros,
 		&supersedesFolio, &supersededByFolio, &seriesFamily, &q.SeriesTerms, &q.DeliveryTime,
-		&q.Currency, &q.SeriesFreeLines)
+		&q.Currency, &q.SeriesFreeLines,
+		&projectID, &q.ProjectFolio, &q.Stage, &q.Probability)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -160,6 +188,9 @@ func scanQuote(row interface{ Scan(...any) error }) (*Quote, error) {
 		return nil, err
 	}
 	q.SeriesFamily = seriesFamily.String
+	if projectID.Valid {
+		q.ProjectID = &projectID.Int64
+	}
 	if termsSnapshot.Valid {
 		q.TermsSnapshot = &termsSnapshot.String
 	}
@@ -220,13 +251,17 @@ func (s *Store) QuoteByFolio(ctx context.Context, folio string) (*Quote, error) 
 	return q, nil
 }
 
+// quoteDisplayStatus is Quote.DisplayStatus in SQL, for sorting and filtering the list
+// by the word its Estado column shows.
+const quoteDisplayStatus = `CASE WHEN q.status = 'emitida' AND p.status IS NOT NULL THEN p.status ELSE q.status END`
+
 // quoteSortColumns is the sortable-column whitelist for ListQuotes. When sort doesn't
 // match a known column, ListQuotes uses quoteDefaultOrder instead.
 var quoteSortColumns = []sortColumn{
 	{"folio", "q.folio"},
 	{"cliente", "c.name"},
 	{"autor", "u.name COLLATE NOCASE"},
-	{"estado", "q.status"},
+	{"estado", quoteDisplayStatus},
 	{"total", "q.total"},
 	{"fecha", "q.created_at"},
 }
@@ -240,7 +275,7 @@ var quoteFilterColumns = []filterColumn{
 	{name: "folio", expr: "q.folio", kind: FilterText},
 	{name: "cliente", expr: "c.name", kind: FilterText},
 	{name: "autor", expr: "u.name", kind: FilterText},
-	{name: "estado", expr: "q.status", kind: FilterEnum},
+	{name: "estado", expr: quoteDisplayStatus, kind: FilterEnum},
 	{name: "total", expr: "q.total", kind: FilterNumber, scale: 100},
 	{name: "fecha", expr: "q.created_at", kind: FilterDate},
 }
@@ -474,12 +509,41 @@ type Issue struct {
 // quote currently 'borrador' (checked and enforced in the same statement, so two
 // concurrent issue attempts can't both succeed) — the caller is expected to have
 // already saved the final line set (e.g. via ReplaceQuoteLines) before calling this.
+//
+// Issuing a first quote opens its proyecto, as a prospecto at the lowest probability,
+// named after the quote's folio and owned by whoever created the quote. A revision
+// already belongs to its original's proyecto and stays in it.
 func (s *Store) IssueQuote(ctx context.Context, quoteID int64, is Issue) error {
 	var validUntilArg any
 	if is.ValidUntil != nil {
 		validUntilArg = *is.ValidUntil
 	}
-	res, err := s.exec(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: issue quote %d: %w", quoteID, err)
+	}
+	defer tx.Rollback()
+	if err := stampActor(ctx, tx); err != nil {
+		return fmt.Errorf("store: issue quote %d: %w", quoteID, err)
+	}
+	// The proyecto is opened first so the quote is written once, with it. If the quote
+	// turns out not to be a draft, the rollback takes the proyecto with it.
+	var newProjectID any
+	res, err := tx.ExecContext(ctx, `
+		INSERT INTO projects (folio, customer_id, user_id)
+		SELECT folio, customer_id, user_id FROM quotes
+		WHERE id = ? AND status = 'borrador' AND project_id IS NULL`, quoteID)
+	if err != nil {
+		return fmt.Errorf("store: issue quote %d: open project: %w", quoteID, err)
+	}
+	if opened, _ := res.RowsAffected(); opened == 1 {
+		id, err := res.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("store: issue quote %d: open project: %w", quoteID, err)
+		}
+		newProjectID = id
+	}
+	res, err = tx.ExecContext(ctx, `
 		UPDATE quotes SET
 			status = 'emitida',
 			issued_at = ?,
@@ -489,11 +553,12 @@ func (s *Store) IssueQuote(ctx context.Context, quoteID int64, is Issue) error {
 			vendedor_snapshot = ?,
 			margin_name_snapshot = ?,
 			margin_snapshot_micros = ?,
-			pdf_sha256 = ?
+			pdf_sha256 = ?,
+			project_id = COALESCE(project_id, ?)
 		WHERE id = ? AND status = 'borrador'`,
 		is.IssuedAt, is.TermsSnapshot, validUntilArg,
 		is.CustomerNameSnapshot, is.VendedorSnapshot, is.MarginName, int64(is.MarginMicros),
-		is.PDFSHA256, quoteID,
+		is.PDFSHA256, newProjectID, quoteID,
 	)
 	if err != nil {
 		return fmt.Errorf("store: issue quote %d: %w", quoteID, err)
@@ -505,6 +570,9 @@ func (s *Store) IssueQuote(ctx context.Context, quoteID int64, is Issue) error {
 	if n != 1 {
 		return ErrQuoteNotDraft
 	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: issue quote %d: %w", quoteID, err)
+	}
 	return nil
 }
 
@@ -512,6 +580,10 @@ func (s *Store) IssueQuote(ctx context.Context, quoteID int64, is Issue) error {
 // currently 'emitida' — only the active issued version of a quote lineage can be
 // revised; a superseded ('revisada') quote must be revised via its own successor.
 var ErrQuoteNotIssued = errors.New("store: quote is not issued")
+
+// ErrProjectLocked is returned by CreateRevision when the quote's proyecto has left
+// prospecto: once the client's purchase order is in, the quote it answers can't change.
+var ErrProjectLocked = errors.New("store: project is past prospecto, its quote can't be revised")
 
 // revisionSuffixRe matches a folio's "-R<n>" revision suffix, if present. Folios are
 // always machine-generated by NextFolio/CreateRevision, never user-typed, so this
@@ -554,8 +626,10 @@ func nextRevisionNumber(ctx context.Context, tx *sql.Tx, base string) (int, erro
 
 // CreateRevision makes an editable copy of an issued quote as a new draft: a new
 // folio (<base>-R<n>, e.g. QA0105-R1, or QA0105-R2 if revising a quote that's already
-// a revision), sharing customer/prefix/margin option and starting from the original's
-// lines — and marks the original 'revisada'. Nothing about the original's own row is
+// a revision), sharing customer/prefix/margin option and proyecto and starting from the
+// original's lines — and marks the original 'revisada'. The draft takes the original's
+// place as the proyecto's current quote, which is why the original is marked first: a
+// proyecto holds one quote that isn't revisada (see ErrProjectLocked for when it can't). Nothing about the original's own row is
 // changed beyond that one status flip: its lines, totals, and snapshots (and so its PDF)
 // stay exactly as issued, per docs/PLAN.md's "original untouched" revision design. Only the
 // currently-active issued quote in a lineage can be revised (see ErrQuoteNotIssued) —
@@ -574,6 +648,9 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 	}
 	if original.Status != "emitida" {
 		return nil, ErrQuoteNotIssued
+	}
+	if !original.Revisable() {
+		return nil, ErrProjectLocked
 	}
 	lines, err := s.ListQuoteLines(ctx, originalID)
 	if err != nil {
@@ -597,10 +674,19 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 		return nil, fmt.Errorf("store: create revision of quote %d: %w", originalID, err)
 	}
 	res, err := tx.ExecContext(ctx, `
-		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, supersedes_quote_id, margin_option_id, custom_margin_micros, delivery_time, currency)
-		VALUES (?, ?, ?, ?, 'borrador', ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''))`,
+		UPDATE quotes SET status = 'revisada' WHERE id = ? AND status = 'emitida'`, originalID)
+	if err != nil {
+		return nil, fmt.Errorf("store: create revision of quote %d: mark superseded: %w", originalID, err)
+	}
+	if affected, _ := res.RowsAffected(); affected != 1 {
+		return nil, ErrQuoteNotIssued
+	}
+	res, err = tx.ExecContext(ctx, `
+		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, supersedes_quote_id, margin_option_id, custom_margin_micros, delivery_time, currency, project_id)
+		VALUES (?, ?, ?, ?, 'borrador', ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), ?)`,
 		newFolio, original.Prefix, original.CustomerID, userID, originalID,
 		original.MarginOptionID, original.CustomMarginMicros, original.DeliveryTime, original.Currency,
+		original.ProjectID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: create revision of quote %d: insert: %w", originalID, err)
@@ -636,15 +722,6 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 		int64(original.Subtotal), int64(original.IVA), int64(original.Total), newID,
 	); err != nil {
 		return nil, fmt.Errorf("store: create revision of quote %d: totals: %w", originalID, err)
-	}
-
-	res, err = tx.ExecContext(ctx, `
-		UPDATE quotes SET status = 'revisada' WHERE id = ? AND status = 'emitida'`, originalID)
-	if err != nil {
-		return nil, fmt.Errorf("store: create revision of quote %d: mark superseded: %w", originalID, err)
-	}
-	if affected, _ := res.RowsAffected(); affected != 1 {
-		return nil, ErrQuoteNotIssued
 	}
 
 	if err := tx.Commit(); err != nil {

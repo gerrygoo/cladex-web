@@ -1187,17 +1187,23 @@ func (q *Quotes) Revisar(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "solo se puede revisar una cotización emitida", http.StatusConflict)
 			return
 		}
+		if errors.Is(err, store.ErrProjectLocked) {
+			http.Error(w, "la cotización ya no se puede revisar: el cliente ya mandó su orden de compra", http.StatusConflict)
+			return
+		}
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
 	http.Redirect(w, r, "/cotizaciones/"+rev.Folio, http.StatusSeeOther)
 }
 
-// Etapa handles POST /cotizaciones/{folio}/etapa: moves an issued quote one stage along
-// the pipeline flow ("to" is the stage; the optional "note" is saved as a comment).
-// Anyone signed in can move a quote forward; going back a stage is for admins, since it
-// undoes what a salesperson reported. Anything but the stage right before or after the
-// quote's current one is refused, as is a stale click on a quote that has since moved.
+// Etapa handles POST /cotizaciones/{folio}/etapa: moves the proyecto of an issued quote
+// one stage along the flow ("to" is the stage; the optional "note" is saved as a
+// comment). Anyone signed in can move a proyecto forward; going back a stage is for
+// admins, since it undoes what a salesperson reported. Anything but the stage right
+// before or after the current one is refused, as is a stale click on a proyecto that has
+// since moved, and a quote that isn't its proyecto's issued, current one (a draft, or
+// one a revision replaced).
 func (q *Quotes) Etapa(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	quote := q.loadQuoteOrNotFound(w, r)
@@ -1211,13 +1217,54 @@ func (q *Quotes) Etapa(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, _ := UserFromContext(ctx)
-	if to != "" && to == store.PrevStatus(quote.Status) && user.Role != "admin" {
-		http.Error(w, "solo un administrador puede regresar una cotización de etapa", http.StatusForbidden)
+	if quote.Status != "emitida" || quote.ProjectID == nil {
+		http.Error(w, "el proyecto no puede pasar a esa etapa", http.StatusConflict)
 		return
 	}
-	if err := q.store.MoveQuote(ctx, quote.ID, user.ID, quote.Status, to, note); err != nil {
+	if to != "" && to == store.PrevStage(quote.Stage) && user.Role != "admin" {
+		http.Error(w, "solo un administrador puede regresar un proyecto de etapa", http.StatusForbidden)
+		return
+	}
+	if err := q.store.MoveProject(ctx, *quote.ProjectID, user.ID, quote.Stage, to, note); err != nil {
 		if errors.Is(err, store.ErrBadTransition) {
-			http.Error(w, "la cotización no puede pasar a esa etapa", http.StatusConflict)
+			http.Error(w, "el proyecto no puede pasar a esa etapa", http.StatusConflict)
+			return
+		}
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/cotizaciones/"+quote.Folio+"#comentarios", http.StatusSeeOther)
+}
+
+// Probabilidad handles POST /cotizaciones/{folio}/probabilidad: sets the probabilidad de
+// cierre of the quote's proyecto to one of the fixed steps ("probabilidad" is the
+// percentage; the optional "note" goes into the comment that records the change). Any
+// signed-in user can, on the issued, current quote of a proyecto that is still a
+// prospecto.
+func (q *Quotes) Probabilidad(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	quote := q.loadQuoteOrNotFound(w, r)
+	if quote == nil {
+		return
+	}
+	note := strings.TrimSpace(r.FormValue("note"))
+	if utf8.RuneCountInString(note) > maxCommentLen {
+		http.Error(w, "el comentario no puede pasar de 2000 caracteres", http.StatusBadRequest)
+		return
+	}
+	percent, err := strconv.Atoi(r.FormValue("probabilidad"))
+	if err != nil || store.ProbabilityLabel(percent) == "" {
+		http.Error(w, "elige una probabilidad de la lista", http.StatusBadRequest)
+		return
+	}
+	if quote.Status != "emitida" || quote.ProjectID == nil {
+		http.Error(w, "solo un prospecto tiene probabilidad de cierre", http.StatusConflict)
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	if err := q.store.SetProjectProbability(ctx, *quote.ProjectID, user.ID, percent, note); err != nil {
+		if errors.Is(err, store.ErrBadTransition) {
+			http.Error(w, "solo un prospecto tiene probabilidad de cierre", http.StatusConflict)
 			return
 		}
 		http.Error(w, "error interno", http.StatusInternalServerError)

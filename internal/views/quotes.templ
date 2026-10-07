@@ -91,7 +91,7 @@ templ QuotesTableBody(quotes []store.Quote) {
 				<td>{ q.CustomerName }</td>
 				<td>{ q.UserName }</td>
 				<td>
-					@StatusBadge(q.Status)
+					@StatusBadge(q.DisplayStatus())
 				</td>
 				<td class="num">{ q.Total.String() }</td>
 				<td>
@@ -431,25 +431,35 @@ func emitirPath(folio string) string {
 	return "/cotizaciones/" + folio + "/emitir"
 }
 
-// etapaPath is the action for the stage buttons on an issued quote — moves it one step
-// along the pipeline flow, see store.MoveQuote.
+// etapaPath is the action for the stage buttons on an issued quote — moves its proyecto
+// one step along the flow, see store.MoveProject.
 func etapaPath(folio string) string {
 	return "/cotizaciones/" + folio + "/etapa"
 }
 
-// stageHint says what moving a quote out of its current stage means.
-func stageHint(status string) string {
-	switch status {
-	case "emitida":
-		return "Pásala a Pipeline cuando el cliente ya se interesó y la propuesta avanza. Si todavía hay que cambiarla, usa Revisar."
-	case "pipeline":
-		return "Pásala a OC emitida cuando el cliente mande su orden de compra y se la enviemos al fabricante."
-	case "oc_emitida":
-		return "Pásala a Entregada cuando el cable ya se le entregó al cliente."
-	case "entregada":
-		return "Ciérrala cuando ya se facturó, se cobró y se emitió el complemento de pago (si aplica)."
+// probabilidadPath is the action for the probabilidad de cierre buttons on a prospecto's
+// quote, see store.SetProjectProbability.
+func probabilidadPath(folio string) string {
+	return "/cotizaciones/" + folio + "/probabilidad"
+}
+
+// stageHint says what moving a proyecto out of its current stage means.
+func stageHint(stage string) string {
+	switch stage {
+	case "prospecto":
+		return "Pásalo a O.C. recibida cuando el cliente mande su orden de compra. Desde ese momento la cotización ya no se puede revisar."
+	case "oc_recibida":
+		return "Pásalo a En entrega cuando el pedido ya va en camino o se le entregó al cliente."
+	case "en_entrega":
+		return "Ciérralo cuando ya se entregó, se facturó, se cobró y se emitió el complemento de pago (si aplica)."
 	}
 	return ""
+}
+
+// isLiveQuote reports whether the quote is its proyecto's issued, current quote: the one
+// whose page carries the proyecto's stage and probability controls.
+func isLiveQuote(quote store.Quote) bool {
+	return quote.Status == "emitida" && quote.ProjectID != nil
 }
 
 // revisarPath is the action for the read-only "Revisar" button on an issued quote —
@@ -552,7 +562,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 		<script src="/static/margin.js" defer></script>
 		<div class="page-title">
 			<h1>Cotización { quote.Folio }</h1>
-			@HelpLink(quoteHelpTopic(quote.Status))
+			@HelpLink(quoteHelpTopic(quote.DisplayStatus()))
 		</div>
 		<p>Cliente: { quote.CustomerName }</p>
 		if quote.SupersedesFolio != "" {
@@ -769,30 +779,52 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 		} else {
 			@QuoteInfo(quote, lines)
 			@QuoteLinesReadOnly(lines, totals)
-			if next := store.NextStatus(quote.Status); next != "" {
-				<form method="post" action={ templ.URL(etapaPath(quote.Folio)) } class="stage-form">
-					<h2>Seguimiento</h2>
-					<p>{ stageHint(quote.Status) }</p>
-					<input type="hidden" name="to" value={ next }/>
-					<label>
-						Comentario (opcional)
-						<textarea name="note" rows="2" maxlength="2000"></textarea>
-					</label>
-					<button type="submit" class="primary">Pasar a { store.StatusLabels[next] }</button>
-				</form>
+			if isLiveQuote(quote) {
+				<h2>Seguimiento del proyecto { quote.ProjectFolio }</h2>
+				if quote.Stage == "prospecto" {
+					<form method="post" action={ templ.URL(probabilidadPath(quote.Folio)) } class="stage-form">
+						<fieldset class="probability">
+							<legend>Probabilidad de cierre</legend>
+							for _, st := range store.ProbabilitySteps {
+								<label>
+									<input type="radio" name="probabilidad" value={ strconv.Itoa(st.Percent) } checked?={ st.Percent == quote.Probability } required/>
+									{ st.Label }
+									<small>{ strconv.Itoa(st.Percent) }%</small>
+								</label>
+							}
+						</fieldset>
+						<p class="hint">Desde Alta, el proyecto es relevante para pronóstico: es de los que se revisan cuando el equipo ve qué está por cerrar.</p>
+						<label>
+							Comentario (opcional)
+							<textarea name="note" rows="2" maxlength="2000"></textarea>
+						</label>
+						<button type="submit">Guardar probabilidad</button>
+					</form>
+				}
+				if next := store.NextStage(quote.Stage); next != "" {
+					<form method="post" action={ templ.URL(etapaPath(quote.Folio)) } class="stage-form">
+						<p>{ stageHint(quote.Stage) }</p>
+						<input type="hidden" name="to" value={ next }/>
+						<label>
+							Comentario (opcional)
+							<textarea name="note" rows="2" maxlength="2000"></textarea>
+						</label>
+						<button type="submit" class="primary">Pasar a { store.StageLabels[next] }</button>
+					</form>
+				}
+				if prev := store.PrevStage(quote.Stage); prev != "" && user != nil && user.IsAdmin {
+					<form method="post" action={ templ.URL(etapaPath(quote.Folio)) } class="stage-form">
+						<input type="hidden" name="to" value={ prev }/>
+						<button type="submit">Regresar a { store.StageLabels[prev] }</button>
+					</form>
+				}
 			}
-			if prev := store.PrevStatus(quote.Status); prev != "" && user != nil && user.IsAdmin {
-				<form method="post" action={ templ.URL(etapaPath(quote.Folio)) } class="stage-form">
-					<input type="hidden" name="to" value={ prev }/>
-					<button type="submit">Regresar a { store.StatusLabels[prev] }</button>
-				</form>
-			}
-			if quote.Status == "emitida" {
+			if quote.Revisable() {
 				<form method="post" action={ templ.URL(revisarPath(quote.Folio)) }>
 					<button type="submit">Revisar</button>
 				</form>
-			} else if quote.Status == "cerrada" {
-				<p>Esta cotización está entregada y cerrada.</p>
+			} else if quote.DisplayStatus() == "cerrado" {
+				<p>Este proyecto está cerrado.</p>
 			} else if quote.Status == "revisada" && quote.SupersededByFolio != "" {
 				<p>Esta cotización fue revisada. Ver <a href={ templ.URL("/cotizaciones/" + quote.SupersededByFolio) }>{ quote.SupersededByFolio }</a>.</p>
 			}
@@ -814,8 +846,17 @@ templ QuoteInfo(quote store.Quote, lines []QuoteLineView) {
 	<dl class="quote-info">
 		<dt>Estado</dt>
 		<dd>
-			@StatusBadge(quote.Status)
+			@StatusBadge(quote.DisplayStatus())
 		</dd>
+		if isLiveQuote(quote) && quote.Stage == "prospecto" {
+			<dt>Probabilidad</dt>
+			<dd>
+				{ probabilityText(quote.Probability) }
+				if store.ForecastRelevant(quote.Stage, quote.Probability) {
+					· <strong class="forecast">{ forecastLabel }</strong>
+				}
+			</dd>
+		}
 		<dt>Emitió</dt>
 		<dd>
 			if quote.VendedorSnapshot != nil {

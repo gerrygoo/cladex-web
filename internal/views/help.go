@@ -58,11 +58,12 @@ var HelpTopics = map[HelpTopic]bool{
 	HelpFamilias:              true,
 }
 
+// quoteHelpTopic picks the help for a quote page from what store.Quote.DisplayStatus says.
 func quoteHelpTopic(status string) HelpTopic {
 	switch status {
-	case "emitida":
+	case "emitida", "prospecto":
 		return HelpCotizacionEmitida
-	case "pipeline", "oc_emitida", "entregada", "cerrada":
+	case "oc_recibida", "en_entrega", "cerrado":
 		return HelpCotizacionSeguimiento
 	case "revisada":
 		return HelpCotizacionRevisada
