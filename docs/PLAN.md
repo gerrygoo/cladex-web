@@ -1053,6 +1053,7 @@ milestones that follow.
 | 4.2 | `perdido`: mark a proyecto lost with a required reason, from prospecto or O.C. recibida; admin reopen | me | A lost proyecto leaves the active stages, shows its reason, and is filterable — ✅¹⁷ |
 | 4.3 | Follow-up dates on a prospecto (expected O.C., next follow-up) and the Pronóstico meeting view with weighted totals | me | The team opens one page, sees the prospectos at Alta and up by expected O.C. date, and updates probability, note and dates without leaving it — ✅¹⁸ |
 | 4.4 | Receiving the client's O.C.: number, date, forma de pago (P.U.E. / P.P.D.) and file | me | A proyecto can't enter O.C. recibida without an O.C. number and a forma de pago; the O.C. file downloads from the proyecto — ✅¹⁹ |
+| 4.5 | Manual payment state and the gates: no entrega without a factura, no cierre without pagado | me | Each blocked move explains what is missing; a P.P.D. proyecto can be delivered while unpaid but not closed — ✅²⁰ |
 
 ¹⁵ `migrations/0016_projects.sql` adds `projects` (`folio` = the base folio of the quote
 that opened it, `customer_id`, owner `user_id`, `status`, `probability`,
@@ -1182,6 +1183,39 @@ section with the data, the files and, while in `oc_recibida`, the correction for
 Verified with `go test ./...` (`TestReceiveOC`, `TestProjectsReceiveOC`,
 `TestProjectsLegacyOCRecibida`, the route table) and in a browser on the scratch DB:
 the form, an upload, and the download's headers.
+
+²⁰ Facturas are still issued outside the app, so the proyecto records their folios by
+hand; M6 replaces the typed folio with a real comprobante. `migrations/0020_project_payment.sql`
+adds `invoice_ref`, `invoice_date`, `payment_status` (`facturado_anticipo` | `pagado`,
+NULL = sin tramitar), `payment_ref` and `paid_at` to `projects` and recreates its audit
+triggers (schema only). The `facturado` stage, in the CHECK since 0016, joins
+`ProjectFlow` between `oc_recibida` and `en_entrega`.
+
+The gates: only `RecordInvoice` takes a proyecto from `oc_recibida` to `facturado`, so
+nothing reaches `en_entrega` without a factura on record, and `MoveProject` refuses
+`en_entrega` → `cerrado` unless the proyecto is pagado. What `RecordInvoice` means
+follows the forma de pago the O.C. was received with. P.U.E.: payment received and
+factura issued, so the proyecto is pagado at once. P.P.D.: the factura de anticipo, and
+the proyecto is facturado de anticipo until `RecordPayment` records the comprobante de
+pago, which can happen in `facturado` or `en_entrega`. So a P.P.D. proyecto is delivered
+unpaid but not closed. The O.C. data closes once the proyecto is invoiced. An admin's
+step back from `facturado` to `oc_recibida` clears the factura and payment fields (they
+stay in the history), which is also how a mistyped folio is corrected.
+
+`POST /proyectos/{folio}/factura` and `/pago` take the folio and the day. The proyecto
+page gained a "Facturación y pago" section with the payment state and whichever form
+applies, the stage buttons say what is missing instead of offering a blocked move, and
+`Etapa` answers a blocked move with the same explanation. The Proyectos list gained a
+Pago column and filter and the home board a Facturados column. A proyecto that was
+already en entrega with no factura has to be sent back by an admin to record it; none
+existed in production.
+
+Verified with `go test ./...` (`TestPaymentGates` for both formas de pago and the step
+back, `TestProjectsPaymentGates`, `TestProjectsPUEIsPaidWhenInvoiced`, the route table)
+and in a browser on the scratch DB: a P.P.D. proyecto invoiced, moved to En entrega and
+refused closing until paid.
+
+With 4.5, M4 is complete.
 
 ---
 

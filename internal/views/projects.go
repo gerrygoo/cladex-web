@@ -69,6 +69,30 @@ func paymentMethodText(method string) string {
 	return method
 }
 
+// invoiceLabel names the factura on record by what it is for the order's forma de pago,
+// and invoiceWord is the same in running text.
+func invoiceLabel(method string) string {
+	if method == "PPD" {
+		return "Factura de anticipo"
+	}
+	return "Factura"
+}
+
+func invoiceWord(method string) string {
+	if method == "PPD" {
+		return "factura de anticipo"
+	}
+	return "factura"
+}
+
+// paymentBadge is the CSS suffix for a payment state's badge.
+func paymentBadge(status string) string {
+	if status == "" {
+		return "sin_tramitar"
+	}
+	return status
+}
+
 // ocDateValue is the purchase order form's date: the one on record, or today for a
 // proyecto that has none yet.
 func ocDateValue(p store.Project, today string) string {

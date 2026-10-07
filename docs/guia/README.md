@@ -47,7 +47,7 @@ no solo los tuyos). Un proyecto se abre al emitir una cotización, así que los 
 que nunca se emitieron no aparecen aquí:
 
 - **Proyectos por etapa**: cuántos hay en cada etapa de [[prospecto]],
-  [[O.C. recibida]], [[en entrega]] y [[cerrado]], la suma de sus totales y los 3 de
+  [[O.C. recibida]], [[facturado]], [[en entrega]] y [[cerrado]], la suma de sus totales y los 3 de
   mayor total en cada etapa. El monto de un proyecto es el total de su cotización
   vigente. Haz clic en un folio para abrir el proyecto, o en el nombre de una etapa
   para ver todos los que están en ella. Para

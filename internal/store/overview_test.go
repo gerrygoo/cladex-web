@@ -85,11 +85,11 @@ func TestProjectOverview(t *testing.T) {
 	for _, st := range ov.Stages {
 		got = append(got, st.Status)
 	}
-	want := []string{"prospecto", "oc_recibida", "en_entrega", "cerrado"}
+	want := []string{"prospecto", "oc_recibida", "facturado", "en_entrega", "cerrado"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("stages = %v, want %v", got, want)
 	}
-	wantCounts := []int{4, 1, 1, 1}
+	wantCounts := []int{4, 1, 0, 1, 1}
 	for i, st := range ov.Stages {
 		if st.Count != wantCounts[i] {
 			t.Errorf("%s count = %d, want %d", st.Status, st.Count, wantCounts[i])

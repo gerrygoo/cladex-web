@@ -96,7 +96,9 @@ moves, the probability control, the revision lock after the O.C., comments),
 `TestListProspectsAndWeights`). Slice 4.4 added `TestProjectsReceiveOC`, which posts the
 multipart form with real file bytes and checks the download's headers, and
 `TestProjectsLegacyOCRecibida`, which opens a second handle on the test database to
-write a state the store no longer allows. Those also pin the strings
+write a state the store no longer allows. Slice 4.5 added `TestPaymentGates` in the
+store and `TestProjectsPaymentGates` and `TestProjectsPUEIsPaidWhenInvoiced` in the web
+layer, which walk both formas de pago through the gated steps. Those also pin the strings
 `docs/guia/proyectos.md` quotes, so they double as its guide-conformance tests.
 
 ## Tracked gaps

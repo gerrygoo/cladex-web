@@ -12,8 +12,9 @@ Un proyecto avanza por estas etapas:
 |---|---|
 | [[prospecto]] | El cliente ya tiene la cotización y todavía no manda su orden de compra. |
 | [[O.C. recibida]] | El cliente mandó su orden de compra y [se capturaron sus datos](#recibir-la-orden-de-compra-del-cliente). |
+| [[facturado]] | Ya está [registrada su factura](#registrar-la-factura-y-el-pago). Sin factura no se entrega. |
 | [[en entrega]] | El pedido ya va en camino o se le entregó al cliente. |
-| [[cerrado]] | Ya se entregó, se facturó, se cobró y se emitió el complemento de pago (si aplica). |
+| [[cerrado]] | Ya se entregó y está pagado. Sin pago no se cierra. |
 
 Un proyecto que no se concreta se [marca como perdido](#marcar-un-proyecto-como-perdido)
 y sale de estas etapas.
@@ -55,7 +56,7 @@ Debajo del folio y del cliente verás este resumen:
 - **Total**: el de la cotización vigente.
 
 Más abajo están **Seguimiento** (el formulario y los botones para moverlo), **Orden de
-compra del cliente** (desde que se recibe), **Cotizaciones** (la
+compra del cliente** y **Facturación y pago** (desde que se recibe la orden), **Cotizaciones** (la
 vigente y las que fueron revisadas, cada una con su enlace) e **Historial**.
 
 ## Dar seguimiento a un proyecto
@@ -120,18 +121,58 @@ El proyecto queda en O.C. recibida, con la sección **Orden de compra del client
   O.C. recibida, usa **Corregir la orden de compra**, en la misma sección, y haz clic
   en **Guardar O.C.** Si adjuntas otro archivo, el anterior se conserva y el nuevo
   queda marcado como *el vigente*.
-- Cuando el proyecto pasa a En entrega, los datos de la orden ya no se pueden cambiar.
+- Cuando el proyecto pasa a Facturado, los datos de la orden ya no se pueden cambiar.
 - Un proyecto que ya estaba en O.C. recibida sin estos datos dice *"primero captura la
   orden de compra del cliente"*: captúralos ahí mismo para poder continuar.
 
+### Registrar la factura y el pago
+
+Las facturas se siguen emitiendo fuera de la app; aquí se anota su folio para que el
+proyecto pueda avanzar. Hay dos reglas: **sin factura no se entrega** y **sin pago no
+se cierra**. Todo se hace en la sección **Facturación y pago** del proyecto, que
+aparece al recibir la orden de compra y muestra el [[estado de pago]].
+
+Qué hay que registrar depende de la [[forma de pago]] de la orden:
+
+**Si la orden es P.U.E.** (el cliente paga y entonces se factura):
+
+1. Abre el proyecto, que está en [[O.C. recibida]].
+2. En **Registrar pago y factura**, escribe el **Folio de la factura** y revisa la
+   **Fecha de pago**.
+3. Haz clic en **Registrar pago y pasar a Facturado**.
+
+El proyecto pasa a [[facturado]] y su estado de pago queda en *Pagado*.
+
+**Si la orden es P.P.D.** (se factura un anticipo y el pago se completa después):
+
+1. Abre el proyecto, que está en O.C. recibida.
+2. En **Registrar factura de anticipo**, escribe el **Folio de la factura de anticipo**
+   y revisa la **Fecha de la factura**.
+3. Haz clic en **Registrar factura y pasar a Facturado**. El proyecto pasa a Facturado
+   con estado de pago *Facturado de anticipo*, y ya se puede entregar.
+4. Cuando el cliente termine de pagar y se emita el comprobante de pago, vuelve al
+   proyecto (esté en Facturado o En entrega). En **Registrar pago completado**, escribe
+   el **Folio del comprobante de pago** y la **Fecha de pago**, y haz clic en
+   **Registrar pago completado**. El estado de pago queda en *Pagado*.
+
+- En **Historial** queda una línea por cada registro, con el folio y la fecha.
+- Una vez facturado, los datos de la orden de compra ya no se pueden cambiar.
+- En **Proyectos**, la columna **Pago** muestra el estado de pago y se puede filtrar.
+- ¿Te equivocaste en un folio? Pídele a un administrador que regrese el proyecto a
+  O.C. recibida y regístralo de nuevo.
+:::admin
+Al regresar un proyecto de Facturado a O.C. recibida se borran el folio de la factura y
+el estado de pago (quedan en el historial), para registrarlos de nuevo.
+:::
+
 ### Pasar el proyecto a la siguiente etapa
 
-Después de recibir la orden de compra, el proyecto avanza con un botón:
+Después de facturar, el proyecto avanza con un botón:
 
 | Para pasar a | Cuándo | Botón |
 |---|---|---|
 | [[en entrega]] | El pedido ya va en camino o se le entregó al cliente. | **Pasar a En entrega** |
-| [[cerrado]] | Ya se entregó, se facturó, se cobró y se emitió el complemento de pago (si aplica). | **Pasar a Cerrado** |
+| [[cerrado]] | El pedido ya se entregó completo y el estado de pago es *Pagado*. | **Pasar a Cerrado** |
 
 1. Abre el proyecto.
 2. En **Seguimiento**, escribe en **Comentario** lo que pasó y los siguientes pasos
@@ -142,6 +183,8 @@ El proyecto queda en la etapa nueva y en **Historial** aparece una línea como
 *"Pasó a En entrega."* con tu nota, quién la escribió y cuándo.
 
 - Solo se avanza de una etapa a la siguiente, sin saltarse ninguna.
+- Si en lugar del botón **Pasar a Cerrado** ves *"primero registra el pago
+  completado"*, al proyecto le falta el pago: regístralo en **Facturación y pago**.
 - Cualquier usuario puede avanzar un proyecto. Si te equivocaste y lo pasaste de más,
   pídele a un administrador que lo regrese.
 :::admin
@@ -186,7 +229,7 @@ multiplicado por su probabilidad de cierre.
 ## Marcar un proyecto como perdido
 
 Cuando el cliente ya no va a comprar. Se puede mientras el proyecto es [[prospecto]] o
-tiene la [[O.C. recibida]]; uno que ya está en entrega o cerrado no se puede perder.
+tiene la [[O.C. recibida]]; uno que ya está facturado, en entrega o cerrado no se puede perder.
 Perder el proyecto es lo mismo que perder su cotización: no hay que marcar nada en la
 cotización.
 

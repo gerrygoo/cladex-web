@@ -49,9 +49,11 @@ Al emitirla se abre su [[proyecto]], que es el que avanza por etapas:
   <span class="estado">prospecto</span>
   <span class="flecha">OC →</span>
   <span class="estado">O.C. recibida</span>
+  <span class="flecha">Factura →</span>
+  <span class="estado">facturado</span>
   <span class="flecha">Entrega →</span>
   <span class="estado">en entrega</span>
-  <span class="flecha">Cobro →</span>
+  <span class="flecha">Pagado →</span>
   <span class="estado">cerrado</span>
 </div>
 
@@ -112,14 +114,25 @@ Cómo va a pagar el cliente, según su orden de compra. **P.U.E.**: pago en una 
 exhibición. **P.P.D.**: pago en parcialidades o diferido. Se elige al recibir la orden
 de compra.
 
+## Facturado
+
+La factura de la orden de compra ya está registrada en el proyecto (en una orden
+P.P.D., la factura de anticipo). Es lo que permite entregar: sin factura no se entrega.
+
+## Estado de pago
+
+En qué va el cobro de un proyecto. **Sin tramitar**: todavía no se registra su factura.
+**Facturado de anticipo**: orden P.P.D. con su factura de anticipo, falta completar el
+pago. **Pagado**: ya se cobró. Un proyecto solo se puede cerrar si está pagado.
+
 ## En entrega
 
-El pedido ya va en camino o se le entregó al cliente; falta facturar y cobrar.
+El pedido ya va en camino o se le entregó al cliente. Una orden P.P.D. puede estar en
+entrega sin haberse pagado todavía.
 
 ## Cerrado
 
-Un proyecto que ya se entregó, se facturó, se cobró y tiene su complemento de pago (si
-aplica).
+Un proyecto que ya se entregó y está pagado.
 
 ## Perdido
 

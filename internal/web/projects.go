@@ -118,8 +118,16 @@ func (p *Projects) Etapa(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := p.store.MoveProject(ctx, project.ID, user.ID, project.Status, to, note); err != nil {
 		if errors.Is(err, store.ErrBadTransition) {
-			if to == "oc_recibida" && project.Status == "prospecto" || to == "en_entrega" && !project.HasOC() {
+			// Say what is missing when the move is one of the gated steps.
+			switch {
+			case project.Status == "prospecto" && to == "oc_recibida":
 				http.Error(w, "primero captura la orden de compra del cliente", http.StatusConflict)
+				return
+			case project.Status == "oc_recibida" && (to == "facturado" || to == "en_entrega"):
+				http.Error(w, "primero registra la factura: sin factura el proyecto no se puede entregar", http.StatusConflict)
+				return
+			case project.Status == "en_entrega" && to == "cerrado" && !project.Paid():
+				http.Error(w, "primero registra el pago completado: un proyecto sin pagar no se puede cerrar", http.StatusConflict)
 				return
 			}
 			http.Error(w, "el proyecto no puede pasar a esa etapa", http.StatusConflict)
@@ -407,4 +415,80 @@ func (p *Projects) Archivo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	w.Write(data)
+}
+
+// documentForm reads a hand-typed fiscal document from a form: "folio" and "fecha" (a
+// day), both required. It returns a message when either is missing or malformed.
+func documentForm(r *http.Request) (store.Document, string) {
+	d := store.Document{Ref: strings.TrimSpace(r.FormValue("folio")), Date: strings.TrimSpace(r.FormValue("fecha"))}
+	if d.Ref == "" || utf8.RuneCountInString(d.Ref) > 100 {
+		return d, "escribe el folio, de no más de 100 caracteres"
+	}
+	if _, err := time.Parse("2006-01-02", d.Date); err != nil {
+		return d, "escribe la fecha"
+	}
+	return d, ""
+}
+
+// Factura handles POST /proyectos/{folio}/factura: puts the purchase order's factura on
+// record ("folio", "fecha", optional "note") and moves the proyecto from O.C. recibida to
+// Facturado. For a P.U.E. order that is the payment too; for P.P.D. it is the factura de
+// anticipo. Any signed-in user can.
+func (p *Projects) Factura(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	project := p.loadProjectOrNotFound(w, r)
+	if project == nil {
+		return
+	}
+	note := strings.TrimSpace(r.FormValue("note"))
+	if utf8.RuneCountInString(note) > maxCommentLen {
+		http.Error(w, "el comentario no puede pasar de 2000 caracteres", http.StatusBadRequest)
+		return
+	}
+	invoice, msg := documentForm(r)
+	if msg != "" {
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	if err := p.store.RecordInvoice(ctx, project.ID, user.ID, invoice, note); err != nil {
+		if errors.Is(err, store.ErrBadTransition) {
+			http.Error(w, "la factura solo se registra en un proyecto en O.C. recibida con su orden de compra capturada", http.StatusConflict)
+			return
+		}
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/proyectos/"+project.Folio+"#pago", http.StatusSeeOther)
+}
+
+// Pago handles POST /proyectos/{folio}/pago: marks a P.P.D. proyecto that is facturado de
+// anticipo as pagado, with its comprobante de pago ("folio", "fecha", optional "note").
+// Any signed-in user can, while the proyecto is Facturado or En entrega.
+func (p *Projects) Pago(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	project := p.loadProjectOrNotFound(w, r)
+	if project == nil {
+		return
+	}
+	note := strings.TrimSpace(r.FormValue("note"))
+	if utf8.RuneCountInString(note) > maxCommentLen {
+		http.Error(w, "el comentario no puede pasar de 2000 caracteres", http.StatusBadRequest)
+		return
+	}
+	receipt, msg := documentForm(r)
+	if msg != "" {
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	if err := p.store.RecordPayment(ctx, project.ID, user.ID, receipt, note); err != nil {
+		if errors.Is(err, store.ErrBadTransition) {
+			http.Error(w, "el pago completado solo se registra en un proyecto facturado de anticipo que está en Facturado o En entrega", http.StatusConflict)
+			return
+		}
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/proyectos/"+project.Folio+"#pago", http.StatusSeeOther)
 }

@@ -22,6 +22,12 @@ func testOCForm(note string) url.Values {
 	return url.Values{"oc_numero": {"4411"}, "oc_fecha": {"2026-10-07"}, "forma_pago": {"PUE"}, "note": {note}}
 }
 
+// testInvoiceForm is a complete factura form. With testOCForm, which is P.U.E., posting
+// it also leaves the proyecto pagado.
+func testInvoiceForm() url.Values {
+	return url.Values{"folio": {"F-1001"}, "fecha": {"2026-10-08"}}
+}
+
 // issueTestQuote creates a QA draft with one catalog line and issues it through the
 // handler, which opens its proyecto. It returns the quote's folio, also the proyecto's.
 func issueTestQuote(t *testing.T, a *Auth, q *Quotes, userID, customerID, productID int64) string {
@@ -144,7 +150,7 @@ func TestProjectsFollowUp(t *testing.T) {
 
 	// With the purchase order in: no probability, and the quote can't be revised.
 	body = page(ana)
-	for _, want := range []string{"O.C. recibida", "Pasar a En entrega", "Pasó a O.C. recibida.", "OC 4411"} {
+	for _, want := range []string{"O.C. recibida", "Registrar pago y pasar a Facturado", "Pasó a O.C. recibida.", "OC 4411"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("oc_recibida page missing %q", want)
 		}
@@ -196,6 +202,9 @@ func TestProjectsFollowUp(t *testing.T) {
 	// Run it to the end: the last stage has no forward button.
 	if rec := receive(""); rec.Code != http.StatusSeeOther {
 		t.Fatalf("OC again status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if rec := doForm(t, a, ana, p.Factura, "POST", base+"/factura", pv, testInvoiceForm(), false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Factura status = %d; body = %s", rec.Code, rec.Body.String())
 	}
 	for _, to := range []string{"en_entrega", "cerrado"} {
 		if rec := move(ana, to, ""); rec.Code != http.StatusSeeOther {
@@ -541,7 +550,7 @@ func TestProjectsReceiveOC(t *testing.T) {
 	}
 	body = page()
 	for _, want := range []string{"O.C. recibida", "Orden de compra del cliente", "4411", "07/10/2026", "P.P.D. · pago en parcialidades o diferido",
-		"OC 4411.pdf", "Corregir la orden de compra", "Guardar O.C.", "Pasar a En entrega",
+		"OC 4411.pdf", "Corregir la orden de compra", "Guardar O.C.", "Registrar factura de anticipo",
 		"O.C. 4411 · 07/10/2026 · P.P.D.", "Archivo de la O.C.: OC 4411.pdf", "Llegó por correo"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("oc_recibida page missing %q", want)
@@ -588,16 +597,16 @@ func TestProjectsReceiveOC(t *testing.T) {
 		}
 	}
 
-	// Once it is being delivered the purchase order is shown but closed.
-	if rec := doForm(t, a, ana, p.Etapa, "POST", "/proyectos/"+folio+"/etapa", pv, url.Values{"to": {"en_entrega"}}, false); rec.Code != http.StatusSeeOther {
-		t.Fatalf("Etapa(→ en_entrega) status = %d", rec.Code)
+	// Once it is invoiced the purchase order is shown but closed.
+	if rec := doForm(t, a, ana, p.Factura, "POST", "/proyectos/"+folio+"/factura", pv, testInvoiceForm(), false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Factura status = %d; body = %s", rec.Code, rec.Body.String())
 	}
 	body = page()
 	if !strings.Contains(body, "Orden de compra del cliente") || strings.Contains(body, "Guardar O.C.") {
-		t.Error("a proyecto in entrega doesn't show its purchase order, or still lets it be edited")
+		t.Error("an invoiced proyecto doesn't show its purchase order, or still lets it be edited")
 	}
 	if rec := postOC(t, a, p, ana, folio, fields("9999", "2026-10-09", "PUE"), "", nil); rec.Code != http.StatusConflict {
-		t.Errorf("OC(en_entrega) status = %d, want 409", rec.Code)
+		t.Errorf("OC(facturado) status = %d, want 409", rec.Code)
 	}
 }
 
@@ -634,20 +643,20 @@ func TestProjectsLegacyOCRecibida(t *testing.T) {
 			t.Errorf("legacy oc_recibida page missing %q", want)
 		}
 	}
-	if strings.Contains(body, "Pasar a En entrega") {
-		t.Error("a proyecto with no purchase order on record offers En entrega")
+	if strings.Contains(body, "Facturación y pago") {
+		t.Error("a proyecto with no purchase order on record offers invoicing")
 	}
-	move := func() *httptest.ResponseRecorder {
-		return doForm(t, a, ana, p.Etapa, "POST", "/proyectos/"+folio+"/etapa", pv, url.Values{"to": {"en_entrega"}}, false)
+	invoice := func() *httptest.ResponseRecorder {
+		return doForm(t, a, ana, p.Factura, "POST", "/proyectos/"+folio+"/factura", pv, testInvoiceForm(), false)
 	}
-	if rec := move(); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "primero captura la orden de compra") {
-		t.Errorf("Etapa(→ en_entrega) without O.C. = %d %q", rec.Code, rec.Body.String())
+	if rec := invoice(); rec.Code != http.StatusConflict {
+		t.Errorf("Factura without O.C. status = %d, want 409", rec.Code)
 	}
 	if rec := doForm(t, a, ana, p.OC, "POST", "/proyectos/"+folio+"/oc", pv, testOCForm(""), false); rec.Code != http.StatusSeeOther {
 		t.Fatalf("OC status = %d; body = %s", rec.Code, rec.Body.String())
 	}
-	if rec := move(); rec.Code != http.StatusSeeOther {
-		t.Errorf("Etapa(→ en_entrega) with O.C. status = %d", rec.Code)
+	if rec := invoice(); rec.Code != http.StatusSeeOther {
+		t.Errorf("Factura with O.C. status = %d", rec.Code)
 	}
 }
 
@@ -658,4 +667,154 @@ func mustProjectID(t *testing.T, a *Auth, folio string) int64 {
 		t.Fatalf("ProjectByFolio(%s): %v, %v", folio, p, err)
 	}
 	return p.ID
+}
+
+// TestProjectsPaymentGates follows a P.P.D. proyecto through the screens: each blocked
+// move says what is missing, it is delivered while unpaid, and it closes once paid.
+func TestProjectsPaymentGates(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	p := NewProjects(a.store)
+	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
+	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, ana)
+
+	folio := issueTestQuote(t, a, q, ana, customerID, costProductID)
+	pv := map[string]string{"folio": folio}
+	base := "/proyectos/" + folio
+	page := func() string {
+		return doForm(t, a, ana, p.Page, "GET", base, pv, nil, false).Body.String()
+	}
+	post := func(h http.HandlerFunc, path string, form url.Values) *httptest.ResponseRecorder {
+		return doForm(t, a, ana, h, "POST", base+path, pv, form, false)
+	}
+	move := func(to string) *httptest.ResponseRecorder { return post(p.Etapa, "/etapa", url.Values{"to": {to}}) }
+	doc := func(folio, date string) url.Values {
+		return url.Values{"folio": {folio}, "fecha": {date}, "note": {"nota"}}
+	}
+
+	// Nothing to invoice or collect before the purchase order.
+	if rec := post(p.Factura, "/factura", doc("A-77", "2026-10-08")); rec.Code != http.StatusConflict {
+		t.Errorf("Factura(prospecto) status = %d, want 409", rec.Code)
+	}
+	oc := url.Values{"oc_numero": {"4411"}, "oc_fecha": {"2026-10-07"}, "forma_pago": {"PPD"}}
+	if rec := post(p.OC, "/oc", oc); rec.Code != http.StatusSeeOther {
+		t.Fatalf("OC status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+
+	body := page()
+	for _, want := range []string{"Facturación y pago", "Sin tramitar", "Registrar factura de anticipo", "Folio de la factura de anticipo",
+		"Registrar factura y pasar a Facturado", "Sin factura no se puede entregar"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("oc_recibida page missing %q", want)
+		}
+	}
+	if strings.Contains(body, "Pasar a Facturado<") || strings.Contains(body, "Pasar a En entrega") {
+		t.Error("oc_recibida offers a stage button that skips the factura")
+	}
+	for _, to := range []string{"facturado", "en_entrega"} {
+		if rec := move(to); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "primero registra la factura") {
+			t.Errorf("Etapa(→ %s) without a factura = %d %q", to, rec.Code, rec.Body.String())
+		}
+	}
+	for name, bad := range map[string]url.Values{"no folio": doc("", "2026-10-08"), "no date": doc("A-77", ""), "bad date": doc("A-77", "8/10/2026")} {
+		if rec := post(p.Factura, "/factura", bad); rec.Code != http.StatusBadRequest {
+			t.Errorf("Factura(%s) status = %d, want 400", name, rec.Code)
+		}
+	}
+	if rec := post(p.Pago, "/pago", doc("CP-9", "2026-10-20")); rec.Code != http.StatusConflict {
+		t.Errorf("Pago before the factura status = %d, want 409", rec.Code)
+	}
+
+	rec := post(p.Factura, "/factura", doc("A-77", "2026-10-08"))
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != base+"#pago" {
+		t.Fatalf("Factura status = %d, Location = %q; body = %s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
+	}
+	body = page()
+	for _, want := range []string{"Facturado", "Facturado de anticipo", "A-77 · 08/10/2026", "Registrar pago completado",
+		"Folio del comprobante de pago", "Pasar a En entrega", "Factura de anticipo A-77 · 08/10/2026"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("facturado page missing %q", want)
+		}
+	}
+
+	// Delivered while unpaid, but not closed.
+	if rec := move("en_entrega"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Etapa(→ en_entrega) status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	body = page()
+	if !strings.Contains(body, "Para cerrarlo, primero registra el pago completado") || strings.Contains(body, "Pasar a Cerrado") {
+		t.Error("an unpaid proyecto in entrega offers closing, or doesn't say what is missing")
+	}
+	if rec := move("cerrado"); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "primero registra el pago completado") {
+		t.Errorf("Etapa(→ cerrado) while unpaid = %d %q", rec.Code, rec.Body.String())
+	}
+	if rec := post(p.Pago, "/pago", doc("CP-9", "2026-10-20")); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Pago status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	body = page()
+	for _, want := range []string{"Pagado", "CP-9", "20/10/2026", "Pasar a Cerrado", "Pago completado · comprobante de pago CP-9 · 20/10/2026"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("paid page missing %q", want)
+		}
+	}
+	if strings.Contains(body, "Registrar pago completado<") {
+		t.Error("a paid proyecto still offers recording the payment")
+	}
+	if rec := post(p.Pago, "/pago", doc("CP-10", "2026-10-21")); rec.Code != http.StatusConflict {
+		t.Errorf("Pago twice status = %d, want 409", rec.Code)
+	}
+
+	// The list shows and filters by payment state.
+	list := func(query string) string {
+		return doForm(t, a, ana, p.List, "GET", "/proyectos?"+query, nil, nil, false).Body.String()
+	}
+	link := `href="/proyectos/` + folio + `"`
+	if body := list("f.pago=pagado"); !strings.Contains(body, link) || !strings.Contains(body, "Pagado") {
+		t.Error("the list filtered by Pagado doesn't show the paid proyecto")
+	}
+	if body := list("f.pago=facturado_anticipo"); strings.Contains(body, link) {
+		t.Error("the list filtered by Facturado de anticipo shows a paid proyecto")
+	}
+
+	if rec := move("cerrado"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Etapa(→ cerrado) once paid status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+// A P.U.E. order is paid by the same step that invoices it.
+func TestProjectsPUEIsPaidWhenInvoiced(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	p := NewProjects(a.store)
+	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
+	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, ana)
+	folio := issueTestQuote(t, a, q, ana, customerID, costProductID)
+	pv := map[string]string{"folio": folio}
+	base := "/proyectos/" + folio
+	page := func() string {
+		return doForm(t, a, ana, p.Page, "GET", base, pv, nil, false).Body.String()
+	}
+	if rec := doForm(t, a, ana, p.OC, "POST", base+"/oc", pv, testOCForm(""), false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("OC status = %d", rec.Code)
+	}
+	body := page()
+	for _, want := range []string{"Registrar pago y factura", "Folio de la factura", "Fecha de pago", "Registrar pago y pasar a Facturado"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("P.U.E. oc_recibida page missing %q", want)
+		}
+	}
+	if rec := doForm(t, a, ana, p.Factura, "POST", base+"/factura", pv, testInvoiceForm(), false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Factura status = %d", rec.Code)
+	}
+	body = page()
+	for _, want := range []string{"Pagado", "F-1001 · 08/10/2026", "Pagado el", "Pago recibido · factura F-1001 · 08/10/2026", "Pasar a En entrega"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("P.U.E. facturado page missing %q", want)
+		}
+	}
+	if strings.Contains(body, "Registrar pago completado") {
+		t.Error("a P.U.E. proyecto, already paid, offers recording a payment")
+	}
 }

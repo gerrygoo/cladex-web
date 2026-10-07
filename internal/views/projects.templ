@@ -28,9 +28,11 @@ func stageHint(stage string) string {
 	case "prospecto":
 		return "Cuando el cliente mande su orden de compra, captura sus datos para pasar el proyecto a O.C. recibida. Desde ese momento la cotización ya no se puede revisar."
 	case "oc_recibida":
+		return "Para pasarlo a Facturado, registra la factura en Facturación y pago, aquí abajo. Sin factura no se puede entregar."
+	case "facturado":
 		return "Pásalo a En entrega cuando el pedido ya va en camino o se le entregó al cliente."
 	case "en_entrega":
-		return "Ciérralo cuando ya se entregó, se facturó, se cobró y se emitió el complemento de pago (si aplica)."
+		return "Ciérralo cuando el pedido ya se entregó completo. El pago ya está registrado."
 	}
 	return ""
 }
@@ -70,6 +72,7 @@ templ ProjectsList(projects []store.Project, lv ListView, customers, owners []st
 						@columnHeader(lv, "Vendedor", "vendedor", choiceFilter(owners))
 						@columnHeader(lv, "Etapa", "etapa", projectStageFilter)
 						@columnHeader(lv, "Probabilidad", "probabilidad", projectProbabilityFilter)
+						@columnHeader(lv, "Pago", "pago", projectPaymentFilter)
 						@columnHeader(lv, "Total", "total", numberFilter)
 						@columnHeader(lv, "Abierto", "fecha", dateFilter)
 					</tr>
@@ -85,7 +88,7 @@ templ ProjectsTableBody(projects []store.Project) {
 	<tbody id="proyectos-tbody" data-announce={ countAnnouncement(len(projects), "proyecto", "proyectos") }>
 		if len(projects) == 0 {
 			<tr>
-				<td colspan="7">No se encontraron proyectos. Un proyecto se abre al emitir una cotización.</td>
+				<td colspan="8">No se encontraron proyectos. Un proyecto se abre al emitir una cotización.</td>
 			</tr>
 		}
 		for _, p := range projects {
@@ -103,6 +106,11 @@ templ ProjectsTableBody(projects []store.Project) {
 							<br/>
 							<strong class="forecast">{ forecastLabel }</strong>
 						}
+					}
+				</td>
+				<td>
+					if p.Status == "facturado" || p.Status == "en_entrega" || p.Status == "cerrado" {
+						{ store.PaymentStatusLabels[p.PaymentStatus] }
 					}
 				</td>
 				<td class="num">{ p.Total.String() }</td>
@@ -217,9 +225,17 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 				<p>{ stageHint(p.Status) }</p>
 				@OCForm(p, today, "Pasar a O.C. recibida", true)
 			}
+		} else if p.Status == "oc_recibida" {
+			if !p.HasOC() {
+				<p>Para facturarlo, primero captura la orden de compra del cliente, aquí abajo.</p>
+			} else {
+				<p>{ stageHint(p.Status) }</p>
+			}
 		} else if next := store.NextStage(p.Status); next != "" {
-			if p.Status == "oc_recibida" && !p.HasOC() {
-				<p>Para pasarlo a { store.StageLabels[next] }, primero captura la orden de compra del cliente, aquí abajo.</p>
+			if next == "cerrado" && !p.Paid() && p.Invoice.Ref == "" {
+				<p>Este proyecto llegó a En entrega antes de que se pidiera la factura. Para cerrarlo, pídele a un administrador que lo regrese a O.C. recibida y registra ahí su factura y su pago.</p>
+			} else if next == "cerrado" && !p.Paid() {
+				<p>Para cerrarlo, primero registra el pago completado en <a href="#pago">Facturación y pago</a>.</p>
 			} else {
 				<form method="post" action={ templ.URL(etapaPath(p.Folio)) } class="stage-form">
 					<p>{ stageHint(p.Status) }</p>
@@ -233,6 +249,87 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 			}
 		} else if p.Status == "cerrado" {
 			<p>Este proyecto está cerrado.</p>
+		}
+		if p.HasOC() && (p.Status == "oc_recibida" || p.Invoice.Ref != "") {
+			<section id="pago">
+				<h2>Facturación y pago</h2>
+				<dl class="quote-info">
+					<dt>Forma de pago</dt>
+					<dd>{ paymentMethodText(p.OC.PaymentMethod) }</dd>
+					<dt>Estado de pago</dt>
+					<dd>
+						<span class={ "badge", "badge-pago-" + paymentBadge(p.PaymentStatus) }>{ store.PaymentStatusLabels[p.PaymentStatus] }</span>
+					</dd>
+					if p.Invoice.Ref != "" {
+						<dt>{ invoiceLabel(p.OC.PaymentMethod) }</dt>
+						<dd>{ p.Invoice.Ref + " · " + dateText(p.Invoice.Date) }</dd>
+					}
+					if p.PaymentRef != "" {
+						<dt>Comprobante de pago</dt>
+						<dd>{ p.PaymentRef }</dd>
+					}
+					if p.PaidAt != "" {
+						<dt>Pagado el</dt>
+						<dd>{ dateText(p.PaidAt) }</dd>
+					}
+				</dl>
+				if p.Status == "oc_recibida" {
+					<form method="post" action={ templ.URL(projectPath(p.Folio) + "/factura") } class="stage-form">
+						if p.OC.PaymentMethod == "PUE" {
+							<h3>Registrar pago y factura</h3>
+							<p>La orden es P.U.E.: cuando el cliente pague y se emita la factura, regístralo aquí. El proyecto pasa a Facturado y queda pagado.</p>
+						} else {
+							<h3>Registrar factura de anticipo</h3>
+							<p>La orden es P.P.D.: cuando se emita la factura de anticipo, regístrala aquí. El proyecto pasa a Facturado y se puede entregar; el pago completado se registra después.</p>
+						}
+						<div class="followup-dates">
+							<label>
+								{ "Folio de la " + invoiceWord(p.OC.PaymentMethod) }
+								<input type="text" name="folio" maxlength="100" required/>
+							</label>
+							<label>
+								if p.OC.PaymentMethod == "PUE" {
+									Fecha de pago
+								} else {
+									Fecha de la factura
+								}
+								<input type="date" name="fecha" value={ today } required/>
+							</label>
+						</div>
+						<label>
+							Comentario (opcional)
+							<textarea name="note" rows="2" maxlength="2000"></textarea>
+						</label>
+						<button type="submit" class="primary">
+							if p.OC.PaymentMethod == "PUE" {
+								Registrar pago y pasar a Facturado
+							} else {
+								Registrar factura y pasar a Facturado
+							}
+						</button>
+					</form>
+				} else if p.PaymentStatus == store.PaymentAdvanceInvoiced && (p.Status == "facturado" || p.Status == "en_entrega") {
+					<form method="post" action={ templ.URL(projectPath(p.Folio) + "/pago") } class="stage-form">
+						<h3>Registrar pago completado</h3>
+						<p>Cuando el cliente termine de pagar y se emita el comprobante de pago, regístralo aquí. Sin esto el proyecto no se puede cerrar.</p>
+						<div class="followup-dates">
+							<label>
+								Folio del comprobante de pago
+								<input type="text" name="folio" maxlength="100" required/>
+							</label>
+							<label>
+								Fecha de pago
+								<input type="date" name="fecha" value={ today } required/>
+							</label>
+						</div>
+						<label>
+							Comentario (opcional)
+							<textarea name="note" rows="2" maxlength="2000"></textarea>
+						</label>
+						<button type="submit" class="primary">Registrar pago completado</button>
+					</form>
+				}
+			</section>
 		}
 		if p.HasOC() || p.Status == "oc_recibida" {
 			<section id="oc">

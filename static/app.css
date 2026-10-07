@@ -624,6 +624,21 @@ span.badge-oc_recibida {
   background: color-mix(in srgb, var(--primary) 8%, var(--bg));
 }
 
+span.badge-facturado,
+span.badge-pago-facturado_anticipo {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--bg));
+}
+
+span.badge-pago-sin_tramitar {
+  color: var(--text-muted);
+}
+
+span.badge-pago-pagado {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 8%, var(--bg));
+}
+
 span.badge-en_entrega {
   color: var(--warning);
   background: color-mix(in srgb, var(--warning) 8%, var(--bg));
