@@ -94,29 +94,50 @@ counts in the forecast. SAP's name for the marker, "relevant for forecast", is t
 adopted here.
 
 - **Probabilidad de cierre** exists only while a proyecto is a `prospecto`. It takes
-  one of five fixed steps, proposed as 10, 25, 50, 75 and 90, never 0 or 100:
-  receiving the O.C. or losing the proyecto is what ends the guess. A new proyecto
-  starts at the lowest step. The value lives on the `projects` row from 4.1 on, so
-  the migration keeps the shipped `emitida` / `pipeline` distinction.
-- **Relevante para pronóstico** is derived: probabilidad ≥ 75%. It is never stored or
-  set by hand, so it can't disagree with the probability. The threshold is a constant
-  next to the steps.
-- **Control**: a row of five radio-style buttons, not a slider and not a typed number.
-  It works with keyboard and screen reader, and nobody has to defend 35% against 40%.
-  Changing it saves in place and writes "Probabilidad: 25% → 75%" to the proyecto's
-  history, with an optional note.
+  one of five fixed steps, each shown as one word, with the percentage as a reference
+  beside it and as the weight in totals:
+
+  | Step | Word | Relevante para pronóstico |
+  |---|---|---|
+  | 10% | Inicial | |
+  | 25% | Baja | |
+  | 50% | Media | |
+  | 75% | Alta | yes |
+  | 90% | Inminente | yes |
+
+  Never 0 or 100: receiving the O.C. or losing the proyecto is what ends the guess. A
+  new proyecto starts at Inicial. The value lives on the `projects` row from 4.1 on,
+  so the migration keeps the shipped `emitida` / `pipeline` distinction (`pipeline`
+  becomes Alta).
+- **Relevante para pronóstico** is derived: Alta or Inminente (≥ 75%). It is never
+  stored or set by hand, so it can't disagree with the probability. The threshold is
+  a constant next to the steps.
+- **Control**: a row of five radio-style buttons labelled with the words, not a slider
+  and not a typed number. It works with keyboard and screen reader, and nobody has to
+  defend 35% against 40%. Changing it saves in place and writes "Probabilidad: Baja →
+  Alta" to the proyecto's history, with an optional note.
 - **Highlight**: relevante para pronóstico proyectos are marked wherever prospectos
   are listed (home board, lists, the proyecto page), with a text label and not colour
   alone.
 - **Pronóstico view**: the meeting page. Relevante para pronóstico proyectos sorted by
-  fecha esperada de O.C., each row editable in place, with the total and the weighted
-  total (amount × probability) at the bottom. A toggle shows the remaining prospectos
-  so one can be promoted during the meeting.
-- **Staleness**: each row shows when the probability was last changed.
+  fecha esperada de O.C., each editable in place. A toggle shows the remaining
+  prospectos so one can be promoted during the meeting. Each proyecto shows:
+  - folio, client, vendedor and amount;
+  - the probability control;
+  - its dates: quote issued, vigencia, fecha esperada de O.C.;
+  - the next relevant event, whichever comes first of próximo seguimiento, the
+    vigencia running out and the fecha esperada de O.C., flagged when overdue;
+  - the latest update from the history (who, when, text);
+  - the contact (`customers.contact_name`, phone, email; one per client today);
+  - when the probability was last changed, so stale guesses are visible.
+
+  The total and the weighted total (amount × percentage) close the page.
 
 ```
-QA0012-R1  Constructora X   $482,000   O.C. esperada 15 oct   ( 10 | 25 | 50 |[75]| 90 )   act. hace 3 días
-           "Compras pidió ajustar entrega" · próximo seguimiento 9 oct
+QA0012-R1  Constructora X · Laura M.          $482,000        ( Inicial | Baja | Media |[Alta]| Inminente )  75%
+  Emitida 22 sep · vigencia 22 oct · O.C. esperada 15 oct     Probabilidad actualizada hace 3 días
+  Próximo: seguimiento 9 oct                                   Contacto: Ing. Pérez · 55 1234 5678
+  Última nota (Laura, 3 oct): "Compras pidió ajustar entrega"
 ```
 
 ## M5 — Bases de facturación
@@ -171,6 +192,6 @@ None of these block M4 from starting. The first affects 4.2's final shape.
 2. **One factura per O.C. or several** (partial deliveries)? M6 assumes one, plus the
    anticipo/pago pair for P.P.D.
 3. **The self-loop on `pagado`** on the board: partial payments, or a stray mark?
-4. **The probability steps and their names.** 10 / 25 / 50 / 75 / 90 is a proposal;
-   if the team already speaks in certain percentages or words, use theirs.
+4. **Several contacts per client?** The Pronóstico view shows the client's single
+   contact. If a proyecto's contact differs from the client's, that is a new field.
 5. **Send on timbrado or on a manual "Enviar"**, and to whom ("emisión de copias")?
