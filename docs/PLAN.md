@@ -1049,7 +1049,7 @@ milestones that follow.
 
 | # | Slice | Owner | Done when |
 |---|---|---|---|
-| 4.1 | `projects` table; a proyecto opens when a quote is issued and follows its revisions; the pipeline stages leave `quotes.status`; a proyecto page and list | me | Written in two commits¹⁵ ¹⁶, tests green. Pending: the production dry run and the deploy. |
+| 4.1 | `projects` table; a proyecto opens when a quote is issued and follows its revisions; the pipeline stages leave `quotes.status`; a proyecto page and list | me | Written in two commits¹⁵ ¹⁶, tests green, production dry run clean. Pending: the deploy. |
 
 ¹⁵ `migrations/0016_projects.sql` adds `projects` (`folio` = the base folio of the quote
 that opened it, `customer_id`, owner `user_id`, `status`, `probability`,
@@ -1083,8 +1083,17 @@ Verified with `go test ./...` (store: stage moves, probability, issue and revisi
 `TestMigration0016` over every old stage and both kinds of chain; web: `TestQuotesEtapa`,
 `TestQuotesEtapaOnlyOnTheCurrentQuote`, the route table) and in a browser against a
 scratch copy of the local dev DB: home board, quote page, a probability change and a
-move to O.C. recibida. **Not yet dry-run against a copy of the production DB, and not
-deployed.**
+move to O.C. recibida.
+
+Dry run on a `.backup` of the live production DB (2026-10-06, at 0015): 52 quotes, of
+which 43 start a chain and 29 of those were never issued, so 14 proyectos were created.
+13 are prospectos at Inicial and one (QS0011, the only quote in an old follow-up stage,
+`oc_emitida`) is O.C. recibida. Six proyectos have a revision in draft as their current
+quote. Every proyecto has exactly one current quote; the 29 unissued drafts have none.
+Quote counts and the sum of totals are unchanged, every quote column other than
+`status` and `project_id` is identical row for row, as are `quote_lines` (154) and
+`quote_comments` (13), the audit log gained no rows (340), and the integrity and
+foreign-key checks pass. The copy was deleted afterwards.
 
 ¹⁶ The second commit gives the proyecto its own screens and takes the follow-up off the
 quote page. `GET /proyectos` lists proyectos (search by folio or client; sort and filter

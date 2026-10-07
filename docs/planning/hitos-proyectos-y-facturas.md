@@ -85,8 +85,8 @@ Notes:
 
 **Status (2026-10-06):** both commits are written, with the probability control pulled
 forward from 4.3 so the old "Pasar a Pipeline" has a replacement. The as-built notes are
-in [`docs/PLAN.md`](../PLAN.md#m4--proyectos). Pending: the production dry run and the
-deploy.
+in [`docs/PLAN.md`](../PLAN.md#m4--proyectos), with the production dry run's result.
+Pending: the deploy.
 
 Checked against the code as of 2026-10-06 (`internal/store/quotes.go`, `pipeline.go`,
 `overview.go`, migrations 0011–0015).
