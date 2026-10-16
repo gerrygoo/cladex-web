@@ -45,6 +45,7 @@ for a confirmation unless the summary reveals a real choice.
 - needs a DB migration or schema change
 - major restructuring of a component or flow
 - **sensitive: touches money (prices, totals, payments, invoicing, purchase orders) or regulatory behavior (CFDI, fiscal data, PAC, audit/permissions)**
+  (Exception: **read-only reporting** — dashboards/tables that only display existing totals, margins or pipeline amounts without changing how they're computed or stored — counts as small.)
 - changes the business model/state machine (quote/proyecto states)
 - would take more than a focused change in a few files
 
