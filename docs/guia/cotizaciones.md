@@ -300,18 +300,11 @@ cualquier cotización que no sea [[borrador]]. Debajo del nombre de la cotizaci�
 
 ## Comentar una cotización
 
-Toda cotización, en cualquier estado, tiene una caja de **Comentarios** al final de la
-página, debajo de **Descargar PDF** y **Volver a cotizaciones**. Sirve para dar
-seguimiento (*"el cliente pidió otro precio"*, *"llamar el lunes"*). Los comentarios de
-todas las cotizaciones de un proyecto se leen juntos en el
-[historial del proyecto](proyectos.md#comentar-un-proyecto).
-
-1. Abre la cotización.
-2. Escribe en **Agregar un comentario** y haz clic en **Comentar**.
-3. Tu comentario aparece en la lista de abajo; debajo del texto, en letra más pequeña,
-   van tu nombre y la fecha. Los más nuevos van arriba.
-
-Cualquier usuario puede comentar. Los comentarios no se editan ni se borran.
+Las cotizaciones ya no tienen caja para escribir comentarios: todo el seguimiento se
+anota desde el [proyecto](proyectos.md#comentar-un-proyecto). Al final de cada
+cotización, en **Comentarios**, se leen los de esa cotización (los más nuevos arriba, con
+quién los escribió y cuándo) y un enlace lleva al proyecto para agregar uno nuevo. Los
+comentarios no se editan ni se borran.
 
 ## Buscar una cotización
 

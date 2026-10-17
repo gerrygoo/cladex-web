@@ -8,6 +8,22 @@
     if (msg && !window.confirm(msg)) e.preventDefault();
   }, true);
 
+  // The follow-up form's "Perdida" radio swaps the dates and comment for the Motivo of
+  // the loss. Without JS every field shows and the server checks which ones apply.
+  document.addEventListener("change", function (e) {
+    var form = e.target.closest && e.target.closest("form[data-followup]");
+    if (!form || e.target.name !== "probabilidad") return;
+    var lost = e.target.value === "perdida";
+    var reason = form.querySelector("[data-lost-only]");
+    var rest = form.querySelector("[data-not-lost]");
+    reason.hidden = !lost;
+    rest.hidden = lost;
+    reason.querySelector("textarea").required = lost;
+    rest.querySelectorAll("[name=proximo_seguimiento], [name=note]").forEach(function (el) {
+      el.required = !lost;
+    });
+  });
+
   // Mark the nav link of the page, or else of the section it belongs to
   // (/cotizaciones/nueva is Nueva cotización; /cotizaciones/QS0001 is under Ver
   // cotizaciones).

@@ -772,7 +772,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 		if quote.Status == "borrador" {
 			<p class="hint pdf-note" data-unsaved-note>El PDF muestra lo último guardado, sin los cambios de la pantalla.</p>
 		}
-		@QuoteComments(quote.Folio, comments, commentsLV)
+		@QuoteComments(quote.ProjectFolio, comments, commentsLV)
 	}
 }
 
@@ -836,24 +836,17 @@ func QuoteProfit(lines []QuoteLineView, margin money.Micros) money.Centavos {
 	return money.Centavos(money.RoundHalfUp(int64(priced)*int64(margin), 1_000_000))
 }
 
-func comentarPath(folio string) string {
-	return "/cotizaciones/" + folio + "/comentarios"
-}
-
-// QuoteComments is the follow-up box at the foot of every quote: the form to add a
-// comment, then everyone's comments, newest first, a page at a time. Each comment leads
-// with its text; who wrote it and when sit below in a smaller, muted line, since the
-// list's order already says which came first.
-templ QuoteComments(folio string, comments []store.QuoteComment, lv ListView) {
+// QuoteComments is the read-only comments list at the foot of every quote: everyone's
+// comments, newest first, a page at a time. Comments are written from the proyecto, so
+// there is no form here, only a pointer to it (projectFolio is "" for a draft that has no
+// proyecto). Each comment leads with its text; who wrote it and when sit below in a
+// smaller, muted line, since the list's order already says which came first.
+templ QuoteComments(projectFolio string, comments []store.QuoteComment, lv ListView) {
 	<section id="comentarios">
 		<h2>Comentarios</h2>
-		<form method="post" action={ templ.URL(comentarPath(folio)) }>
-			<label>
-				Agregar un comentario
-				<textarea name="comment" rows="3" maxlength="2000" required></textarea>
-			</label>
-			<button type="submit">Comentar</button>
-		</form>
+		if projectFolio != "" {
+			<p class="hint">Los comentarios se escriben desde el <a href={ templ.URL(projectPath(projectFolio) + "#historial") }>proyecto { projectFolio }</a>.</p>
+		}
 		if len(comments) == 0 {
 			<p class="comments-empty">Sin comentarios.</p>
 		} else {

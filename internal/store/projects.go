@@ -78,10 +78,16 @@ type ProbabilityStep struct {
 }
 
 // ProbabilitySteps are the probabilidad de cierre choices, lowest first. A new proyecto
-// starts at the first. There is no 0 or 100: receiving the purchase order ends the guess.
+// starts at the first. There is no 0 or 100 in the data: receiving the purchase order ends
+// the guess. The follow-up form shows "Orden colocada 100%" and "Perdida" after these as
+// labels for oc_recibida and perdido, not as values to store.
 var ProbabilitySteps = []ProbabilityStep{
 	{10, "Inicial"}, {25, "Baja"}, {50, "Media"}, {75, "Alta"}, {90, "Inminente"},
 }
+
+// ReceiveOCProbability is the probability at which the proyecto page offers the purchase
+// order: Inminente, when the sale is about to close.
+const ReceiveOCProbability = 90
 
 // ForecastThreshold is the probability from which a prospecto is relevante para
 // pronóstico, what the team calls "en pipeline" when it reviews what is about to close.
@@ -655,10 +661,15 @@ func (s *Store) LoseProject(ctx context.Context, projectID, userID int64, from, 
 }
 
 // ReopenProject brings a lost proyecto back to the stage it was lost from and clears the
-// reason, which stays in the history as the comment LoseProject wrote. It records the
-// reopening as a comment too, with the user's note if any. Who may reopen is the
-// caller's decision.
-func (s *Store) ReopenProject(ctx context.Context, projectID, userID int64, note string) error {
+// reason, which stays in the history as the comment LoseProject wrote. A proyecto lost
+// from prospecto can come back with a new probabilidad (one of ProbabilitySteps); nil
+// keeps the one it had, and it is ignored for one lost from oc_recibida, whose purchase
+// order is still on record. The reopening is a comment too, with the user's note if any.
+// Who may reopen is the caller's decision.
+func (s *Store) ReopenProject(ctx context.Context, projectID, userID int64, probability *int, note string) error {
+	if probability != nil && ProbabilityLabel(*probability) == "" {
+		return ErrBadTransition
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("store: reopen project %d: %w", projectID, err)
@@ -668,8 +679,9 @@ func (s *Store) ReopenProject(ctx context.Context, projectID, userID int64, note
 		return fmt.Errorf("store: reopen project %d: %w", projectID, err)
 	}
 	var back string
+	var before int
 	err = tx.QueryRowContext(ctx,
-		`SELECT lost_from FROM projects WHERE id = ? AND status = 'perdido'`, projectID).Scan(&back)
+		`SELECT lost_from, probability FROM projects WHERE id = ? AND status = 'perdido'`, projectID).Scan(&back, &before)
 	if err == sql.ErrNoRows {
 		return ErrBadTransition
 	}
@@ -689,6 +701,14 @@ func (s *Store) ReopenProject(ctx context.Context, projectID, userID int64, note
 		return fmt.Errorf("store: reopen project %d: %w", projectID, err)
 	}
 	body := fmt.Sprintf("Se reabrió como %s.", StageLabels[back])
+	if back == "prospecto" && probability != nil && *probability != before {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE projects SET probability = ?, probability_updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+			WHERE id = ?`, *probability, projectID); err != nil {
+			return fmt.Errorf("store: reopen project %d: %w", projectID, err)
+		}
+		body += fmt.Sprintf("\nProbabilidad: %s → %s.", ProbabilityLabel(before), ProbabilityLabel(*probability))
+	}
 	if note = strings.TrimSpace(note); note != "" {
 		body += "\n" + note
 	}

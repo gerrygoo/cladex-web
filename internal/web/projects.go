@@ -141,9 +141,11 @@ func (p *Projects) Etapa(w http.ResponseWriter, r *http.Request) {
 
 // Seguimiento handles POST /proyectos/{folio}/seguimiento: saves a prospecto's
 // follow-up — "probabilidad" (the percentage of one of the fixed steps), "oc_esperada"
-// and "proximo_seguimiento" (days, either may be blank to clear it) — with an optional
-// "note" in the comment that records what changed. Any signed-in user can, while the
-// proyecto is a prospecto. "volver" sends the user back to the Pronóstico page it was
+// (a day, blank clears it), "proximo_seguimiento" (a day after today) and the "note" in
+// the comment that records what changed. The note and the next follow-up day are both
+// required, whether or not the stage changes. "probabilidad=perdida" marks the proyecto
+// lost instead, with a required "reason" and nothing else. Any signed-in user can, while
+// the proyecto is a prospecto. "volver" sends the user back to the Pronóstico page it was
 // submitted from.
 func (p *Projects) Seguimiento(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -151,7 +153,29 @@ func (p *Projects) Seguimiento(w http.ResponseWriter, r *http.Request) {
 	if project == nil {
 		return
 	}
+	user, _ := UserFromContext(ctx)
+	if r.FormValue("probabilidad") == "perdida" {
+		reason := strings.TrimSpace(r.FormValue("reason"))
+		if reason == "" || utf8.RuneCountInString(reason) > maxCommentLen {
+			http.Error(w, "escribe el motivo por el que se perdió, de no más de 2000 caracteres", http.StatusBadRequest)
+			return
+		}
+		if err := p.store.LoseProject(ctx, project.ID, user.ID, project.Status, reason); err != nil {
+			if errors.Is(err, store.ErrBadTransition) {
+				http.Error(w, "este proyecto ya no se puede marcar como perdido", http.StatusConflict)
+				return
+			}
+			http.Error(w, "error interno", http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, "/proyectos/"+project.Folio, http.StatusSeeOther)
+		return
+	}
 	note := strings.TrimSpace(r.FormValue("note"))
+	if note == "" {
+		http.Error(w, "escribe un comentario: qué pasó y cuáles son los siguientes pasos", http.StatusBadRequest)
+		return
+	}
 	if utf8.RuneCountInString(note) > maxCommentLen {
 		http.Error(w, "el comentario no puede pasar de 2000 caracteres", http.StatusBadRequest)
 		return
@@ -163,13 +187,18 @@ func (p *Projects) Seguimiento(w http.ResponseWriter, r *http.Request) {
 	}
 	expectedOC := strings.TrimSpace(r.FormValue("oc_esperada"))
 	nextFollowUp := strings.TrimSpace(r.FormValue("proximo_seguimiento"))
-	for _, d := range []string{expectedOC, nextFollowUp} {
-		if _, err := time.Parse("2006-01-02", d); d != "" && err != nil {
-			http.Error(w, "las fechas deben tener el formato AAAA-MM-DD", http.StatusBadRequest)
-			return
-		}
+	if _, err := time.Parse("2006-01-02", expectedOC); expectedOC != "" && err != nil {
+		http.Error(w, "las fechas deben tener el formato AAAA-MM-DD", http.StatusBadRequest)
+		return
 	}
-	user, _ := UserFromContext(ctx)
+	if _, err := time.Parse("2006-01-02", nextFollowUp); err != nil {
+		http.Error(w, "elige la fecha del próximo seguimiento", http.StatusBadRequest)
+		return
+	}
+	if nextFollowUp <= today(r) {
+		http.Error(w, "la fecha del próximo seguimiento debe ser posterior a hoy", http.StatusBadRequest)
+		return
+	}
 	err = p.store.FollowUpProject(ctx, project.ID, user.ID, store.FollowUp{
 		Probability: &percent, ExpectedOC: &expectedOC, NextFollowUp: &nextFollowUp, Note: note,
 	})
@@ -259,8 +288,9 @@ func (p *Projects) Perder(w http.ResponseWriter, r *http.Request) {
 }
 
 // Reabrir handles POST /proyectos/{folio}/reabrir: brings a lost proyecto back to the
-// stage it was lost from (the optional "note" goes into the comment that records it).
-// Admin-only, enforced by the router, like going back a stage.
+// stage it was lost from. The "note" is required: it goes into the comment that records
+// it, as with any change of stage. For one lost from prospecto, "probabilidad" may pick
+// the step it comes back at. Admin-only, enforced by the router, like going back a stage.
 func (p *Projects) Reabrir(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := p.loadProjectOrNotFound(w, r)
@@ -268,12 +298,21 @@ func (p *Projects) Reabrir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	note := strings.TrimSpace(r.FormValue("note"))
-	if utf8.RuneCountInString(note) > maxCommentLen {
-		http.Error(w, "el comentario no puede pasar de 2000 caracteres", http.StatusBadRequest)
+	if note == "" || utf8.RuneCountInString(note) > maxCommentLen {
+		http.Error(w, "escribe un comentario de no más de 2000 caracteres: por qué se reabre", http.StatusBadRequest)
 		return
 	}
+	var probability *int
+	if v := r.FormValue("probabilidad"); v != "" {
+		percent, err := strconv.Atoi(v)
+		if err != nil || store.ProbabilityLabel(percent) == "" {
+			http.Error(w, "elige una probabilidad de la lista", http.StatusBadRequest)
+			return
+		}
+		probability = &percent
+	}
 	user, _ := UserFromContext(ctx)
-	if err := p.store.ReopenProject(ctx, project.ID, user.ID, note); err != nil {
+	if err := p.store.ReopenProject(ctx, project.ID, user.ID, probability, note); err != nil {
 		if errors.Is(err, store.ErrBadTransition) {
 			http.Error(w, "este proyecto no está perdido", http.StatusConflict)
 			return

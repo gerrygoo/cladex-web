@@ -201,9 +201,21 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 			</dl>
 			if user != nil && user.IsAdmin {
 				<form method="post" action={ templ.URL(projectPath(p.Folio) + "/reabrir") } class="stage-form">
+					if p.LostFrom == "prospecto" {
+						<fieldset class="probability">
+							<legend>Reabrir con probabilidad de cierre</legend>
+							for _, st := range store.ProbabilitySteps {
+								<label>
+									<input type="radio" name="probabilidad" value={ strconv.Itoa(st.Percent) } checked?={ st.Percent == p.Probability } required/>
+									{ st.Label }
+									<small>{ strconv.Itoa(st.Percent) }%</small>
+								</label>
+							}
+						</fieldset>
+					}
 					<label>
-						Comentario (opcional)
-						<textarea name="note" rows="2" maxlength="2000"></textarea>
+						Comentario
+						<textarea name="note" rows="2" maxlength="2000" required></textarea>
 					</label>
 					<button type="submit">Reabrir como { store.StageLabels[p.LostFrom] }</button>
 				</form>
@@ -215,15 +227,18 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 			<h2>Seguimiento</h2>
 		}
 		if p.Status == "prospecto" {
-			@FollowUpForm(p, "")
+			@FollowUpForm(p, "", today)
 		}
 		if p.Status == "prospecto" {
-			if p.CurrentQuoteStatus != "emitida" {
-				<p>Para pasarlo a { store.StageLabels["oc_recibida"] }, primero emite la revisión <a href={ templ.URL("/cotizaciones/" + p.CurrentQuoteFolio) }>{ p.CurrentQuoteFolio }</a>.</p>
-			} else {
-				<h2>Recibir la orden de compra</h2>
-				<p>{ stageHint(p.Status) }</p>
-				@OCForm(p, today, "Pasar a O.C. recibida", true)
+			// The purchase order is only asked for once the sale is about to close.
+			if p.Probability == store.ReceiveOCProbability {
+				if p.CurrentQuoteStatus != "emitida" {
+					<p>Para pasarlo a { store.StageLabels["oc_recibida"] }, primero emite la revisión <a href={ templ.URL("/cotizaciones/" + p.CurrentQuoteFolio) }>{ p.CurrentQuoteFolio }</a>.</p>
+				} else {
+					<h2>Recibir la orden de compra</h2>
+					<p>{ stageHint(p.Status) }</p>
+					@OCForm(p, today, "Pasar a O.C. recibida", true, false)
+				}
 			}
 		} else if p.Status == "oc_recibida" {
 			if !p.HasOC() {
@@ -231,6 +246,7 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 			} else {
 				<p>{ stageHint(p.Status) }</p>
 			}
+			@LoseForm(p)
 		} else if next := store.NextStage(p.Status); next != "" {
 			if next == "cerrado" && !p.Paid() && p.Invoice.Ref == "" {
 				<p>Este proyecto llegó a En entrega antes de que se pidiera la factura. Para cerrarlo, pídele a un administrador que lo regrese a O.C. recibida y registra ahí su factura y su pago.</p>
@@ -368,9 +384,9 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 				if p.Status == "oc_recibida" {
 					if p.HasOC() {
 						<h3>Corregir la orden de compra</h3>
-						@OCForm(p, today, "Guardar O.C.", false)
+						@OCForm(p, today, "Guardar O.C.", false, true)
 					} else {
-						@OCForm(p, today, "Guardar O.C.", true)
+						@OCForm(p, today, "Guardar O.C.", true, true)
 					}
 				}
 			</section>
@@ -379,17 +395,6 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 			<form method="post" action={ templ.URL(etapaPath(p.Folio)) } class="stage-form">
 				<input type="hidden" name="to" value={ prev }/>
 				<button type="submit">Regresar a { store.StageLabels[prev] }</button>
-			</form>
-		}
-		if store.CanLose(p.Status) {
-			<form method="post" action={ templ.URL(projectPath(p.Folio) + "/perder") } class="stage-form">
-				<h2>Perder el proyecto</h2>
-				<p>Márcalo como perdido si el cliente ya no va a comprar. Sale de las etapas activas y su cotización ya no se puede revisar.</p>
-				<label>
-					Motivo
-					<textarea name="reason" rows="2" maxlength="2000" required></textarea>
-				</label>
-				<button type="submit" class="danger" data-confirm="¿Marcar este proyecto como perdido?">Marcar como perdido</button>
 			</form>
 		}
 		<h2>Cotizaciones</h2>
@@ -454,10 +459,15 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 }
 
 // FollowUpForm is where a prospecto's follow-up is kept: the probabilidad de cierre as
-// five radio buttons, the day the purchase order is expected, the day to follow up next
-// and an optional note. volver says where saving returns to ("" is the proyecto's page).
-templ FollowUpForm(p store.Project, volver string) {
-	<form method="post" action={ templ.URL(seguimientoPath(p.Folio)) } class="stage-form">
+// radio buttons, the day the purchase order is expected, the day to follow up next and
+// the comment that records it. The comment and the next follow-up day are required. On the
+// proyecto's page (volver == "") the radios also show "Orden colocada 100%", which is only
+// reached by receiving the purchase order and can't be picked, and "Perdida", which asks
+// for its Motivo instead of the dates and comment (static/app.js swaps the fields; without
+// it the server still checks everything). volver says where saving returns to ("" is the
+// proyecto's page); today is the viewer's day, so the next follow-up must be after it.
+templ FollowUpForm(p store.Project, volver, today string) {
+	<form method="post" action={ templ.URL(seguimientoPath(p.Folio)) } class="stage-form" data-followup?={ volver == "" }>
 		if volver != "" {
 			<input type="hidden" name="volver" value={ volver }/>
 		}
@@ -470,25 +480,68 @@ templ FollowUpForm(p store.Project, volver string) {
 					<small>{ strconv.Itoa(st.Percent) }%</small>
 				</label>
 			}
+			if volver == "" {
+				<label>
+					<input type="radio" name="probabilidad_oc" value="100" disabled/>
+					Orden colocada
+					<small>100%</small>
+				</label>
+				<label>
+					<input type="radio" name="probabilidad" value="perdida" required/>
+					Perdida
+				</label>
+			}
 		</fieldset>
 		if volver == "" {
-			<p class="hint">Desde Alta, el proyecto es relevante para pronóstico: es de los que se revisan cuando el equipo ve qué está por cerrar.</p>
-		}
-		<div class="followup-dates">
-			<label>
-				O.C. esperada
-				<input type="date" name="oc_esperada" value={ p.ExpectedOCDate }/>
+			<p class="hint">Desde Alta, el proyecto es relevante para pronóstico: es de los que se revisan cuando el equipo ve qué está por cerrar. En Inminente 90% aparece aquí abajo el paso para recibir la orden de compra, que es lo único que lleva el proyecto a Orden colocada 100%.</p>
+			<label data-lost-only hidden>
+				Motivo de la pérdida
+				<textarea name="reason" rows="2" maxlength="2000"></textarea>
 			</label>
+		}
+		<div data-not-lost>
+			<div class="followup-dates">
+				<label>
+					O.C. esperada
+					<input type="date" name="oc_esperada" value={ p.ExpectedOCDate }/>
+				</label>
+				<label>
+					Próximo seguimiento
+					<input type="date" name="proximo_seguimiento" value={ p.NextFollowUpDate } min={ nextDay(today) } required/>
+				</label>
+			</div>
 			<label>
-				Próximo seguimiento
-				<input type="date" name="proximo_seguimiento" value={ p.NextFollowUpDate }/>
+				Comentario
+				<textarea name="note" rows="2" maxlength="2000" required></textarea>
 			</label>
 		</div>
-		<label>
-			Comentario (opcional)
-			<textarea name="note" rows="2" maxlength="2000"></textarea>
-		</label>
 		<button type="submit">Guardar seguimiento<span class="visually-hidden">{ " de " + p.Folio }</span></button>
+	</form>
+}
+
+// LoseForm is how a proyecto with its purchase order in is marked lost: the same two
+// closing radios the follow-up form ends with, "Orden colocada 100%" (where it is, so
+// checked and fixed) and "Perdida", with the required Motivo. There are no probabilities
+// left to pick, so this is not the follow-up form.
+templ LoseForm(p store.Project) {
+	<form method="post" action={ templ.URL(projectPath(p.Folio) + "/perder") } class="stage-form">
+		<fieldset class="probability">
+			<legend>Probabilidad de cierre</legend>
+			<label>
+				<input type="radio" name="probabilidad_oc" value="100" checked disabled/>
+				Orden colocada
+				<small>100%</small>
+			</label>
+			<label>
+				<input type="radio" name="perdida" value="1" required/>
+				Perdida
+			</label>
+		</fieldset>
+		<label>
+			Motivo de la pérdida
+			<textarea name="reason" rows="2" maxlength="2000" required></textarea>
+		</label>
+		<button type="submit" class="danger" data-confirm="¿Marcar este proyecto como perdido?">Marcar como perdida</button>
 	</form>
 }
 
@@ -597,7 +650,7 @@ templ ForecastPage(f Forecast, user *NavUser) {
 						@Timestamp(p.ProbabilityUpdatedAt)
 					</dd>
 				</dl>
-				@FollowUpForm(p, f.forecastReturn())
+				@FollowUpForm(p, f.forecastReturn(), f.Today)
 			</article>
 		}
 		if len(f.Projects) > 0 {
@@ -619,10 +672,10 @@ templ ForecastPage(f Forecast, user *NavUser) {
 }
 
 // OCForm captures the client's purchase order: number, date, forma de pago and,
-// optionally, its file. On a prospecto its button is what moves the proyecto to O.C.
+// optionally, its file, and a comment when withNote (receiving the order has none). On a prospecto its button is what moves the proyecto to O.C.
 // recibida; afterwards the same form corrects the data. primary styles the button as
 // the page's main action.
-templ OCForm(p store.Project, today, button string, primary bool) {
+templ OCForm(p store.Project, today, button string, primary, withNote bool) {
 	<form method="post" action={ templ.URL(projectPath(p.Folio) + "/oc") } enctype="multipart/form-data" class="stage-form">
 		<div class="followup-dates">
 			<label>
@@ -651,10 +704,12 @@ templ OCForm(p store.Project, today, button string, primary bool) {
 			}
 			<input type="file" name="archivo" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"/>
 		</label>
-		<label>
-			Comentario (opcional)
-			<textarea name="note" rows="2" maxlength="2000"></textarea>
-		</label>
+		if withNote {
+			<label>
+				Comentario (opcional)
+				<textarea name="note" rows="2" maxlength="2000"></textarea>
+			</label>
+		}
 		<button type="submit" class={ templ.KV("primary", primary) }>{ button }</button>
 	</form>
 }

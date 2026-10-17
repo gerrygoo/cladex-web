@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gerrygoo/cladex-web"
 	"github.com/gerrygoo/cladex-web/internal/store"
@@ -49,6 +50,10 @@ func issueTestQuote(t *testing.T, a *Auth, q *Quotes, userID, customerID, produc
 	return quote.Folio
 }
 
+// futureDay is a day safely after today in any time zone, the earliest kind of next
+// follow-up the form takes.
+func futureDay() string { return time.Now().UTC().AddDate(0, 0, 3).Format("2006-01-02") }
+
 func TestProjectsFollowUp(t *testing.T) {
 	a := newTestAuth(t)
 	q := newTestQuotes(t, a)
@@ -75,7 +80,7 @@ func TestProjectsFollowUp(t *testing.T) {
 	}
 	prob := func(userID int64, value, note string) *httptest.ResponseRecorder {
 		return doForm(t, a, userID, p.Seguimiento, "POST", base+"/seguimiento", pv,
-			url.Values{"probabilidad": {value}, "note": {note}}, false)
+			url.Values{"probabilidad": {value}, "note": {note}, "proximo_seguimiento": {futureDay()}}, false)
 	}
 	page := func(userID int64) string {
 		return doForm(t, a, userID, p.Page, "GET", base, pv, nil, false).Body.String()
@@ -87,13 +92,23 @@ func TestProjectsFollowUp(t *testing.T) {
 	// Issuing opened the proyecto as a prospecto at the lowest probability.
 	body := page(ana)
 	for _, want := range []string{"Proyecto " + folio, "Prospecto", "Inicial (10%)", "Guardar seguimiento",
-		"Pasar a O.C. recibida", "Cotización vigente", `href="/cotizaciones/` + folio + `"`} {
+		"Orden colocada", "Perdida", "Cotización vigente", `href="/cotizaciones/` + folio + `"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("prospecto page missing %q", want)
 		}
 	}
 	if strings.Contains(body, "Regresar a") {
 		t.Error("a vendedor is offered going back a stage")
+	}
+	// The purchase order isn't asked for until Inminente, and "Orden colocada" can't be
+	// picked; the old block to lose a proyecto is gone, "Perdida" is a radio now.
+	for _, gone := range []string{"Recibir la orden de compra", "Pasar a O.C. recibida", "Perder el proyecto", "Comentario (opcional)"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("prospecto at Inicial shows %q", gone)
+		}
+	}
+	if !strings.Contains(body, `name="probabilidad_oc" value="100" disabled`) {
+		t.Error("Orden colocada 100% is not a disabled radio")
 	}
 	if strings.Contains(body, "Relevante para pronóstico") {
 		t.Error("a prospecto at Inicial is shown as relevante para pronóstico")
@@ -121,6 +136,19 @@ func TestProjectsFollowUp(t *testing.T) {
 	if rec := prob(ana, "75", strings.Repeat("x", maxCommentLen+1)); rec.Code != http.StatusBadRequest {
 		t.Errorf("Probabilidad(note too long) status = %d, want 400", rec.Code)
 	}
+	// Every save needs a comment and a next follow-up day after today, stage change or not.
+	followUp := func(form url.Values) int {
+		form.Set("probabilidad", "75")
+		return doForm(t, a, ana, p.Seguimiento, "POST", base+"/seguimiento", pv, form, false).Code
+	}
+	if code := followUp(url.Values{"proximo_seguimiento": {futureDay()}, "note": {"  "}}); code != http.StatusBadRequest {
+		t.Errorf("Seguimiento(no comment) status = %d, want 400", code)
+	}
+	for name, day := range map[string]string{"none": "", "today": time.Now().UTC().Format("2006-01-02"), "past": "2020-01-09", "malformed": "9/1/2030"} {
+		if code := followUp(url.Values{"proximo_seguimiento": {day}, "note": {"Le interesa"}}); code != http.StatusBadRequest {
+			t.Errorf("Seguimiento(next follow-up %s) status = %d, want 400", name, code)
+		}
+	}
 	if rec := prob(ana, "75", "Le interesa"); rec.Code != http.StatusSeeOther {
 		t.Fatalf("Probabilidad(75) status = %d; body = %s", rec.Code, rec.Body.String())
 	}
@@ -129,6 +157,24 @@ func TestProjectsFollowUp(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("prospecto page at Alta missing %q", want)
 		}
+	}
+
+	// At Alta there is still no purchase order section; at Inminente it appears, without a
+	// comment field.
+	if strings.Contains(body, "Recibir la orden de compra") {
+		t.Error("a prospecto at Alta offers receiving the purchase order")
+	}
+	if rec := prob(ana, "90", "Ya casi cierra"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Probabilidad(90) status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	body = page(ana)
+	for _, want := range []string{"Inminente (90%)", "Recibir la orden de compra", "Pasar a O.C. recibida"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("prospecto page at Inminente missing %q", want)
+		}
+	}
+	if rest := body[strings.Index(body, "Recibir la orden de compra"):]; strings.Contains(rest, "Comentario") {
+		t.Error("the receive-the-purchase-order section still has a comment field")
 	}
 
 	if rec := move(ana, "en_entrega", ""); rec.Code != http.StatusConflict {
@@ -150,7 +196,8 @@ func TestProjectsFollowUp(t *testing.T) {
 
 	// With the purchase order in: no probability, and the quote can't be revised.
 	body = page(ana)
-	for _, want := range []string{"O.C. recibida", "Registrar pago y pasar a Facturado", "Pasó a O.C. recibida.", "OC 4411"} {
+	for _, want := range []string{"O.C. recibida", "Registrar pago y pasar a Facturado", "Pasó a O.C. recibida.", "OC 4411",
+		"Orden colocada", "Marcar como perdida"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("oc_recibida page missing %q", want)
 		}
@@ -160,7 +207,7 @@ func TestProjectsFollowUp(t *testing.T) {
 			t.Errorf("oc_recibida page still shows %q", gone)
 		}
 	}
-	if rec := prob(ana, "90", ""); rec.Code != http.StatusConflict {
+	if rec := prob(ana, "90", "Otra vez"); rec.Code != http.StatusConflict {
 		t.Errorf("Probabilidad(oc_recibida) status = %d, want 409", rec.Code)
 	}
 	if body := quotePage(); strings.Contains(body, ">Revisar<") || !strings.Contains(body, "ya no se puede revisar") {
@@ -181,7 +228,7 @@ func TestProjectsFollowUp(t *testing.T) {
 		t.Fatalf("Etapa(back as admin) status = %d", rec.Code)
 	}
 	// Back as a prospecto it has the probability it left with.
-	if !strings.Contains(page(ana), "Alta (75%)") {
+	if !strings.Contains(page(ana), "Inminente (90%)") {
 		t.Error("a proyecto sent back to prospecto lost its probability")
 	}
 
@@ -238,6 +285,14 @@ func TestProjectsWithARevisionInDraft(t *testing.T) {
 		t.Fatalf("CreateRevision: %v", err)
 	}
 	pv := map[string]string{"folio": folio}
+	project, err := a.store.ProjectByFolio(ctx, folio)
+	if err != nil || project == nil {
+		t.Fatalf("ProjectByFolio: %v, %v", project, err)
+	}
+	// The purchase order is only offered at Inminente.
+	if err := a.store.SetProjectProbability(ctx, project.ID, ana, 90, ""); err != nil {
+		t.Fatalf("SetProjectProbability: %v", err)
+	}
 
 	body := doForm(t, a, ana, p.Page, "GET", "/proyectos/"+folio, pv, nil, false).Body.String()
 	for _, want := range []string{rev.Folio, "revisión en borrador", "primero emite la revisión", "Revisada", "Guardar seguimiento"} {
@@ -324,12 +379,14 @@ func TestProjectsLoseAndReopen(t *testing.T) {
 	page := func(userID int64) string {
 		return doForm(t, a, userID, p.Page, "GET", base, pv, nil, false).Body.String()
 	}
+	// "Perdida" is one of the follow-up radios; it takes only a Motivo.
 	lose := func(reason string) *httptest.ResponseRecorder {
-		return doForm(t, a, ana, p.Perder, "POST", base+"/perder", pv, url.Values{"reason": {reason}}, false)
+		return doForm(t, a, ana, p.Seguimiento, "POST", base+"/seguimiento", pv,
+			url.Values{"probabilidad": {"perdida"}, "reason": {reason}}, false)
 	}
 
-	if body := page(ana); !strings.Contains(body, "Marcar como perdido") || !strings.Contains(body, "Perder el proyecto") {
-		t.Error("a prospecto doesn't offer marking it lost")
+	if body := page(ana); !strings.Contains(body, `value="perdida"`) || !strings.Contains(body, "Motivo de la pérdida") || strings.Contains(body, "Perder el proyecto") {
+		t.Error("a prospecto doesn't offer Perdida as a probability, or still has the old block")
 	}
 	for _, bad := range []string{"", "   ", strings.Repeat("x", maxCommentLen+1)} {
 		if rec := lose(bad); rec.Code != http.StatusBadRequest {
@@ -347,7 +404,7 @@ func TestProjectsLoseAndReopen(t *testing.T) {
 			t.Errorf("lost proyecto page missing %q", want)
 		}
 	}
-	for _, gone := range []string{"Marcar como perdido", "Guardar seguimiento", "Pasar a", "Reabrir como"} {
+	for _, gone := range []string{"Marcar como perdid", "Guardar seguimiento", "Pasar a", "Reabrir como", `value="perdida"`} {
 		if strings.Contains(body, gone) {
 			t.Errorf("lost proyecto page shows %q to a vendedor", gone)
 		}
@@ -366,20 +423,30 @@ func TestProjectsLoseAndReopen(t *testing.T) {
 	}
 
 	// An admin reopens it, back to where it was. (The router keeps vendedores out.)
-	if !strings.Contains(page(beto), "Reabrir como Prospecto") {
-		t.Fatal("admin is not offered reopening")
+	if body := page(beto); !strings.Contains(body, "Reabrir como Prospecto") || !strings.Contains(body, "Reabrir con probabilidad de cierre") {
+		t.Fatal("admin is not offered reopening, with the probability to come back at")
 	}
-	rec := doForm(t, a, beto, p.Reabrir, "POST", base+"/reabrir", pv, url.Values{"note": {"Volvieron a llamar"}}, false)
+	reopen := func(form url.Values) *httptest.ResponseRecorder {
+		return doForm(t, a, beto, p.Reabrir, "POST", base+"/reabrir", pv, form, false)
+	}
+	// The comment is required, and the probability has to be one of the steps.
+	if rec := reopen(url.Values{"note": {"  "}}); rec.Code != http.StatusBadRequest {
+		t.Errorf("Reabrir(no comment) status = %d, want 400", rec.Code)
+	}
+	if rec := reopen(url.Values{"note": {"Volvieron"}, "probabilidad": {"100"}}); rec.Code != http.StatusBadRequest {
+		t.Errorf("Reabrir(probability 100) status = %d, want 400", rec.Code)
+	}
+	rec := reopen(url.Values{"note": {"Volvieron a llamar"}, "probabilidad": {"50"}})
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("Reabrir status = %d; body = %s", rec.Code, rec.Body.String())
 	}
 	body = page(ana)
-	for _, want := range []string{"Prospecto", "Marcar como perdido", "Se reabrió como Prospecto.", "Volvieron a llamar"} {
+	for _, want := range []string{"Prospecto", "Media (50%)", "Perdida", "Se reabrió como Prospecto.", "Probabilidad: Inicial → Media.", "Volvieron a llamar"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("reopened proyecto page missing %q", want)
 		}
 	}
-	if rec := doForm(t, a, beto, p.Reabrir, "POST", base+"/reabrir", pv, nil, false); rec.Code != http.StatusConflict {
+	if rec := reopen(url.Values{"note": {"otra vez"}}); rec.Code != http.StatusConflict {
 		t.Errorf("Reabrir(not lost) status = %d, want 409", rec.Code)
 	}
 }
@@ -421,15 +488,26 @@ func TestProjectsFollowUpDatesAndForecast(t *testing.T) {
 	}
 
 	// Saved from the full list, it returns there, at the same proyecto.
-	rec := save(first, url.Values{"probabilidad": {"75"}, "oc_esperada": {"2030-10-15"}, "proximo_seguimiento": {"2020-01-09"},
-		"note": {"Compras pidió ajustar entrega"}, "volver": {"pronostico-todos"}})
-	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/pronostico?todos=1#p-"+first {
+	// The first proyecto's follow-up day is already past, which the form no longer takes, so
+	// it is set in the store; the forecast has to show it as overdue.
+	firstProject, err := a.store.ProjectByFolio(context.Background(), first)
+	if err != nil || firstProject == nil {
+		t.Fatalf("ProjectByFolio: %v, %v", firstProject, err)
+	}
+	seventyFive, expectedOC, overdue := 75, "2030-10-15", "2020-01-09"
+	if err := a.store.FollowUpProject(context.Background(), firstProject.ID, ana, store.FollowUp{
+		Probability: &seventyFive, ExpectedOC: &expectedOC, NextFollowUp: &overdue, Note: "Compras pidió ajustar entrega"}); err != nil {
+		t.Fatalf("FollowUpProject: %v", err)
+	}
+	next := futureDay()
+	rec := save(second, url.Values{"probabilidad": {"90"}, "proximo_seguimiento": {next}, "note": {"Pidió fecha"}, "volver": {"pronostico-todos"}})
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/pronostico?todos=1#p-"+second {
 		t.Fatalf("Seguimiento status = %d, Location = %q", rec.Code, rec.Header().Get("Location"))
 	}
-	if rec := save(second, url.Values{"probabilidad": {"90"}, "volver": {"pronostico"}}); rec.Header().Get("Location") != "/pronostico#p-"+second {
+	if rec := save(second, url.Values{"probabilidad": {"90"}, "proximo_seguimiento": {next}, "note": {"Pidió fecha"}, "volver": {"pronostico"}}); rec.Header().Get("Location") != "/pronostico#p-"+second {
 		t.Fatalf("Seguimiento Location = %q", rec.Header().Get("Location"))
 	}
-	if rec := save(second, url.Values{"probabilidad": {"90"}}); rec.Header().Get("Location") != "/proyectos/"+second+"#historial" {
+	if rec := save(second, url.Values{"probabilidad": {"90"}, "proximo_seguimiento": {next}, "note": {"Pidió fecha"}}); rec.Header().Get("Location") != "/proyectos/"+second+"#historial" {
 		t.Fatalf("Seguimiento Location = %q", rec.Header().Get("Location"))
 	}
 
@@ -507,6 +585,18 @@ func TestProjectsReceiveOC(t *testing.T) {
 		return map[string]string{"oc_numero": number, "oc_fecha": date, "forma_pago": method, "note": "Llegó por correo"}
 	}
 	pdf := []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")
+
+	// The section stays out of sight until the sale is Inminente.
+	if body := page(); strings.Contains(body, "Recibir la orden de compra") {
+		t.Error("a prospecto at Inicial offers receiving the purchase order")
+	}
+	project, err := a.store.ProjectByFolio(context.Background(), folio)
+	if err != nil || project == nil {
+		t.Fatalf("ProjectByFolio: %v, %v", project, err)
+	}
+	if err := a.store.SetProjectProbability(context.Background(), project.ID, ana, 90, ""); err != nil {
+		t.Fatalf("SetProjectProbability: %v", err)
+	}
 
 	body := page()
 	for _, want := range []string{"Recibir la orden de compra", "No. de O.C.", "Fecha de la O.C.", "Forma de pago",

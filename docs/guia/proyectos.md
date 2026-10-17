@@ -72,9 +72,13 @@ Mientras el proyecto es prospecto, anota qué tan cerca está de cerrarse y qué
 1. Abre el proyecto.
 2. En **Probabilidad de cierre**, elige un paso: **Inicial**, **Baja**, **Media**,
    **Alta** o **Inminente**. El porcentaje junto a cada uno es solo una referencia.
+   Más a la derecha ves **Orden colocada 100%** (no se elige: el proyecto llega ahí
+   solo al [recibir la orden de compra](#recibir-la-orden-de-compra-del-cliente)) y
+   **Perdida** (para [marcar el proyecto como perdido](#marcar-un-proyecto-como-perdido)).
 3. En **O.C. esperada**, pon la fecha en que esperas la orden de compra del cliente.
 4. En **Próximo seguimiento**, pon la fecha en que hay que volver a buscar al cliente.
-5. Escribe en **Comentario** qué pasó (opcional pero recomendado).
+   Es obligatoria y tiene que ser posterior a hoy.
+5. Escribe en **Comentario** qué pasó y cuáles son los siguientes pasos. Es obligatorio.
 6. Haz clic en **Guardar seguimiento**.
 
 En **Historial** aparece una línea por cada cosa que cambió, como *"Probabilidad: Baja
@@ -85,7 +89,9 @@ debajo tu nota.
   aparte.
 - Un proyecto nuevo empieza en **Inicial** y sin fechas. Actualiza el seguimiento cada
   vez que haya noticias del cliente.
-- Las dos fechas son opcionales. Para quitar una, bórrala y guarda.
+- **O.C. esperada** es opcional. Para quitarla, bórrala y guarda.
+- Sin comentario o sin una fecha de próximo seguimiento posterior a hoy, el seguimiento
+  no se guarda, aunque no hayas cambiado la probabilidad.
 - Cuando llega el día del **Próximo seguimiento**, el resumen del proyecto dice *"toca
   darle seguimiento"* y la [página de inicio](README.md#la-página-de-inicio) lo cuenta
   en **Seguimientos para hoy o vencidos**. La app no manda recordatorios por correo.
@@ -93,9 +99,12 @@ debajo tu nota.
 ### Recibir la orden de compra del cliente
 
 Cuando el cliente manda su orden de compra, el proyecto pasa de [[prospecto]] a
-[[O.C. recibida]]. Para eso hay que capturar los datos de la orden:
+[[O.C. recibida]] (**Orden colocada 100%**). Para eso hay que capturar los datos de la
+orden. La sección **Recibir la orden de compra** solo aparece cuando la probabilidad está
+en **Inminente 90%**:
 
-1. Abre el proyecto.
+1. Abre el proyecto y, si hace falta, [sube su probabilidad](#anotar-el-seguimiento) a
+   Inminente.
 2. En **Recibir la orden de compra**, escribe el **No. de O.C.** del cliente.
 3. Revisa la **Fecha de la O.C.** (viene con la fecha de hoy; cámbiala si la orden es de
    otro día).
@@ -103,8 +112,7 @@ Cuando el cliente manda su orden de compra, el proyecto pasa de [[prospecto]] a
    (pago en parcialidades o diferido).
 5. En **Archivo de la O.C.**, adjunta la orden si la tienes (opcional): un PDF, JPG o
    PNG de hasta 10 MB.
-6. Escribe un **Comentario** si hace falta (opcional).
-7. Haz clic en **Pasar a O.C. recibida**.
+6. Haz clic en **Pasar a O.C. recibida**.
 
 El proyecto queda en O.C. recibida, con la sección **Orden de compra del cliente**
 (número, fecha, forma de pago y el archivo para descargar). En **Historial** aparece
@@ -215,8 +223,9 @@ próxima y al final los que no tienen fecha. De cada uno verás:
   llevan tiempo sin revisarse.
 
 Debajo de cada proyecto está su formulario de seguimiento, igual al de la página del
-proyecto: cambia la probabilidad o las fechas, escribe un comentario y haz clic en
-**Guardar seguimiento**. Regresas al mismo proyecto en la lista.
+proyecto: cambia la probabilidad o las fechas, escribe el comentario (obligatorio, igual
+que la fecha del próximo seguimiento) y haz clic en **Guardar seguimiento**. Regresas al
+mismo proyecto en la lista.
 
 Al final, **Total** suma los proyectos listados y **Total ponderado** suma cada total
 multiplicado por su probabilidad de cierre.
@@ -234,12 +243,17 @@ Perder el proyecto es lo mismo que perder su cotización: no hay que marcar nada
 cotización.
 
 1. Abre el proyecto.
-2. En **Perder el proyecto**, escribe el **Motivo** (obligatorio): por qué se perdió.
-3. Haz clic en **Marcar como perdido** y confirma *"¿Marcar este proyecto como perdido?"*.
+2. Si es prospecto, en **Probabilidad de cierre** elige **Perdida** y escribe el
+   **Motivo** (obligatorio): por qué se perdió. Si ya tiene la O.C. recibida, el
+   formulario de **Seguimiento** muestra *Orden colocada 100%* y **Perdida**; elige
+   **Perdida** y escribe el motivo.
+3. Haz clic en **Guardar seguimiento** (o en **Marcar como perdida**) y confirma si te lo
+   pide.
 
 Qué pasa al perderlo:
 
-- Su etapa pasa a [[perdido]] y la página muestra **Proyecto perdido** con el motivo,
+- Su etapa pasa a [[perdido]] y la página muestra **Proyecto perdido** (la única vez que
+  aparece esa sección) con el motivo,
   cuándo se perdió y en qué etapa estaba.
 - En **Historial** queda una línea *"Se perdió."* con el motivo.
 - Sale de las etapas de la [página de inicio](README.md#la-página-de-inicio) y ya no
@@ -250,8 +264,10 @@ Qué pasa al perderlo:
 Si el proyecto revive, pídele a un administrador que lo reabra.
 :::admin
 Un administrador ve en un proyecto perdido el botón **Reabrir como …**, que lo regresa
-a la etapa en que estaba, con la probabilidad que tenía. Queda un comentario
-*"Se reabrió como …"* y el motivo original se conserva en el historial.
+a la etapa en que estaba. Es obligatorio escribir un **Comentario**. Si estaba en
+prospecto, también elige con qué **Probabilidad de cierre** vuelve (Inicial a Inminente;
+trae la que tenía); uno que se perdió con la O.C. recibida vuelve a O.C. recibida. Queda
+un comentario *"Se reabrió como …"* y el motivo original se conserva en el historial.
 :::
 
 ## Comentar un proyecto
@@ -263,6 +279,7 @@ van arriba, y cada uno dice quién lo escribió, cuándo y en qué cotización q
 1. Abre el proyecto.
 2. Escribe en **Agregar un comentario** y haz clic en **Comentar**.
 
-El comentario se guarda en la cotización vigente, así que también se ve en la página de
-esa cotización. Cualquier usuario puede comentar. Los comentarios no se editan ni se
+Este es el único lugar donde se comenta: las cotizaciones muestran los comentarios pero no
+tienen caja para escribir. El comentario se guarda en la cotización vigente, así que también
+se ve en la página de esa cotización. Cualquier usuario puede comentar. Los comentarios no se editan ni se
 borran.

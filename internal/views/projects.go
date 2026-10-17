@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
 	"github.com/gerrygoo/cladex-web/internal/store"
@@ -147,4 +148,14 @@ func (f Forecast) forecastReturn() string {
 		return "pronostico-todos"
 	}
 	return "pronostico"
+}
+
+// nextDay is the day after day (YYYY-MM-DD), the earliest a next follow-up can be set.
+// It returns "" for something that isn't a day.
+func nextDay(day string) string {
+	t, err := time.Parse("2006-01-02", day)
+	if err != nil {
+		return ""
+	}
+	return t.AddDate(0, 0, 1).Format("2006-01-02")
 }

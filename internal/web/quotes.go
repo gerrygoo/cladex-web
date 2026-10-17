@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
 	"github.com/gerrygoo/cladex-web/internal/pdf"
@@ -1199,25 +1198,3 @@ func (q *Quotes) Revisar(w http.ResponseWriter, r *http.Request) {
 
 // maxCommentLen caps a comment; the textarea carries the same maxlength.
 const maxCommentLen = 2000
-
-// Comentar handles POST /cotizaciones/{folio}/comentarios: any signed-in user adds a
-// follow-up note to a quote in any status. Comments are append-only, so this is the
-// only write there is.
-func (q *Quotes) Comentar(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	quote := q.loadQuoteOrNotFound(w, r)
-	if quote == nil {
-		return
-	}
-	body := strings.TrimSpace(r.FormValue("comment"))
-	if body == "" || utf8.RuneCountInString(body) > maxCommentLen {
-		http.Error(w, "el comentario no puede estar vacío ni pasar de 2000 caracteres", http.StatusBadRequest)
-		return
-	}
-	user, _ := UserFromContext(ctx)
-	if err := q.store.AddQuoteComment(ctx, quote.ID, user.ID, body); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(w, r, "/cotizaciones/"+quote.Folio+"#comentarios", http.StatusSeeOther)
-}

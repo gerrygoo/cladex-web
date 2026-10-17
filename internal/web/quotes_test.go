@@ -799,28 +799,15 @@ func TestQuotesComments(t *testing.T) {
 		t.Fatalf("CreateDraftQuote: %v", err)
 	}
 	pv := map[string]string{"folio": quote.Folio}
-	path := "/cotizaciones/" + quote.Folio + "/comentarios"
-	comment := func(userID int64, text string) *httptest.ResponseRecorder {
-		return doForm(t, a, userID, q.Comentar, "POST", path, pv, url.Values{"comment": {text}}, false)
+	addComment := func(userID int64, text string) {
+		t.Helper()
+		if err := a.store.AddQuoteComment(context.Background(), quote.ID, userID, text); err != nil {
+			t.Fatal(err)
+		}
 	}
+	addComment(ana, "Llamar al cliente el lunes")
 
-	// Any user can comment, drafts included.
-	if rec := comment(ana, "Llamar al cliente el lunes"); rec.Code != http.StatusSeeOther {
-		t.Fatalf("Comentar(draft) status = %d; body = %s", rec.Code, rec.Body.String())
-	}
-	if rec := comment(ana, "  \n "); rec.Code != http.StatusBadRequest {
-		t.Errorf("Comentar(blank) status = %d, want 400", rec.Code)
-	}
-	if rec := comment(ana, strings.Repeat("x", maxCommentLen+1)); rec.Code != http.StatusBadRequest {
-		t.Errorf("Comentar(too long) status = %d, want 400", rec.Code)
-	}
-	rec := doForm(t, a, ana, q.Comentar, "POST", "/cotizaciones/NOPE/comentarios",
-		map[string]string{"folio": "NOPE"}, url.Values{"comment": {"hola"}}, false)
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("Comentar(unknown folio) status = %d, want 404", rec.Code)
-	}
-
-	// Issue it: the comment box and the earlier comment survive, and the info block shows.
+	// Issue it: the earlier comment survives, and the info block shows.
 	form := url.Values{
 		"line_keys":            {"0"},
 		"lines[0][kind]":       {"product"},
@@ -830,11 +817,9 @@ func TestQuotesComments(t *testing.T) {
 	if rec := doForm(t, a, ana, q.Emitir, "POST", "/cotizaciones/"+quote.Folio+"/emitir", pv, form, false); rec.Code != http.StatusSeeOther {
 		t.Fatalf("Emitir status = %d; body = %s", rec.Code, rec.Body.String())
 	}
-	if rec := comment(beto, "Cliente pidió otro precio"); rec.Code != http.StatusSeeOther {
-		t.Fatalf("Comentar(issued) status = %d", rec.Code)
-	}
+	addComment(beto, "Cliente pidió otro precio")
 
-	rec = doForm(t, a, beto, q.Builder, "GET", "/cotizaciones/"+quote.Folio, pv, nil, false)
+	rec := doForm(t, a, beto, q.Builder, "GET", "/cotizaciones/"+quote.Folio, pv, nil, false)
 	body := rec.Body.String()
 	for _, want := range []string{"Llamar al cliente el lunes", "Cliente pidió otro precio", "Emitida", "Prospecto", "/proyectos/" + quote.Folio, "Utilidad", "19.29"} { // 30% of $64.29
 		if !strings.Contains(body, want) {
@@ -850,12 +835,16 @@ func TestQuotesComments(t *testing.T) {
 	if strings.Index(body, "Utilidad") > strings.Index(body, "Precio unitario") {
 		t.Error("info block is not above the quote lines")
 	}
-	// Newest first, and the box sits below the download / back links.
+	// Newest first, read-only: comments are written from the proyecto, which the page
+	// points to.
 	if strings.Index(body, "Cliente pidió otro precio") > strings.Index(body, "Llamar al cliente el lunes") {
 		t.Error("comments are not newest first")
 	}
-	if strings.Index(body, "Volver a cotizaciones") > strings.Index(body, `name="comment"`) {
-		t.Error("comment box is not below the download / back links")
+	if strings.Contains(body, `name="comment"`) || strings.Contains(body, "/comentarios") {
+		t.Error("quote page still has a form to comment")
+	}
+	if !strings.Contains(body, "/proyectos/"+quote.Folio+"#historial") {
+		t.Error("quote page doesn't point to the proyecto to comment")
 	}
 }
 

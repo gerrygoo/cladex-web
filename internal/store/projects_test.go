@@ -527,7 +527,7 @@ func TestLoseAndReopenProject(t *testing.T) {
 			t.Errorf("LoseProject(%q, %q) = %v, want ErrBadTransition", c.from, c.reason, err)
 		}
 	}
-	if err := s.ReopenProject(ctx, project, user, ""); !errors.Is(err, ErrBadTransition) {
+	if err := s.ReopenProject(ctx, project, user, nil, ""); !errors.Is(err, ErrBadTransition) {
 		t.Errorf("ReopenProject(not lost) = %v, want ErrBadTransition", err)
 	}
 
@@ -567,7 +567,7 @@ func TestLoseAndReopenProject(t *testing.T) {
 	}
 
 	// Reopening returns it to where it was, with the probability it had.
-	if err := s.ReopenProject(ctx, project, user, "Volvieron a llamar"); err != nil {
+	if err := s.ReopenProject(ctx, project, user, nil, "Volvieron a llamar"); err != nil {
 		t.Fatalf("ReopenProject: %v", err)
 	}
 	p = load()
@@ -582,6 +582,27 @@ func TestLoseAndReopenProject(t *testing.T) {
 		t.Errorf("comments = %q, %q", comments[0].Body, comments[1].Body)
 	}
 
+	// A proyecto lost from prospecto can come back at another probability; a value that
+	// isn't a step is refused.
+	if err := s.LoseProject(ctx, project, user, "prospecto", "Pausaron el proyecto"); err != nil {
+		t.Fatalf("LoseProject: %v", err)
+	}
+	bad := 100
+	if err := s.ReopenProject(ctx, project, user, &bad, ""); !errors.Is(err, ErrBadTransition) {
+		t.Errorf("ReopenProject(100) = %v, want ErrBadTransition", err)
+	}
+	low := 25
+	if err := s.ReopenProject(ctx, project, user, &low, "Se reactivó"); err != nil {
+		t.Fatalf("ReopenProject(25): %v", err)
+	}
+	if p = load(); p.Status != "prospecto" || p.Probability != 25 {
+		t.Fatalf("reopened at 25: %+v", p)
+	}
+	comments, err = s.ListProjectComments(ctx, project)
+	if err != nil || comments[0].Body != "Se reabrió como Prospecto.\nProbabilidad: Alta → Baja.\nSe reactivó" {
+		t.Errorf("reopen comment = %q, %v", comments[0].Body, err)
+	}
+
 	// From O.C. recibida it goes back to O.C. recibida; later stages can't be lost.
 	if err := s.ReceiveOC(ctx, project, user, testOC, nil, ""); err != nil {
 		t.Fatalf("MoveProject: %v", err)
@@ -589,7 +610,7 @@ func TestLoseAndReopenProject(t *testing.T) {
 	if err := s.LoseProject(ctx, project, user, "oc_recibida", "Cancelaron la OC"); err != nil {
 		t.Fatalf("LoseProject(oc_recibida): %v", err)
 	}
-	if err := s.ReopenProject(ctx, project, user, ""); err != nil {
+	if err := s.ReopenProject(ctx, project, user, nil, ""); err != nil {
 		t.Fatalf("ReopenProject: %v", err)
 	}
 	if p = load(); p.Status != "oc_recibida" {
