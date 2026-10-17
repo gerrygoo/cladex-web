@@ -18,9 +18,20 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-// testOCForm is a complete purchase order form, without a file.
+// testOCForm is a complete purchase order form, without a file. Receiving the order on a
+// prospecto needs a file too: see receiveOC.
 func testOCForm(note string) url.Values {
 	return url.Values{"oc_numero": {"4411"}, "oc_fecha": {"2026-10-07"}, "forma_pago": {"PUE"}, "note": {note}}
+}
+
+// receiveOC posts testOCForm with a PDF, as a prospecto needs to receive its order.
+func receiveOC(t *testing.T, a *Auth, p *Projects, userID int64, folio, note string) *httptest.ResponseRecorder {
+	t.Helper()
+	fields := map[string]string{}
+	for k, v := range testOCForm(note) {
+		fields[k] = v[0]
+	}
+	return postOC(t, a, p, userID, folio, fields, "oc.pdf", []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n"))
 }
 
 // testInvoiceForm is a complete factura form. With testOCForm, which is P.U.E., posting
@@ -188,7 +199,7 @@ func TestProjectsFollowUp(t *testing.T) {
 		t.Errorf("Etapa(→ oc_recibida) = %d %q, want 409 asking for the purchase order", rec.Code, rec.Body.String())
 	}
 	receive := func(note string) *httptest.ResponseRecorder {
-		return doForm(t, a, ana, p.OC, "POST", base+"/oc", pv, testOCForm(note), false)
+		return receiveOC(t, a, p, ana, folio, note)
 	}
 	if rec := receive("OC 4411"); rec.Code != http.StatusSeeOther {
 		t.Fatalf("OC status = %d; body = %s", rec.Code, rec.Body.String())
@@ -303,7 +314,7 @@ func TestProjectsWithARevisionInDraft(t *testing.T) {
 	if strings.Contains(body, "Pasar a O.C. recibida") {
 		t.Error("a proyecto whose current quote is a draft offers O.C. recibida")
 	}
-	rec := doForm(t, a, ana, p.OC, "POST", "/proyectos/"+folio+"/oc", pv, testOCForm(""), false)
+	rec := receiveOC(t, a, p, ana, folio, "")
 	if rec.Code != http.StatusConflict {
 		t.Errorf("OC with a draft revision status = %d, want 409", rec.Code)
 	}
@@ -621,6 +632,7 @@ func TestProjectsReceiveOC(t *testing.T) {
 		"no number":      {fields("", "2026-10-07", "PUE"), "", nil, http.StatusBadRequest},
 		"no date":        {fields("4411", "", "PUE"), "", nil, http.StatusBadRequest},
 		"no forma":       {fields("4411", "2026-10-07", ""), "", nil, http.StatusBadRequest},
+		"no file":        {fields("4411", "2026-10-07", "PUE"), "", nil, http.StatusBadRequest}, // required to receive it
 		"unknown forma":  {fields("4411", "2026-10-07", "contado"), "", nil, http.StatusBadRequest},
 		"html as pdf":    {fields("4411", "2026-10-07", "PUE"), "oc.pdf", []byte("<html><script>alert(1)</script></html>"), http.StatusBadRequest},
 		"empty file":     {fields("4411", "2026-10-07", "PUE"), "oc.pdf", nil, http.StatusBadRequest},
@@ -742,7 +754,7 @@ func TestProjectsLegacyOCRecibida(t *testing.T) {
 	if rec := invoice(); rec.Code != http.StatusConflict {
 		t.Errorf("Factura without O.C. status = %d, want 409", rec.Code)
 	}
-	if rec := doForm(t, a, ana, p.OC, "POST", "/proyectos/"+folio+"/oc", pv, testOCForm(""), false); rec.Code != http.StatusSeeOther {
+	if rec := receiveOC(t, a, p, ana, folio, ""); rec.Code != http.StatusSeeOther {
 		t.Fatalf("OC status = %d; body = %s", rec.Code, rec.Body.String())
 	}
 	if rec := invoice(); rec.Code != http.StatusSeeOther {
@@ -787,8 +799,8 @@ func TestProjectsPaymentGates(t *testing.T) {
 	if rec := post(p.Factura, "/factura", doc("A-77", "2026-10-08")); rec.Code != http.StatusConflict {
 		t.Errorf("Factura(prospecto) status = %d, want 409", rec.Code)
 	}
-	oc := url.Values{"oc_numero": {"4411"}, "oc_fecha": {"2026-10-07"}, "forma_pago": {"PPD"}}
-	if rec := post(p.OC, "/oc", oc); rec.Code != http.StatusSeeOther {
+	oc := map[string]string{"oc_numero": "4411", "oc_fecha": "2026-10-07", "forma_pago": "PPD"}
+	if rec := postOC(t, a, p, ana, folio, oc, "oc.pdf", []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")); rec.Code != http.StatusSeeOther {
 		t.Fatalf("OC status = %d; body = %s", rec.Code, rec.Body.String())
 	}
 
@@ -886,7 +898,7 @@ func TestProjectsPUEIsPaidWhenInvoiced(t *testing.T) {
 	page := func() string {
 		return doForm(t, a, ana, p.Page, "GET", base, pv, nil, false).Body.String()
 	}
-	if rec := doForm(t, a, ana, p.OC, "POST", base+"/oc", pv, testOCForm(""), false); rec.Code != http.StatusSeeOther {
+	if rec := receiveOC(t, a, p, ana, folio, ""); rec.Code != http.StatusSeeOther {
 		t.Fatalf("OC status = %d", rec.Code)
 	}
 	body := page()

@@ -332,9 +332,10 @@ const maxOCFileBytes = 10 << 20
 var ocFileTypes = map[string]bool{"application/pdf": true, "image/jpeg": true, "image/png": true}
 
 // OC handles POST /proyectos/{folio}/oc: records the client's purchase order —
-// "oc_numero", "oc_fecha" (a day) and "forma_pago" (PUE or PPD), all required, with an
-// optional "archivo" (PDF, JPG or PNG up to 10 MB) and "note". On a prospecto this is
-// what moves the proyecto to O.C. recibida; on one already there it corrects the data.
+// "oc_numero", "oc_fecha" (a day) and "forma_pago" (PUE or PPD), all required, with the
+// "archivo" (PDF, JPG or PNG up to 10 MB) and an optional "note". On a prospecto this is
+// what moves the proyecto to O.C. recibida, and the file is required; on one already there
+// it corrects the data, and a new file is optional.
 // Any signed-in user can.
 func (p *Projects) OC(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -373,6 +374,12 @@ func (p *Projects) OC(w http.ResponseWriter, r *http.Request) {
 	file, msg, status := ocFile(r)
 	if msg != "" {
 		http.Error(w, msg, status)
+		return
+	}
+	// The file is what the proyecto needs to reach Orden colocada 100%; correcting the
+	// data of one already there doesn't ask for it again.
+	if file == nil && project.Status == "prospecto" {
+		http.Error(w, "adjunta el archivo de la orden de compra: PDF, JPG o PNG de hasta 10 MB", http.StatusBadRequest)
 		return
 	}
 	user, _ := UserFromContext(ctx)

@@ -110,15 +110,16 @@ en **Inminente 90%**:
    otro día).
 4. Elige la [[forma de pago]]: **P.U.E.** (pago en una sola exhibición) o **P.P.D.**
    (pago en parcialidades o diferido).
-5. En **Archivo de la O.C.**, adjunta la orden si la tienes (opcional): un PDF, JPG o
-   PNG de hasta 10 MB.
+5. En **Archivo de la O.C.**, adjunta la orden (obligatorio): un PDF, JPG o PNG de hasta
+   10 MB.
 6. Haz clic en **Pasar a O.C. recibida**.
 
 El proyecto queda en O.C. recibida, con la sección **Orden de compra del cliente**
 (número, fecha, forma de pago y el archivo para descargar). En **Historial** aparece
 *"Pasó a O.C. recibida."* con los datos de la orden.
 
-- El número, la fecha y la forma de pago son obligatorios; el archivo no.
+- El número, la fecha, la forma de pago y el archivo son obligatorios para pasar a O.C.
+  recibida. Después, para corregir los datos, un archivo nuevo es opcional.
 - Si el cliente todavía pide cambios,
   [revisa la cotización](cotizaciones.md#revisar-una-cotización-emitida) **antes** de
   recibir la orden. Con la orden recibida la cotización ya no se puede revisar: la

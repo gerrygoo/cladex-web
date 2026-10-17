@@ -672,7 +672,7 @@ templ ForecastPage(f Forecast, user *NavUser) {
 }
 
 // OCForm captures the client's purchase order: number, date, forma de pago and,
-// optionally, its file, and a comment when withNote (receiving the order has none). On a prospecto its button is what moves the proyecto to O.C.
+// its file (required to receive it on a prospecto), and a comment when withNote (receiving the order has none). On a prospecto its button is what moves the proyecto to O.C.
 // recibida; afterwards the same form corrects the data. primary styles the button as
 // the page's main action.
 templ OCForm(p store.Project, today, button string, primary, withNote bool) {
@@ -699,10 +699,12 @@ templ OCForm(p store.Project, today, button string, primary, withNote bool) {
 		<label>
 			if p.HasOC() {
 				Archivo nuevo de la O.C. (opcional; PDF, JPG o PNG de hasta 10 MB)
+			} else if p.Status == "prospecto" {
+				Archivo de la O.C. (obligatorio; PDF, JPG o PNG de hasta 10 MB)
 			} else {
 				Archivo de la O.C. (opcional; PDF, JPG o PNG de hasta 10 MB)
 			}
-			<input type="file" name="archivo" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"/>
+			<input type="file" name="archivo" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" required?={ p.Status == "prospecto" }/>
 		</label>
 		if withNote {
 			<label>
