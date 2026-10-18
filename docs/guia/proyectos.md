@@ -31,8 +31,8 @@ y sale de estas etapas.
    elige *Alta* e *Inminente* para ver solo los [[relevante para pronóstico|relevantes para pronóstico]].
 5. Haz clic en el folio para abrir el proyecto.
 
-También llegas a un proyecto desde la [página de inicio](README.md#la-página-de-inicio)
-y desde cualquiera de sus cotizaciones: en el resumen de la cotización, **Proyecto**
+También llegas a un proyecto desde la lista de **Sin seguimiento** de la
+[página de inicio](README.md#la-página-de-inicio) y desde cualquiera de sus cotizaciones: en el resumen de la cotización, **Proyecto**
 tiene el enlace.
 
 - La columna **Total** es el total de la cotización vigente del proyecto.
@@ -94,7 +94,7 @@ debajo tu nota.
   no se guarda, aunque no hayas cambiado la probabilidad.
 - Cuando llega el día del **Próximo seguimiento**, el resumen del proyecto dice *"toca
   darle seguimiento"* y la [página de inicio](README.md#la-página-de-inicio) lo cuenta
-  en **Seguimientos para hoy o vencidos**. La app no manda recordatorios por correo.
+  en **Sin seguimiento**. La app no manda recordatorios por correo.
 
 ### Recibir la orden de compra del cliente
 
@@ -266,8 +266,8 @@ Qué pasa al perderlo:
   aparece esa sección) con el motivo,
   cuándo se perdió y en qué etapa estaba.
 - En **Historial** queda una línea *"Se perdió."* con el motivo.
-- Sale de las etapas de la [página de inicio](README.md#la-página-de-inicio) y ya no
-  cuenta para el pronóstico. Ahí mismo, **Perdidos** dice cuántos hay y cuánto suman.
+- Deja de contar en la tabla de vendedores de la [página de inicio](README.md#la-página-de-inicio)
+  y en el pronóstico.
 - Su cotización ya no se puede revisar.
 - Para verlos todos, en **Proyectos** filtra la columna **Etapa** por *Perdido*.
 

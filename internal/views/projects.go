@@ -196,3 +196,13 @@ func nextDay(day string) string {
 	}
 	return t.AddDate(0, 0, 1).Format("2006-01-02")
 }
+
+// SellerMargin is the pipeline margin and the profit behind it ("18.0% · $799,000.00"):
+// the sum of profits over the sum of Totals of the active proyectos, not an average of
+// their margins. "—" when there are no proyectos.
+func SellerMargin(v store.SellerRow) string {
+	if v.Pipeline == 0 {
+		return "—"
+	}
+	return marginPercentText(int64(v.Profit), int64(v.Pipeline)) + " · " + v.Profit.String()
+}

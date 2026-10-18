@@ -557,13 +557,15 @@ func TestLoseAndReopenProject(t *testing.T) {
 	if _, err := s.CreateRevision(ctx, q.ID, user); !errors.Is(err, ErrProjectLocked) {
 		t.Errorf("CreateRevision(perdido) = %v, want ErrProjectLocked", err)
 	}
-	// It is off the board, counted apart.
-	ov, err := s.ProjectOverview(ctx, "2026-10-07")
+	// It is off the dashboard: only active proyectos count there.
+	dash, err := s.SalesDashboard(ctx, "2026-10-07")
 	if err != nil {
-		t.Fatalf("ProjectOverview: %v", err)
+		t.Fatalf("SalesDashboard: %v", err)
 	}
-	if ov.Stages[0].Count != 0 || ov.Lost.Count != 1 || len(ov.Vendedores) != 0 {
-		t.Errorf("overview with one lost proyecto: prospectos %d, lost %d, vendedores %d", ov.Stages[0].Count, ov.Lost.Count, len(ov.Vendedores))
+	for _, row := range dash.Sellers {
+		if row.Projects != 0 || row.Pipeline != 0 {
+			t.Errorf("a lost proyecto counts for %s: %+v", row.Name, row)
+		}
 	}
 
 	// Reopening returns it to where it was, with the probability it had.
@@ -757,18 +759,6 @@ func TestListProspectsAndWeights(t *testing.T) {
 	if p := ps[0]; p.ContactName != "Ing. Pérez" || p.ContactPhone != "55 1234 5678" || p.ContactEmail != "perez@peme.mx" ||
 		p.QuoteValidUntil != "2026-10-30" || p.QuoteIssuedAt == "" || p.LastBody != "" {
 		t.Errorf("first prospect = %+v", p)
-	}
-
-	// 1,000 × 75% + 2,000 × 90% + 3,000 × 75% + 4,000.01 × 25% = 5,800.0025 → $5,800.00.
-	ov, err := s.ProjectOverview(ctx, "2026-10-07")
-	if err != nil {
-		t.Fatalf("ProjectOverview: %v", err)
-	}
-	if pros := ov.Stages[0]; pros.Weighted != 5_800_00 || pros.FollowUpsDue != 2 {
-		t.Errorf("prospectos weighted = %v, follow-ups due = %d; want $5,800.00 and 2", pros.Weighted, pros.FollowUpsDue)
-	}
-	if oc := ov.Stages[1]; oc.Weighted != 0 || oc.FollowUpsDue != 0 {
-		t.Errorf("oc_recibida weighted = %v, due = %d; want none", oc.Weighted, oc.FollowUpsDue)
 	}
 }
 

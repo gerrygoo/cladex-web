@@ -1,7 +1,9 @@
 package views
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
@@ -61,5 +63,24 @@ func TestForecastTotalsAndDays(t *testing.T) {
 		if got := DaysWithoutUpdate(store.Project{LastMovementAt: c.at}, "2026-10-18"); got != c.want {
 			t.Errorf("DaysWithoutUpdate(%q) = %q, want %q", c.at, got, c.want)
 		}
+	}
+}
+
+func TestHomeSellerTable(t *testing.T) {
+	d := &store.Dashboard{Sellers: []store.SellerRow{
+		{Name: "Emilio Flores", Projects: 2, Pipeline: 1_500_00, Profit: 270_00, Untracked: []string{"QA0002", "QA0007"}, UntrackedAmount: 500_00},
+		{Name: "Rodolfo Flores"},
+	}}
+	home := render(t, Home(time.Time{}, time.Time{}, "", d, &NavUser{Username: "ana"}))
+	assertContains(t, home, "<h2>Vendedores</h2>", "Monto sin seguimiento", "O.C. vencidas",
+		"18.0% · $270.00", ">—<", `<a href="/proyectos/QA0007">QA0007</a>`, `<details class="folio-list">`)
+	for _, gone := range []string{"Proyectos por etapa", "Perdidos"} {
+		if strings.Contains(home, gone) {
+			t.Errorf("home still shows %q", gone)
+		}
+	}
+	// A zero is plain text, with nothing to open.
+	if strings.Count(home, `<details class="folio-list">`) != 1 {
+		t.Error("only a count above zero opens a list of folios")
 	}
 }

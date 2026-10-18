@@ -866,38 +866,6 @@ a.help-link:hover {
   background: color-mix(in srgb, var(--primary) 10%, var(--bg));
 }
 
-/* Home */
-div.overview-stages {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  gap: 1rem;
-}
-
-section.overview-stage {
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  padding: 0.9rem 1.1rem;
-  background: var(--surface);
-}
-
-section.overview-stage h3 {
-  margin: 0;
-}
-
-section.overview-stage ol {
-  padding-left: 1.25rem;
-  margin: 0;
-}
-
-section.overview-stage li {
-  margin-bottom: 0.4rem;
-}
-
-p.overview-figure strong {
-  font-size: var(--fs-h2);
-  font-variant-numeric: tabular-nums;
-}
-
 /* Quote builder */
 div.quote-meta {
   display: flex;
@@ -1276,4 +1244,24 @@ table.forecast-table tfoot th,
 table.forecast-table tfoot td {
   border-top: 2px solid var(--rule);
   font-weight: 600;
+}
+
+/* The home page's Vendedores table: nine columns, so it scrolls sideways with the name pinned */
+table.seller-table th[scope="row"],
+table.seller-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+}
+
+details.folio-list summary {
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+details.folio-list ul {
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
 }

@@ -128,7 +128,7 @@ func TestNavGroupsTablesAndLeavesLogoutToMiCuenta(t *testing.T) {
 	assertContains(t, vendedor,
 		`<ul><li><a href="/productos">Productos</a></li><li><a href="/clientes">Clientes</a></li></ul></details>`)
 
-	home := render(t, Home(time.Time{}, time.Time{}, "", &store.Overview{}, &NavUser{Username: "ana"}))
+	home := render(t, Home(time.Time{}, time.Time{}, "", &store.Dashboard{}, &NavUser{Username: "ana"}))
 	assertContains(t, home, `<h1 class="visually-hidden">Inicio</h1>`)
 	if strings.Count(home, `href="/cotizaciones/nueva"`) != 1 {
 		t.Error("Inicio should reach Nueva cotización only through the nav menu")

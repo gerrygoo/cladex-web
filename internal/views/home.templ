@@ -7,104 +7,55 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-// stageLabels names each proyecto stage as a heading on the home overview; the singular
-// stage words become plural since each card counts proyectos.
-var stageLabels = map[string]string{
-	"prospecto":   "Prospectos",
-	"oc_recibida": "O.C. recibidas",
-	"facturado":   "Facturados",
-	"en_entrega":  "En entrega",
-	"cerrado":     "Cerrados",
-}
-
 // forecastLabel marks a prospecto that counts for the forecast (store.ForecastRelevant).
 const forecastLabel = "Relevante para pronóstico"
 
-templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavUser) {
+templ Home(built, now time.Time, buildSHA string, d *store.Dashboard, user *NavUser) {
 	@Layout("Inicio", user) {
 		// The logo in the header already says where you are; the h1 stays for screen
 		// readers and the heading outline, and the first section heading carries the help.
 		<h1 class="visually-hidden">Inicio</h1>
 		<div class="page-title">
-			<h2>Proyectos por etapa</h2>
+			<h2>Vendedores</h2>
 			@HelpLink(HelpInicio)
 		</div>
-		<div class="overview-stages">
-			for _, st := range ov.Stages {
-				<section class="overview-stage">
-					<h3><a href={ templ.URL("/proyectos?f.etapa=" + st.Status) }>{ stageLabels[st.Status] }</a></h3>
-					<p class="overview-figure"><strong>{ strconv.Itoa(st.Count) }</strong> · { st.Total.String() }</p>
-					if st.Status == "prospecto" {
-						<p>
-							<small>
-								<a href="/pronostico">{ forecastLabel }</a>: { strconv.Itoa(st.ForecastCount) } · { st.ForecastTotal.String() }
-								<br/>
-								Valor esperado: { st.Weighted.String() }
-								if st.FollowUpsDue > 0 {
-									<br/>
-									<a href="/pronostico?todos=1"><strong class="overdue">Seguimientos para hoy o vencidos: { strconv.Itoa(st.FollowUpsDue) }</strong></a>
-								}
-							</small>
-						</p>
-					}
-					if len(st.Top) == 0 {
-						<p><small>Ninguno.</small></p>
-					} else {
-						<ol>
-							for _, q := range st.Top {
-								<li>
-									<a href={ templ.URL(projectPath(q.Folio)) }>{ q.Folio }</a>
-									{ q.Total.String() }
-									<br/>
-									<small>{ q.CustomerName } · { q.UserName }</small>
-									if q.Status == "prospecto" {
-										<br/>
-										@ProbabilityTag(q.Probability)
-									}
-								</li>
-							}
-						</ol>
-					}
-				</section>
-			}
-		</div>
-		<p>
-			<a href="/proyectos?f.etapa=perdido">Perdidos</a>: { strconv.Itoa(ov.Lost.Count) } · { ov.Lost.Total.String() }
-		</p>
-		<h2>Vendedores</h2>
-		if len(ov.Vendedores) == 0 {
-			<p>Aún no hay proyectos: se abre uno al emitir una cotización.</p>
-		} else {
-			<p><small>Ordenados por monto relevante para pronóstico. Cuenta a quien creó la cotización que abrió cada proyecto, sea vendedor o administrador.</small></p>
-			<div class="table-scroll">
-				<table>
-					<thead>
+		<p><small>Solo proyectos activos: los que siguen en seguimiento, sin orden de compra recibida y sin estar perdidos. Ordenados por monto sin seguimiento. Un proyecto está sin seguimiento si no tiene fecha de próximo seguimiento o esa fecha es hoy o ya pasó.</small></p>
+		<div class="table-scroll">
+			<table class="seller-table">
+				<thead>
+					<tr>
+						<th scope="col">Vendedor</th>
+						<th scope="col" class="num">Proyectos totales</th>
+						<th scope="col" class="num">Pipeline total</th>
+						<th scope="col" class="num">Margen pipeline</th>
+						<th scope="col" class="num">Monto para pronóstico</th>
+						<th scope="col" class="num">Proyectos en pronóstico</th>
+						<th scope="col" class="num">Sin seguimiento</th>
+						<th scope="col" class="num">Monto sin seguimiento</th>
+						<th scope="col" class="num">O.C. vencidas</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, v := range d.Sellers {
 						<tr>
-							<th class="num">#</th>
-							<th>Vendedor</th>
-							<th class="num">Monto para pronóstico</th>
-							<th class="num">Monto en prospectos</th>
-							for _, st := range store.ProjectFlow {
-								<th class="num">{ stageLabels[st] }</th>
-							}
+							<th scope="row">{ v.Name }</th>
+							<td class="num">{ strconv.Itoa(v.Projects) }</td>
+							<td class="num">{ v.Pipeline.String() }</td>
+							<td class="num">{ SellerMargin(v) }</td>
+							<td class="num">{ v.ForecastAmount.String() }</td>
+							<td class="num">{ strconv.Itoa(v.ForecastCount) }</td>
+							<td class="num">
+								@folioList(v.Untracked, "Proyectos sin seguimiento de "+v.Name)
+							</td>
+							<td class="num">{ v.UntrackedAmount.String() }</td>
+							<td class="num">
+								@folioList(v.OverdueOC, "Proyectos con O.C. vencida de "+v.Name)
+							</td>
 						</tr>
-					</thead>
-					<tbody>
-						for i, v := range ov.Vendedores {
-							<tr>
-								<td class="num">{ strconv.Itoa(i + 1) }</td>
-								<td>{ v.Name }</td>
-								<td class="num">{ v.Forecast.String() }</td>
-								<td class="num">{ v.Total["prospecto"].String() }</td>
-								for _, st := range store.ProjectFlow {
-									<td class="num">{ strconv.Itoa(v.Count[st]) }</td>
-								}
-							</tr>
-						}
-					</tbody>
-				</table>
-			</div>
-		}
+					}
+				</tbody>
+			</table>
+		</div>
 		<footer class="build-footer">
 			<small title={ "commit " + buildSHA }>
 				if built.IsZero() {
@@ -121,4 +72,22 @@ templ Home(built, now time.Time, buildSHA string, ov *store.Overview, user *NavU
 
 templ Saludo(mensaje string) {
 	<p>{ mensaje }</p>
+}
+
+// folioList is a count that opens the list of its proyectos' folios, each leading to its
+// page. Zero is just "0", with nothing to open. It is a native <details>, so it works
+// without JS.
+templ folioList(folios []string, label string) {
+	if len(folios) == 0 {
+		0
+	} else {
+		<details class="folio-list">
+			<summary aria-label={ label + ": " + strconv.Itoa(len(folios)) }>{ strconv.Itoa(len(folios)) }</summary>
+			<ul>
+				for _, f := range folios {
+					<li><a href={ templ.URL(projectPath(f)) }>{ f }</a></li>
+				}
+			</ul>
+		</details>
+	}
 }

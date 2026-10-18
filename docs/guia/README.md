@@ -42,34 +42,41 @@ Si en el menú **Catálogos** solo ves **Productos** y **Clientes**, tu cuenta e
 
 ## La página de inicio
 
-Al entrar ves un resumen de todos los [[proyecto|proyectos]] (de todos los vendedores,
-no solo los tuyos). Un proyecto se abre al emitir una cotización, así que los borradores
-que nunca se emitieron no aparecen aquí:
+Al entrar ves la tabla **Vendedores**, con una fila fija para Emilio Flores, Rodolfo Flores y
+Gerardo Galván Rosillo (siempre las tres, aunque estén en ceros). Solo cuenta los
+**proyectos activos**: los [[prospecto|prospectos]] que siguen en seguimiento. Los que ya
+tienen la orden de compra recibida (*Orden colocada 100%*) y los
+[perdidos](proyectos.md#marcar-un-proyecto-como-perdido) no cuentan. Cada proyecto va con la
+persona que creó la cotización que lo abrió. Para
+[crear una cotización](cotizaciones.md#crear-una-cotización), usa el menú **Cotizaciones** →
+**Nueva cotización**.
 
-- **Proyectos por etapa**: cuántos hay en cada etapa de [[prospecto]],
-  [[O.C. recibida]], [[facturado]], [[en entrega]] y [[cerrado]], la suma de sus totales y los 3 de
-  mayor total en cada etapa. El monto de un proyecto es el total de su cotización
-  vigente. Haz clic en un folio para abrir el proyecto, o en el nombre de una etapa
-  para ver todos los que están en ella. Para
-  [crear una](cotizaciones.md#crear-una-cotización), usa el menú **Cotizaciones** →
-  **Nueva cotización**.
-  Para mover un proyecto de etapa, mira [darle seguimiento](proyectos.md#dar-seguimiento-a-un-proyecto).
-- En **Prospectos** verás además cuántos son [[relevante para pronóstico|relevantes para pronóstico]]
-  y cuánto suman (el enlace abre el [pronóstico](proyectos.md#revisar-el-pronóstico)), el
-  **Valor esperado** (cada total por su [[probabilidad de cierre]]) y, si los hay,
-  **Seguimientos para hoy o vencidos**: los prospectos cuyo próximo seguimiento ya llegó.
-  De los tres que se listan se muestra también la probabilidad.
-- **Perdidos**: debajo de las etapas, cuántos proyectos se
-  [marcaron como perdidos](proyectos.md#marcar-un-proyecto-como-perdido) y cuánto
-  suman. Haz clic para verlos. No cuentan en ninguna etapa ni en la tabla de vendedores.
-- **Vendedores**: una fila por cada persona con proyectos, ordenadas por
-  **Monto para pronóstico** (la suma de sus prospectos relevantes para pronóstico).
-  Junto están el **Monto en prospectos** (todos sus prospectos) y cuántos proyectos
-  tiene en cada etapa. Cuenta a quien creó la cotización que abrió el proyecto, sea
-  vendedor o administrador.
-- Abajo, **Compilado el …** indica cuándo se instaló la versión actual de la app.
+Las columnas, en orden:
 
-Todos los montos están en pesos (MXN) con IVA incluido.
+1. **Vendedor**.
+2. **Proyectos totales**: cuántos proyectos activos tiene.
+3. **Pipeline total**: la suma del total (con IVA) de esos proyectos.
+4. **Margen pipeline**: el porcentaje y, junto a él, la utilidad en pesos (por ejemplo,
+   *18.0% · $799,000.00*). El porcentaje es la suma de utilidades entre la suma de totales,
+   no un promedio de porcentajes. *—* si no tiene proyectos.
+5. **Monto para pronóstico** y **Proyectos en pronóstico**: la suma y la cantidad de sus
+   proyectos con probabilidad **Alta 75%** o más. Se ven en el
+   [pronóstico](proyectos.md#revisar-el-pronóstico).
+6. **Sin seguimiento** y **Monto sin seguimiento**: los proyectos sin fecha de próximo
+   seguimiento, o con una fecha de hoy o anterior, y lo que suman. Un proyecto deja de
+   contar cuando guardas un seguimiento con comentario y una fecha de próximo seguimiento
+   posterior a hoy.
+7. **O.C. vencidas**: los proyectos cuya fecha de *O.C. esperada* ya pasó y todavía no
+   tienen la orden de compra.
+
+Haz clic en el número de **Sin seguimiento** o de **O.C. vencidas** para ver los folios de
+esos proyectos; cada folio abre el proyecto. Las filas van ordenadas por **Monto sin
+seguimiento**, de mayor a menor. Si las columnas no caben, la tabla se desliza de lado y
+la columna **Vendedor** se queda fija. Los montos están en pesos (MXN) con IVA incluido, y
+las utilidades salen de las cotizaciones (las líneas libres no tienen costo, así que no
+suman utilidad).
+
+Abajo, **Compilado el …** indica cuándo se instaló la versión actual de la app.
 
 ## Filtrar las tablas
 
