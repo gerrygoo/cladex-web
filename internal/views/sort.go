@@ -20,6 +20,9 @@ type ListView struct {
 	Filters store.Filters
 	Pager   Pager  // the page shown; the zero value means one unpaged page
 	Anchor  string // fragment the pager's links and form jump to, for lists inside a longer page
+	// Keep is extra query state the page carries through every sort, filter and pager link
+	// (the Pronóstico's "todos=1"); clearing filters leaves it alone.
+	Keep url.Values
 }
 
 // DefaultPerPage is the rows per page of a list that doesn't ask for another size, and
@@ -58,6 +61,9 @@ func filterParam(key string) string { return "f." + key }
 // except those of column skip ("" keeps them all; "q" drops the search text instead).
 func (lv ListView) values(skip string) url.Values {
 	v := url.Values{}
+	for k, vals := range lv.Keep {
+		v[k] = append([]string(nil), vals...)
+	}
 	if lv.Query != "" && skip != "q" {
 		v.Set("q", lv.Query)
 	}

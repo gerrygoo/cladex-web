@@ -208,32 +208,41 @@ se puede volver a revisar.
 El [[pronóstico]] es la página para la junta en que el equipo repasa lo que está por
 cerrar. En el menú **Proyectos**, elige **Pronóstico**.
 
-Muestra los prospectos [[relevante para pronóstico|relevantes para pronóstico]]
-(probabilidad Alta o Inminente), ordenados por **O.C. esperada**: primero la más
-próxima y al final los que no tienen fecha. De cada uno verás:
+Es una tabla con un prospecto por fila que muestra los prospectos
+[[relevante para pronóstico|relevantes para pronóstico]] (probabilidad Alta o Inminente).
+Las columnas, en orden:
 
-- El folio (con enlace al proyecto), el cliente, el total y la probabilidad.
-- **Vendedor** y **Cotización**: la vigente, cuándo se emitió y su [[vigencia]].
-- **O.C. esperada**.
-- **Próximo evento**: lo más cercano de hoy en adelante entre el próximo seguimiento,
-  la O.C. esperada y el fin de la vigencia. Lo que ya pasó sale abajo como *"Vencido"*.
-- **Última novedad**: el comentario más reciente del historial, quién lo escribió y
-  cuándo.
-- **Contacto**: el contacto, teléfono y correo del [cliente](clientes.md).
-- **Probabilidad actualizada**: cuándo se cambió por última vez, para notar las que
-  llevan tiempo sin revisarse.
+1. **No. de proyecto**: el folio, con enlace al proyecto. Queda fijo a la izquierda si la
+   tabla se desliza de lado.
+2. **Cliente** y **Vendedor**.
+3. **Probabilidad de cierre**.
+4. **Próximo seguimiento**, **O.C. esperada** y **Vigencia** de la cotización vigente.
+5. **Días sin actualizar**: cuántos días hace del último movimiento del proyecto (su
+   último comentario o cambio).
+6. **Costo sin IVA**, **Precio de venta sin IVA**, **Utilidad** (precio menos costo) y
+   **Margen** (utilidad entre precio).
+7. **Último comentario**: el más reciente del historial, con quién lo escribió y cuándo.
 
-Debajo de cada proyecto está su formulario de seguimiento, igual al de la página del
-proyecto: cambia la probabilidad o las fechas, escribe el comentario (obligatorio, igual
-que la fecha del próximo seguimiento) y haz clic en **Guardar seguimiento**. Regresas al
-mismo proyecto en la lista.
+La fila **Total** suma costo, precio y utilidad; su margen es la suma de las utilidades
+entre la suma de los precios, no un promedio de márgenes. Debajo, **Total ponderado**
+suma cada total con IVA multiplicado por su probabilidad de cierre.
 
-Al final, **Total** suma los proyectos listados y **Total ponderado** suma cada total
-multiplicado por su probabilidad de cierre.
+Lo que necesita atención se marca con una palabra en rojo, no solo con color:
 
-- Para subir a pronóstico un prospecto que no aparece, haz clic en **Ver todos los
-  prospectos**, cámbiale la probabilidad a Alta o Inminente y guarda. **Ver solo los
-  relevantes para pronóstico** regresa a la lista corta.
+- **Próximo seguimiento**: *Vencido* si es hoy o ya pasó, y *Sin fecha* si no tiene.
+- **O.C. esperada**: *Vencida* si esa fecha ya pasó.
+- **Vigencia**: *Vence en N días* (de 5 días o menos), *Vence hoy* o *Vencida*.
+
+Aquí no se edita nada. Para cambiar la probabilidad o las fechas, o para comentar, abre
+el proyecto desde su número y hazlo en **Seguimiento**.
+
+- Haz clic en el encabezado de cualquier columna para ordenar; otro clic invierte el
+  orden. Sin ordenar, van por **O.C. esperada**: primero la más próxima y al final los que
+  no tienen fecha.
+- Para ver solo los de un vendedor, usa el embudo del encabezado **Vendedor**, como en
+  [Proyectos](#buscar-un-proyecto).
+- Para ver un prospecto que no aparece, haz clic en **Ver todos los prospectos**.
+  **Ver solo los relevantes para pronóstico** regresa a la lista corta.
 - Si le bajas la probabilidad a un proyecto, deja de aparecer en la lista corta.
 
 ## Marcar un proyecto como perdido

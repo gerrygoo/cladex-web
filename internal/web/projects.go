@@ -5,6 +5,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"path"
 	"strconv"
 	"strings"
@@ -145,8 +146,7 @@ func (p *Projects) Etapa(w http.ResponseWriter, r *http.Request) {
 // the comment that records what changed. The note and the next follow-up day are both
 // required, whether or not the stage changes. "probabilidad=perdida" marks the proyecto
 // lost instead, with a required "reason" and nothing else. Any signed-in user can, while
-// the proyecto is a prospecto. "volver" sends the user back to the Pronóstico page it was
-// submitted from.
+// the proyecto is a prospecto.
 func (p *Projects) Seguimiento(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := p.loadProjectOrNotFound(w, r)
@@ -210,14 +210,7 @@ func (p *Projects) Seguimiento(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
-	switch r.FormValue("volver") {
-	case "pronostico":
-		http.Redirect(w, r, "/pronostico#p-"+project.Folio, http.StatusSeeOther)
-	case "pronostico-todos":
-		http.Redirect(w, r, "/pronostico?todos=1#p-"+project.Folio, http.StatusSeeOther)
-	default:
-		http.Redirect(w, r, "/proyectos/"+project.Folio+"#historial", http.StatusSeeOther)
-	}
+	http.Redirect(w, r, "/proyectos/"+project.Folio+"#historial", http.StatusSeeOther)
 }
 
 // today is the viewer's current day (YYYY-MM-DD), in the zone their browser reported.
@@ -226,17 +219,29 @@ func today(r *http.Request) string {
 }
 
 // Pronostico handles GET /pronostico: the prospectos relevante para pronóstico, or every
-// prospecto with ?todos=1, each with its follow-up form.
+// prospecto with ?todos=1, as a table sortable by every column and filterable by vendedor.
+// Nothing is edited here; follow-up is kept on the proyecto's page.
 func (p *Projects) Pronostico(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	all := r.URL.Query().Get("todos") == "1"
-	projects, err := p.store.ListProspects(ctx, all)
+	sortCol, dir := sortParams(r)
+	filters := filterParams(r)
+	projects, err := p.store.ListProspects(ctx, all, sortCol, dir, filters)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
+	_, owners, err := p.store.ProjectFilterChoices(ctx)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	lv := views.ListView{Base: "/pronostico", Sort: sortCol, Dir: dir, Filters: filters}
+	if all {
+		lv.Keep = url.Values{"todos": {"1"}}
+	}
 	user, _ := UserFromContext(ctx)
-	views.ForecastPage(views.Forecast{Projects: projects, All: all, Today: today(r)}, navUserView(user)).Render(ctx, w)
+	views.ForecastPage(views.Forecast{Projects: projects, All: all, Today: today(r)}, lv, owners, navUserView(user)).Render(ctx, w)
 }
 
 // Comentar handles POST /proyectos/{folio}/comentarios: any signed-in user adds a note

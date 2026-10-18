@@ -492,59 +492,108 @@ func TestProjectsFollowUpDatesAndForecast(t *testing.T) {
 	}
 	body := forecast("todos=1")
 	for _, want := range []string{`id="p-` + first + `"`, `id="p-` + second + `"`, "Ver solo los relevantes para pronóstico",
-		"Guardar seguimiento", "Sin fecha", "Vence la vigencia · ", "Sin comentarios", "Total ponderado"} {
+		"Sin fecha", "Sin comentarios", "Total ponderado"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("all-prospects page missing %q", want)
 		}
 	}
+	// It is a table to read, not a form: nothing is edited here.
+	for _, gone := range []string{"Guardar seguimiento", `name="probabilidad"`, `name="note"`} {
+		if strings.Contains(body, gone) {
+			t.Errorf("forecast page still has %q", gone)
+		}
+	}
 
-	// Saved from the full list, it returns there, at the same proyecto.
 	// The first proyecto's follow-up day is already past, which the form no longer takes, so
 	// it is set in the store; the forecast has to show it as overdue.
 	firstProject, err := a.store.ProjectByFolio(context.Background(), first)
 	if err != nil || firstProject == nil {
 		t.Fatalf("ProjectByFolio: %v, %v", firstProject, err)
 	}
-	seventyFive, expectedOC, overdue := 75, "2030-10-15", "2020-01-09"
+	seventyFive, expectedOC, overdue := 75, "2020-10-15", "2020-01-09"
 	if err := a.store.FollowUpProject(context.Background(), firstProject.ID, ana, store.FollowUp{
 		Probability: &seventyFive, ExpectedOC: &expectedOC, NextFollowUp: &overdue, Note: "Compras pidió ajustar entrega"}); err != nil {
 		t.Fatalf("FollowUpProject: %v", err)
 	}
-	next := futureDay()
-	rec := save(second, url.Values{"probabilidad": {"90"}, "proximo_seguimiento": {next}, "note": {"Pidió fecha"}, "volver": {"pronostico-todos"}})
-	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/pronostico?todos=1#p-"+second {
+	// Saving from the proyecto page always returns to it.
+	rec := save(second, url.Values{"probabilidad": {"90"}, "proximo_seguimiento": {futureDay()}, "note": {"Pidió fecha"}})
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/proyectos/"+second+"#historial" {
 		t.Fatalf("Seguimiento status = %d, Location = %q", rec.Code, rec.Header().Get("Location"))
-	}
-	if rec := save(second, url.Values{"probabilidad": {"90"}, "proximo_seguimiento": {next}, "note": {"Pidió fecha"}, "volver": {"pronostico"}}); rec.Header().Get("Location") != "/pronostico#p-"+second {
-		t.Fatalf("Seguimiento Location = %q", rec.Header().Get("Location"))
-	}
-	if rec := save(second, url.Values{"probabilidad": {"90"}, "proximo_seguimiento": {next}, "note": {"Pidió fecha"}}); rec.Header().Get("Location") != "/proyectos/"+second+"#historial" {
-		t.Fatalf("Seguimiento Location = %q", rec.Header().Get("Location"))
 	}
 
 	body = forecast("")
 	for _, want := range []string{`id="p-` + first + `"`, `id="p-` + second + `"`, "Ver todos los prospectos",
-		"Alta (75%)", "Inminente (90%)", "Relevante para pronóstico", "15/10/2030", "Vence la vigencia · ",
-		"Vencido: Seguimiento · 09/01/2020", "Compras pidió ajustar entrega", "Sin contacto capturado", "Total ponderado"} {
+		"Alta (75%)", "Inminente (90%)", "Relevante para pronóstico", "15/10/2020", "09/01/2020",
+		"Compras pidió ajustar entrega", "Pidió fecha", "Total ponderado"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("forecast page missing %q", want)
 		}
+	}
+	// Column order: project number, cliente, vendedor, probabilidad, seguimiento, O.C.,
+	// vigencia, días, costo, precio, utilidad, margen, último comentario.
+	head := body[strings.Index(body, "<thead"):]
+	last := -1
+	for _, col := range []string{"No. de proyecto", "Cliente", "Vendedor", "Probabilidad de cierre", "Próximo seguimiento",
+		"O.C. esperada", "Vigencia", "Días sin actualizar", "Costo sin IVA", "Precio de venta sin IVA", "Utilidad", "Margen", "Último comentario"} {
+		at := strings.Index(head, ">"+col)
+		if at < 0 || at < last {
+			t.Errorf("column %q is missing or out of order", col)
+		}
+		last = at
+	}
+	// The project number leads to the proyecto.
+	if !strings.Contains(body, `<th scope="row"><a href="/proyectos/`+first+`">`) {
+		t.Error("the project number doesn't link to the proyecto")
+	}
+	// Warnings come in words: the follow-up day passed and so did the expected O.C.
+	if !strings.Contains(body, `<strong class="overdue">Vencido</strong>`) || !strings.Contains(body, `<strong class="overdue">Vencida</strong>`) {
+		t.Error("overdue follow-up or expected O.C. is not flagged")
 	}
 	// The dated proyecto comes before the undated one.
 	if strings.Index(body, `id="p-`+first+`"`) > strings.Index(body, `id="p-`+second+`"`) {
 		t.Error("the forecast doesn't put the soonest expected O.C. first")
 	}
-	// Two proyectos of $74.58 each (a $64.29 line plus IVA): 75% + 90% of it is $123.06.
-	for _, want := range []string{"$149.16", "$123.06"} {
+	// Each proyecto is a $64.29 line at 30%: $45.00 of cost and $19.29 of profit. The totals
+	// row adds them, with the margin as profit over price, and 75% + 90% of the two $74.58
+	// totals is $123.06.
+	for _, want := range []string{"$45.00", "$64.29", "$19.29", "30.0%", "$90.00", "$128.58", "$38.58", "$123.06"} {
 		if !strings.Contains(body, want) {
-			t.Errorf("forecast totals missing %s", want)
+			t.Errorf("forecast missing %s", want)
 		}
+	}
+
+	// Sorting by a column, either way, and filtering by vendedor.
+	inOrder := func(query, firstFolio, secondFolio string) {
+		t.Helper()
+		b := forecast(query)
+		if strings.Index(b, `id="p-`+firstFolio+`"`) > strings.Index(b, `id="p-`+secondFolio+`"`) {
+			t.Errorf("forecast?%s doesn't list %s before %s", query, firstFolio, secondFolio)
+		}
+	}
+	inOrder("sort=probabilidad&dir=asc", first, second)
+	inOrder("sort=probabilidad&dir=desc", second, first)
+	inOrder("sort=oc&dir=desc", second, first) // the one without a date sorts after every date
+	for _, col := range []string{"folio", "cliente", "vendedor", "probabilidad", "seguimiento", "oc", "vigencia", "dias",
+		"costo", "precio", "utilidad", "margen", "comentario"} {
+		if b := forecast("sort=" + col + "&dir=desc"); !strings.Contains(b, `id="p-`+first+`"`) {
+			t.Errorf("forecast sorted by %s lost a row", col)
+		}
+	}
+	if b := forecast("f.vendedor.is=ana"); !strings.Contains(b, `id="p-`+first+`"`) {
+		t.Error("filtering by the owner hides her proyectos")
+	}
+	if b := forecast("f.vendedor.is=nadie"); strings.Contains(b, `id="p-`) || !strings.Contains(b, "Ningún prospecto coincide con el filtro.") {
+		t.Error("filtering by another vendedor still lists proyectos or doesn't say none match")
+	}
+	// The all-prospects toggle survives sorting.
+	if b := forecast("todos=1&sort=folio"); !strings.Contains(b, "todos=1") || !strings.Contains(b, `href="/pronostico?dir=desc&amp;sort=folio&amp;todos=1"`) {
+		t.Error("sort links drop the todos=1 toggle")
 	}
 
 	// The proyecto page shows the dates and that the follow-up is due.
 	page := doForm(t, a, ana, p.Page, "GET", "/proyectos/"+first, map[string]string{"folio": first}, nil, false).Body.String()
-	for _, want := range []string{"15/10/2030", "09/01/2020", "toca darle seguimiento", `value="2030-10-15"`,
-		"O.C. esperada: 15/10/2030.", "Próximo seguimiento: 09/01/2020."} {
+	for _, want := range []string{"15/10/2020", "09/01/2020", "toca darle seguimiento", `value="2020-10-15"`,
+		"O.C. esperada: 15/10/2020.", "Próximo seguimiento: 09/01/2020."} {
 		if !strings.Contains(page, want) {
 			t.Errorf("proyecto page missing %q", want)
 		}

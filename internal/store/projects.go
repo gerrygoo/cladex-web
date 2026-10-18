@@ -785,6 +785,23 @@ type Project struct {
 	PaymentStatus string
 	PaymentRef    string
 	PaidAt        string
+	// Subtotal is the current quote's price before IVA and Profit what it earns on it (see
+	// quoteProfitSQL); the cost is the difference. LastMovementAt is when the proyecto last
+	// had news: its newest history entry, or when it was opened if it has none.
+	Subtotal       money.Centavos
+	Profit         money.Centavos
+	LastMovementAt string
+}
+
+// Cost is the current quote's cost before IVA: what is left of its price after the profit.
+func (p Project) Cost() money.Centavos { return p.Subtotal - p.Profit }
+
+// MarginPercent is the profit as a percentage of the price before IVA, 0 for a free quote.
+func (p Project) MarginPercent() float64 {
+	if p.Subtotal == 0 {
+		return 0
+	}
+	return float64(p.Profit) * 100 / float64(p.Subtotal)
 }
 
 // Paid reports whether the proyecto has been collected, which closing it requires.
@@ -822,7 +839,15 @@ var projectSelectCols = `
 	COALESCE((` + projectLastComment("lc.created_at") + `), ''),
 	COALESCE(p.oc_number, ''), COALESCE(p.oc_date, ''), COALESCE(p.payment_method, ''),
 	COALESCE(p.invoice_ref, ''), COALESCE(p.invoice_date, ''), COALESCE(p.payment_status, ''),
-	COALESCE(p.payment_ref, ''), COALESCE(p.paid_at, '')`
+	COALESCE(p.payment_ref, ''), COALESCE(p.paid_at, ''),
+	q.subtotal, ` + quoteProfitSQL + `, COALESCE((` + projectLastComment("lc.created_at") + `), p.created_at)`
+
+// quoteProfitSQL is the current quote's profit before IVA, in centavos: its catalog lines'
+// total times the margin it was issued with (a fraction of the sale price), rounded half
+// up. Free-text lines carry no cost, so they add nothing, and a draft has no margin yet.
+// It is the same figure as views.QuoteProfit shows on the quote.
+const quoteProfitSQL = `((COALESCE((SELECT SUM(ql.line_total) FROM quote_lines ql
+		WHERE ql.quote_id = q.id AND ql.product_id IS NOT NULL), 0) * COALESCE(q.margin_snapshot_micros, 0) + 500000) / 1000000)`
 
 // projectLastComment selects one column of the newest comment on any of the proyecto's
 // quotes, for projectSelectCols.
@@ -848,7 +873,8 @@ func scanProject(row interface{ Scan(...any) error }) (*Project, error) {
 		&p.ContactName, &p.ContactPhone, &p.ContactEmail,
 		&p.LastBody, &p.LastUserName, &p.LastAt,
 		&p.OC.Number, &p.OC.Date, &p.OC.PaymentMethod,
-		&p.Invoice.Ref, &p.Invoice.Date, &p.PaymentStatus, &p.PaymentRef, &p.PaidAt)
+		&p.Invoice.Ref, &p.Invoice.Date, &p.PaymentStatus, &p.PaymentRef, &p.PaidAt,
+		&p.Subtotal, &p.Profit, &p.LastMovementAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -933,19 +959,57 @@ func (s *Store) ListProjects(ctx context.Context, query, sort, dir string, filte
 	return projects, rows.Err()
 }
 
+// forecastSortColumns is the sortable-column whitelist for ListProspects. Days without
+// an update sorts on the date of the last movement, newest first, so ascending shows the
+// freshest. A missing date sorts after every real one.
+var forecastSortColumns = []sortColumn{
+	{"folio", "p.folio"},
+	{"cliente", "c.name COLLATE NOCASE"},
+	{"vendedor", "u.name COLLATE NOCASE"},
+	{"probabilidad", "p.probability"},
+	{"seguimiento", "COALESCE(p.next_followup_date, '9999-12-31')"},
+	{"oc", "COALESCE(p.expected_oc_date, '9999-12-31')"},
+	{"vigencia", "COALESCE(q.valid_until, '9999-12-31')"},
+	{"dias", "-julianday(COALESCE((" + `SELECT lc.created_at FROM quote_comments lc JOIN quotes lq ON lq.id = lc.quote_id
+		WHERE lq.project_id = p.id ORDER BY lc.created_at DESC, lc.id DESC LIMIT 1` + "), p.created_at))"},
+	{"costo", "(q.subtotal - " + quoteProfitSQL + ")"},
+	{"precio", "q.subtotal"},
+	{"utilidad", quoteProfitSQL},
+	{"margen", "CASE WHEN q.subtotal = 0 THEN 0 ELSE 1.0 * " + quoteProfitSQL + " / q.subtotal END"},
+	{"comentario", "COALESCE((" + `SELECT lc.created_at FROM quote_comments lc JOIN quotes lq ON lq.id = lc.quote_id
+		WHERE lq.project_id = p.id ORDER BY lc.created_at DESC, lc.id DESC LIMIT 1` + "), '')"},
+}
+
+// forecastDefaultOrder is the Pronóstico order when no column is chosen: soonest expected
+// purchase order first, those without a date last, then the likeliest and the largest.
+const forecastDefaultOrder = `ORDER BY p.expected_oc_date IS NULL, p.expected_oc_date, p.probability DESC, q.total DESC, p.id`
+
+// forecastFilterColumns are the filters of the Pronóstico table: by vendedor.
+var forecastFilterColumns = []filterColumn{
+	{name: "vendedor", expr: "u.name", kind: FilterText},
+}
+
 // ListProspects returns the prospectos for the Pronóstico view, the ones the team goes
 // over when it reviews what is about to close: only those relevante para pronóstico, or
-// every prospecto when all is set. Soonest expected purchase order first, those without
-// a date last, then the likeliest and the largest.
-func (s *Store) ListProspects(ctx context.Context, all bool) ([]Project, error) {
+// every prospecto when all is set. Sorted per sort/dir (see forecastSortColumns), or by
+// forecastDefaultOrder when sort isn't a known column, and filtered by vendedor.
+func (s *Store) ListProspects(ctx context.Context, all bool, sort, dir string, filters Filters) ([]Project, error) {
 	minProbability := ForecastThreshold
 	if all {
 		minProbability = 0
 	}
+	order := forecastDefaultOrder
+	for _, c := range forecastSortColumns {
+		if c.name == sort {
+			order = orderByClause(forecastSortColumns, sort, dir) + ", p.id"
+			break
+		}
+	}
+	extra, extraArgs := filterWhere(ctx, forecastFilterColumns, filters)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+projectSelectCols+projectFrom+`
-		WHERE p.status = 'prospecto' AND p.probability >= ?
-		ORDER BY p.expected_oc_date IS NULL, p.expected_oc_date, p.probability DESC, q.total DESC, p.id`, minProbability)
+		WHERE p.status = 'prospecto' AND p.probability >= ?`+extra+`
+		`+order, append([]any{minProbability}, extraArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("store: list prospects: %w", err)
 	}

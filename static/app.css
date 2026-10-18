@@ -1258,3 +1258,22 @@ fieldset.probability {
   flex-wrap: wrap;
   gap: 0.25rem 1.5rem;
 }
+
+/* The Pronóstico table: wide, so it scrolls sideways with the project number pinned */
+table.forecast-table th[scope="row"],
+table.forecast-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+}
+
+table.forecast-table td {
+  vertical-align: top;
+  min-width: 7rem;
+}
+
+table.forecast-table tfoot th,
+table.forecast-table tfoot td {
+  border-top: 2px solid var(--rule);
+  font-weight: 600;
+}

@@ -736,7 +736,7 @@ func TestListProspectsAndWeights(t *testing.T) {
 	}
 	folios := func(all bool) string {
 		t.Helper()
-		ps, err := s.ListProspects(ctx, all)
+		ps, err := s.ListProspects(ctx, all, "", "", nil)
 		if err != nil {
 			t.Fatalf("ListProspects: %v", err)
 		}
@@ -753,7 +753,7 @@ func TestListProspectsAndWeights(t *testing.T) {
 	if got := folios(true); got != "QA0003,QA0001,QA0002,QA0004" {
 		t.Errorf("all prospects = %s", got)
 	}
-	ps, _ := s.ListProspects(ctx, false)
+	ps, _ := s.ListProspects(ctx, false, "", "", nil)
 	if p := ps[0]; p.ContactName != "Ing. Pérez" || p.ContactPhone != "55 1234 5678" || p.ContactEmail != "perez@peme.mx" ||
 		p.QuoteValidUntil != "2026-10-30" || p.QuoteIssuedAt == "" || p.LastBody != "" {
 		t.Errorf("first prospect = %+v", p)

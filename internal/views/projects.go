@@ -1,7 +1,6 @@
 package views
 
 import (
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -9,51 +8,6 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/money"
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
-
-// ProjectEvent is a dated thing coming up on a prospecto: a follow-up the salesperson
-// set, the purchase order they expect, or the quote's vigencia running out.
-type ProjectEvent struct {
-	Label string
-	Date  string // YYYY-MM-DD
-}
-
-// projectEvents lists a prospecto's dated events, soonest first, leaving out the ones
-// that have no date.
-func projectEvents(p store.Project) []ProjectEvent {
-	var events []ProjectEvent
-	for _, e := range []ProjectEvent{
-		{"Seguimiento", p.NextFollowUpDate},
-		{"O.C. esperada", p.ExpectedOCDate},
-		{"Vence la vigencia", p.QuoteValidUntil},
-	} {
-		if e.Date != "" {
-			events = append(events, e)
-		}
-	}
-	sort.SliceStable(events, func(i, j int) bool { return events[i].Date < events[j].Date })
-	return events
-}
-
-// NextProjectEvent is the prospecto's soonest event from today on, or nil when it has
-// none, and OverdueProjectEvents the ones whose day already passed. today is YYYY-MM-DD.
-func NextProjectEvent(p store.Project, today string) *ProjectEvent {
-	for _, e := range projectEvents(p) {
-		if e.Date >= today {
-			return &e
-		}
-	}
-	return nil
-}
-
-func OverdueProjectEvents(p store.Project, today string) []ProjectEvent {
-	var out []ProjectEvent
-	for _, e := range projectEvents(p) {
-		if e.Date < today {
-			out = append(out, e)
-		}
-	}
-	return out
-}
 
 func projectFilePath(folio string, fileID int64) string {
 	return projectPath(folio) + "/archivos/" + strconv.FormatInt(fileID, 10)
@@ -130,24 +84,107 @@ type Forecast struct {
 	Today    string
 }
 
-// Total is what the listed proyectos add up to, and Weighted their expected amount:
-// each total times its probability.
-func (f Forecast) Total() (total, weighted string) {
-	var sum, weight int64
-	for _, p := range f.Projects {
-		sum += int64(p.Total)
-		weight += p.Weight()
-	}
-	return money.Centavos(sum).String(), store.WeightedTotal(weight).String()
+// ForecastTotals is what the listed proyectos add up to before IVA: cost, price and
+// profit, and the margin that profit is of the price; and the expected amount, each
+// total (with IVA, as in the proyectos list) times its probability.
+type ForecastTotals struct {
+	Cost, Price, Profit, Weighted money.Centavos
+	Margin                        string
 }
 
-// forecastReturn is the "volver" value a follow-up form on the Pronóstico page sends, so
-// saving comes back to the same list.
-func (f Forecast) forecastReturn() string {
-	if f.All {
-		return "pronostico-todos"
+// Totals adds up the listed proyectos. The margin is the sum of profits over the sum of
+// prices, not an average of their margins.
+func (f Forecast) Totals() ForecastTotals {
+	var price, profit, weight int64
+	for _, p := range f.Projects {
+		price += int64(p.Subtotal)
+		profit += int64(p.Profit)
+		weight += p.Weight()
 	}
-	return "pronostico"
+	return ForecastTotals{
+		Cost: money.Centavos(price - profit), Price: money.Centavos(price), Profit: money.Centavos(profit),
+		Weighted: store.WeightedTotal(weight), Margin: marginPercentText(profit, price),
+	}
+}
+
+// marginPercentText is profit as a percentage of price with one decimal ("25.0%"), or "—"
+// when there is no price to be a margin of.
+func marginPercentText(profit, price int64) string {
+	if price == 0 {
+		return "—"
+	}
+	return strconv.FormatFloat(float64(profit)*100/float64(price), 'f', 1, 64) + "%"
+}
+
+// ProjectMargin is a proyecto's margin on its current quote, see marginPercentText.
+func ProjectMargin(p store.Project) string {
+	return marginPercentText(int64(p.Profit), int64(p.Subtotal))
+}
+
+// daysBetween is the whole days from day a to day b (both YYYY-MM-DD; an ISO timestamp's
+// date part works too), negative when b is before a. ok is false when either isn't a day.
+func daysBetween(a, b string) (days int, ok bool) {
+	if len(a) > 10 {
+		a = a[:10]
+	}
+	if len(b) > 10 {
+		b = b[:10]
+	}
+	ta, errA := time.Parse("2006-01-02", a)
+	tb, errB := time.Parse("2006-01-02", b)
+	if errA != nil || errB != nil {
+		return 0, false
+	}
+	return int(tb.Sub(ta).Hours() / 24), true
+}
+
+// DaysWithoutUpdate is how many days ago the proyecto last had news.
+func DaysWithoutUpdate(p store.Project, today string) string {
+	if d, ok := daysBetween(p.LastMovementAt, today); ok {
+		return strconv.Itoa(max(d, 0))
+	}
+	return ""
+}
+
+// vigenciaWarnDays is how close to its end a quote's vigencia is flagged.
+const vigenciaWarnDays = 5
+
+// FollowUpWarning says what is wrong with a prospecto's next follow-up: "" when it is set
+// and still to come, "Sin fecha" when there is none, "Vencido" when it is today or past.
+// The table marks the cell with the words, not only the colour.
+func FollowUpWarning(p store.Project, today string) string {
+	switch {
+	case p.NextFollowUpDate == "":
+		return "Sin fecha"
+	case p.FollowUpDue(today):
+		return "Vencido"
+	}
+	return ""
+}
+
+// OCWarning is "Vencida" when the expected purchase order day has passed.
+func OCWarning(p store.Project, today string) string {
+	if p.ExpectedOCDate != "" && p.ExpectedOCDate < today {
+		return "Vencida"
+	}
+	return ""
+}
+
+// VigenciaWarning says that the quote's vigencia ran out ("Vencida") or runs out within
+// vigenciaWarnDays ("Vence hoy", "Vence en 3 días"). A draft has no vigencia.
+func VigenciaWarning(p store.Project, today string) string {
+	d, ok := daysBetween(today, p.QuoteValidUntil)
+	switch {
+	case !ok || d > vigenciaWarnDays:
+		return ""
+	case d < 0:
+		return "Vencida"
+	case d == 0:
+		return "Vence hoy"
+	case d == 1:
+		return "Vence mañana"
+	}
+	return "Vence en " + strconv.Itoa(d) + " días"
 }
 
 // nextDay is the day after day (YYYY-MM-DD), the earliest a next follow-up can be set.
