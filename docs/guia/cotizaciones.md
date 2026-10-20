@@ -19,9 +19,10 @@ El flujo completo, de principio a fin:
 ## Crear una cotización
 
 1. En el menú **Cotizaciones**, elige **Nueva cotización**.
-2. En **Cliente**, elige al cliente de la lista (está en orden alfabético). Para
-   encontrarlo rápido, escribe en el cuadro de arriba parte de su nombre, RFC o contacto:
-   la lista se filtra mientras escribes, sin importar mayúsculas ni acentos.
+2. En **Cliente**, escribe parte del nombre, RFC o contacto: mientras escribes, debajo
+   aparecen los clientes que coinciden (sin importar mayúsculas ni acentos), con su RFC o
+   contacto. Haz clic en el que quieras, o muévete con las flechas y presiona Enter. Al
+   hacer clic en el cuadro sin escribir nada ves todos, en orden alfabético.
 
    ¿No está? Elige **➕ Agregar nuevo cliente**, la primera opción de la lista. Se abre
    el formulario de [Nuevo cliente](clientes.md#dar-de-alta-un-cliente); al guardarlo
@@ -327,18 +328,17 @@ Qué pasa al revisar:
 > y los ajustes **actuales**, no con los de la original. Revisa los precios antes de
 > emitirla.
 
-## Actualizar el costo de una cotización emitida
+## Cambiar el costo de una cotización emitida
 
-Los costos cambian después de mandar la cotización. Si eres el vendedor de la cotización
-o un administrador, la cotización emitida (también si ya fue revisada) tiene una sección
-**Costos** con el costo de cada línea libre:
+El costo de una cotización emitida no se edita. Si cambió, [revisa la
+cotización](#revisar-una-cotización-emitida): en el borrador de la revisión cambia el
+costo de las líneas y emítela.
 
-1. Cambia el costo de las líneas que cambiaron.
-2. Haz clic en **Guardar costos**.
-
-Cambian la **Utilidad** y el **Margen** de la cotización (y del proyecto); los precios, el
-total y el PDF quedan como se emitieron. En QL cada línea necesita su costo; en las demás
-series puedes dejarlo vacío. Cada cambio queda registrado.
+Al emitir la revisión, el historial del proyecto anota solo qué costos cambiaron
+respecto a la versión anterior y cuánto subió o bajó cada uno, por ejemplo *"«Cable»:
+costo unitario $1,000.00 → $1,250.00 (subió $250.00, 25.0%)."* También anota las líneas
+nuevas o quitadas que tenían costo. Solo cuentan las líneas libres: el costo de los
+productos de catálogo es el del catálogo.
 
 ## Ver el detalle de una cotización
 

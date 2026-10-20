@@ -473,7 +473,8 @@ templ followUpAndComments(p store.Project, today string, comments []store.Projec
 // and comment (static/app.js swaps the fields; without it the server still checks
 // everything). today is the viewer's day, so the next follow-up must be after it. The
 // dates come filled in with the current ones, so while the next follow-up is still ahead,
-// writing the comment is all it takes to save one.
+// writing the comment is all it takes to save one. O.C. esperada only shows with
+// Inminente 90% picked; hidden, it still sends the date it has, so it is kept as it is.
 templ FollowUpForm(p store.Project, today string) {
 	<form method="post" action={ templ.URL(seguimientoPath(p.Folio)) } class="stage-form" data-followup>
 		<fieldset class="probability">
@@ -502,7 +503,7 @@ templ FollowUpForm(p store.Project, today string) {
 		</label>
 		<div data-not-lost>
 			<div class="followup-dates">
-				<label>
+				<label data-imminent-only hidden?={ p.Probability != store.ReceiveOCProbability }>
 					O.C. esperada
 					<input type="date" name="oc_esperada" value={ p.ExpectedOCDate }/>
 				</label>
@@ -625,7 +626,7 @@ templ ForecastPage(f Forecast, lv ListView, owners []string, user *NavUser) {
 								<td class="num">{ ProjectMargin(p) }</td>
 								<td class="last-comment">
 									if p.LastBody != "" {
-										<span class="comment-clamp" title={ p.LastBody }>{ p.LastBody }</span>
+										<span class="comment-body">{ p.LastBody }</span>
 										<small class="comment-meta">
 											{ p.LastUserName + " · " }
 											@Timestamp(p.LastAt)

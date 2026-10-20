@@ -77,7 +77,8 @@ Mientras el proyecto es prospecto, anota qué tan cerca está de cerrarse y qué
    Más a la derecha ves **Orden colocada 100%** (no se elige: el proyecto llega ahí
    solo al [recibir la orden de compra](#recibir-la-orden-de-compra-del-cliente)) y
    **Perdida** (para [marcar el proyecto como perdido](#marcar-un-proyecto-como-perdido)).
-3. En **O.C. esperada**, pon la fecha en que esperas la orden de compra del cliente.
+3. Si elegiste **Inminente**, aparece **O.C. esperada**: pon la fecha en que esperas la
+   orden de compra del cliente. Con las demás probabilidades no se muestra.
 4. En **Próximo seguimiento**, pon la fecha en que hay que volver a buscar al cliente.
    Es obligatoria y tiene que ser posterior a hoy.
 5. Escribe en **Comentario** qué pasó y cuáles son los siguientes pasos. Es obligatorio.
@@ -95,7 +96,8 @@ debajo tu nota.
   aparte.
 - Un proyecto nuevo empieza en **Inicial** y sin fechas. Actualiza el seguimiento cada
   vez que haya noticias del cliente.
-- **O.C. esperada** es opcional. Para quitarla, bórrala y guarda.
+- **O.C. esperada** es opcional y solo se ve en **Inminente**. Para quitarla, bórrala y
+  guarda. Si bajas la probabilidad, la fecha que tenía se conserva aunque no se vea.
 - Sin comentario o sin una fecha de próximo seguimiento posterior a hoy, el seguimiento
   no se guarda, aunque no hayas cambiado la probabilidad.
 - Cuando llega el día del **Próximo seguimiento**, el resumen del proyecto dice *"toca
@@ -227,8 +229,8 @@ Las columnas, en orden:
    último comentario o cambio).
 6. **Costo sin IVA**, **Precio de venta sin IVA**, **Utilidad** (precio menos costo) y
    **Margen** (utilidad entre precio).
-7. **Último comentario**: el más reciente del historial, hasta dos renglones (pasa el
-   mouse encima para leerlo completo), con quién lo escribió y cuándo debajo.
+7. **Último comentario**: el más reciente del historial, completo (si es largo, la fila
+   crece para que quepa), con quién lo escribió y cuándo debajo.
 
 La fila **Total** suma costo, precio y utilidad; su margen es la suma de las utilidades
 entre la suma de los precios, no un promedio de márgenes.

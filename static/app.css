@@ -1250,17 +1250,10 @@ table.forecast-table td {
   min-width: 7rem;
 }
 
-/* Último comentario: wide enough to read, at most two lines (the full text is the title) */
+/* Último comentario: wide enough to read, shown whole (the row grows to fit it) */
 table.forecast-table td.last-comment {
   min-width: 18rem;
-}
-
-.comment-clamp {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
+  white-space: normal;
 }
 
 td.last-comment .comment-meta {
@@ -1324,6 +1317,53 @@ div.notice.warning li {
 }
 
 /* Nueva cotización's customer search, right above the list it filters */
-.customer-search {
+/* Nueva cotización's customer combobox (static/app.js): the search field, with the
+   matching customers listed under it as you type. */
+.combobox {
+  position: relative;
   width: min(100%, 28rem);
+}
+
+.combobox input {
+  width: 100%;
+}
+
+.combobox [role="listbox"] {
+  position: absolute;
+  z-index: 10;
+  left: 0;
+  right: 0;
+  max-height: 18rem;
+  overflow-y: auto;
+  margin: 0.2rem 0 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--c-ink) 20%, transparent);
+}
+
+.combobox [role="option"] {
+  padding: 0.45rem 0.6rem;
+  cursor: pointer;
+}
+
+.combobox [role="option"] small {
+  display: block;
+  color: var(--text-muted);
+}
+
+.combobox [role="option"][aria-selected="true"] {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.combobox [role="option"][aria-selected="true"] small {
+  color: inherit;
+}
+
+.combobox .combobox-empty {
+  padding: 0.45rem 0.6rem;
+  color: var(--text-muted);
 }

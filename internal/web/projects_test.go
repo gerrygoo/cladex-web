@@ -118,6 +118,10 @@ func TestProjectsFollowUp(t *testing.T) {
 	if !strings.Contains(body, "<label data-lost-only hidden>") {
 		t.Error("Motivo de la pérdida is not hidden on load")
 	}
+	// O.C. esperada only shows at Inminente 90%, but its date is still sent.
+	if !strings.Contains(body, "<label data-imminent-only hidden>") || !strings.Contains(body, `name="oc_esperada"`) {
+		t.Error("O.C. esperada is not hidden below Inminente")
+	}
 	if strings.Contains(body, "Regresar a") {
 		t.Error("a vendedor is offered going back a stage")
 	}
@@ -193,6 +197,9 @@ func TestProjectsFollowUp(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("prospecto page at Inminente missing %q", want)
 		}
+	}
+	if !strings.Contains(body, "<label data-imminent-only>") {
+		t.Error("O.C. esperada is hidden at Inminente")
 	}
 	if rest := body[strings.Index(body, "Recibir la orden de compra"):]; strings.Contains(rest, "Comentario") {
 		t.Error("the receive-the-purchase-order section still has a comment field")

@@ -808,8 +808,6 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 		successMsg = "Borrador guardado."
 	case r.URL.Query().Get("emitida") == "1":
 		successMsg = "Cotización emitida."
-	case r.URL.Query().Get("costos") == "1":
-		successMsg = "Costos guardados."
 	}
 	q.renderBuilder(w, r, quote, lines, totals, margin.picker, successMsg, http.StatusOK, nil)
 }
@@ -913,76 +911,13 @@ func (q *Quotes) renderBuilder(w http.ResponseWriter, r *http.Request, quote *st
 	commentsLV := views.ListView{Base: "/cotizaciones/" + quote.Folio, Pager: pager, Anchor: "comentarios"}
 	user, _ := UserFromContext(ctx)
 	w.WriteHeader(status)
-	views.QuoteBuilder(*quote, lines, totals, margin, successMsg, fieldErrs, picker, comments, commentsLV, navUserView(user), canEditCosts(user, quote)).Render(ctx, w)
+	views.QuoteBuilder(*quote, lines, totals, margin, successMsg, fieldErrs, picker, comments, commentsLV, navUserView(user)).Render(ctx, w)
 }
 
 // amountInput tidies a typed amount for parsing: no "$" and no thousands commas, so
 // "$1,500.00" reads as 1500.00.
 func amountInput(raw string) string {
 	return strings.ReplaceAll(strings.TrimPrefix(strings.TrimSpace(raw), "$"), ",", "")
-}
-
-// canEditCosts reports whether user may update an issued quote's free-line costs: its
-// salesperson or an admin (issue #25).
-func canEditCosts(user *store.AuthenticatedUser, quote *store.Quote) bool {
-	return user != nil && (user.Role == "admin" || user.ID == quote.UserID)
-}
-
-// Costos handles POST /cotizaciones/{folio}/costos: updates the cost of an issued quote's
-// free lines, from cost_<line id> fields (see views.QuoteCostsForm). Only the quote's
-// salesperson or an admin may; a draft takes its costs in the builder instead. On QL every
-// line needs a cost; elsewhere an empty field clears it.
-func (q *Quotes) Costos(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	quote := q.loadQuoteOrNotFound(w, r)
-	if quote == nil {
-		return
-	}
-	user, _ := UserFromContext(ctx)
-	if !canEditCosts(user, quote) {
-		http.Error(w, "solo el vendedor de la cotización o un administrador puede cambiar sus costos", http.StatusForbidden)
-		return
-	}
-	if quote.Status == "borrador" {
-		http.Error(w, "en un borrador, los costos se capturan en sus líneas", http.StatusConflict)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "solicitud inválida", http.StatusBadRequest)
-		return
-	}
-	lines, err := q.store.ListQuoteLines(ctx, quote.ID)
-	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
-		return
-	}
-	costs := map[int64]*money.Micros{}
-	for _, l := range lines {
-		raw, ok := r.Form["cost_"+strconv.FormatInt(l.ID, 10)]
-		if l.ProductID != nil || !ok {
-			continue
-		}
-		v := amountInput(raw[0])
-		if v == "" {
-			if quote.SeriesFreeLines {
-				http.Error(w, "cada línea necesita su costo", http.StatusBadRequest)
-				return
-			}
-			costs[l.ID] = nil
-			continue
-		}
-		c, err := money.ParseMicros(v)
-		if err != nil || c < 0 {
-			http.Error(w, "costo inválido: escribe un monto, p. ej. 1500", http.StatusBadRequest)
-			return
-		}
-		costs[l.ID] = &c
-	}
-	if err := q.store.UpdateQuoteLineCosts(ctx, quote.ID, costs); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(w, r, "/cotizaciones/"+quote.Folio+"?costos=1#costos", http.StatusSeeOther)
 }
 
 // Recalcular handles POST /cotizaciones/{folio}/recalcular: the endpoint behind every
@@ -1344,6 +1279,7 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		// missingTermsInputs has already checked it is set.
 		validUntil = *quote.ValidUntil
 	}
+	user, _ := UserFromContext(ctx)
 	issue := store.Issue{
 		// Whole seconds: that's the resolution Typst embeds, and the one reprints
 		// parse back out of issued_at.
@@ -1354,6 +1290,7 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		VendedorSnapshot:     quote.UserName,
 		MarginName:           margin.name(),
 		MarginMicros:         *margin.value(),
+		IssuedBy:             user.ID,
 	}
 
 	// Render from the quote exactly as it's about to be frozen, through the same

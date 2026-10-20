@@ -110,38 +110,6 @@ func costArg(c *money.Micros) any {
 	return int64(*c)
 }
 
-// ErrNotFreeLine is returned by UpdateQuoteLineCosts for a line that isn't one of the
-// quote's free lines.
-var ErrNotFreeLine = errors.New("store: not a free line of this quote")
-
-// UpdateQuoteLineCosts sets the cost of free lines on a quote of any status (issue #25):
-// costs change after a quote goes out, and the cost is never printed, so this is the one
-// change an issued quote takes. Prices, totals and the PDF stay as issued; only its
-// profit figures move. costs maps quote_lines ids to the new cost (nil clears it). The
-// audit trigger from 0021 records each change.
-func (s *Store) UpdateQuoteLineCosts(ctx context.Context, quoteID int64, costs map[int64]*money.Micros) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("store: update line costs of quote %d: %w", quoteID, err)
-	}
-	defer tx.Rollback()
-	if err := stampActor(ctx, tx); err != nil {
-		return fmt.Errorf("store: update line costs of quote %d: %w", quoteID, err)
-	}
-	for lineID, c := range costs {
-		res, err := tx.ExecContext(ctx, `
-			UPDATE quote_lines SET cost_micros = ?
-			WHERE id = ? AND quote_id = ? AND product_id IS NULL`, costArg(c), lineID, quoteID)
-		if err != nil {
-			return fmt.Errorf("store: update line costs of quote %d: %w", quoteID, err)
-		}
-		if n, _ := res.RowsAffected(); n != 1 {
-			return ErrNotFreeLine
-		}
-	}
-	return tx.Commit()
-}
-
 // NextFolio hands out the next folio number for prefix (QA/QS/QI) as
 // "<prefix><4-digit zero-padded number>" (e.g. "QA0001"), via folio_sequences
 // (migrations/0005_add_folio_sequences.sql). The upsert-and-RETURNING is one atomic
@@ -538,6 +506,7 @@ type Issue struct {
 	MarginName           string       // the quote's margin option, frozen by name
 	MarginMicros         money.Micros // and by value
 	PDFSHA256            string
+	IssuedBy             int64 // who issues it, the author of a revision's cost-change note
 }
 
 // IssueQuote freezes a draft quote: locks the margin, terms text, and the
@@ -550,11 +519,17 @@ type Issue struct {
 //
 // Issuing a first quote opens its proyecto, as a prospecto at the lowest probability,
 // named after the quote's folio and owned by whoever created the quote. A revision
-// already belongs to its original's proyecto and stays in it.
+// already belongs to its original's proyecto and stays in it. Issuing a revision whose
+// line costs differ from its original's adds a note saying how to the history (see
+// costChangeNote).
 func (s *Store) IssueQuote(ctx context.Context, quoteID int64, is Issue) error {
 	var validUntilArg any
 	if is.ValidUntil != nil {
 		validUntilArg = *is.ValidUntil
+	}
+	costNote, err := s.revisionCostNote(ctx, quoteID)
+	if err != nil {
+		return fmt.Errorf("store: issue quote %d: %w", quoteID, err)
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -608,10 +583,35 @@ func (s *Store) IssueQuote(ctx context.Context, quoteID int64, is Issue) error {
 	if n != 1 {
 		return ErrQuoteNotDraft
 	}
+	if costNote != "" {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`,
+			quoteID, is.IssuedBy, costNote); err != nil {
+			return fmt.Errorf("store: issue quote %d: cost note: %w", quoteID, err)
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("store: issue quote %d: %w", quoteID, err)
 	}
 	return nil
+}
+
+// revisionCostNote is the cost-change note for issuing quoteID, or "" if it isn't a
+// revision or no cost changed.
+func (s *Store) revisionCostNote(ctx context.Context, quoteID int64) (string, error) {
+	q, err := s.QuoteByID(ctx, quoteID)
+	if err != nil || q == nil || q.SupersedesQuoteID == nil {
+		return "", err
+	}
+	prev, err := s.ListQuoteLines(ctx, *q.SupersedesQuoteID)
+	if err != nil {
+		return "", err
+	}
+	next, err := s.ListQuoteLines(ctx, quoteID)
+	if err != nil {
+		return "", err
+	}
+	return costChangeNote(q.SupersedesFolio, prev, next), nil
 }
 
 // ErrQuoteNotIssued is returned by CreateRevision when the target quote isn't

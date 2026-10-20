@@ -258,7 +258,7 @@ func TestNewCustomerFromQuoteAndDuplicates(t *testing.T) {
 
 	// The list has the search and the fixed first entry, and comes back preselected.
 	page := doForm(t, a, userID, q.NewPage, "GET", "/cotizaciones/nueva?cliente="+itoa(peme)+"&serie=QA", nil, nil, false).Body.String()
-	for _, want := range []string{"data-customer-search", `<option value="nuevo" data-keep>➕ Agregar nuevo cliente</option>`,
+	for _, want := range []string{"data-combobox", `<option value="nuevo" data-keep>➕ Agregar nuevo cliente</option>`,
 		`value="` + itoa(peme) + `" data-search="Grupo PEME PEM-010101-ABC " selected`, `value="QA" checked`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("Nueva cotización missing %q", want)

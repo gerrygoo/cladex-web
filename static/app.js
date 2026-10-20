@@ -8,29 +8,145 @@
     if (msg && !window.confirm(msg)) e.preventDefault();
   }, true);
 
-  // Nueva cotización's customer list (issue #29): the search box above it filters the
-  // options by name, RFC or contact, ignoring case and accents, and "Agregar nuevo
-  // cliente" (always kept) opens the new-customer form with the series picked so far.
+  // Nueva cotización's customer list (issue #29) becomes a combobox: a search field in
+  // place of the list, whose matches (by name, RFC or contact, ignoring case and
+  // accents) show under it as you type, with "Agregar nuevo cliente" always first. The
+  // <select> stays, hidden, and carries the choice; without JS it is the plain list.
+  // Keys: arrows move, Enter picks, Escape closes.
   var fold = function (t) {
-    return (t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    return (t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   };
-  document.querySelectorAll("[data-customer-search]").forEach(function (box) {
-    var select = document.getElementById(box.dataset.customerSearch);
-    var all = Array.prototype.slice.call(select.options);
-    box.hidden = false;
-    box.addEventListener("input", function () {
-      var q = fold(box.value.trim());
-      var current = select.value;
-      select.replaceChildren.apply(select, all.filter(function (o) {
-        return !o.dataset.search || fold(o.dataset.search).indexOf(q) !== -1;
-      }));
-      select.value = current;
-      if (select.value !== current) select.value = "";
+  document.querySelectorAll("select[data-combobox]").forEach(function (select) {
+    var id = select.id;
+    var wrap = document.createElement("div");
+    var input = document.createElement("input");
+    var list = document.createElement("ul");
+    var status = document.createElement("span");
+    wrap.className = "combobox";
+    input.type = "text";
+    input.id = id + "-buscar";
+    input.autocomplete = "off";
+    input.placeholder = "Escribe para buscar por nombre, RFC o contacto";
+    input.setAttribute("role", "combobox");
+    input.setAttribute("aria-autocomplete", "list");
+    input.setAttribute("aria-expanded", "false");
+    input.setAttribute("aria-controls", id + "-opciones");
+    ["aria-invalid", "aria-describedby"].forEach(function (a) {
+      if (select.hasAttribute(a)) input.setAttribute(a, select.getAttribute(a));
     });
-    select.addEventListener("change", function () {
-      if (select.value !== "nuevo") return;
-      var serie = select.form.querySelector("[name=prefix]:checked");
-      location.href = "/clientes/nuevo?volver=cotizacion" + (serie ? "&serie=" + encodeURIComponent(serie.value) : "");
+    list.id = id + "-opciones";
+    list.setAttribute("role", "listbox");
+    list.hidden = true;
+    status.className = "visually-hidden";
+    status.setAttribute("role", "status");
+    wrap.append(input, list, status);
+    select.after(wrap);
+    select.hidden = true;
+    select.required = false;
+    var label = document.querySelector('label[for="' + id + '"]');
+    if (label) label.htmlFor = input.id;
+    list.setAttribute("aria-label", label ? label.textContent.trim() : "Opciones");
+
+    var choices = Array.prototype.filter.call(select.options, function (o) { return o.value; });
+    var picked = function () { return select.selectedOptions[0]; };
+    var shown = [];
+    var active = -1;
+    var nameOf = function (o) { return o.value === "nuevo" ? "" : o.textContent.trim(); };
+    input.value = picked() && picked().value ? nameOf(picked()) : "";
+
+    var setActive = function (i) {
+      var items = list.querySelectorAll("[role=option]");
+      if (active >= 0 && items[active]) items[active].setAttribute("aria-selected", "false");
+      active = i;
+      if (i < 0 || !items[i]) { input.removeAttribute("aria-activedescendant"); return; }
+      items[i].setAttribute("aria-selected", "true");
+      input.setAttribute("aria-activedescendant", items[i].id);
+      items[i].scrollIntoView({ block: "nearest" });
+    };
+    var close = function () {
+      list.hidden = true;
+      input.setAttribute("aria-expanded", "false");
+      setActive(-1);
+    };
+    var open = function (q) {
+      q = fold(q.trim());
+      shown = choices.filter(function (o) {
+        return o.value === "nuevo" || !q || fold(o.textContent + " " + o.dataset.search).indexOf(q) !== -1;
+      });
+      list.replaceChildren();
+      active = -1;
+      shown.forEach(function (o, i) {
+        var li = document.createElement("li");
+        li.id = id + "-opcion-" + i;
+        li.setAttribute("role", "option");
+        li.setAttribute("aria-selected", "false");
+        li.textContent = o.textContent.trim();
+        if (o.dataset.detail) {
+          var small = document.createElement("small");
+          small.textContent = o.dataset.detail;
+          li.append(small);
+        }
+        li.addEventListener("mousedown", function (e) { e.preventDefault(); });
+        li.addEventListener("click", function () { choose(o); });
+        list.append(li);
+      });
+      var found = shown.length - 1;
+      if (found === 0 && q) {
+        var none = document.createElement("li");
+        none.className = "combobox-empty";
+        none.textContent = "Ningún cliente coincide.";
+        list.append(none);
+      }
+      status.textContent = found === 1 ? "1 cliente" : found + " clientes";
+      list.hidden = false;
+      input.setAttribute("aria-expanded", "true");
+      // Typing puts the first matching customer under Enter.
+      if (q && found > 0) setActive(1);
+    };
+    var choose = function (o) {
+      if (o.value === "nuevo") {
+        var serie = select.form.querySelector("[name=prefix]:checked");
+        location.href = "/clientes/nuevo?volver=cotizacion" + (serie ? "&serie=" + encodeURIComponent(serie.value) : "");
+        return;
+      }
+      select.value = o.value;
+      input.value = nameOf(o);
+      input.setCustomValidity("");
+      close();
+    };
+
+    input.addEventListener("input", function () {
+      select.value = "";
+      input.setCustomValidity("");
+      open(input.value);
+    });
+    input.addEventListener("focus", function () { open(select.value ? "" : input.value); });
+    input.addEventListener("click", function () { if (list.hidden) open(select.value ? "" : input.value); });
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        if (list.hidden) { open(select.value ? "" : input.value); return; }
+        var n = shown.length;
+        if (!n) return;
+        setActive(e.key === "ArrowDown" ? (active + 1) % n : (active <= 0 ? n - 1 : active - 1));
+      } else if (e.key === "Enter" && !list.hidden) {
+        e.preventDefault();
+        if (active >= 0) choose(shown[active]);
+      } else if (e.key === "Escape" && !list.hidden) {
+        e.preventDefault();
+        close();
+      }
+    });
+    // Leaving the field without picking puts back the customer chosen before, if any.
+    input.addEventListener("blur", function () {
+      close();
+      input.value = select.value ? nameOf(picked()) : input.value;
+    });
+    select.form.addEventListener("submit", function (e) {
+      if (select.value) return;
+      e.preventDefault();
+      input.setCustomValidity("Elige un cliente de la lista.");
+      input.reportValidity();
     });
   });
 
@@ -44,11 +160,13 @@
   });
 
   // The follow-up form's "Perdida" radio swaps the dates and comment for the Motivo of
-  // the loss. Without JS every field shows and the server checks which ones apply.
+  // the loss, and O.C. esperada only shows with Inminente 90%. The server renders the
+  // fields as they are for the saved probabilidad, and checks which ones apply.
   document.addEventListener("change", function (e) {
     var form = e.target.closest && e.target.closest("form[data-followup]");
     if (!form || e.target.name !== "probabilidad") return;
     var lost = e.target.value === "perdida";
+    form.querySelector("[data-imminent-only]").hidden = e.target.value !== "90";
     var reason = form.querySelector("[data-lost-only]");
     var rest = form.querySelector("[data-not-lost]");
     reason.hidden = !lost;

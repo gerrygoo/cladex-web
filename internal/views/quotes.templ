@@ -128,18 +128,11 @@ templ QuoteNewForm(customers []store.Customer, series []store.Series, values Quo
 		</div>
 		<form method="post" action={ templ.URL("/cotizaciones/nueva") }>
 			<label for="cliente">Cliente</label>
-			// The search filters the list as you type (static/app.js), by name, RFC or
-			// contact, ignoring case and accents; without JS it stays hidden and the list
-			// is the plain one. "Agregar nuevo cliente" is always first (issue #29).
-			<input
-				type="search"
-				class="customer-search"
-				data-customer-search="cliente"
-				placeholder="Buscar por nombre, RFC o contacto"
-				aria-label="Buscar cliente por nombre, RFC o contacto"
-				hidden
-			/>
-			<select name="customer_id" id="cliente" required { errAttrs(fieldErrors, "customer_id")... }>
+			// static/app.js turns the list into a combobox: type to search by name, RFC or
+			// contact (ignoring case and accents) and the matches show right away, with
+			// "Agregar nuevo cliente" always first (issue #29). Without JS it is this
+			// plain list.
+			<select name="customer_id" id="cliente" required data-combobox { errAttrs(fieldErrors, "customer_id")... }>
 				<option value="">— Selecciona —</option>
 				<option value={ NewCustomerValue } data-keep>➕ Agregar nuevo cliente</option>
 				for _, c := range customers {
@@ -147,6 +140,7 @@ templ QuoteNewForm(customers []store.Customer, series []store.Series, values Quo
 						value={ strconv.FormatInt(c.ID, 10) }
 						data-search={ c.Name + " " + c.RFC + " " + c.ContactName }
 						selected?={ strconv.FormatInt(c.ID, 10) == values.CustomerID }
+						data-detail={ customerDetail(c) }
 					>{ c.Name }</option>
 				}
 			</select>
@@ -165,6 +159,18 @@ templ QuoteNewForm(customers []store.Customer, series []store.Series, values Quo
 			<a href="/cotizaciones">Cancelar</a>
 		</form>
 	}
+}
+
+// customerDetail is the second line of a customer in the combobox: its RFC and contact,
+// whichever it has.
+func customerDetail(c store.Customer) string {
+	var parts []string
+	for _, p := range []string{c.RFC, c.ContactName} {
+		if p != "" {
+			parts = append(parts, p)
+		}
+	}
+	return strings.Join(parts, " · ")
 }
 
 // recalcularPath is the htmx/formaction target every line mutation posts to — never
@@ -630,7 +636,7 @@ func validUntilValue(quote store.Quote) string {
 	return *quote.ValidUntil
 }
 
-templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, fieldErrs map[string]string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser, canEditCosts bool) {
+templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, fieldErrs map[string]string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser) {
 	@Layout("Cotización "+quote.Folio, user) {
 		<script src="/static/margin.js" defer></script>
 		<div class="page-title">
@@ -859,9 +865,6 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 		} else {
 			@QuoteInfo(quote, lines)
 			@QuoteLinesReadOnly(lines, totals)
-			if canEditCosts && hasFreeLine(lines) {
-				@QuoteCostsForm(quote, lines)
-			}
 			if quote.Revisable() {
 				<form method="post" action={ templ.URL(revisarPath(quote.Folio)) }>
 					<button type="submit">Revisar</button>
@@ -899,56 +902,6 @@ templ addFreeLineButton(folio string) {
 	>
 		Línea libre
 	</button>
-}
-
-func hasFreeLine(lines []QuoteLineView) bool {
-	for _, l := range lines {
-		if l.IsFree {
-			return true
-		}
-	}
-	return false
-}
-
-// costosPath is where an issued quote's free-line costs are updated.
-func costosPath(folio string) string {
-	return "/cotizaciones/" + folio + "/costos"
-}
-
-// QuoteCostsForm updates the cost of an issued quote's free lines (issue #25), for its
-// salesperson or an admin. Costs change after a quote goes out; the cost is never
-// printed, so prices, totals and the PDF stay as issued and only the profit moves. On
-// QL every line needs one; elsewhere it may be left empty.
-templ QuoteCostsForm(quote store.Quote, lines []QuoteLineView) {
-	<section id="costos" aria-labelledby="costos-titulo">
-		<h2 id="costos-titulo">Costos</h2>
-		<p class="hint">El costo no sale en el PDF. Si cambió, actualízalo aquí: cambian la utilidad y el margen, no los precios.</p>
-		<form method="post" action={ templ.URL(costosPath(quote.Folio)) } class="stage-form">
-			for _, l := range lines {
-				if l.IsFree {
-					<label>
-						{ l.Description }
-						<input
-							type="text"
-							inputmode="decimal"
-							name={ "cost_" + strconv.FormatInt(l.LineID, 10) }
-							value={ costValue(l.CostMicros) }
-							required?={ quote.SeriesFreeLines }
-						/>
-					</label>
-				}
-			}
-			<button type="submit">Guardar costos</button>
-		</form>
-	</section>
-}
-
-// costValue is a cost as an input's value: whole centavos, or empty without one.
-func costValue(c *money.Micros) string {
-	if c == nil {
-		return ""
-	}
-	return money.Micros(int64(c.ToCentavosHalfUp()) * 10_000).String()
 }
 
 // QuoteInfo is the issued quote's summary: who issued it and when, its status, and the

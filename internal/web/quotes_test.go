@@ -1185,16 +1185,14 @@ func TestQuotesDeliveryTimeRequiredToIssue(t *testing.T) {
 
 // TestQLCostAndMargin covers issue #27 (and #25's extras): a QL line takes its cost and its
 // own margin, and its price is cost ÷ (1 − margin), in whole centavos; the quote's profit
-// is price less cost; the extra terms print after the payment term; the cost of an issued
-// quote can be updated by its salesperson or an admin, moving the profit but not the
-// price; and a free line on another series may carry an optional cost.
+// is price less cost; the extra terms print after the payment term; an issued quote's
+// costs change only through a revision, whose issue notes the change in the history; and
+// a free line on another series may carry an optional cost.
 func TestQLCostAndMargin(t *testing.T) {
 	a := newTestAuth(t)
 	q := newTestQuotes(t, a)
 	ctx := context.Background()
 	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
-	otherID := createTestUser(t, a, "vendedor2", "vendedor", "hunter2")
-	adminID := createTestUser(t, a, "admin1", "admin", "hunter2")
 	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
 	seedPricingSettings(t, a, userID)
 	pv := func(folio string) map[string]string { return map[string]string{"folio": folio} }
@@ -1278,7 +1276,7 @@ func TestQLCostAndMargin(t *testing.T) {
 
 	// The issued quote and its proyecto show the profit: 2 × 166.67 = 333.34 of 3,333.34.
 	page = doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+ql.Folio, pv(ql.Folio), nil, false).Body.String()
-	for _, want := range []string{"<dt>Costo total</dt><dd>$3,000.00</dd>", "<dt>Utilidad</dt><dd>$333.34</dd>", "<dt>Margen</dt><dd>10.0%</dd>", `id="costos"`} {
+	for _, want := range []string{"<dt>Costo total</dt><dd>$3,000.00</dd>", "<dt>Utilidad</dt><dd>$333.34</dd>", "<dt>Margen</dt><dd>10.0%</dd>"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("issued QL page missing %q", want)
 		}
@@ -1288,27 +1286,27 @@ func TestQLCostAndMargin(t *testing.T) {
 		t.Fatalf("proyecto profit = %+v, want $333.34", project)
 	}
 
-	// The cost changes after issue: another vendedor can't, the salesperson and an admin can.
-	costs := url.Values{"cost_" + strconv.FormatInt(persisted[0].ID, 10): {"1,600"}}
-	if rec := doForm(t, a, otherID, q.Costos, "POST", "/cotizaciones/"+ql.Folio+"/costos", pv(ql.Folio), costs, false); rec.Code != http.StatusForbidden {
-		t.Errorf("Costos(other vendedor) = %d, want 403", rec.Code)
+	// An issued quote's costs can't be edited; they change only through a revision, and
+	// issuing it notes in the history by how much each line's cost moved.
+	if strings.Contains(page, `id="costos"`) || strings.Contains(page, "Guardar costos") {
+		t.Error("the issued quote still offers to edit its costs")
 	}
-	if page := doForm(t, a, otherID, q.Builder, "GET", "/cotizaciones/"+ql.Folio, pv(ql.Folio), nil, false).Body.String(); strings.Contains(page, `id="costos"`) {
-		t.Error("another vendedor is offered the costs form")
+	if rec := doForm(t, a, userID, q.Revisar, "POST", "/cotizaciones/"+ql.Folio+"/revisar", pv(ql.Folio), url.Values{}, false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Revisar = %d", rec.Code)
 	}
-	if rec := doForm(t, a, userID, q.Costos, "POST", "/cotizaciones/"+ql.Folio+"/costos", pv(ql.Folio), url.Values{"cost_" + strconv.FormatInt(persisted[0].ID, 10): {""}}, false); rec.Code != http.StatusBadRequest {
-		t.Errorf("Costos(empty on QL) = %d, want 400", rec.Code)
+	rev, _ := a.store.QuoteByFolio(ctx, ql.Folio+"-R1")
+	if rev == nil {
+		t.Fatal("no revision")
 	}
-	if rec := doForm(t, a, userID, q.Costos, "POST", "/cotizaciones/"+ql.Folio+"/costos", pv(ql.Folio), costs, false); rec.Code != http.StatusSeeOther {
-		t.Fatalf("Costos(salesperson) = %d; body = %s", rec.Code, rec.Body.String())
+	revForm := form("1,600", "10")
+	revForm.Set("lines[0][margin]", "6.25") // the price stays at 1,706.67
+	if rec := doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+rev.Folio+"/emitir", pv(rev.Folio), revForm, false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir(revision) = %d; body = %.300s", rec.Code, rec.Body.String())
 	}
-	project, _ = a.store.ProjectByFolio(ctx, issued.ProjectFolio)
-	after, _ := a.store.QuoteByID(ctx, ql.ID)
-	if project.Profit != 133_34 || after.Total != issued.Total || *after.PDFSHA256 != *issued.PDFSHA256 {
-		t.Errorf("after the cost update: profit %v (want $133.34), total %v → %v", project.Profit, issued.Total, after.Total)
-	}
-	if rec := doForm(t, a, adminID, q.Costos, "POST", "/cotizaciones/"+ql.Folio+"/costos", pv(ql.Folio), costs, false); rec.Code != http.StatusSeeOther {
-		t.Errorf("Costos(admin) = %d", rec.Code)
+	comments, _ := a.store.ListProjectComments(ctx, project.ID)
+	wantNote := "Costos cambiados respecto a " + ql.Folio + ":\n«Transformador»: costo unitario $1,500.00 → $1,600.00 (subió $100.00, 6.7%)."
+	if len(comments) == 0 || comments[0].Body != wantNote || comments[0].UserID != userID {
+		t.Errorf("history after issuing the revision = %+v, want first %q", comments, wantNote)
 	}
 
 	// A free line on a catalog series keeps its typed price and may carry a cost.
