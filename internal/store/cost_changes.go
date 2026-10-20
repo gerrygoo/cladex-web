@@ -12,11 +12,13 @@ import (
 // and the proyecto's history says by how much, line by line. Lines are paired by
 // description, in order, so a line moved up or down still pairs; one whose description
 // changed reads as removed and added. Only lines with a cost of their own (free lines)
-// count: a catalog line's cost is the catalog's. Returns "" when no cost changed.
+// count: a catalog line's cost is the catalog's. Each line is named by its partida
+// number (issue #31): the revision's, or the original's for a line it removed. Returns
+// "" when no cost changed.
 func costChangeNote(prevFolio string, prev, next []QuoteLine) string {
 	used := make([]bool, len(prev))
 	var changes []string
-	for _, n := range next {
+	for k, n := range next {
 		if n.ProductID != nil {
 			continue
 		}
@@ -29,18 +31,18 @@ func costChangeNote(prevFolio string, prev, next []QuoteLine) string {
 		}
 		if match < 0 {
 			if n.CostMicros != nil {
-				changes = append(changes, fmt.Sprintf("Partida nueva «%s»: costo unitario %s.", n.DescriptionSnapshot, costText(n.CostMicros)))
+				changes = append(changes, fmt.Sprintf("Partida %d (nueva) «%s»: costo unitario %s.", k+1, n.DescriptionSnapshot, costText(n.CostMicros)))
 			}
 			continue
 		}
 		used[match] = true
-		if line := costChangeLine(n.DescriptionSnapshot, prev[match].CostMicros, n.CostMicros); line != "" {
+		if line := costChangeLine(k+1, n.DescriptionSnapshot, prev[match].CostMicros, n.CostMicros); line != "" {
 			changes = append(changes, line)
 		}
 	}
 	for i, p := range prev {
 		if !used[i] && p.ProductID == nil && p.CostMicros != nil {
-			changes = append(changes, fmt.Sprintf("Se quitó la partida «%s» (costo unitario %s).", p.DescriptionSnapshot, costText(p.CostMicros)))
+			changes = append(changes, fmt.Sprintf("Se quitó la partida %d de %s «%s» (costo unitario %s).", i+1, prevFolio, p.DescriptionSnapshot, costText(p.CostMicros)))
 		}
 	}
 	if len(changes) == 0 {
@@ -50,14 +52,14 @@ func costChangeNote(prevFolio string, prev, next []QuoteLine) string {
 }
 
 // costChangeLine says how one line's unit cost moved, or "" if it didn't (to the centavo).
-func costChangeLine(desc string, before, after *money.Micros) string {
+func costChangeLine(partida int, desc string, before, after *money.Micros) string {
 	switch {
 	case before == nil && after == nil:
 		return ""
 	case before == nil:
-		return fmt.Sprintf("«%s»: sin costo → %s.", desc, costText(after))
+		return fmt.Sprintf("Partida %d «%s»: sin costo → %s.", partida, desc, costText(after))
 	case after == nil:
-		return fmt.Sprintf("«%s»: %s → sin costo.", desc, costText(before))
+		return fmt.Sprintf("Partida %d «%s»: %s → sin costo.", partida, desc, costText(before))
 	}
 	b, a := before.ToCentavosHalfUp(), after.ToCentavosHalfUp()
 	if a == b {
@@ -71,7 +73,7 @@ func costChangeLine(desc string, before, after *money.Micros) string {
 	if b != 0 {
 		pct = fmt.Sprintf(", %.1f%%", float64(diff)*100/float64(b))
 	}
-	return fmt.Sprintf("«%s»: costo unitario %s → %s (%s %s%s).", desc, b, a, verb, diff, pct)
+	return fmt.Sprintf("Partida %d «%s»: costo unitario %s → %s (%s %s%s).", partida, desc, b, a, verb, diff, pct)
 }
 
 func costText(c *money.Micros) string {

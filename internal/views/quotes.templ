@@ -260,8 +260,9 @@ templ lineInput(folio string, line QuoteLineView, field, value, label, placehold
 // quoteLineRow is one editable builder line. On QL (freeLinesOnly) a line takes its cost
 // and margin and shows the price they give, read-only (issue #27); elsewhere a free
 // line takes its price, and an optional cost below it that is never printed.
-templ quoteLineRow(folio string, line QuoteLineView, freeLinesOnly bool) {
+templ quoteLineRow(folio string, line QuoteLineView, freeLinesOnly bool, partida int) {
 	<tr>
+		<td class="num">{ strconv.Itoa(partida) }</td>
 		<td>
 			<input type="hidden" name={ "lines[" + line.Key + "][kind]" } value={ lineKind(line) }/>
 			if line.IsFree {
@@ -352,9 +353,9 @@ templ quoteLineRow(folio string, line QuoteLineView, freeLinesOnly bool) {
 // lineColumns is how many columns the editable lines table has: QL adds cost and margin.
 func lineColumns(freeLinesOnly bool) int {
 	if freeLinesOnly {
-		return 7
+		return 8
 	}
-	return 5
+	return 6
 }
 
 // QuoteLinesFragment is the swappable line-table+totals partial — rendered both as part
@@ -375,6 +376,7 @@ templ QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricin
 				<caption class="visually-hidden">Líneas de la cotización</caption>
 				<thead>
 					<tr>
+						<th class="num">Partida</th>
 						if quote.SeriesFreeLines {
 							<th>Descripción</th>
 						} else {
@@ -396,8 +398,8 @@ templ QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricin
 							<td colspan={ strconv.Itoa(lineColumns(quote.SeriesFreeLines)) }>Sin líneas todavía.</td>
 						</tr>
 					}
-					for _, line := range lines {
-						@quoteLineRow(quote.Folio, line, quote.SeriesFreeLines)
+					for i, line := range lines {
+						@quoteLineRow(quote.Folio, line, quote.SeriesFreeLines, i+1)
 					}
 				</tbody>
 				@quoteTotals(totals, lineColumns(quote.SeriesFreeLines)-2, 1)
@@ -519,6 +521,7 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
 		<table>
 			<thead>
 				<tr>
+					<th class="num">Partida</th>
 					<th>Producto / Descripción</th>
 					<th class="num">Cantidad</th>
 					if costs {
@@ -532,11 +535,12 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
 			<tbody>
 				if len(lines) == 0 {
 					<tr>
-						<td colspan="4">Sin líneas.</td>
+						<td colspan="5">Sin líneas.</td>
 					</tr>
 				}
-				for _, line := range lines {
+				for i, line := range lines {
 					<tr>
+						<td class="num">{ strconv.Itoa(i + 1) }</td>
 						<td>
 							if line.IsFree {
 								{ line.Description }
@@ -564,9 +568,9 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
 				}
 			</tbody>
 			if costs {
-				@quoteTotals(totals, 5, 0)
+				@quoteTotals(totals, 6, 0)
 			} else {
-				@quoteTotals(totals, 3, 0)
+				@quoteTotals(totals, 4, 0)
 			}
 		</table>
 	</div>

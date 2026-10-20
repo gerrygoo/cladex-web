@@ -215,6 +215,10 @@ Qué pasa al emitir:
 - El PDF queda definitivo. Cada vez que lo descargues tendrá los mismos precios,
   cliente, vendedor, fechas y términos con que se emitió, aunque después cambien los
   ajustes, el catálogo o los datos del cliente.
+- Cada línea lleva su número de **Partida** (1, 2, 3…), en la página y en el PDF, para
+  referirte a ella en comentarios. En un borrador se renumeran si quitas o agregas
+  líneas. Las cotizaciones emitidas antes de este cambio también salen numeradas al
+  volver a descargarlas; nada más cambia.
 - La [[vigencia]] es el último día del mes en que la emites (emitida el 16/10, vence el
   31/10; emitida el 31/10, vence ese mismo día); aparece en el PDF y en la página. En
   la serie **QL** no es automática: tú escribes la [fecha de vigencia](#moneda-y-vigencia-en-ql).
@@ -277,8 +281,8 @@ el 10% del precio), no 1,650. El **Total** es cantidad × precio unitario, y el 
 IVA y el total se calculan sobre esos precios. Costo y margen son obligatorios para
 guardar o emitir; con un margen de 100 o más, la línea marca error.
 
-El PDF solo muestra descripción, cantidad, precio unitario y total: **nunca el costo ni
-el margen**. En la cotización emitida ves el **Costo total**, la **Utilidad** y el
+El PDF solo muestra partida, descripción, cantidad, precio unitario y total: **nunca el
+costo ni el margen**. En la cotización emitida ves el **Costo total**, la **Utilidad** y el
 **Margen**, que también llegan al proyecto, al pronóstico y a la página de inicio.
 
 ## Descargar y enviar el PDF
@@ -335,8 +339,8 @@ cotización](#revisar-una-cotización-emitida): en el borrador de la revisión c
 costo de las líneas y emítela.
 
 Al emitir la revisión, el historial del proyecto anota solo qué costos cambiaron
-respecto a la versión anterior y cuánto subió o bajó cada uno, por ejemplo *"«Cable»:
-costo unitario $1,000.00 → $1,250.00 (subió $250.00, 25.0%)."* También anota las líneas
+respecto a la versión anterior y cuánto subió o bajó cada uno, por ejemplo *"Partida 2
+«Cable»: costo unitario $1,000.00 → $1,250.00 (subió $250.00, 25.0%)."* También anota las líneas
 nuevas o quitadas que tenían costo. Solo cuentan las líneas libres: el costo de los
 productos de catálogo es el del catálogo.
 

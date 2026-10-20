@@ -27,10 +27,10 @@ func TestCostChangeNote(t *testing.T) {
 		{DescriptionSnapshot: "Catálogo", ProductID: &product},
 	}
 	want := "Costos cambiados respecto a QL0001:\n" +
-		"«Flete»: costo unitario $400.00 → $300.00 (bajó $100.00, 25.0%).\n" +
-		"«Cable»: costo unitario $1,000.00 → $1,250.00 (subió $250.00, 25.0%).\n" +
-		"Partida nueva «Nuevo»: costo unitario $20.00.\n" +
-		"Se quitó la partida «Viejo» (costo unitario $50.00)."
+		"Partida 1 «Flete»: costo unitario $400.00 → $300.00 (bajó $100.00, 25.0%).\n" +
+		"Partida 2 «Cable»: costo unitario $1,000.00 → $1,250.00 (subió $250.00, 25.0%).\n" +
+		"Partida 4 (nueva) «Nuevo»: costo unitario $20.00.\n" +
+		"Se quitó la partida 3 de QL0001 «Viejo» (costo unitario $50.00)."
 	if got := costChangeNote("QL0001", prev, next); got != want {
 		t.Errorf("costChangeNote =\n%s\nwant\n%s", got, want)
 	}

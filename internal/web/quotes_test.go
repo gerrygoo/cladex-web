@@ -1304,7 +1304,7 @@ func TestQLCostAndMargin(t *testing.T) {
 		t.Fatalf("Emitir(revision) = %d; body = %.300s", rec.Code, rec.Body.String())
 	}
 	comments, _ := a.store.ListProjectComments(ctx, project.ID)
-	wantNote := "Costos cambiados respecto a " + ql.Folio + ":\n«Transformador»: costo unitario $1,500.00 → $1,600.00 (subió $100.00, 6.7%)."
+	wantNote := "Costos cambiados respecto a " + ql.Folio + ":\nPartida 1 «Transformador»: costo unitario $1,500.00 → $1,600.00 (subió $100.00, 6.7%)."
 	if len(comments) == 0 || comments[0].Body != wantNote || comments[0].UserID != userID {
 		t.Errorf("history after issuing the revision = %+v, want first %q", comments, wantNote)
 	}

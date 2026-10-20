@@ -57,7 +57,8 @@ type QuoteDocument struct {
 }
 
 // RenderQuote lays out a cotización PDF matching the legacy workbook's Cotizador
-// sheets: letterhead, folio/cliente/fecha header, a line-item table, subtotal/IVA/
+// sheets: letterhead, folio/cliente/fecha header, a line-item table (numbered by
+// partida, issue #31), subtotal/IVA/
 // total, and the family's terms block.
 func RenderQuote(ctx context.Context, doc QuoteDocument) ([]byte, error) {
 	return Render(ctx, buildQuoteTypst(doc), doc.Created)
@@ -123,17 +124,18 @@ func buildQuoteTypst(doc QuoteDocument) string {
 )
 #v(0.5cm)
 #table(
-  columns: (1fr, auto, auto, auto),
-  align: (left, right, right, right),
+  columns: (auto, 1fr, auto, auto, auto),
+  align: (right, left, right, right, right),
   stroke: 0.5pt + rgb("#cccccc"),
   fill: (col, row) => if row == 0 { rgb("#AC5424") } else { white },
   table.header(
+    [#text(fill: white, weight: "bold")[Partida]],
     [#text(fill: white, weight: "bold")[Descripción]],
     [#text(fill: white, weight: "bold")[Cantidad]],
     [#text(fill: white, weight: "bold")[Precio unitario]],
     [#text(fill: white, weight: "bold")[Total]],
   ),
-  ..lines.map(l => (l.at(0), l.at(1), l.at(2), l.at(3))).flatten()
+  ..lines.enumerate().map(((i, l)) => (str(i + 1), l.at(0), l.at(1), l.at(2), l.at(3))).flatten()
 )
 #v(0.4cm)
 #align(right)[
