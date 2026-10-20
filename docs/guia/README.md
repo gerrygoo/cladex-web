@@ -69,7 +69,7 @@ Las columnas, en orden:
 7. **O.C. vencidas**: los proyectos cuya fecha de *O.C. esperada* ya pasó y todavía no
    tienen la orden de compra.
 
-Haz clic en el número de **Sin seguimiento** o de **O.C. vencidas** para ver esos
+Haz clic en el número de **Proyectos totales**, **Sin seguimiento** o **O.C. vencidas** para ver esos
 proyectos, del monto mayor al menor: folio, cliente y monto sin IVA (por ejemplo,
 *QA0026 · Pruebas · $892,631.19*); cada folio abre el proyecto. Las filas van ordenadas por **Monto sin
 seguimiento**, de mayor a menor. Si las columnas no caben, la tabla se desliza de lado y

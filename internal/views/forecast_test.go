@@ -65,7 +65,7 @@ func TestForecastTotalsAndDays(t *testing.T) {
 
 func TestHomeSellerTable(t *testing.T) {
 	d := &store.Dashboard{Sellers: []store.SellerRow{
-		{Name: "Emilio Flores", Projects: 2, Pipeline: 1_500_00, Profit: 270_00, Untracked: []store.DashboardProject{{Folio: "QA0007", Customer: "Pruebas", Amount: 400_00}, {Folio: "QA0002", Customer: "Zasa", Amount: 100_00}}, UntrackedAmount: 500_00},
+		{Name: "Emilio Flores", Projects: []store.DashboardProject{{Folio: "QA0007", Customer: "Pruebas", Amount: 400_00}, {Folio: "QA0003", Customer: "Zasa", Amount: 1_100_00}}, Pipeline: 1_500_00, Profit: 270_00, Untracked: []store.DashboardProject{{Folio: "QA0007", Customer: "Pruebas", Amount: 400_00}, {Folio: "QA0002", Customer: "Zasa", Amount: 100_00}}, UntrackedAmount: 500_00},
 		{Name: "Rodolfo Flores"},
 	}}
 	home := render(t, Home(time.Time{}, time.Time{}, "", d, &NavUser{Username: "ana"}))
@@ -76,8 +76,11 @@ func TestHomeSellerTable(t *testing.T) {
 			t.Errorf("home still shows %q", gone)
 		}
 	}
+	if !strings.Contains(home, `aria-label="Proyectos de Emilio Flores: 2"`) {
+		t.Error("Proyectos totales should open the seller's active proyectos")
+	}
 	// A zero is plain text, with nothing to open.
-	if strings.Count(home, `<details class="folio-list">`) != 1 {
+	if strings.Count(home, `<details class="folio-list">`) != 2 {
 		t.Error("only a count above zero opens a list of folios")
 	}
 }

@@ -23,8 +23,9 @@ var DashboardSellers = []struct{ Username, Name string }{
 // ones still being followed up (prospecto). Once the purchase order is in ("Orden
 // colocada 100%") or it is lost, a proyecto is no longer part of the pipeline.
 type SellerRow struct {
-	Name     string
-	Projects int            // active proyectos
+	Name string
+	// Projects are all their active proyectos (issue #36); len(Projects) is the count.
+	Projects []DashboardProject
 	Pipeline money.Centavos // their subtotals (before IVA) added up
 	Profit   money.Centavos // their profits added up; Profit / Pipeline is the pipeline margin
 	// Forecast is the active proyectos at Alta (75%) or more: how many, and their subtotal.
@@ -93,14 +94,14 @@ func (s *Store) SalesDashboard(ctx context.Context, today string) (*Dashboard, e
 		if !seenName[username] {
 			row.Name, seenName[username] = name, true // the user's own name wins over the fallback
 		}
-		row.Projects++
+		dp := DashboardProject{Folio: folio, Customer: customer, Amount: total}
+		row.Projects = append(row.Projects, dp)
 		row.Pipeline += total
 		row.Profit += profit
 		if probability >= ForecastThreshold {
 			row.ForecastCount++
 			row.ForecastAmount += total
 		}
-		dp := DashboardProject{Folio: folio, Customer: customer, Amount: total}
 		if followUp == "" || followUp <= today {
 			row.Untracked = append(row.Untracked, dp)
 			row.UntrackedAmount += total
@@ -116,6 +117,7 @@ func (s *Store) SalesDashboard(ctx context.Context, today string) (*Dashboard, e
 		sort.SliceStable(ps, func(i, j int) bool { return ps[i].Amount > ps[j].Amount })
 	}
 	for i := range d.Sellers {
+		biggestFirst(d.Sellers[i].Projects)
 		biggestFirst(d.Sellers[i].Untracked)
 		biggestFirst(d.Sellers[i].OverdueOC)
 	}

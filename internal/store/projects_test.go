@@ -563,7 +563,7 @@ func TestLoseAndReopenProject(t *testing.T) {
 		t.Fatalf("SalesDashboard: %v", err)
 	}
 	for _, row := range dash.Sellers {
-		if row.Projects != 0 || row.Pipeline != 0 {
+		if len(row.Projects) != 0 || row.Pipeline != 0 {
 			t.Errorf("a lost proyecto counts for %s: %+v", row.Name, row)
 		}
 	}

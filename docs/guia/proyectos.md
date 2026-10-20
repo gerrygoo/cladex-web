@@ -31,7 +31,7 @@ y sale de estas etapas.
    elige *Alta* e *Inminente* para ver solo los [[relevante para pronóstico|relevantes para pronóstico]].
 5. Haz clic en el folio para abrir el proyecto.
 
-También llegas a un proyecto desde la lista de **Sin seguimiento** de la
+También llegas a un proyecto desde las listas de **Proyectos totales** y **Sin seguimiento** de la
 [página de inicio](README.md#la-página-de-inicio) y desde cualquiera de sus cotizaciones: en el resumen de la cotización, **Proyecto**
 tiene el enlace.
 

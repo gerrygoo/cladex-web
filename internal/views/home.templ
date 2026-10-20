@@ -39,7 +39,9 @@ templ Home(built, now time.Time, buildSHA string, d *store.Dashboard, user *NavU
 					for _, v := range d.Sellers {
 						<tr>
 							<th scope="row">{ v.Name }</th>
-							<td class="num">{ strconv.Itoa(v.Projects) }</td>
+							<td class="num">
+								@folioList(v.Projects, "Proyectos de "+v.Name)
+							</td>
 							<td class="num">{ v.Pipeline.String() }</td>
 							<td class="num">{ SellerMargin(v) }</td>
 							<td class="num">{ v.ForecastAmount.String() }</td>

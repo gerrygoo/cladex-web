@@ -50,7 +50,7 @@ func TestSalesDashboard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SalesDashboard(empty): %v", err)
 	}
-	if len(empty.Sellers) != 3 || empty.Sellers[0].Name != "Emilio Flores" || empty.Sellers[0].Projects != 0 {
+	if len(empty.Sellers) != 3 || empty.Sellers[0].Name != "Emilio Flores" || len(empty.Sellers[0].Projects) != 0 {
 		t.Fatalf("empty dashboard = %+v", empty.Sellers)
 	}
 
@@ -110,8 +110,9 @@ func TestSalesDashboard(t *testing.T) {
 	e, r, g := by["Emilio Flores"], by["Rodolfo Flores"], by["Gerardo Galván Rosillo"]
 
 	// Emilio: only the two prospectos; the O.C. in and the lost one are not active.
-	if e.Projects != 2 || e.Pipeline != 1_500_00 {
-		t.Errorf("Emilio projects = %d, pipeline = %v; want 2 and $1,500.00", e.Projects, e.Pipeline)
+	// Every active proyecto is listed, biggest first.
+	if len(e.Projects) != 2 || e.Projects[0].Amount < e.Projects[1].Amount || e.Pipeline != 1_500_00 {
+		t.Errorf("Emilio projects = %v, pipeline = %v; want 2, biggest first, and $1,500.00", e.Projects, e.Pipeline)
 	}
 	if e.Profit != 200_00 {
 		t.Errorf("Emilio profit = %v, want $200.00", e.Profit)
@@ -127,11 +128,11 @@ func TestSalesDashboard(t *testing.T) {
 		t.Errorf("Emilio overdue O.C. = %v, want QA0002", e.OverdueOC)
 	}
 	// Rodolfo: no follow-up date at all is "sin seguimiento".
-	if r.Projects != 1 || r.ForecastCount != 1 || !reflect.DeepEqual(folios(r.Untracked), []string{"QA0005"}) || !reflect.DeepEqual(folios(r.OverdueOC), []string{"QA0005"}) {
+	if len(r.Projects) != 1 || r.ForecastCount != 1 || !reflect.DeepEqual(folios(r.Untracked), []string{"QA0005"}) || !reflect.DeepEqual(folios(r.OverdueOC), []string{"QA0005"}) {
 		t.Errorf("Rodolfo = %+v", r)
 	}
 	// The third user doesn't exist: still listed, at zero, with the fallback name.
-	if g.Projects != 0 || g.Pipeline != 0 || len(g.Untracked) != 0 {
+	if len(g.Projects) != 0 || g.Pipeline != 0 || len(g.Untracked) != 0 {
 		t.Errorf("Gerardo = %+v", g)
 	}
 	// Ranked by the amount without follow-up: Rodolfo ($2,000), Emilio ($500), then Gerardo.
