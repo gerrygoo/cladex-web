@@ -74,8 +74,8 @@ proyectos, del monto mayor al menor: folio, cliente y monto sin IVA (por ejemplo
 *QA0026 · Pruebas · $892,631.19*); cada folio abre el proyecto. Las filas van ordenadas por **Monto sin
 seguimiento**, de mayor a menor. Si las columnas no caben, la tabla se desliza de lado y
 la columna **Vendedor** se queda fija. Los montos están en pesos (MXN) sin IVA, igual que en
-el pronóstico, y las utilidades salen de las cotizaciones (las líneas libres no tienen costo, así que no
-suman utilidad).
+el pronóstico, y las utilidades salen de las cotizaciones (una línea libre suma utilidad solo
+si tiene costo; en QL todas lo tienen).
 
 Abajo, **Compilado el …** indica cuándo se instaló la versión actual de la app.
 

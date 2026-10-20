@@ -1296,3 +1296,11 @@ details.folio-list ul {
 details.folio-list li {
   white-space: nowrap;
 }
+
+/* A free line's optional cost, under its price (issue #27) */
+label.line-cost {
+  margin-top: 0.25rem;
+  font-weight: normal;
+  font-size: var(--fs-small);
+  color: var(--text-muted);
+}

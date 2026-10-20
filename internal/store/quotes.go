@@ -63,6 +63,9 @@ type Quote struct {
 	// types (held in ValidUntil while the quote is a draft).
 	Currency        string
 	SeriesFreeLines bool
+	// ExtraTerms are a QL draft's own terms, one per line (issue #27), which RenderTerms
+	// adds after the series' payment term; issuing folds them into TermsSnapshot.
+	ExtraTerms string
 	// ProjectID is the proyecto the quote belongs to: nil on a first draft, set when it
 	// is issued, and shared by its revisions. ProjectFolio, Stage and Probability are
 	// that proyecto's folio, stage and probabilidad de cierre (joined, so always
@@ -82,7 +85,9 @@ func (q Quote) Revisable() bool {
 
 // QuoteLine is a quote_lines row. ProductID is nil for a free-text ("Cotizador libre")
 // line. PricingInputsJSON is nil for free-text lines, which have no formula behind
-// their price. See migrations/0001_init.sql.
+// their price, except on QL, where it holds the line's own margin. CostMicros is a free
+// line's MXN cost per unit, nil when none was given (always nil on catalog lines); it is
+// never printed. See migrations/0001_init.sql and 0021_quote_line_cost.sql.
 type QuoteLine struct {
 	ID                  int64
 	QuoteID             int64
@@ -94,6 +99,47 @@ type QuoteLine struct {
 	LineTotal           money.Centavos
 	PricingInputsJSON   *string
 	Source              string // manual | rfp_extraction
+	CostMicros          *money.Micros
+}
+
+// costArg is a line's cost as a nullable column value.
+func costArg(c *money.Micros) any {
+	if c == nil {
+		return nil
+	}
+	return int64(*c)
+}
+
+// ErrNotFreeLine is returned by UpdateQuoteLineCosts for a line that isn't one of the
+// quote's free lines.
+var ErrNotFreeLine = errors.New("store: not a free line of this quote")
+
+// UpdateQuoteLineCosts sets the cost of free lines on a quote of any status (issue #25):
+// costs change after a quote goes out, and the cost is never printed, so this is the one
+// change an issued quote takes. Prices, totals and the PDF stay as issued; only its
+// profit figures move. costs maps quote_lines ids to the new cost (nil clears it). The
+// audit trigger from 0021 records each change.
+func (s *Store) UpdateQuoteLineCosts(ctx context.Context, quoteID int64, costs map[int64]*money.Micros) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: update line costs of quote %d: %w", quoteID, err)
+	}
+	defer tx.Rollback()
+	if err := stampActor(ctx, tx); err != nil {
+		return fmt.Errorf("store: update line costs of quote %d: %w", quoteID, err)
+	}
+	for lineID, c := range costs {
+		res, err := tx.ExecContext(ctx, `
+			UPDATE quote_lines SET cost_micros = ?
+			WHERE id = ? AND quote_id = ? AND product_id IS NULL`, costArg(c), lineID, quoteID)
+		if err != nil {
+			return fmt.Errorf("store: update line costs of quote %d: %w", quoteID, err)
+		}
+		if n, _ := res.RowsAffected(); n != 1 {
+			return ErrNotFreeLine
+		}
+	}
+	return tx.Commit()
 }
 
 // NextFolio hands out the next folio number for prefix (QA/QS/QI) as
@@ -149,7 +195,8 @@ const quoteSelectCols = `
 	(SELECT r.folio FROM quotes r WHERE r.supersedes_quote_id = q.id),
 	CASE WHEN f.free_lines_only = 0 THEN f.name END, COALESCE(f.terms, ''), COALESCE(q.delivery_time, ''),
 	COALESCE(q.currency, ''), COALESCE(f.free_lines_only, 0),
-	q.project_id, COALESCE(p.folio, ''), COALESCE(p.status, ''), COALESCE(p.probability, 0)`
+	q.project_id, COALESCE(p.folio, ''), COALESCE(p.status, ''), COALESCE(p.probability, 0),
+	COALESCE(q.extra_terms, '')`
 
 const quoteFrom = `
 	FROM quotes q
@@ -170,7 +217,7 @@ func scanQuote(row interface{ Scan(...any) error }) (*Quote, error) {
 		&marginOptionID, &marginNameSnapshot, &marginSnapshotMicros, &customMarginMicros,
 		&supersedesFolio, &supersededByFolio, &seriesFamily, &q.SeriesTerms, &q.DeliveryTime,
 		&q.Currency, &q.SeriesFreeLines,
-		&projectID, &q.ProjectFolio, &q.Stage, &q.Probability)
+		&projectID, &q.ProjectFolio, &q.Stage, &q.Probability, &q.ExtraTerms)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -344,14 +391,15 @@ func (s *Store) ListQuotes(ctx context.Context, query, sort, dir string, filters
 
 const quoteLineSelectCols = `
 	id, quote_id, line_no, product_id, description_snapshot, qty_milli,
-	unit_price_micros, line_total, pricing_inputs, source`
+	unit_price_micros, line_total, pricing_inputs, source, cost_micros`
 
 func scanQuoteLine(row interface{ Scan(...any) error }) (*QuoteLine, error) {
 	var l QuoteLine
 	var productID sql.NullInt64
 	var pricingInputs sql.NullString
+	var cost sql.NullInt64
 	err := row.Scan(&l.ID, &l.QuoteID, &l.LineNo, &productID, &l.DescriptionSnapshot,
-		&l.QtyMilli, &l.UnitPriceMicros, &l.LineTotal, &pricingInputs, &l.Source)
+		&l.QtyMilli, &l.UnitPriceMicros, &l.LineTotal, &pricingInputs, &l.Source, &cost)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -365,6 +413,10 @@ func scanQuoteLine(row interface{ Scan(...any) error }) (*QuoteLine, error) {
 	if pricingInputs.Valid {
 		v := pricingInputs.String
 		l.PricingInputsJSON = &v
+	}
+	if cost.Valid {
+		c := money.Micros(cost.Int64)
+		l.CostMicros = &c
 	}
 	return &l, nil
 }
@@ -425,10 +477,10 @@ func (s *Store) ReplaceQuoteLines(ctx context.Context, quoteID int64, marginOpti
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO quote_lines (
 				quote_id, line_no, product_id, description_snapshot, qty_milli,
-				unit_price_micros, line_total, pricing_inputs, source
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				unit_price_micros, line_total, pricing_inputs, source, cost_micros
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			quoteID, i+1, productID, l.DescriptionSnapshot, int64(l.QtyMilli),
-			int64(l.UnitPriceMicros), int64(l.LineTotal), pricingInputs, l.Source,
+			int64(l.UnitPriceMicros), int64(l.LineTotal), pricingInputs, l.Source, costArg(l.CostMicros),
 		); err != nil {
 			return fmt.Errorf("store: replace quote lines for quote %d: insert line %d: %w", quoteID, i+1, err)
 		}
@@ -460,9 +512,9 @@ func (s *Store) ReplaceQuoteLines(ctx context.Context, quoteID int64, marginOpti
 
 // SetQuoteTermsInputs saves what a draft's terms and series ask the salesperson for: the
 // delivery time, the currency, and the validity date. Empty values clear the column.
-func (s *Store) SetQuoteTermsInputs(ctx context.Context, quoteID int64, deliveryTime, currency, validUntil string) error {
-	if _, err := s.exec(ctx, `UPDATE quotes SET delivery_time = NULLIF(?, ''), currency = NULLIF(?, ''), valid_until = NULLIF(?, '') WHERE id = ?`,
-		deliveryTime, currency, validUntil, quoteID); err != nil {
+func (s *Store) SetQuoteTermsInputs(ctx context.Context, quoteID int64, deliveryTime, currency, validUntil, extraTerms string) error {
+	if _, err := s.exec(ctx, `UPDATE quotes SET delivery_time = NULLIF(?, ''), currency = NULLIF(?, ''), valid_until = NULLIF(?, ''), extra_terms = NULLIF(?, '') WHERE id = ?`,
+		deliveryTime, currency, validUntil, extraTerms, quoteID); err != nil {
 		return fmt.Errorf("store: set terms inputs on quote %d: %w", quoteID, err)
 	}
 	return nil
@@ -668,11 +720,11 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 		return nil, ErrQuoteNotIssued
 	}
 	res, err = tx.ExecContext(ctx, `
-		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, supersedes_quote_id, margin_option_id, custom_margin_micros, delivery_time, currency, project_id)
-		VALUES (?, ?, ?, ?, 'borrador', ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), ?)`,
+		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, supersedes_quote_id, margin_option_id, custom_margin_micros, delivery_time, currency, project_id, extra_terms)
+		VALUES (?, ?, ?, ?, 'borrador', ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''))`,
 		newFolio, original.Prefix, original.CustomerID, userID, originalID,
 		original.MarginOptionID, original.CustomMarginMicros, original.DeliveryTime, original.Currency,
-		original.ProjectID,
+		original.ProjectID, original.ExtraTerms,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: create revision of quote %d: insert: %w", originalID, err)
@@ -694,10 +746,10 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO quote_lines (
 				quote_id, line_no, product_id, description_snapshot, qty_milli,
-				unit_price_micros, line_total, pricing_inputs, source
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				unit_price_micros, line_total, pricing_inputs, source, cost_micros
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			newID, i+1, productID, l.DescriptionSnapshot, int64(l.QtyMilli),
-			int64(l.UnitPriceMicros), int64(l.LineTotal), pricingInputs, l.Source,
+			int64(l.UnitPriceMicros), int64(l.LineTotal), pricingInputs, l.Source, costArg(l.CostMicros),
 		); err != nil {
 			return nil, fmt.Errorf("store: create revision of quote %d: copy line %d: %w", originalID, i+1, err)
 		}

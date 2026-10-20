@@ -1016,7 +1016,8 @@ func TestQuotesCurrencyAndVigenciaOnQL(t *testing.T) {
 			"line_keys":             {"0"},
 			"lines[0][kind]":        {"free"},
 			"lines[0][description]": {"Servicio de instalación"},
-			"lines[0][unit_price]":  {"1000"},
+			"lines[0][cost]":        {"1500"},
+			"lines[0][margin]":      {"10"},
 			"lines[0][qty]":         {"1"},
 			"delivery_time":         {"5 días"},
 			"currency":              {currency},
@@ -1109,7 +1110,9 @@ func TestQuotesDeliveryTimeRequiredToIssue(t *testing.T) {
 			"line_keys":             {"0"},
 			"lines[0][kind]":        {"free"},
 			"lines[0][description]": {"Servicio de instalación"},
-			"lines[0][unit_price]":  {"1000"},
+			"lines[0][cost]":        {"1500"},
+			"lines[0][margin]":      {"10"},
+			"lines[0][unit_price]":  {"1000"}, // QA prices the free line by hand; QL ignores it
 			"lines[0][qty]":         {"1"},
 		}
 		if len(delivery) > 0 {
@@ -1177,5 +1180,152 @@ func TestQuotesDeliveryTimeRequiredToIssue(t *testing.T) {
 	rec = doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+qa.Folio+"/emitir", pv(qa.Folio), libre(), false)
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("Emitir(QA) = %d; body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestQLCostAndMargin covers issue #27 (and #25's extras): a QL line takes its cost and its
+// own margin, and its price is cost ÷ (1 − margin), in whole centavos; the quote's profit
+// is price less cost; the extra terms print after the payment term; the cost of an issued
+// quote can be updated by its salesperson or an admin, moving the profit but not the
+// price; and a free line on another series may carry an optional cost.
+func TestQLCostAndMargin(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	ctx := context.Background()
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	otherID := createTestUser(t, a, "vendedor2", "vendedor", "hunter2")
+	adminID := createTestUser(t, a, "admin1", "admin", "hunter2")
+	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, userID)
+	pv := func(folio string) map[string]string { return map[string]string{"folio": folio} }
+	future := time.Now().AddDate(0, 0, 10).Format("2006-01-02")
+	form := func(cost, margin string) url.Values {
+		return url.Values{
+			"line_keys":             {"0"},
+			"lines[0][kind]":        {"free"},
+			"lines[0][description]": {"Transformador"},
+			"lines[0][cost]":        {cost},
+			"lines[0][margin]":      {margin},
+			"lines[0][qty]":         {"2"},
+			"delivery_time":         {"5 días"},
+			"currency":              {"MXN"},
+			"valid_until":           {future},
+			"extra_terms":           {"Garantía de 1 año\n\n  Entrega en sitio  "},
+		}
+	}
+	ql, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QL")
+	recalc := func(f url.Values) string {
+		t.Helper()
+		return doForm(t, a, userID, q.Recalcular, "POST", "/cotizaciones/"+ql.Folio+"/recalcular", pv(ql.Folio), f, true).Body.String()
+	}
+	// 1,500 at 10% on the sale price is 1,666.67, not 1,650; two of them are 3,333.34.
+	if body := recalc(form("1,500", "10")); !strings.Contains(body, "$1,666.67") || !strings.Contains(body, "$3,333.34") {
+		t.Errorf("1,500 at 10%% didn't price to $1,666.67 each: %s", body)
+	}
+	for name, f := range map[string]url.Values{
+		"no cost":         form("", "10"),
+		"margin 100":      form("1500", "100"),
+		"negative margin": form("1500", "-5"),
+		"three decimals":  form("1500", "10.125"),
+		"no margin":       form("1500", ""),
+	} {
+		if body := recalc(f); !strings.Contains(body, `class="error"`) {
+			t.Errorf("%s: no error shown", name)
+		}
+	}
+	// The QL builder has no quote margin; the line asks for cost and margin instead.
+	page := doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+ql.Folio, pv(ql.Folio), nil, false).Body.String()
+	for _, want := range []string{"Costo unitario", "Margen %", `name="extra_terms"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("QL builder missing %q", want)
+		}
+	}
+
+	// Saving and reopening keeps cost, margin and the extra terms.
+	if rec := doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+ql.Folio+"/guardar", pv(ql.Folio), form("1500", "10"), false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar = %d", rec.Code)
+	}
+	page = doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+ql.Folio, pv(ql.Folio), nil, false).Body.String()
+	for _, want := range []string{`name="lines[0][cost]" value="1500"`, `name="lines[0][margin]" value="10"`, "Garantía de 1 año", "$1,666.67"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("reopened QL draft missing %q", want)
+		}
+	}
+
+	if rec := doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+ql.Folio+"/emitir", pv(ql.Folio), form("1500", "10"), false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir = %d; body = %.300s", rec.Code, rec.Body.String())
+	}
+	issued, _ := a.store.QuoteByID(ctx, ql.ID)
+	terms := store.SplitTerms(*issued.TermsSnapshot)
+	at := -1
+	for i, l := range terms {
+		if strings.Contains(l, "Pago por adelantado") {
+			at = i
+		}
+	}
+	if at < 0 || len(terms) < at+3 || terms[at+1] != "Garantía de 1 año" || terms[at+2] != "Entrega en sitio" {
+		t.Errorf("extra terms are not right after the payment term, one per line, blanks dropped: %q", terms)
+	}
+	// The PDF carries the price, never the cost or the margin.
+	persisted, _ := a.store.ListQuoteLines(ctx, ql.ID)
+	doc, err := issuedQuoteDocument(*issued, persisted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprintf("%+v", doc.Lines); !strings.Contains(got, "1,666.67") || strings.Contains(got, "1,500") || strings.Contains(got, "10%") {
+		t.Errorf("PDF lines = %s", got)
+	}
+
+	// The issued quote and its proyecto show the profit: 2 × 166.67 = 333.34 of 3,333.34.
+	page = doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+ql.Folio, pv(ql.Folio), nil, false).Body.String()
+	for _, want := range []string{"<dt>Costo total</dt><dd>$3,000.00</dd>", "<dt>Utilidad</dt><dd>$333.34</dd>", "<dt>Margen</dt><dd>10.0%</dd>", `id="costos"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("issued QL page missing %q", want)
+		}
+	}
+	project, _ := a.store.ProjectByFolio(ctx, issued.ProjectFolio)
+	if project == nil || project.Profit != 333_34 {
+		t.Fatalf("proyecto profit = %+v, want $333.34", project)
+	}
+
+	// The cost changes after issue: another vendedor can't, the salesperson and an admin can.
+	costs := url.Values{"cost_" + strconv.FormatInt(persisted[0].ID, 10): {"1,600"}}
+	if rec := doForm(t, a, otherID, q.Costos, "POST", "/cotizaciones/"+ql.Folio+"/costos", pv(ql.Folio), costs, false); rec.Code != http.StatusForbidden {
+		t.Errorf("Costos(other vendedor) = %d, want 403", rec.Code)
+	}
+	if page := doForm(t, a, otherID, q.Builder, "GET", "/cotizaciones/"+ql.Folio, pv(ql.Folio), nil, false).Body.String(); strings.Contains(page, `id="costos"`) {
+		t.Error("another vendedor is offered the costs form")
+	}
+	if rec := doForm(t, a, userID, q.Costos, "POST", "/cotizaciones/"+ql.Folio+"/costos", pv(ql.Folio), url.Values{"cost_" + strconv.FormatInt(persisted[0].ID, 10): {""}}, false); rec.Code != http.StatusBadRequest {
+		t.Errorf("Costos(empty on QL) = %d, want 400", rec.Code)
+	}
+	if rec := doForm(t, a, userID, q.Costos, "POST", "/cotizaciones/"+ql.Folio+"/costos", pv(ql.Folio), costs, false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Costos(salesperson) = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	project, _ = a.store.ProjectByFolio(ctx, issued.ProjectFolio)
+	after, _ := a.store.QuoteByID(ctx, ql.ID)
+	if project.Profit != 133_34 || after.Total != issued.Total || *after.PDFSHA256 != *issued.PDFSHA256 {
+		t.Errorf("after the cost update: profit %v (want $133.34), total %v → %v", project.Profit, issued.Total, after.Total)
+	}
+	if rec := doForm(t, a, adminID, q.Costos, "POST", "/cotizaciones/"+ql.Folio+"/costos", pv(ql.Folio), costs, false); rec.Code != http.StatusSeeOther {
+		t.Errorf("Costos(admin) = %d", rec.Code)
+	}
+
+	// A free line on a catalog series keeps its typed price and may carry a cost.
+	qa, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QA")
+	qaForm := url.Values{
+		"line_keys":             {"0"},
+		"lines[0][kind]":        {"free"},
+		"lines[0][description]": {"Flete"},
+		"lines[0][unit_price]":  {"500"},
+		"lines[0][cost]":        {"400"},
+		"lines[0][qty]":         {"1"},
+	}
+	if rec := doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+qa.Folio+"/emitir", pv(qa.Folio), qaForm, false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir(QA) = %d; body = %.300s", rec.Code, rec.Body.String())
+	}
+	page = doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+qa.Folio, pv(qa.Folio), nil, false).Body.String()
+	if !strings.Contains(page, "<dt>Utilidad</dt><dd>$100.00</dd>") {
+		t.Error("a QA free line's cost doesn't count toward the profit")
 	}
 }

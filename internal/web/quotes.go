@@ -372,7 +372,9 @@ type quoteLineInput struct {
 	ProductID   string
 	Description string
 	Qty         string
-	UnitPrice   string // free lines only
+	UnitPrice   string // free lines only, except on QL, where it is derived
+	Cost        string // free lines only: the cost per unit, required on QL (issue #27)
+	Margin      string // QL free lines only: the line's margin, as a percentage
 }
 
 // parseQuoteLineInputs reads the builder form's full current line set and applies at
@@ -398,6 +400,8 @@ func parseQuoteLineInputs(r *http.Request) []quoteLineInput {
 			Description: r.FormValue("lines[" + k + "][description]"),
 			Qty:         r.FormValue("lines[" + k + "][qty]"),
 			UnitPrice:   r.FormValue("lines[" + k + "][unit_price]"),
+			Cost:        r.FormValue("lines[" + k + "][cost]"),
+			Margin:      r.FormValue("lines[" + k + "][margin]"),
 		})
 	}
 	if pid := strings.TrimSpace(r.FormValue("add_product_id")); pid != "" {
@@ -426,6 +430,12 @@ func inputsFromPersisted(lines []store.QuoteLine) []quoteLineInput {
 			in.Kind = "free"
 			in.Description = l.DescriptionSnapshot
 			in.UnitPrice = l.UnitPriceMicros.String()
+			if l.CostMicros != nil {
+				in.Cost = l.CostMicros.String()
+			}
+			if m := freeLineMargin(l); m != nil {
+				in.Margin = views.MarginPercent(*m)
+			}
 		}
 		out[i] = in
 	}
@@ -450,7 +460,7 @@ func friendlyPricingError(err error) string {
 // design: its flat cost and/or materials, and the margin applied to them.
 type pricingInputsSnapshot struct {
 	Margin       string                   `json:"margin"`
-	MarginOption string                   `json:"margin_option"`
+	MarginOption string                   `json:"margin_option,omitempty"`
 	Cost         string                   `json:"cost,omitempty"`
 	Materials    []materialInputsSnapshot `json:"materials,omitempty"`
 }
@@ -486,13 +496,55 @@ func buildPricingInputsJSON(p *store.Product, materials []store.ProductMaterial,
 	return &str
 }
 
+// freeLineMargin is the margin a QL free line was priced with, from its pricing inputs;
+// nil for any other line.
+func freeLineMargin(l store.QuoteLine) *money.Micros {
+	if l.ProductID != nil || l.PricingInputsJSON == nil {
+		return nil
+	}
+	var snap pricingInputsSnapshot
+	if err := json.Unmarshal([]byte(*l.PricingInputsJSON), &snap); err != nil || snap.Margin == "" {
+		return nil
+	}
+	m, err := money.ParseMicros(snap.Margin)
+	if err != nil {
+		return nil
+	}
+	return &m
+}
+
+// freeLineInputsJSON records a QL free line's cost and margin, the inputs its price
+// came from, in the same shape as a product line's.
+func freeLineInputsJSON(cost, margin money.Micros) *string {
+	b, err := json.Marshal(pricingInputsSnapshot{Margin: margin.String(), Cost: cost.String()})
+	if err != nil {
+		return nil
+	}
+	str := string(b)
+	return &str
+}
+
+const invalidLineMarginMsg = "Margen inválido: escribe un porcentaje de 0 a 99.99, con hasta 2 decimales, p. ej. 10."
+
+// parseLineMargin reads a QL line's margin, typed as a percentage ("10" is 10%) with up
+// to two decimals, from 0 up to but not including 100.
+func parseLineMargin(raw string) (money.Micros, error) {
+	m, err := parseMarginPercent(raw)
+	if err != nil || m%100 != 0 {
+		return 0, errors.New("bad line margin")
+	}
+	return m, nil
+}
+
 // computeQuoteLines prices every input line via internal/pricing (product lines) or the
 // manually entered price (free lines) — the same code path whether this is a live
 // htmx recalculation or the final "Guardar borrador" save, so nothing saved ever
 // differs from what was last shown on screen. A bad line (invalid qty, unknown
 // product, no cost, no usable margin) gets a row-level Error instead of failing the
-// whole request.
-func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput, margin draftMargin) []views.QuoteLineView {
+// whole request. freeLinesOnly (QL) prices each free line from its cost and its own
+// margin, rounded to whole centavos, instead of a typed price (issue #27); elsewhere a
+// free line keeps its typed price and may carry an optional cost.
+func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput, margin draftMargin, freeLinesOnly bool) []views.QuoteLineView {
 	result := make([]views.QuoteLineView, len(inputs))
 	for i, in := range inputs {
 		v := views.QuoteLineView{Key: in.Key, IsFree: in.Kind == "free", QtyRaw: in.Qty}
@@ -508,16 +560,49 @@ func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput,
 		if in.Kind == "free" {
 			v.Description = in.Description
 			v.UnitPriceRaw = in.UnitPrice
+			v.CostRaw, v.MarginRaw = in.Cost, in.Margin
 			if strings.TrimSpace(in.Description) == "" {
 				v.Error = "Descripción obligatoria."
 				result[i] = v
 				continue
 			}
-			price, err := money.ParseMicros(in.UnitPrice)
-			if err != nil || price < 0 {
-				v.Error = "Precio inválido."
+			if raw := amountInput(in.Cost); raw != "" {
+				cost, err := money.ParseMicros(raw)
+				if err != nil || cost < 0 {
+					v.Error = "Costo inválido."
+					result[i] = v
+					continue
+				}
+				v.CostMicros = &cost
+			} else if freeLinesOnly {
+				v.Error = "Costo obligatorio."
 				result[i] = v
 				continue
+			}
+			var price money.Micros
+			if freeLinesOnly {
+				m, err := parseLineMargin(in.Margin)
+				if err != nil {
+					v.Error = invalidLineMarginMsg
+					result[i] = v
+					continue
+				}
+				exact, err := pricing.PriceFromMargin(*v.CostMicros, m)
+				if err != nil {
+					v.Error = invalidLineMarginMsg
+					result[i] = v
+					continue
+				}
+				price = money.Micros(int64(exact.ToCentavosHalfUp()) * 10_000)
+				v.MarginMicros = &m
+				v.PricingInputsJSON = freeLineInputsJSON(*v.CostMicros, m)
+			} else {
+				price, err = money.ParseMicros(in.UnitPrice)
+				if err != nil || price < 0 {
+					v.Error = "Precio inválido."
+					result[i] = v
+					continue
+				}
 			}
 			v.UnitPriceMicros = price
 			v.LineTotal = money.LineTotalCentavos(price, qty)
@@ -579,6 +664,9 @@ func frozenQuoteLines(persisted []store.QuoteLine) []views.QuoteLineView {
 	for i, l := range persisted {
 		out[i] = views.QuoteLineView{
 			Key:             strconv.Itoa(i),
+			LineID:          l.ID,
+			CostMicros:      l.CostMicros,
+			MarginMicros:    freeLineMargin(l),
 			IsFree:          l.ProductID == nil,
 			ProductID:       l.ProductID,
 			ProductLabel:    l.DescriptionSnapshot,
@@ -695,7 +783,7 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "error interno", http.StatusInternalServerError)
 			return
 		}
-		lines = q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin)
+		lines = q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, quote.SeriesFreeLines)
 		totals = computeQuoteTotals(lines)
 	} else {
 		lines = frozenQuoteLines(persisted)
@@ -708,12 +796,17 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 		successMsg = "Borrador guardado."
 	case r.URL.Query().Get("emitida") == "1":
 		successMsg = "Cotización emitida."
+	case r.URL.Query().Get("costos") == "1":
+		successMsg = "Costos guardados."
 	}
 	q.renderBuilder(w, r, quote, lines, totals, margin.picker, successMsg, http.StatusOK, nil)
 }
 
 // maxDeliveryTime caps the free-text delivery time, which is printed on the PDF.
 const maxDeliveryTime = 120
+
+// maxExtraTerms caps a QL quote's extra terms, printed on the PDF one per line.
+const maxExtraTerms = 2000
 
 // takeTermsInputs reads the builder form's per-quote inputs onto quote for this request
 // (the caller decides whether to save them): the delivery time and currency when the
@@ -734,6 +827,11 @@ func takeTermsInputs(r *http.Request, quote *store.Quote) {
 		}
 	}
 	if quote.SeriesFreeLines {
+		v := strings.TrimSpace(r.FormValue("extra_terms"))
+		if runes := []rune(v); len(runes) > maxExtraTerms {
+			v = string(runes[:maxExtraTerms])
+		}
+		quote.ExtraTerms = v
 		quote.ValidUntil = nil
 		// An unparseable date (a browser without date inputs) is kept out of the row;
 		// Emitir then asks for it again.
@@ -747,7 +845,7 @@ func takeTermsInputs(r *http.Request, quote *store.Quote) {
 
 // termsInputs is the quote's per-quote values as the terms tokens take them.
 func termsInputs(quote store.Quote) store.TermsInputs {
-	return store.TermsInputs{DeliveryTime: quote.DeliveryTime, Currency: quote.Currency}
+	return store.TermsInputs{DeliveryTime: quote.DeliveryTime, Currency: quote.Currency, ExtraTerms: quote.ExtraTerms}
 }
 
 // saveTermsInputs persists what takeTermsInputs read.
@@ -756,7 +854,7 @@ func (q *Quotes) saveTermsInputs(ctx context.Context, quote *store.Quote) error 
 	if quote.ValidUntil != nil {
 		validUntil = *quote.ValidUntil
 	}
-	return q.store.SetQuoteTermsInputs(ctx, quote.ID, quote.DeliveryTime, quote.Currency, validUntil)
+	return q.store.SetQuoteTermsInputs(ctx, quote.ID, quote.DeliveryTime, quote.Currency, validUntil, quote.ExtraTerms)
 }
 
 // missingTermsInputs lists, by form field, what the quote's series still needs before it
@@ -803,7 +901,76 @@ func (q *Quotes) renderBuilder(w http.ResponseWriter, r *http.Request, quote *st
 	commentsLV := views.ListView{Base: "/cotizaciones/" + quote.Folio, Pager: pager, Anchor: "comentarios"}
 	user, _ := UserFromContext(ctx)
 	w.WriteHeader(status)
-	views.QuoteBuilder(*quote, lines, totals, margin, successMsg, fieldErrs, picker, comments, commentsLV, navUserView(user)).Render(ctx, w)
+	views.QuoteBuilder(*quote, lines, totals, margin, successMsg, fieldErrs, picker, comments, commentsLV, navUserView(user), canEditCosts(user, quote)).Render(ctx, w)
+}
+
+// amountInput tidies a typed amount for parsing: no "$" and no thousands commas, so
+// "$1,500.00" reads as 1500.00.
+func amountInput(raw string) string {
+	return strings.ReplaceAll(strings.TrimPrefix(strings.TrimSpace(raw), "$"), ",", "")
+}
+
+// canEditCosts reports whether user may update an issued quote's free-line costs: its
+// salesperson or an admin (issue #25).
+func canEditCosts(user *store.AuthenticatedUser, quote *store.Quote) bool {
+	return user != nil && (user.Role == "admin" || user.ID == quote.UserID)
+}
+
+// Costos handles POST /cotizaciones/{folio}/costos: updates the cost of an issued quote's
+// free lines, from cost_<line id> fields (see views.QuoteCostsForm). Only the quote's
+// salesperson or an admin may; a draft takes its costs in the builder instead. On QL every
+// line needs a cost; elsewhere an empty field clears it.
+func (q *Quotes) Costos(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	quote := q.loadQuoteOrNotFound(w, r)
+	if quote == nil {
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	if !canEditCosts(user, quote) {
+		http.Error(w, "solo el vendedor de la cotización o un administrador puede cambiar sus costos", http.StatusForbidden)
+		return
+	}
+	if quote.Status == "borrador" {
+		http.Error(w, "en un borrador, los costos se capturan en sus líneas", http.StatusConflict)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "solicitud inválida", http.StatusBadRequest)
+		return
+	}
+	lines, err := q.store.ListQuoteLines(ctx, quote.ID)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	costs := map[int64]*money.Micros{}
+	for _, l := range lines {
+		raw, ok := r.Form["cost_"+strconv.FormatInt(l.ID, 10)]
+		if l.ProductID != nil || !ok {
+			continue
+		}
+		v := amountInput(raw[0])
+		if v == "" {
+			if quote.SeriesFreeLines {
+				http.Error(w, "cada línea necesita su costo", http.StatusBadRequest)
+				return
+			}
+			costs[l.ID] = nil
+			continue
+		}
+		c, err := money.ParseMicros(v)
+		if err != nil || c < 0 {
+			http.Error(w, "costo inválido: escribe un monto, p. ej. 1500", http.StatusBadRequest)
+			return
+		}
+		costs[l.ID] = &c
+	}
+	if err := q.store.UpdateQuoteLineCosts(ctx, quote.ID, costs); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/cotizaciones/"+quote.Folio+"?costos=1#costos", http.StatusSeeOther)
 }
 
 // Recalcular handles POST /cotizaciones/{folio}/recalcular: the endpoint behind every
@@ -833,7 +1000,7 @@ func (q *Quotes) Recalcular(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	takeTermsInputs(r, quote)
-	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin)
+	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin, quote.SeriesFreeLines)
 	totals := computeQuoteTotals(lines)
 
 	if r.Header.Get("HX-Request") == "true" {
@@ -884,7 +1051,7 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	takeTermsInputs(r, quote)
-	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin)
+	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin, quote.SeriesFreeLines)
 	totals := computeQuoteTotals(lines)
 
 	if margin.badCustom {
@@ -908,6 +1075,7 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 			LineTotal:           l.LineTotal,
 			PricingInputsJSON:   l.PricingInputsJSON,
 			Source:              "manual",
+			CostMicros:          l.CostMicros,
 		}
 	}
 	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, margin.id(), margin.custom, storeLines, totals); err != nil {
@@ -1057,7 +1225,7 @@ func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "error interno", http.StatusInternalServerError)
 			return
 		}
-		lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin)
+		lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, quote.SeriesFreeLines)
 		doc = draftQuoteDocument(*quote, lines, computeQuoteTotals(lines))
 	} else {
 		doc, err = issuedQuoteDocument(*quote, persisted)
@@ -1116,7 +1284,7 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	takeTermsInputs(r, quote)
-	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin)
+	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin, quote.SeriesFreeLines)
 	totals := computeQuoteTotals(lines)
 
 	if missing := missingTermsInputs(quote, time.Now()); len(missing) > 0 {
@@ -1144,6 +1312,7 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 			LineTotal:           l.LineTotal,
 			PricingInputsJSON:   l.PricingInputsJSON,
 			Source:              "manual",
+			CostMicros:          l.CostMicros,
 		}
 	}
 	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, margin.id(), margin.custom, storeLines, totals); err != nil {

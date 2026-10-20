@@ -29,6 +29,14 @@ type QuoteLineView struct {
 	PricingInputsJSON *string
 	Error             string
 	Materials         []store.Material // the materials a cost-priced product line was priced from
+	// Free lines (issue #27): the cost per unit, never printed, as typed and parsed, and
+	// on QL the line's own margin. LineID is the stored row, for editing the cost of an
+	// issued quote.
+	CostRaw      string
+	CostMicros   *money.Micros
+	MarginRaw    string
+	MarginMicros *money.Micros
+	LineID       int64
 }
 
 templ QuotesList(quotes []store.Quote, lv ListView, customers, authors []string, successMsg string, user *NavUser) {
@@ -209,7 +217,30 @@ func pickerAnnouncement(picker ProductPicker) string {
 	}
 }
 
-templ quoteLineRow(folio string, line QuoteLineView) {
+// lineInput is one of a builder line's text inputs: it recalculates on change, and keeps
+// its id so htmx puts focus back after the swap.
+templ lineInput(folio string, line QuoteLineView, field, value, label, placeholder string) {
+	<input
+		type="text"
+		inputmode="decimal"
+		class="num"
+		id={ lineFieldID(line.Key, field) }
+		name={ "lines[" + line.Key + "][" + field + "]" }
+		value={ value }
+		aria-label={ label + ": " + lineLabel(line) }
+		placeholder={ placeholder }
+		size="8"
+		hx-post={ recalcularPath(folio) }
+		hx-trigger="change"
+		hx-target="#quote-lines-fragment"
+		hx-swap="outerHTML"
+	/>
+}
+
+// quoteLineRow is one editable builder line. On QL (freeLinesOnly) a line takes its cost
+// and margin and shows the price they give, read-only (issue #27); elsewhere a free
+// line takes its price, and an optional cost below it that is never printed.
+templ quoteLineRow(folio string, line QuoteLineView, freeLinesOnly bool) {
 	<tr>
 		<td>
 			<input type="hidden" name={ "lines[" + line.Key + "][kind]" } value={ lineKind(line) }/>
@@ -250,25 +281,31 @@ templ quoteLineRow(folio string, line QuoteLineView) {
 				{ line.UnitCode }
 			}
 		</td>
-		<td class="num">
-			if line.IsFree {
-				<input
-					type="text"
-					inputmode="decimal"
-					id={ lineFieldID(line.Key, "unit_price") }
-					name={ "lines[" + line.Key + "][unit_price]" }
-					value={ line.UnitPriceRaw }
-					aria-label={ "Precio unitario: " + lineLabel(line) }
-					placeholder="p. ej. 123.45"
-					hx-post={ recalcularPath(folio) }
-					hx-trigger="change"
-					hx-target="#quote-lines-fragment"
-					hx-swap="outerHTML"
-				/>
-			} else {
-				{ line.UnitPriceMicros.ToCentavosHalfUp().String() }
-			}
-		</td>
+		if freeLinesOnly {
+			<td class="num">
+				@lineInput(folio, line, "cost", line.CostRaw, "Costo unitario", "p. ej. 1500")
+			</td>
+			<td class="num">
+				@lineInput(folio, line, "margin", line.MarginRaw, "Margen %", "p. ej. 10")
+			</td>
+			<td class="num">
+				if line.Error == "" {
+					{ line.UnitPriceMicros.ToCentavosHalfUp().String() }
+				}
+			</td>
+		} else {
+			<td class="num">
+				if line.IsFree {
+					@lineInput(folio, line, "unit_price", line.UnitPriceRaw, "Precio unitario", "p. ej. 123.45")
+					<label class="line-cost">
+						Costo (opcional)
+						@lineInput(folio, line, "cost", line.CostRaw, "Costo unitario, no sale en el PDF", "")
+					</label>
+				} else {
+					{ line.UnitPriceMicros.ToCentavosHalfUp().String() }
+				}
+			</td>
+		}
 		<td class="num">{ line.LineTotal.String() }</td>
 		<td class="actions">
 			<button
@@ -287,9 +324,17 @@ templ quoteLineRow(folio string, line QuoteLineView) {
 	</tr>
 	if line.Error != "" {
 		<tr>
-			<td colspan="5" class="error">{ line.Error }</td>
+			<td colspan={ strconv.Itoa(lineColumns(freeLinesOnly)) } class="error">{ line.Error }</td>
 		</tr>
 	}
+}
+
+// lineColumns is how many columns the editable lines table has: QL adds cost and margin.
+func lineColumns(freeLinesOnly bool) int {
+	if freeLinesOnly {
+		return 7
+	}
+	return 5
 }
 
 // QuoteLinesFragment is the swappable line-table+totals partial — rendered both as part
@@ -310,8 +355,16 @@ templ QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricin
 				<caption class="visually-hidden">Líneas de la cotización</caption>
 				<thead>
 					<tr>
-						<th>Producto / Descripción</th>
+						if quote.SeriesFreeLines {
+							<th>Descripción</th>
+						} else {
+							<th>Producto / Descripción</th>
+						}
 						<th class="num">Cantidad</th>
+						if quote.SeriesFreeLines {
+							<th class="num">Costo unitario</th>
+							<th class="num">Margen %</th>
+						}
 						<th class="num">Precio unitario</th>
 						<th class="num">Total</th>
 						<th><span class="visually-hidden">Acciones</span></th>
@@ -320,14 +373,14 @@ templ QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricin
 				<tbody>
 					if len(lines) == 0 {
 						<tr>
-							<td colspan="5">Sin líneas todavía.</td>
+							<td colspan={ strconv.Itoa(lineColumns(quote.SeriesFreeLines)) }>Sin líneas todavía.</td>
 						</tr>
 					}
 					for _, line := range lines {
-						@quoteLineRow(quote.Folio, line)
+						@quoteLineRow(quote.Folio, line, quote.SeriesFreeLines)
 					}
 				</tbody>
-				@quoteTotals(totals, 1)
+				@quoteTotals(totals, lineColumns(quote.SeriesFreeLines)-2, 1)
 			</table>
 		</div>
 		if used := materialsInUse(lines); len(used) > 0 {
@@ -441,12 +494,17 @@ func revisarPath(folio string) string {
 // inputs, no remove buttons, nothing that implies the row can still change. Used
 // instead of QuoteLinesFragment once a quote leaves 'borrador'.
 templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
+	{{ costs := anyLineCost(lines) }}
 	<div class="table-scroll">
 		<table>
 			<thead>
 				<tr>
 					<th>Producto / Descripción</th>
 					<th class="num">Cantidad</th>
+					if costs {
+						<th class="num">Costo unitario <small>(no sale en el PDF)</small></th>
+						<th class="num">Margen</th>
+					}
 					<th class="num">Precio unitario</th>
 					<th class="num">Total</th>
 				</tr>
@@ -472,30 +530,62 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
 								{ " " + line.UnitCode }
 							}
 						</td>
+						if costs {
+							<td class="num">
+								if line.CostMicros != nil {
+									{ line.CostMicros.ToCentavosHalfUp().String() }
+								}
+							</td>
+							<td class="num">{ lineMarginText(line) }</td>
+						}
 						<td class="num">{ line.UnitPriceMicros.ToCentavosHalfUp().String() }</td>
 						<td class="num">{ line.LineTotal.String() }</td>
 					</tr>
 				}
 			</tbody>
-			@quoteTotals(totals, 0)
+			if costs {
+				@quoteTotals(totals, 5, 0)
+			} else {
+				@quoteTotals(totals, 3, 0)
+			}
 		</table>
 	</div>
 }
 
+// anyLineCost reports whether any line carries a cost, which adds the cost and margin
+// columns to the read-only lines.
+func anyLineCost(lines []QuoteLineView) bool {
+	for _, l := range lines {
+		if l.CostMicros != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// lineMarginText is a free line's margin as it stands: its profit over its price, so it
+// follows a cost updated after issue. Empty without a cost.
+func lineMarginText(l QuoteLineView) string {
+	if l.CostMicros == nil {
+		return ""
+	}
+	return marginPercentText(int64(l.UnitPriceMicros-*l.CostMicros), int64(l.UnitPriceMicros))
+}
+
 // quoteTotals is the Subtotal / IVA / Total rows at the foot of a lines table, the
-// figures under the Total column. trailing is the number of columns after Total (the
-// editable table's actions column).
-templ quoteTotals(totals pricing.Totals, trailing int) {
+// figures under the Total column. lead is the number of columns before Total, trailing
+// the number after it (the editable table's actions column).
+templ quoteTotals(totals pricing.Totals, lead, trailing int) {
 	<tfoot>
-		@quoteTotalRow("Subtotal", totals.Subtotal.String(), trailing, false)
-		@quoteTotalRow("IVA (16%)", totals.IVA.String(), trailing, false)
-		@quoteTotalRow("Total", totals.Total.String(), trailing, true)
+		@quoteTotalRow("Subtotal", totals.Subtotal.String(), lead, trailing, false)
+		@quoteTotalRow("IVA (16%)", totals.IVA.String(), lead, trailing, false)
+		@quoteTotalRow("Total", totals.Total.String(), lead, trailing, true)
 	</tfoot>
 }
 
-templ quoteTotalRow(label, amount string, trailing int, grand bool) {
+templ quoteTotalRow(label, amount string, lead, trailing int, grand bool) {
 	<tr class={ templ.KV("grand", grand) }>
-		<th scope="row" colspan="3" class="num">{ label }</th>
+		<th scope="row" colspan={ strconv.Itoa(lead) } class="num">{ label }</th>
 		<td class="num">{ amount }</td>
 		if trailing > 0 {
 			<td colspan={ strconv.Itoa(trailing) }></td>
@@ -526,7 +616,7 @@ func validUntilValue(quote store.Quote) string {
 	return *quote.ValidUntil
 }
 
-templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, fieldErrs map[string]string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser) {
+templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, fieldErrs map[string]string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser, canEditCosts bool) {
 	@Layout("Cotización "+quote.Folio, user) {
 		<script src="/static/margin.js" defer></script>
 		<div class="page-title">
@@ -672,6 +762,18 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 						</label>
 						@FieldError(fieldErrs, "valid_until")
 					</div>
+					<div class="quote-meta">
+						<label>
+							Términos y condiciones adicionales (opcional)
+							<span class="hint">Cada renglón sale como una viñeta en el PDF, después de los términos de la serie.</span>
+							<textarea name="extra_terms" id="extra-terms" rows="3" maxlength="2000">{ quote.ExtraTerms }</textarea>
+						</label>
+					</div>
+					// The button to add a line sits right above the lines on QL, which has no
+					// catalog picker below them (issue #25).
+					<p class="picker-free">
+						@addFreeLineButton(quote.Folio)
+					</p>
 				}
 				@QuoteLinesFragment(quote, lines, totals, margin.Error)
 				<div class="quote-actions">
@@ -695,9 +797,9 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 						data-busy-text="Recalculando…"
 					>Todos los cambios guardados.</span>
 				</div>
-				<section class="quote-add" aria-labelledby="agregar-lineas">
-					<h2 id="agregar-lineas">Agregar líneas</h2>
-					if !quote.SeriesFreeLines {
+				if !quote.SeriesFreeLines {
+					<section class="quote-add" aria-labelledby="agregar-lineas">
+						<h2 id="agregar-lineas">Agregar líneas</h2>
 						<div class="toolbar">
 							<input
 								type="search"
@@ -733,27 +835,19 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 							}
 						</div>
 						@ProductSearchResults(picker)
-					}
-					<p class="picker-free">
-						if !quote.SeriesFreeLines {
+						<p class="picker-free">
 							¿No está en el catálogo?
-						}
-						<button
-							type="submit"
-							name="add_free"
-							value="1"
-							hx-post={ recalcularPath(quote.Folio) }
-							hx-target="#quote-lines-fragment"
-							hx-swap="outerHTML"
-						>
-							Línea libre
-						</button>
-					</p>
-				</section>
+							@addFreeLineButton(quote.Folio)
+						</p>
+					</section>
+				}
 			</form>
 		} else {
 			@QuoteInfo(quote, lines)
 			@QuoteLinesReadOnly(lines, totals)
+			if canEditCosts && hasFreeLine(lines) {
+				@QuoteCostsForm(quote, lines)
+			}
 			if quote.Revisable() {
 				<form method="post" action={ templ.URL(revisarPath(quote.Folio)) }>
 					<button type="submit">Revisar</button>
@@ -777,6 +871,70 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 		}
 		@QuoteComments(quote.ProjectFolio, comments, commentsLV)
 	}
+}
+
+// addFreeLineButton appends an empty free line, priced on the next recalculation.
+templ addFreeLineButton(folio string) {
+	<button
+		type="submit"
+		name="add_free"
+		value="1"
+		hx-post={ recalcularPath(folio) }
+		hx-target="#quote-lines-fragment"
+		hx-swap="outerHTML"
+	>
+		Línea libre
+	</button>
+}
+
+func hasFreeLine(lines []QuoteLineView) bool {
+	for _, l := range lines {
+		if l.IsFree {
+			return true
+		}
+	}
+	return false
+}
+
+// costosPath is where an issued quote's free-line costs are updated.
+func costosPath(folio string) string {
+	return "/cotizaciones/" + folio + "/costos"
+}
+
+// QuoteCostsForm updates the cost of an issued quote's free lines (issue #25), for its
+// salesperson or an admin. Costs change after a quote goes out; the cost is never
+// printed, so prices, totals and the PDF stay as issued and only the profit moves. On
+// QL every line needs one; elsewhere it may be left empty.
+templ QuoteCostsForm(quote store.Quote, lines []QuoteLineView) {
+	<section id="costos" aria-labelledby="costos-titulo">
+		<h2 id="costos-titulo">Costos</h2>
+		<p class="hint">El costo no sale en el PDF. Si cambió, actualízalo aquí: cambian la utilidad y el margen, no los precios.</p>
+		<form method="post" action={ templ.URL(costosPath(quote.Folio)) } class="stage-form">
+			for _, l := range lines {
+				if l.IsFree {
+					<label>
+						{ l.Description }
+						<input
+							type="text"
+							inputmode="decimal"
+							name={ "cost_" + strconv.FormatInt(l.LineID, 10) }
+							value={ costValue(l.CostMicros) }
+							required?={ quote.SeriesFreeLines }
+						/>
+					</label>
+				}
+			}
+			<button type="submit">Guardar costos</button>
+		</form>
+	</section>
+}
+
+// costValue is a cost as an input's value: whole centavos, or empty without one.
+func costValue(c *money.Micros) string {
+	if c == nil {
+		return ""
+	}
+	return money.Micros(int64(c.ToCentavosHalfUp()) * 10_000).String()
 }
 
 // QuoteInfo is the issued quote's summary: who issued it and when, its status, and the
@@ -818,25 +976,46 @@ templ QuoteInfo(quote store.Quote, lines []QuoteLineView) {
 			<dd>{ dateText(*quote.ValidUntil) }</dd>
 		}
 		if quote.MarginNameSnapshot != nil && quote.MarginSnapshotMicros != nil {
-			<dt>Margen</dt>
-			<dd>{ MarginLabel(*quote.MarginNameSnapshot, *quote.MarginSnapshotMicros) }</dd>
+			{{ f := QuoteMetrics(lines, *quote.MarginSnapshotMicros, quote.Subtotal) }}
+			if !quote.SeriesFreeLines {
+				<dt>Margen</dt>
+				<dd>{ MarginLabel(*quote.MarginNameSnapshot, *quote.MarginSnapshotMicros) }</dd>
+			}
+			<dt>Costo total</dt>
+			<dd>{ f.Cost.String() }</dd>
 			<dt>Utilidad</dt>
-			<dd>{ QuoteProfit(lines, *quote.MarginSnapshotMicros).String() }</dd>
+			<dd>{ f.Profit.String() }</dd>
+			if quote.SeriesFreeLines {
+				<dt>Margen</dt>
+				<dd>{ f.Margin }</dd>
+			}
 		}
 	</dl>
 }
 
-// QuoteProfit is what the quote earns before IVA: each catalog line's total times the
-// margin, which is a fraction of the sale price. Free-text lines carry no cost, so they
-// add nothing.
-func QuoteProfit(lines []QuoteLineView, margin money.Micros) money.Centavos {
-	var priced money.Centavos
+// QuoteFigures is what a quote costs and earns before IVA, and the margin that profit is
+// of its subtotal.
+type QuoteFigures struct {
+	Cost, Profit money.Centavos
+	Margin       string
+}
+
+// QuoteMetrics works out a quote's QuoteFigures: catalog lines earn their total times the
+// margin they were priced with (a fraction of the sale price); a free line with a cost
+// earns its total less that cost (issue #27), one without a cost earns nothing; the cost
+// is the rest of the subtotal. It is the same figure as store's quoteProfitSQL.
+func QuoteMetrics(lines []QuoteLineView, margin money.Micros, subtotal money.Centavos) QuoteFigures {
+	var priced, free money.Centavos
 	for _, l := range lines {
-		if !l.IsFree {
+		switch {
+		case !l.IsFree:
 			priced += l.LineTotal
+		case l.CostMicros != nil:
+			free += l.LineTotal - money.LineTotalCentavos(*l.CostMicros, l.QtyMilli)
 		}
 	}
-	return money.Centavos(money.RoundHalfUp(int64(priced)*int64(margin), 1_000_000))
+	profit := money.Centavos(money.RoundHalfUp(int64(priced)*int64(margin), 1_000_000)) + free
+	return QuoteFigures{Cost: subtotal - profit, Profit: profit, Margin: marginPercentText(int64(profit), int64(subtotal))}
 }
 
 // QuoteComments is the read-only comments list at the foot of every quote: everyone's

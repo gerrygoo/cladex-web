@@ -172,4 +172,5 @@ La parte del precio de venta que es utilidad, como porcentaje (35 %). Todo produ
 catálogo cuesta costo ÷ (1 − margen), donde el costo incluye el de sus materiales. Cada cotización usa uno
 de los márgenes de una lista con nombre (p. ej. *Estándar (12.34%)*) que mantiene un
 administrador en Configuración del sistema; el vendedor lo elige al armar la cotización, o escribe uno propio
-(*Otro margen*), en QA, QS y QI; en QS también como precio por kilo del cobre CCS.
+(*Otro margen*), en QA, QS y QI; en QS también como precio por kilo del cobre CCS. En
+QL cada línea lleva su propio margen sobre su costo.

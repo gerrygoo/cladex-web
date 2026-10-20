@@ -132,10 +132,15 @@ no puede ser menor que el costo del material.
 Para conceptos que no están en el catálogo: un flete, un producto especial, un servicio.
 
 1. En **Agregar líneas**, junto a *"¿No está en el catálogo?"*, haz clic en **Línea libre**.
-   Aparece una línea nueva.
+   Aparece una línea nueva. (En **QL**, el botón está arriba de las líneas, debajo de la
+   vigencia.)
 2. Escribe la **Descripción**; así aparecerá en el PDF.
 3. Escribe el **Precio unitario** en pesos, sin signo `$` (p. ej. `123.45`).
-4. Ajusta la **Cantidad** si no es 1.
+4. Opcional: escribe su **Costo** debajo del precio. No sale en el PDF; sirve para que la
+   línea cuente en la utilidad de la cotización. Sin costo, la línea no suma utilidad.
+5. Ajusta la **Cantidad** si no es 1.
+
+En **QL** la línea se arma distinto: ver [Costo y margen por línea en QL](#costo-y-margen-por-línea-en-ql).
 
 ## Quitar una línea
 
@@ -246,6 +251,30 @@ Las cotizaciones de la serie **QL** no tienen buscador de productos: solo se arm
 cotización** muestra qué falta. Una revisión conserva la moneda, pero hay que escribir
 de nuevo la vigencia.
 
+**Términos y condiciones adicionales (opcional)**, debajo de la vigencia: escribe
+condiciones propias de esta cotización, una por renglón. En el PDF, cada renglón es una
+viñeta dentro de *Términos y condiciones*, justo después de *"Pago por adelantado para
+colocar OC"* y en el orden en que las escribiste. Un texto largo se acomoda en varias
+líneas bajo la misma viñeta; los renglones vacíos se ignoran. Si lo dejas vacío, el PDF
+queda igual. Una revisión los conserva.
+
+### Costo y margen por línea en QL
+
+QL no tiene un margen general: cada línea lleva el suyo. En cada línea escribe:
+
+- **Costo unitario**: lo que te cuesta el producto (p. ej. `1500` o `1,500`).
+- **Margen %**: el margen de esa línea como porcentaje, de 0 a 99.99 (`10` es 10%).
+
+El **Precio unitario** se calcula solo, con margen sobre el precio de venta: costo ÷
+(1 − margen), redondeado a centavos. Costo 1,500 con 10% da **1,666.67** (utilidad 166.67,
+el 10% del precio), no 1,650. El **Total** es cantidad × precio unitario, y el subtotal, el
+IVA y el total se calculan sobre esos precios. Costo y margen son obligatorios para
+guardar o emitir; con un margen de 100 o más, la línea marca error.
+
+El PDF solo muestra descripción, cantidad, precio unitario y total: **nunca el costo ni
+el margen**. En la cotización emitida ves el **Costo total**, la **Utilidad** y el
+**Margen**, que también llegan al proyecto, al pronóstico y a la página de inicio.
+
 ## Descargar y enviar el PDF
 
 1. Abre la cotización: en el menú **Cotizaciones**, elige **Ver cotizaciones** y haz clic
@@ -293,6 +322,19 @@ Qué pasa al revisar:
 > y los ajustes **actuales**, no con los de la original. Revisa los precios antes de
 > emitirla.
 
+## Actualizar el costo de una cotización emitida
+
+Los costos cambian después de mandar la cotización. Si eres el vendedor de la cotización
+o un administrador, la cotización emitida (también si ya fue revisada) tiene una sección
+**Costos** con el costo de cada línea libre:
+
+1. Cambia el costo de las líneas que cambiaron.
+2. Haz clic en **Guardar costos**.
+
+Cambian la **Utilidad** y el **Margen** de la cotización (y del proyecto); los precios, el
+total y el PDF quedan como se emitieron. En QL cada línea necesita su costo; en las demás
+series puedes dejarlo vacío. Cada cambio queda registrado.
+
 ## Ver el detalle de una cotización
 
 En el menú **Cotizaciones**, elige **Ver cotizaciones** y haz clic en el folio de
@@ -304,9 +346,11 @@ cualquier cotización que no sea [[borrador]]. Debajo del nombre de la cotizaci�
 - **Emitió**: quién la emitió.
 - **Emitida** y **Vigencia**: las fechas. Todas las fechas se ven como `28/09/2026 - 16:42`,
   en la zona horaria de tu navegador (la vigencia es solo un día, sin hora).
-- **Margen**: el margen con el que se cotizó, congelado al emitir.
-- **Utilidad**: cuánto gana la cotización antes de IVA (el margen aplicado a las líneas
-  de catálogo; las líneas libres no cuentan porque no tienen costo).
+- **Margen**: el margen con el que se cotizó, congelado al emitir. En QL, el margen de
+  toda la cotización: su utilidad entre su subtotal.
+- **Costo total** y **Utilidad**: cuánto cuesta y cuánto gana la cotización antes de IVA
+  (el margen aplicado a las líneas de catálogo, más el precio menos el costo de cada
+  línea libre que tenga costo; una línea libre sin costo no suma utilidad).
 
 ## Comentar una cotización
 

@@ -844,10 +844,15 @@ var projectSelectCols = `
 
 // quoteProfitSQL is the current quote's profit before IVA, in centavos: its catalog lines'
 // total times the margin it was issued with (a fraction of the sale price), rounded half
-// up. Free-text lines carry no cost, so they add nothing, and a draft has no margin yet.
-// It is the same figure as views.QuoteProfit shows on the quote.
-const quoteProfitSQL = `((COALESCE((SELECT SUM(ql.line_total) FROM quote_lines ql
-		WHERE ql.quote_id = q.id AND ql.product_id IS NOT NULL), 0) * COALESCE(q.margin_snapshot_micros, 0) + 500000) / 1000000)`
+// up, plus each free line's total less its cost (issue #27), the cost rounded the way
+// money.LineTotalCentavos does. A free line without a cost adds nothing, and a draft
+// (no margin frozen yet) earns nothing. It is the same figure as views.QuoteMetrics shows
+// on the quote.
+const quoteProfitSQL = `(CASE WHEN q.margin_snapshot_micros IS NULL THEN 0 ELSE
+		(COALESCE((SELECT SUM(ql.line_total) FROM quote_lines ql
+			WHERE ql.quote_id = q.id AND ql.product_id IS NOT NULL), 0) * q.margin_snapshot_micros + 500000) / 1000000
+		+ COALESCE((SELECT SUM(ql.line_total - (ql.cost_micros * ql.qty_milli + 5000000) / 10000000) FROM quote_lines ql
+			WHERE ql.quote_id = q.id AND ql.product_id IS NULL AND ql.cost_micros IS NOT NULL), 0) END)`
 
 // projectLastComment selects one column of the newest comment on any of the proyecto's
 // quotes, for projectSelectCols.
