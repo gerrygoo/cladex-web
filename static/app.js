@@ -8,6 +8,41 @@
     if (msg && !window.confirm(msg)) e.preventDefault();
   }, true);
 
+  // Nueva cotización's customer list (issue #29): the search box above it filters the
+  // options by name, RFC or contact, ignoring case and accents, and "Agregar nuevo
+  // cliente" (always kept) opens the new-customer form with the series picked so far.
+  var fold = function (t) {
+    return (t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  };
+  document.querySelectorAll("[data-customer-search]").forEach(function (box) {
+    var select = document.getElementById(box.dataset.customerSearch);
+    var all = Array.prototype.slice.call(select.options);
+    box.hidden = false;
+    box.addEventListener("input", function () {
+      var q = fold(box.value.trim());
+      var current = select.value;
+      select.replaceChildren.apply(select, all.filter(function (o) {
+        return !o.dataset.search || fold(o.dataset.search).indexOf(q) !== -1;
+      }));
+      select.value = current;
+      if (select.value !== current) select.value = "";
+    });
+    select.addEventListener("change", function () {
+      if (select.value !== "nuevo") return;
+      var serie = select.form.querySelector("[name=prefix]:checked");
+      location.href = "/clientes/nuevo?volver=cotizacion" + (serie ? "&serie=" + encodeURIComponent(serie.value) : "");
+    });
+  });
+
+  // "Regresar a editar" on a warning: closes it and goes back to the form's first field.
+  // Without JS it is a plain link to that field, and the warning stays.
+  document.addEventListener("click", function (e) {
+    var link = e.target.closest && e.target.closest("[data-dismiss]");
+    if (!link) return;
+    var box = document.getElementById(link.dataset.dismiss);
+    if (box) box.hidden = true;
+  });
+
   // The follow-up form's "Perdida" radio swaps the dates and comment for the Motivo of
   // the loss. Without JS every field shows and the server checks which ones apply.
   document.addEventListener("change", function (e) {

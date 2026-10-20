@@ -1304,3 +1304,26 @@ label.line-cost {
   font-size: var(--fs-small);
   color: var(--text-muted);
 }
+
+/* A warning the user answers before going on, like a possible duplicate customer
+   (issue #29). Text stays in the body colour; the border and tint say "attention". */
+div.notice.warning {
+  margin-block: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--warning);
+  border-left-width: 4px;
+  background: color-mix(in srgb, var(--warning) 6%, var(--bg));
+}
+
+div.notice.warning ul {
+  padding-left: 1.25rem;
+}
+
+div.notice.warning li {
+  margin-block: 0.5rem;
+}
+
+/* Nueva cotización's customer search, right above the list it filters */
+.customer-search {
+  width: min(100%, 28rem);
+}

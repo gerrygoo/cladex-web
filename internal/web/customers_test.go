@@ -237,3 +237,79 @@ func TestCustomersListColumnFilterKeptAcrossSortAndSearch(t *testing.T) {
 		t.Errorf("active-filter notice missing")
 	}
 }
+
+// TestNewCustomerFromQuoteAndDuplicates covers issue #29: Nueva cotización's list offers
+// "Agregar nuevo cliente", which opens the new-customer form and comes back with the
+// customer and series selected; Cancelar goes back too. Before creating, a possible
+// duplicate (same RFC, or a name equal or contained once normalized) is shown with a way
+// to use it, to create anyway, or to edit; without matches it saves directly. A vendedor
+// can do all of it.
+func TestNewCustomerFromQuoteAndDuplicates(t *testing.T) {
+	a := newTestAuth(t)
+	cs := newTestCustomers(t, a)
+	q := newTestQuotes(t, a)
+	ctx := context.Background()
+	userID := createTestUser(t, a, "rfm", "vendedor", "hunter2")
+	sonepar, _ := a.store.CreateCustomer(ctx, store.Customer{Name: "SONEPAR", ContactName: "Alfonso Felix"})
+	peme, _ := a.store.CreateCustomer(ctx, store.Customer{Name: "Grupo PEME", RFC: "PEM-010101-ABC"})
+
+	// The list has the search and the fixed first entry, and comes back preselected.
+	page := doForm(t, a, userID, q.NewPage, "GET", "/cotizaciones/nueva?cliente="+itoa(peme)+"&serie=QA", nil, nil, false).Body.String()
+	for _, want := range []string{"data-customer-search", `<option value="nuevo" data-keep>➕ Agregar nuevo cliente</option>`,
+		`value="` + itoa(peme) + `" data-search="Grupo PEME PEM-010101-ABC " selected`, `value="QA" checked`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("Nueva cotización missing %q", want)
+		}
+	}
+	// Without JS, "Agregar nuevo cliente" goes to the form through the server.
+	rec := doForm(t, a, userID, q.Create, "POST", "/cotizaciones/nueva", nil, url.Values{"customer_id": {"nuevo"}, "prefix": {"QA"}}, false)
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/clientes/nuevo?serie=QA&volver=cotizacion" {
+		t.Fatalf("Create(nuevo) = %d, Location %q", rec.Code, rec.Header().Get("Location"))
+	}
+	form := doForm(t, a, userID, cs.NewPage, "GET", "/clientes/nuevo?volver=cotizacion&serie=QA", nil, nil, false).Body.String()
+	for _, want := range []string{`name="volver" value="cotizacion"`, `name="serie" value="QA"`, `href="/cotizaciones/nueva?serie=QA">Cancelar`} {
+		if !strings.Contains(form, want) {
+			t.Errorf("new-customer form from a quote missing %q", want)
+		}
+	}
+
+	create := func(f url.Values) *httptest.ResponseRecorder {
+		return doForm(t, a, userID, cs.Create, "POST", "/clientes/nuevo", nil, f, false)
+	}
+	count := func() int {
+		all, _ := a.store.ListCustomers(ctx, "", "name", "asc", nil)
+		return len(all)
+	}
+	// A name like an existing one: warned, nothing created.
+	fromQuote := url.Values{"name": {"Sonepar S.A. de C.V."}, "volver": {"cotizacion"}, "serie": {"QA"}}
+	rec = create(fromQuote)
+	body := rec.Body.String()
+	if rec.Code != http.StatusUnprocessableEntity || count() != 2 {
+		t.Fatalf("Create(duplicate) = %d with %d customers, want 422 and none created", rec.Code, count())
+	}
+	for _, want := range []string{"Este cliente podría estar duplicado", "SONEPAR — RFC: (sin RFC) — Contacto: Alfonso Felix",
+		`href="/cotizaciones/nueva?cliente=` + itoa(sonepar) + `&amp;serie=QA"`, `name="confirmar" value="1"`, "Regresar a editar", `value="Sonepar S.A. de C.V."`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("duplicate warning missing %q", want)
+		}
+	}
+	// "Sí, darlo de alta de todos modos" creates it and goes back to the quote with it.
+	fromQuote.Set("confirmar", "1")
+	rec = create(fromQuote)
+	if rec.Code != http.StatusSeeOther || count() != 3 || !strings.HasPrefix(rec.Header().Get("Location"), "/cotizaciones/nueva?cliente=") ||
+		!strings.HasSuffix(rec.Header().Get("Location"), "&serie=QA") {
+		t.Fatalf("Create(confirmed) = %d, Location %q, %d customers", rec.Code, rec.Header().Get("Location"), count())
+	}
+
+	// From the catalog: the same RFC warns though the name differs, and "Usar este
+	// cliente" leads back to the list.
+	rec = create(url.Values{"name": {"Otra Razón"}, "rfc": {"pem 010101 abc"}})
+	if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), "Grupo PEME — RFC: PEM-010101-ABC") ||
+		!strings.Contains(rec.Body.String(), `href="/clientes" class="button">Usar este cliente`) {
+		t.Errorf("same RFC from the catalog = %d, want the warning pointing at the list", rec.Code)
+	}
+	// Nothing alike: saved right away.
+	if rec := create(url.Values{"name": {"Constructora Nueva"}}); rec.Code != http.StatusSeeOther || !strings.Contains(rec.Header().Get("Location"), "guardado=1") {
+		t.Errorf("Create(unique) = %d, Location %q", rec.Code, rec.Header().Get("Location"))
+	}
+}

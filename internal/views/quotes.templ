@@ -110,6 +110,10 @@ templ QuotesTableBody(quotes []store.Quote) {
 	</tbody>
 }
 
+// NewCustomerValue is the customer list's "Agregar nuevo cliente" entry: picking it opens
+// the new-customer form, which comes back here with the customer selected.
+const NewCustomerValue = "nuevo"
+
 // QuoteNewFormValues is the view-model for QuoteNewForm.
 type QuoteNewFormValues struct {
 	CustomerID string
@@ -123,19 +127,29 @@ templ QuoteNewForm(customers []store.Customer, series []store.Series, values Quo
 			@HelpLink(HelpCotizacionNueva)
 		</div>
 		<form method="post" action={ templ.URL("/cotizaciones/nueva") }>
-			<label>
-				Cliente
-				<select name="customer_id" required { errAttrs(fieldErrors, "customer_id")... }>
-					<option value="">— Selecciona —</option>
-					for _, c := range customers {
-						if strconv.FormatInt(c.ID, 10) == values.CustomerID {
-							<option value={ strconv.FormatInt(c.ID, 10) } selected>{ c.Name }</option>
-						} else {
-							<option value={ strconv.FormatInt(c.ID, 10) }>{ c.Name }</option>
-						}
-					}
-				</select>
-			</label>
+			<label for="cliente">Cliente</label>
+			// The search filters the list as you type (static/app.js), by name, RFC or
+			// contact, ignoring case and accents; without JS it stays hidden and the list
+			// is the plain one. "Agregar nuevo cliente" is always first (issue #29).
+			<input
+				type="search"
+				class="customer-search"
+				data-customer-search="cliente"
+				placeholder="Buscar por nombre, RFC o contacto"
+				aria-label="Buscar cliente por nombre, RFC o contacto"
+				hidden
+			/>
+			<select name="customer_id" id="cliente" required { errAttrs(fieldErrors, "customer_id")... }>
+				<option value="">— Selecciona —</option>
+				<option value={ NewCustomerValue } data-keep>➕ Agregar nuevo cliente</option>
+				for _, c := range customers {
+					<option
+						value={ strconv.FormatInt(c.ID, 10) }
+						data-search={ c.Name + " " + c.RFC + " " + c.ContactName }
+						selected?={ strconv.FormatInt(c.ID, 10) == values.CustomerID }
+					>{ c.Name }</option>
+				}
+			</select>
 			@FieldError(fieldErrors, "customer_id")
 			<fieldset role="radiogroup" { errAttrs(fieldErrors, "prefix")... }>
 				<legend>Serie de folio</legend>

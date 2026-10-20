@@ -18,10 +18,15 @@ El flujo completo, de principio a fin:
 
 ## Crear una cotización
 
-**Antes:** el cliente tiene que existir. Si no está, [dalo de alta](clientes.md#dar-de-alta-un-cliente).
-
 1. En el menú **Cotizaciones**, elige **Nueva cotización**.
-2. En **Cliente**, elige al cliente de la lista (está en orden alfabético).
+2. En **Cliente**, elige al cliente de la lista (está en orden alfabético). Para
+   encontrarlo rápido, escribe en el cuadro de arriba parte de su nombre, RFC o contacto:
+   la lista se filtra mientras escribes, sin importar mayúsculas ni acentos.
+
+   ¿No está? Elige **➕ Agregar nuevo cliente**, la primera opción de la lista. Se abre
+   el formulario de [Nuevo cliente](clientes.md#dar-de-alta-un-cliente); al guardarlo
+   regresas aquí con el cliente ya elegido (y la serie, si ya la habías elegido). Con
+   **Cancelar** regresas sin crear nada.
 3. En **Serie de folio**, elige una:
    - **QA — Cable CCA**
    - **QS — Cable CCS & AC**

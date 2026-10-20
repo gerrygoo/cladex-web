@@ -93,9 +93,46 @@ type CustomerFormValues struct {
 	PostalCode  string
 	TaxRegime   string
 	Notes       string
+	// Volver and Serie carry a trip from Nueva cotización (issue #29) through the form;
+	// CancelHref is where Cancelar goes then ("" for the catalog).
+	Volver     string
+	Serie      string
+	CancelHref string
 }
 
-templ CustomerForm(title string, action string, values CustomerFormValues, fieldErrors map[string]string, successMsg string, user *NavUser) {
+// SimilarCustomer is an existing customer the new one may duplicate, and where "Usar
+// este cliente" takes the user: back to the quote with it selected, or to the catalog.
+type SimilarCustomer struct {
+	store.Customer
+	UseHref string
+}
+
+func cancelHref(v CustomerFormValues) string {
+	if v.CancelHref != "" {
+		return v.CancelHref
+	}
+	return "/clientes"
+}
+
+// similarText is how a possible duplicate is listed: "SONEPAR — RFC: (sin RFC) —
+// Contacto: Alfonso Felix".
+func similarText(c store.Customer) string {
+	rfc := c.RFC
+	if rfc == "" {
+		rfc = "(sin RFC)"
+	}
+	t := c.Name + " — RFC: " + rfc
+	if c.ContactName != "" {
+		t += " — Contacto: " + c.ContactName
+	}
+	return t
+}
+
+// CustomerForm is the new and edit customer form. similar, on a new one, lists the
+// customers it may duplicate (issue #29): a warning, not a block, with a way to use each
+// of them, to create the new one anyway (confirmar=1 resubmits the same values) or to go
+// back to editing.
+templ CustomerForm(title string, action string, values CustomerFormValues, fieldErrors map[string]string, similar []SimilarCustomer, successMsg string, user *NavUser) {
 	@Layout(title, user) {
 		<div class="page-title">
 			<h1>{ title }</h1>
@@ -107,9 +144,31 @@ templ CustomerForm(title string, action string, values CustomerFormValues, field
 		</div>
 		@Flash(successMsg)
 		<form method="post" action={ templ.URL(action) }>
+			if values.Volver != "" {
+				<input type="hidden" name="volver" value={ values.Volver }/>
+				<input type="hidden" name="serie" value={ values.Serie }/>
+			}
+			if len(similar) > 0 {
+				<div class="notice warning" id="posible-duplicado" role="alert" tabindex="-1">
+					<p><strong>Este cliente podría estar duplicado.</strong> Encontramos clientes parecidos ya dados de alta:</p>
+					<ul>
+						for _, c := range similar {
+							<li>
+								{ similarText(c.Customer) + " " }
+								<a href={ templ.URL(c.UseHref) } class="button">Usar este cliente<span class="visually-hidden">{ " " + c.Name }</span></a>
+							</li>
+						}
+					</ul>
+					<p>¿Estás seguro de que quieres darlo de alta?</p>
+					<p>
+						<button type="submit" name="confirmar" value="1" class="primary">Sí, darlo de alta de todos modos</button>
+						<a href="#nombre" class="button" data-dismiss="posible-duplicado">Regresar a editar</a>
+					</p>
+				</div>
+			}
 			<label>
 				Nombre
-				<input type="text" name="name" value={ values.Name } required { errAttrs(fieldErrors, "name")... }/>
+				<input type="text" id="nombre" name="name" value={ values.Name } required { errAttrs(fieldErrors, "name")... }/>
 			</label>
 			@FieldError(fieldErrors, "name")
 			<label>
@@ -147,7 +206,7 @@ templ CustomerForm(title string, action string, values CustomerFormValues, field
 				<input type="text" name="notes" value={ values.Notes }/>
 			</label>
 			<button type="submit" class="primary">Guardar</button>
-			<a href="/clientes">Cancelar</a>
+			<a href={ templ.URL(cancelHref(values)) }>Cancelar</a>
 		</form>
 	}
 }

@@ -307,7 +307,9 @@ func (q *Quotes) NewPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, _ := UserFromContext(ctx)
-	views.QuoteNewForm(customers, series, views.QuoteNewFormValues{}, nil, navUserView(user)).Render(ctx, w)
+	// Coming back from creating (or picking) a customer: it and the series are selected.
+	values := views.QuoteNewFormValues{CustomerID: r.URL.Query().Get("cliente"), Prefix: r.URL.Query().Get("serie")}
+	views.QuoteNewForm(customers, series, values, nil, navUserView(user)).Render(ctx, w)
 }
 
 // Create handles POST /cotizaciones/nueva: assigns a folio and redirects into the
@@ -319,6 +321,16 @@ func (q *Quotes) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	form := parseQuoteNewForm(r)
+	// "Agregar nuevo cliente" without JS: off to the form, which comes back with the
+	// customer and this series selected (issue #29).
+	if form.CustomerID == views.NewCustomerValue {
+		v := url.Values{"volver": {"cotizacion"}}
+		if form.Prefix != "" {
+			v.Set("serie", form.Prefix)
+		}
+		http.Redirect(w, r, "/clientes/nuevo?"+v.Encode(), http.StatusSeeOther)
+		return
+	}
 	series, err := q.store.ListSeries(ctx)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)

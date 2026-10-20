@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -138,14 +139,58 @@ func (cs *Customers) List(w http.ResponseWriter, r *http.Request) {
 	views.CustomersList(customers, lv, successMsg, navUserView(user)).Render(ctx, w)
 }
 
-// NewPage renders the empty create form at /clientes/nuevo.
+// returnTo is where the new-customer form came from (issue #29): "cotizacion" when it was
+// opened from Nueva cotización's "Agregar nuevo cliente", with the series already picked
+// there, so saving or cancelling goes back to it. Zero means the catalog.
+type returnTo struct {
+	Volver, Serie string
+}
+
+func parseReturnTo(r *http.Request) returnTo {
+	if r.FormValue("volver") != "cotizacion" {
+		return returnTo{}
+	}
+	return returnTo{Volver: "cotizacion", Serie: strings.TrimSpace(r.FormValue("serie"))}
+}
+
+// quotePath is Nueva cotización with customerID (0: none) and the series selected.
+func (rt returnTo) quotePath(customerID int64) string {
+	v := url.Values{}
+	if customerID != 0 {
+		v.Set("cliente", strconv.FormatInt(customerID, 10))
+	}
+	if rt.Serie != "" {
+		v.Set("serie", rt.Serie)
+	}
+	if len(v) == 0 {
+		return "/cotizaciones/nueva"
+	}
+	return "/cotizaciones/nueva?" + v.Encode()
+}
+
+// newValues puts the return trip on the form's values.
+func (rt returnTo) newValues(v views.CustomerFormValues) views.CustomerFormValues {
+	v.Volver, v.Serie = rt.Volver, rt.Serie
+	if rt.Volver != "" {
+		v.CancelHref = rt.quotePath(0)
+	}
+	return v
+}
+
+// NewPage renders the empty create form at /clientes/nuevo, or with ?volver=cotizacion
+// the same form on a trip from Nueva cotización.
 func (cs *Customers) NewPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user, _ := UserFromContext(ctx)
-	views.CustomerForm("Nuevo cliente", "/clientes/nuevo", views.CustomerFormValues{}, nil, "", navUserView(user)).Render(ctx, w)
+	values := parseReturnTo(r).newValues(views.CustomerFormValues{})
+	views.CustomerForm("Nuevo cliente", "/clientes/nuevo", values, nil, nil, "", navUserView(user)).Render(ctx, w)
 }
 
-// Create handles POST /clientes/nuevo.
+// Create handles POST /clientes/nuevo. Before creating, it looks for customers the new
+// one may duplicate (store.SimilarCustomers) and, unless the form already says
+// confirmar=1, shows them instead of saving: the user picks one of them, creates the new
+// one anyway, or goes back to editing (issue #29). Coming from Nueva cotización, it
+// returns there with the customer selected.
 func (cs *Customers) Create(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if err := r.ParseForm(); err != nil {
@@ -153,10 +198,22 @@ func (cs *Customers) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	form := parseCustomerForm(r)
+	rt := parseReturnTo(r)
 	fieldErrors := form.Validate()
 	if len(fieldErrors) > 0 {
-		cs.renderFormError(w, r, "Nuevo cliente", "/clientes/nuevo", form, fieldErrors)
+		cs.renderNewForm(w, r, form, rt, fieldErrors, nil)
 		return
+	}
+	if r.FormValue("confirmar") != "1" {
+		similar, err := cs.store.SimilarCustomers(ctx, form.Name, form.RFC)
+		if err != nil {
+			http.Error(w, "error interno", http.StatusInternalServerError)
+			return
+		}
+		if len(similar) > 0 {
+			cs.renderNewForm(w, r, form, rt, nil, similar)
+			return
+		}
 	}
 
 	id, err := cs.store.CreateCustomer(ctx, form.toCustomer())
@@ -164,7 +221,28 @@ func (cs *Customers) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
+	if rt.Volver != "" {
+		http.Redirect(w, r, rt.quotePath(id), http.StatusSeeOther)
+		return
+	}
 	http.Redirect(w, r, fmt.Sprintf("/clientes/%d?guardado=1", id), http.StatusSeeOther)
+}
+
+// renderNewForm re-renders the new-customer form with its errors, or with the customers
+// it may duplicate and, for each, where "Usar este cliente" leads.
+func (cs *Customers) renderNewForm(w http.ResponseWriter, r *http.Request, form CustomerForm, rt returnTo, fieldErrors map[string]string, similar []store.Customer) {
+	ctx := r.Context()
+	user, _ := UserFromContext(ctx)
+	var matches []views.SimilarCustomer
+	for _, c := range similar {
+		use := "/clientes"
+		if rt.Volver != "" {
+			use = rt.quotePath(c.ID)
+		}
+		matches = append(matches, views.SimilarCustomer{Customer: c, UseHref: use})
+	}
+	w.WriteHeader(http.StatusUnprocessableEntity)
+	views.CustomerForm("Nuevo cliente", "/clientes/nuevo", rt.newValues(form.toValues()), fieldErrors, matches, "", navUserView(user)).Render(ctx, w)
 }
 
 // EditPage renders the edit form at GET /clientes/{id}.
@@ -190,7 +268,7 @@ func (cs *Customers) EditPage(w http.ResponseWriter, r *http.Request) {
 	}
 	user, _ := UserFromContext(ctx)
 	action := fmt.Sprintf("/clientes/%d", id)
-	views.CustomerForm("Editar cliente", action, customerToValues(*customer), nil, successMsg, navUserView(user)).Render(ctx, w)
+	views.CustomerForm("Editar cliente", action, customerToValues(*customer), nil, nil, successMsg, navUserView(user)).Render(ctx, w)
 }
 
 // Update handles POST /clientes/{id}.
@@ -240,5 +318,5 @@ func (cs *Customers) renderFormError(w http.ResponseWriter, r *http.Request, tit
 	ctx := r.Context()
 	user, _ := UserFromContext(ctx)
 	w.WriteHeader(http.StatusUnprocessableEntity)
-	views.CustomerForm(title, action, form.toValues(), fieldErrors, "", navUserView(user)).Render(ctx, w)
+	views.CustomerForm(title, action, form.toValues(), fieldErrors, nil, "", navUserView(user)).Render(ctx, w)
 }
