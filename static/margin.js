@@ -9,7 +9,8 @@
   var pct = document.getElementById("margin-pct");
   var price = document.getElementById("copper-price");
   var edited = document.getElementById("margin-edited");
-  if (!pct) return; // not a CCS quote: no custom margin fields
+  var custom = document.getElementById("margin-custom");
+  if (!pct) return; // a QL quote: no custom margin
   var cost = parseFloat(box.dataset.copperCost);
 
   function num(el) {
@@ -47,12 +48,14 @@
   }
 
   // Both fields always show the selected margin. A menu option fills them in read-only;
-  // "Personalizado" keeps what's there and unlocks them.
+  // "Otro margen" keeps what's there and unlocks them.
   select.addEventListener("change", function () {
     var opt = select.options[select.selectedIndex];
     var isCustom = opt.value === "custom";
     pct.readOnly = !isCustom;
     if (price) price.readOnly = !isCustom;
+    // Without the copper price, the percentage only shows while "Otro margen" is picked.
+    if (!price) custom.hidden = !isCustom;
     if (isCustom) {
       edited.value = "pct";
     } else {

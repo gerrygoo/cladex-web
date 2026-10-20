@@ -254,7 +254,7 @@ func TestAjustesMargenes(t *testing.T) {
 
 // A custom margin typed as a percentage, or as the copper price per kg it implies,
 // prices the lines, is saved on the draft with the other field derived, and is frozen
-// as "Personalizado" when the quote is issued.
+// as "Otro margen" when the quote is issued.
 func TestQuoteCustomMargin(t *testing.T) {
 	a := newTestAuth(t)
 	q := newTestQuotes(t, a)
@@ -336,20 +336,22 @@ func TestQuoteCustomMargin(t *testing.T) {
 		t.Errorf("preset margin doesn't show its percentage and copper price read-only: %s", body)
 	}
 
-	// Issuing freezes it as Personalizado.
+	// Issuing freezes it as Otro margen.
 	rec = doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+draft.Folio+"/emitir",
 		map[string]string{"folio": draft.Folio}, customForm(url.Values{"margin_pct": {"50"}}), false)
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("Emitir status = %d; body = %s", rec.Code, rec.Body.String())
 	}
-	if body := builderBody(t, a, q, userID, draft.Folio); !strings.Contains(body, "<dd>Personalizado (50%)</dd>") {
+	if body := builderBody(t, a, q, userID, draft.Folio); !strings.Contains(body, "<dd>Otro margen (50%)</dd>") {
 		t.Errorf("issued page lost its custom margin: %s", body)
 	}
 }
 
-// Only CCS quotes (series QS) can use a margin of their own: other series show neither
-// "Personalizado" nor the copper price, and a submitted custom margin is ignored.
-func TestQuoteCustomMarginOnlyOnCCS(t *testing.T) {
+// "Otro margen" (issue #28): every catalog series can use a margin of its own, typed as
+// a percentage with up to two decimals. Only CCS also offers the copper price, and only
+// there do the fields show for a menu option; QL, which prices each line with its own
+// margin, has no quote margin at all.
+func TestQuoteOtroMargen(t *testing.T) {
 	a := newTestAuth(t)
 	q := newTestQuotes(t, a)
 	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
@@ -360,21 +362,62 @@ func TestQuoteCustomMarginOnlyOnCCS(t *testing.T) {
 
 	draft, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QA")
 	body := builderBody(t, a, q, userID, draft.Folio)
-	for _, unwanted := range []string{"Personalizado", "copper_price", "margin_pct"} {
-		if strings.Contains(body, unwanted) {
-			t.Errorf("CCA quote shows %q", unwanted)
-		}
+	if !strings.Contains(body, `<option value="custom">Otro margen</option>`) || !strings.Contains(body, `<span id="margin-custom" hidden>`) {
+		t.Errorf("CCA quote doesn't offer Otro margen, or shows its field before it is picked: %s", body)
+	}
+	if strings.Contains(body, "copper_price") {
+		t.Error("CCA quote shows the copper price")
 	}
 
-	f := costLineForm(costProductID, estandar.ID)
-	f.Set("margin_option_id", "custom")
-	f.Set("margin_pct", "50")
-	rec := doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+draft.Folio+"/guardar",
-		map[string]string{"folio": draft.Folio}, f, false)
-	if rec.Code != http.StatusUnprocessableEntity && rec.Code != http.StatusSeeOther {
-		t.Fatalf("Guardar status = %d", rec.Code)
+	form := func(pct string) url.Values {
+		f := costLineForm(costProductID, estandar.ID)
+		f.Set("margin_option_id", "custom")
+		f.Set("margin_pct", pct)
+		return f
 	}
-	if saved, _ := a.store.QuoteByID(ctx, draft.ID); saved.CustomMarginMicros != nil {
-		t.Errorf("CCA quote saved a custom margin: %v", *saved.CustomMarginMicros)
+	// Three decimals, 100 or more, negative or empty can't be saved.
+	for _, bad := range []string{"19.285", "100", "-1", ""} {
+		rec := doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+draft.Folio+"/guardar",
+			map[string]string{"folio": draft.Folio}, form(bad), false)
+		if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), "Otro margen inválido") {
+			t.Errorf("Guardar(Otro margen %q) = %d, want 422 with the error", bad, rec.Code)
+		}
+	}
+	// $45.00 at 19.28% on the sale price: 45 ÷ (1 − 0.1928) = $55.75.
+	rec := doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+draft.Folio+"/guardar",
+		map[string]string{"folio": draft.Folio}, form("19.28"), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if saved, _ := a.store.QuoteByID(ctx, draft.ID); saved.CustomMarginMicros == nil || *saved.CustomMarginMicros != 192_800 {
+		t.Fatalf("saved custom margin = %v, want 0.1928", saved.CustomMarginMicros)
+	}
+	body = builderBody(t, a, q, userID, draft.Folio)
+	for _, want := range []string{`<option value="custom" selected>Otro margen (19.28%)</option>`, `value="19.28"`, "55.75"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("reopened builder missing %q", want)
+		}
+	}
+	// A revision starts on the same margin.
+	rec = doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+draft.Folio+"/emitir",
+		map[string]string{"folio": draft.Folio}, form("19.28"), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if body := builderBody(t, a, q, userID, draft.Folio); !strings.Contains(body, "<dd>Otro margen (19.28%)</dd>") {
+		t.Errorf("issued page doesn't show Otro margen: %s", body)
+	}
+	rev, err := a.store.CreateRevision(ctx, draft.ID, userID)
+	if err != nil {
+		t.Fatalf("CreateRevision: %v", err)
+	}
+	if body := builderBody(t, a, q, userID, rev.Folio); !strings.Contains(body, `<option value="custom" selected>Otro margen (19.28%)</option>`) {
+		t.Error("the revision doesn't start on the original's Otro margen")
+	}
+
+	// QL has no quote margin to pick.
+	ql, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QL")
+	if body := builderBody(t, a, q, userID, ql.Folio); strings.Contains(body, "Otro margen") || strings.Contains(body, `id="margin-select"`) {
+		t.Error("QL quote offers a quote margin")
 	}
 }

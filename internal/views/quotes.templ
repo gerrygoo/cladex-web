@@ -563,66 +563,69 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 				>
 					Recalcular
 				</button>
-				<div id="margin-controls" class="quote-meta" data-copper-cost={ margin.CopperCost }>
-					<label>
-						Margen
-						<select
-							id="margin-select"
-							name="margin_option_id"
-							hx-post={ recalcularPath(quote.Folio) }
-							hx-trigger="change"
-							hx-target="#quote-lines-fragment"
-							hx-swap="outerHTML"
-						>
-							if margin.NoneChosen {
-								<option value="" selected>— Elige un margen —</option>
-							}
-							for _, c := range margin.Choices {
-								<option value={ marginChoiceValue(c.ID) } data-pct={ c.Pct } selected?={ c.Selected }>{ c.Label }</option>
-							}
-							if margin.AllowCustom {
-								<option value={ CustomMarginValue } selected?={ margin.Custom }>Personalizado…</option>
-							}
-						</select>
-					</label>
-					if margin.AllowCustom {
-						<span id="margin-custom">
-							<input type="hidden" name="margin_edited" id="margin-edited" value=""/>
-							<label>
-								Margen (%)
-								<input
-									type="text"
-									inputmode="decimal"
-									name="margin_pct"
-									id="margin-pct"
-									readonly?={ !margin.Custom }
-									value={ margin.CustomPct }
-									hx-post={ recalcularPath(quote.Folio) }
-									hx-trigger="change"
-									hx-target="#quote-lines-fragment"
-									hx-swap="outerHTML"
-								/>
-							</label>
-							if margin.HasCopper {
+				// QL has no quote margin: each line carries its own (issue #27).
+				if !quote.SeriesFreeLines {
+					<div id="margin-controls" class="quote-meta" data-copper-cost={ margin.CopperCost }>
+						<label>
+							Margen
+							<select
+								id="margin-select"
+								name="margin_option_id"
+								hx-post={ recalcularPath(quote.Folio) }
+								hx-trigger="change"
+								hx-target="#quote-lines-fragment"
+								hx-swap="outerHTML"
+							>
+								if margin.NoneChosen {
+									<option value="" selected>— Elige un margen —</option>
+								}
+								for _, c := range margin.Choices {
+									<option value={ marginChoiceValue(c.ID) } data-pct={ c.Pct } selected?={ c.Selected }>{ c.Label }</option>
+								}
+								if margin.AllowCustom {
+									<option value={ CustomMarginValue } selected?={ margin.Custom }>{ margin.CustomOptionLabel() }</option>
+								}
+							</select>
+						</label>
+						if margin.AllowCustom {
+							<span id="margin-custom" hidden?={ !margin.Custom && !margin.HasCopper }>
+								<input type="hidden" name="margin_edited" id="margin-edited" value=""/>
 								<label>
-									Precio { margin.CopperName } ($/kg)
+									Margen (%)
 									<input
 										type="text"
 										inputmode="decimal"
-										name="copper_price"
-										id="copper-price"
+										name="margin_pct"
+										id="margin-pct"
 										readonly?={ !margin.Custom }
-										value={ margin.CopperPrice }
+										value={ margin.CustomPct }
 										hx-post={ recalcularPath(quote.Folio) }
 										hx-trigger="change"
 										hx-target="#quote-lines-fragment"
 										hx-swap="outerHTML"
 									/>
 								</label>
-							}
-						</span>
-					}
-				</div>
+								if margin.HasCopper {
+									<label>
+										Precio { margin.CopperName } ($/kg)
+										<input
+											type="text"
+											inputmode="decimal"
+											name="copper_price"
+											id="copper-price"
+											readonly?={ !margin.Custom }
+											value={ margin.CopperPrice }
+											hx-post={ recalcularPath(quote.Folio) }
+											hx-trigger="change"
+											hx-target="#quote-lines-fragment"
+											hx-swap="outerHTML"
+										/>
+									</label>
+								}
+							</span>
+						}
+					</div>
+				}
 				if store.RequiresDeliveryTime(quote.SeriesTerms) {
 					<div class="quote-meta">
 						<label>

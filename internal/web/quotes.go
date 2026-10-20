@@ -59,11 +59,18 @@ type draftMargin struct {
 	option *store.MarginOption
 	custom *money.Micros
 	picker views.MarginPicker
+	// badCustom is set when "Otro margen" is picked with a percentage that can't be used
+	// (empty, out of range, too many decimals): the draft can't be saved or issued, rather
+	// than falling back to its saved menu option.
+	badCustom bool
 }
 
 // usable reports whether the draft can be priced and issued with its margin: it has a
 // custom margin, or names an option that hasn't been retired.
 func (m draftMargin) usable() bool {
+	if m.badCustom {
+		return false
+	}
 	return m.custom != nil || (m.option != nil && m.option.Active())
 }
 
@@ -104,8 +111,9 @@ func (m draftMargin) id() *int64 {
 // the request didn't carry one, e.g. a page load); its margin controls win over the
 // quote's saved margin so an unsaved change in the dropdown prices the lines.
 func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url.Values) (draftMargin, error) {
-	// A margin of its own is only offered on CCS quotes for now.
-	allowCustom := quote.SeriesFamily == views.CCSFamilyName
+	// A margin of its own ("Otro margen", issue #28) is offered on every catalog series
+	// (QA, QS, QI); QL prices each line with its own margin instead.
+	allowCustom := !quote.SeriesFreeLines
 	selected := quote.MarginOptionID
 	var custom *money.Micros
 	if allowCustom {
@@ -127,7 +135,7 @@ func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url
 		return draftMargin{}, fmt.Errorf("resolve margin: %w", err)
 	}
 	var copper *store.Material
-	if !allowCustom {
+	if quote.SeriesFamily != views.CCSFamilyName {
 		// no copper price outside CCS quotes
 	} else if materials, err := q.store.ListMaterials(ctx); err != nil {
 		return draftMargin{}, fmt.Errorf("resolve margin: %w", err)
@@ -172,6 +180,7 @@ func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url
 				errMsg = invalidCustomMarginMsg
 			}
 			m.picker.Error = errMsg
+			m.badCustom = submitted
 		}
 		return m, nil
 	}
@@ -197,7 +206,7 @@ func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url
 	return m, nil
 }
 
-const invalidCustomMarginMsg = "Margen personalizado inválido: escribe un porcentaje de 0 a 99.9999, p. ej. 12.34."
+const invalidCustomMarginMsg = "Otro margen inválido: escribe un porcentaje de 0 a 99.99, con hasta 2 decimales, p. ej. 19.8."
 
 // parseCustomMargin reads a custom margin from the builder's two fields. edited says
 // which one the salesperson touched last ("copper" or anything else for the
@@ -216,8 +225,10 @@ func parseCustomMargin(edited, pctRaw, copperRaw string, copper *store.Material)
 		}
 		return &m, ""
 	}
+	// Typed, it takes up to two decimals of a percent (19.85%); one derived from the
+	// copper price above may carry more.
 	m, err := parseMarginPercent(pctRaw)
-	if err != nil {
+	if err != nil || m%100 != 0 {
 		return nil, invalidCustomMarginMsg
 	}
 	return &m, ""
@@ -876,6 +887,10 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin)
 	totals := computeQuoteTotals(lines)
 
+	if margin.badCustom {
+		q.renderBuilder(w, r, quote, lines, totals, margin.picker, "", http.StatusUnprocessableEntity, nil)
+		return
+	}
 	for _, l := range lines {
 		if l.Error != "" {
 			q.renderBuilder(w, r, quote, lines, totals, margin.picker, "", http.StatusUnprocessableEntity, nil)

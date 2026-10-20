@@ -97,26 +97,31 @@ Cada cotización se calcula con un [[margen]] que eliges de una lista, p. ej.
 El margen aplica a todos los productos del catálogo en la cotización; las
 [líneas libres](#agregar-una-línea-libre) no lo usan. El margen no aparece en el PDF.
 
-### Usar un margen propio (cotizaciones CCS)
+### Usar otro margen (QA, QS y QI)
 
-Esto solo está disponible en las cotizaciones de la serie **QS** (CCS y AC); las demás
-series usan únicamente los márgenes de la lista.
+Si ninguno de la lista te sirve, por ejemplo para dar un punto de descuento sin bajar
+hasta el siguiente margen, elige **Otro margen** al final de la lista **Margen** y escribe
+el porcentaje en **Margen (%)**: de 0 a 99.99, con hasta 2 decimales, p. ej. `19.8`.
+Aplica a todos los productos de la cotización, igual que uno de la lista, y se calcula
+igual: costo ÷ (1 − margen). Por ejemplo, costo $1,000 con Alto (20.28%) da $1,254.39; con
+*Otro margen* de 19.28% da $1,238.85.
 
-Junto a **Margen** siempre ves el margen elegido de dos maneras (con un margen de la
-lista, solo de lectura). Si ninguno te sirve, elige **Personalizado…** y los dos campos
-se desbloquean:
+- Es solo de esta cotización: no se agrega a la lista ni lo ven otras cotizaciones.
+- Con 100 o más, un número negativo o el campo vacío, no se puede guardar ni emitir.
+- Al reabrir el borrador, la lista dice *Otro margen (19.8%)*. Una
+  [revisión](#revisar-una-cotización-emitida) arranca con el mismo margen y lo puedes
+  cambiar.
+- Si vuelves a elegir uno de la lista, el campo desaparece y el margen propio se
+  descarta.
+- Al emitir, la cotización queda con el margen *Otro margen* y su porcentaje. El PDF no
+  muestra ningún margen.
 
-- **Margen (%)**: cualquier porcentaje de 0 a 99.9999, p. ej. `31.5`.
-- **Precio CCS 30% ($/kg)**: el precio de venta por kilo del cobre que ese margen
-  implica (costo del material ÷ (1 − margen)). Solo aparece si el catálogo tiene el
-  material *CCS 30%*.
-
-Escribe en cualquiera de los dos y el otro se actualiza al instante: si cambias el
-porcentaje, el precio por kilo se recalcula, y si escribes un precio por kilo, el
-porcentaje se recalcula. El precio no puede ser menor que el costo del material.
-Al terminar, los precios y totales se recalculan; [guarda el borrador](#guardar-el-borrador)
-para conservar el margen. Al emitir, la cotización queda con el margen *Personalizado*
-y su porcentaje. Si vuelves a elegir uno de la lista, el margen propio se descarta.
+En las cotizaciones **QS** (CCS y AC), junto a **Margen** siempre ves el margen elegido
+de dos maneras (con uno de la lista, solo de lectura): el porcentaje y el **Precio CCS
+30% ($/kg)**, el precio de venta por kilo del cobre que ese margen implica (costo del
+material ÷ (1 − margen); solo si el catálogo tiene el material *CCS 30%*). Con **Otro
+margen**, escribe en cualquiera de los dos y el otro se actualiza al instante. El precio
+no puede ser menor que el costo del material.
 
 > La lista de márgenes la mantiene un administrador en Configuración del sistema. Si cambia el porcentaje
 > de tu margen, tu borrador toma el valor nuevo; si lo retira, tienes que

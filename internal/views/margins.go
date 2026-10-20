@@ -37,10 +37,12 @@ type MarginPicker struct {
 	NoneChosen bool
 	Error      string
 
-	// AllowCustom is set on CCS quotes, the only ones that can use a margin of their
-	// own; only then are the "Personalizado" option and the two margin fields shown.
+	// AllowCustom is set on catalog series (QA, QS, QI), which can use a margin of their
+	// own; only then is the "Otro margen" option offered. Its percentage field shows
+	// while it is picked, and on CCS quotes always, read-only for a menu option, next to
+	// the copper price.
 	AllowCustom bool
-	// Custom is set when the draft is on a margin of its own ("Personalizado") rather
+	// Custom is set when the draft is on a margin of its own ("Otro margen") rather
 	// than a menu option; CustomPct holds the percentage typed (or derived) for it.
 	// When the catalog has the copper material (HasCopper), the same margin is also
 	// offered as that material's sale price per kg: CopperName and CopperCost say what
@@ -86,14 +88,25 @@ func (p *MarginPicker) SetMarginDisplay(margin money.Micros, copper *store.Mater
 	}
 }
 
-// CCSFamilyName is the product family whose quotes can carry a custom margin.
+// CCSFamilyName is the product family whose custom margin can also be typed as the
+// copper price per kg.
 const CCSFamilyName = "CCS & AC"
 
-// CustomMarginValue is the margin dropdown's value for "Personalizado".
+// CustomMarginValue is the margin dropdown's value for "Otro margen".
 const CustomMarginValue = "custom"
 
 // CustomMarginName is the name a custom margin carries in snapshots and pricing inputs.
-const CustomMarginName = "Personalizado"
+// Quotes issued before issue #28 carry the earlier "Personalizado".
+const CustomMarginName = "Otro margen"
+
+// CustomOptionLabel is the dropdown's "Otro margen" entry, with its percentage once the
+// draft is on one: "Otro margen (19.8%)".
+func (p MarginPicker) CustomOptionLabel() string {
+	if p.Custom && p.CustomPct != "" && p.Error == "" {
+		return CustomMarginName + " (" + p.CustomPct + "%)"
+	}
+	return CustomMarginName
+}
 
 // CopperPriceText renders a sale price per kg for the copper field: whole centavos, no
 // currency formatting, so it round-trips through an <input>.
