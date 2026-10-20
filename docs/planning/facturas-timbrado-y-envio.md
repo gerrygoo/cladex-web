@@ -325,3 +325,12 @@ factura, its outcome is "sent through the PAC", and #18 isn't on the critical pa
 (follow-up reminders, copies), or once bounces need tracking. Either way we need to
 know who manages **cladex.com.mx's DNS and mail**: SPF/DKIM records for any provider go
 there.
+
+### Decisions (Gerry, 2026-10-19)
+
+- **PAC: Facturapi.** Next: open the account and try the 14-day trial in Test mode, stamp
+  and cancel a test factura, and get the contador's OK on uploading the CSD to Facturapi
+  and on its PDF. Signing up is Gerry's (an account with Cladex's fiscal data).
+- **DNS and email: GoDaddy.** cladex.com.mx's DNS and mailboxes are at GoDaddy, so any
+  SPF/DKIM records for a sending provider (#18) are added in GoDaddy's DNS panel. M7
+  still starts with Facturapi sending the factura, which needs no DNS change.
