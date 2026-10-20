@@ -297,6 +297,21 @@ func TestQuotesGuardarRejectsInvalidLine(t *testing.T) {
 
 // TestQuotesPDF requires the `typst` CLI (part of the documented local dev toolchain,
 // see docs/PLAN.md 0.0a).
+// TestEndOfMonth pins issue #26: any day of issue runs to the last day of its month,
+// whatever the month's length, and the last day itself expires the same day.
+func TestEndOfMonth(t *testing.T) {
+	for _, c := range []struct{ day, want string }{
+		{"2026-10-16", "2026-10-31"}, {"2026-10-30", "2026-10-31"}, {"2026-10-31", "2026-10-31"},
+		{"2026-09-03", "2026-09-30"}, {"2028-02-10", "2028-02-29"}, {"2027-02-01", "2027-02-28"},
+		{"2026-12-31", "2026-12-31"},
+	} {
+		day, _ := time.Parse("2006-01-02", c.day)
+		if got := endOfMonth(day); got != c.want {
+			t.Errorf("endOfMonth(%s) = %s, want %s", c.day, got, c.want)
+		}
+	}
+}
+
 func TestQuotesPDF(t *testing.T) {
 	a := newTestAuth(t)
 	q := newTestQuotes(t, a)
@@ -405,6 +420,10 @@ func TestQuotesEmitir(t *testing.T) {
 	}
 	if issued.CustomerNameSnapshot == nil || issued.VendedorSnapshot == nil || issued.PDFSHA256 == nil {
 		t.Fatalf("issue didn't record name snapshots/hash: %+v", issued)
+	}
+	// The vigencia is the last day of the month it was issued in (issue #26).
+	if want := endOfMonth(time.Now().In(store.LocationFromContext(context.Background()))); *issued.ValidUntil != want {
+		t.Errorf("ValidUntil = %s, want %s", *issued.ValidUntil, want)
 	}
 
 	// Nothing is stored; the PDF is regenerated, and the first reprint already hashes to

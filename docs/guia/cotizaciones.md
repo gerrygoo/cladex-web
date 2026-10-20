@@ -199,7 +199,8 @@ Qué pasa al emitir:
 - El PDF queda definitivo. Cada vez que lo descargues tendrá los mismos precios,
   cliente, vendedor, fechas y términos con que se emitió, aunque después cambien los
   ajustes, el catálogo o los datos del cliente.
-- La [[vigencia]] es de 30 días a partir de hoy; aparece en el PDF y en la página. En
+- La [[vigencia]] es el último día del mes en que la emites (emitida el 16/10, vence el
+  31/10; emitida el 31/10, vence ese mismo día); aparece en el PDF y en la página. En
   la serie **QL** no es automática: tú escribes la [fecha de vigencia](#moneda-y-vigencia-en-ql).
 
 > Para emitir, la cotización necesita al menos una línea, ninguna línea con error y un

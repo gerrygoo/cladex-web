@@ -414,10 +414,10 @@ func TestGuiaProductoEliminadoEnBorrador(t *testing.T) {
 	}
 }
 
-// "La vigencia es de 30 días a partir de hoy" (docs/guia/cotizaciones.md, "Emitir la
+// "La vigencia es el último día del mes en que la emites" (docs/guia/cotizaciones.md, "Emitir la
 // cotización"; README.md, "Conceptos"). Requires the typst CLI, like the other Emitir
 // tests.
-func TestGuiaVigencia30Dias(t *testing.T) {
+func TestGuiaVigenciaFinDeMes(t *testing.T) {
 	a := newTestAuth(t)
 	q := newTestQuotes(t, a)
 	userID := createTestUser(t, a, "rodolfo", "vendedor", "hunter2")
@@ -444,9 +444,9 @@ func TestGuiaVigencia30Dias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("QuoteByID: %v", err)
 	}
-	want := time.Now().AddDate(0, 0, 30).Format("2006-01-02")
+	want := endOfMonth(time.Now().In(store.LocationFromContext(ctx)))
 	if issued.ValidUntil == nil || *issued.ValidUntil != want {
-		t.Errorf("ValidUntil = %v, want %s (30 días a partir de hoy)", issued.ValidUntil, want)
+		t.Errorf("ValidUntil = %v, want %s (el último día del mes)", issued.ValidUntil, want)
 	}
 
 	// "Verás Cotización emitida. y Estado: emitida."

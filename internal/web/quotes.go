@@ -38,10 +38,13 @@ func NewQuotes(s *store.Store, logger *slog.Logger) *Quotes {
 	return &Quotes{store: s, logger: logger}
 }
 
-// defaultValidityDays is how long an issued quote is valid for when no other input
-// sets it — no UI exists yet to pick a custom validity per quote, so every issued
-// quote gets this fixed window. Matches a typical commercial-quote validity period.
-const defaultValidityDays = 30
+// endOfMonth is the validity of a quote issued on day (issue #26): the last day of that
+// month, whatever the day of issue, so one issued on the last day expires the same day.
+// Free-lines series (QL) don't use it; their vigencia is typed in.
+func endOfMonth(day time.Time) string {
+	y, m, _ := day.Date()
+	return time.Date(y, m+1, 0, 0, 0, 0, 0, day.Location()).Format("2006-01-02")
+}
 
 // copperMaterialName is the catalog material whose sale price per kg a CCS quote's
 // margin can be set by: its cost / (1 - margin) is the "copper price" salespeople quote.
@@ -1138,7 +1141,9 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validUntil := time.Now().AddDate(0, 0, defaultValidityDays).Format("2006-01-02")
+	// The month is the viewer's: a quote issued late on the 31st in México is still
+	// that month's, though UTC has moved on.
+	validUntil := endOfMonth(time.Now().In(store.LocationFromContext(ctx)))
 	if quote.SeriesFreeLines {
 		// missingTermsInputs has already checked it is set.
 		validUntil = *quote.ValidUntil
