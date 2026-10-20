@@ -399,3 +399,38 @@ manual stamps done in its portal). That reshapes the secrets plan:
   created once by hand (ideally for a separate API user), only the token goes in the
   NAS `.env`, the app never holds the account password, and a leaked token is revoked
   with `DELETE /token/borrar` and replaced.
+
+### Facturoporti support answers (Emilio, 2026-10-20, #30)
+
+Emilio asked support the questions above; their answers, and what each changes:
+
+1. **The API does not use the CSD stored on the account.** Every `timbrar/json` call
+   carries `csd`, `llavePrivada` and `csdPassword` in base64, added by the app. So the
+   plan from before the "Update" stands: the `.cer` and `.key` go on the NAS outside the
+   DB and repo (read-only mount), the password in the NAS env, and none of it is logged or
+   kept in the event log.
+2. **Resending the same serie and folio returns the first response, with the same
+   stamp.** This settles `timbrado incierto` better than the portal check: retrying with
+   the factura's frozen serie and folio is safe, since a second stamp can't happen. The
+   retry stays a manual button (no job system), but nobody has to look anything up in the
+   portal first. It requires that serie and folio are assigned once, when the factura
+   becomes `lista para timbrar`, and never reassigned. To confirm in the sandbox: the
+   repeated response carries the full XML, and how long Facturoporti remembers a folio.
+   **There is no lookup by serie and folio.**
+3. **Facturoporti keeps nothing stamped through the API**: the XML and PDF come back in
+   the response and are lost if we drop them (their storage service costs extra). The
+   app must store the XML (and PDF) in the same transaction that marks the factura
+   `timbrada`. Both are small, so they go in SQLite and are covered by Litestream and the
+   backups; the XML is the legal document and has to be kept for the SAT's retention
+   period. If the save fails after a successful stamp, the resend from (2) gets it back.
+4. **The current plan is portal-only.** API stamps ("Timbres RestAPI") are bought
+   separately, only when going to production: $1.45 MXN per stamp up to 30,000, packages
+   from 100. Development and sandbox are free.
+5. **A separate API user can be created**, or the stamps bought on the current user.
+   Recommendation: a separate API user, so the token the NAS holds is not the portal
+   login.
+6. Support is sending the docs (token, stamping examples, Postman project) to Emilio's
+   email, and offers a call with their developers; API support comes with the stamps.
+
+Next for Cladex: forward that email to Gerry, create the API user, and hand over the CSD
+(`.cer`, `.key`, password) privately when stamping in the sandbox works.
