@@ -31,6 +31,9 @@ type QuoteLineDoc struct {
 	Qty         string
 	UnitPrice   string
 	Total       string
+	// KgPerUnit and Kg are the line's weight per metre and in all, printed only when
+	// the document's ShowKg is set; empty for a line without one.
+	KgPerUnit, Kg string
 }
 
 // QuoteDocument is everything RenderQuote needs to lay out a cotización PDF. Every
@@ -51,6 +54,9 @@ type QuoteDocument struct {
 	Terms    []string
 	// Letterhead is the logo block the PDF opens with; the caller picks it by familia.
 	Letterhead Letterhead
+	// ShowKg adds Kg por metro and Kg columns, with quantity and unit price per metre
+	// (CCS quotes, issue #34).
+	ShowKg bool
 	// Created is the PDF's embedded creation date: issued_at for an issued quote, so
 	// every reprint is byte-identical; zero (render time) for a draft preview.
 	Created time.Time
@@ -88,6 +94,13 @@ func buildQuoteTypst(doc QuoteDocument) string {
 
 	b.WriteString("#let lines = (\n")
 	for _, l := range doc.Lines {
+		if doc.ShowKg {
+			fmt.Fprintf(&b, "  (%s, %s, %s, %s, %s, %s),\n",
+				typstStringLiteral(l.Description), typstStringLiteral(l.Qty),
+				typstStringLiteral(l.KgPerUnit), typstStringLiteral(l.Kg),
+				typstStringLiteral(l.UnitPrice), typstStringLiteral(l.Total))
+			continue
+		}
 		fmt.Fprintf(&b, "  (%s, %s, %s, %s),\n",
 			typstStringLiteral(l.Description), typstStringLiteral(l.Qty),
 			typstStringLiteral(l.UnitPrice), typstStringLiteral(l.Total))
@@ -100,7 +113,50 @@ func buildQuoteTypst(doc QuoteDocument) string {
 	}
 	b.WriteString(")\n")
 
-	b.WriteString(currencyLabels(doc.Currency, `
+	layout := quoteLayout
+	if doc.ShowKg {
+		layout = strings.Replace(layout, quoteTable, kgQuoteTable, 1)
+	}
+	b.WriteString(currencyLabels(doc.Currency, layout))
+
+	return b.String()
+}
+
+// quoteTable is the line-item table of quoteLayout; kgQuoteTable replaces it when the
+// document shows weights.
+const quoteTable = `#table(
+  columns: (auto, 1fr, auto, auto, auto),
+  align: (right, left, right, right, right),
+  stroke: 0.5pt + rgb("#cccccc"),
+  fill: (col, row) => if row == 0 { rgb("#AC5424") } else { white },
+  table.header(
+    [#text(fill: white, weight: "bold")[Partida]],
+    [#text(fill: white, weight: "bold")[Descripción]],
+    [#text(fill: white, weight: "bold")[Cantidad]],
+    [#text(fill: white, weight: "bold")[Precio unitario]],
+    [#text(fill: white, weight: "bold")[Total]],
+  ),
+  ..lines.enumerate().map(((i, l)) => (str(i + 1), l.at(0), l.at(1), l.at(2), l.at(3))).flatten()
+)`
+
+const kgQuoteTable = `#table(
+  columns: (auto, 1fr, auto, auto, auto, auto, auto),
+  align: (right, left, right, right, right, right, right),
+  stroke: 0.5pt + rgb("#cccccc"),
+  fill: (col, row) => if row == 0 { rgb("#AC5424") } else { white },
+  table.header(
+    [#text(fill: white, weight: "bold")[Partida]],
+    [#text(fill: white, weight: "bold")[Descripción]],
+    [#text(fill: white, weight: "bold")[Cantidad (m)]],
+    [#text(fill: white, weight: "bold")[Kg por metro]],
+    [#text(fill: white, weight: "bold")[Kg]],
+    [#text(fill: white, weight: "bold")[Precio unitario]],
+    [#text(fill: white, weight: "bold")[Total]],
+  ),
+  ..lines.enumerate().map(((i, l)) => (str(i + 1), l.at(0), l.at(1), l.at(2), l.at(3), l.at(4), l.at(5))).flatten()
+)`
+
+const quoteLayout = `
 #grid(
   columns: (auto, 1fr),
   align: (left, right),
@@ -152,10 +208,7 @@ func buildQuoteTypst(doc QuoteDocument) string {
 #for t in terms [
   - #t
 ]
-`))
-
-	return b.String()
-}
+`
 
 // writeLetterhead binds #letterhead to l's logo block. Only the logos it shows are
 // embedded, and the Cladex block lays out exactly as before letterheads existed, so

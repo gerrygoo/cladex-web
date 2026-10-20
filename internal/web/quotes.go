@@ -508,6 +508,37 @@ func buildPricingInputsJSON(p *store.Product, materials []store.ProductMaterial,
 	return &str
 }
 
+// kgPerUnit is the kg of material in one unit of a product line, from its pricing
+// inputs: the materials priced per kg, added up (e.g. 0.1723 kg of CCS 30% per m). It
+// reads what the line was priced from, so an issued quote keeps its weights even if the
+// catalog changes. nil for a line without any.
+func kgPerUnit(inputs *string) *money.Micros {
+	if inputs == nil {
+		return nil
+	}
+	var snap pricingInputsSnapshot
+	if err := json.Unmarshal([]byte(*inputs), &snap); err != nil {
+		return nil
+	}
+	var kg money.Micros
+	found := false
+	for _, m := range snap.Materials {
+		if m.Unit != "kg" {
+			continue
+		}
+		q, err := money.ParseMicros(m.QtyPerUnit)
+		if err != nil {
+			return nil
+		}
+		kg += q
+		found = true
+	}
+	if !found {
+		return nil
+	}
+	return &kg
+}
+
 // freeLineMargin is the margin a QL free line was priced with, from its pricing inputs;
 // nil for any other line.
 func freeLineMargin(l store.QuoteLine) *money.Micros {
@@ -669,6 +700,7 @@ func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput,
 		v.UnitPriceMicros = unitPrice
 		v.LineTotal = money.LineTotalCentavos(unitPrice, qty)
 		v.PricingInputsJSON = buildPricingInputsJSON(product, materials, *margin.value(), margin.name())
+		v.KgPerUnit = kgPerUnit(v.PricingInputsJSON)
 		result[i] = v
 	}
 	return result
@@ -694,6 +726,7 @@ func frozenQuoteLines(persisted []store.QuoteLine) []views.QuoteLineView {
 			QtyMilli:        l.QtyMilli,
 			UnitPriceMicros: l.UnitPriceMicros,
 			LineTotal:       l.LineTotal,
+			KgPerUnit:       kgPerUnit(l.PricingInputsJSON),
 		}
 	}
 	return out
@@ -1054,6 +1087,8 @@ func docLinesFrom(lines []views.QuoteLineView) []pdf.QuoteLineDoc {
 			Qty:         l.QtyMilli.String(),
 			UnitPrice:   l.UnitPriceMicros.ToCentavosHalfUp().String(),
 			Total:       l.LineTotal.String(),
+			KgPerUnit:   views.KgPerUnitText(l),
+			Kg:          views.KgText(l),
 		})
 	}
 	return docLines
@@ -1080,6 +1115,7 @@ func draftQuoteDocument(quote store.Quote, lines []views.QuoteLineView, totals p
 		Total:        totals.Total.String(),
 		Terms:        store.RenderTerms(quote.SeriesTerms, termsInputs(quote)),
 		Letterhead:   letterheadFor(quote.SeriesFamily),
+		ShowKg:       views.ShowsKg(quote),
 	}
 }
 
@@ -1126,6 +1162,7 @@ func issuedQuoteDocument(quote store.Quote, persisted []store.QuoteLine) (pdf.Qu
 		Total:        quote.Total.String(),
 		Terms:        store.SplitTerms(*quote.TermsSnapshot),
 		Letterhead:   letterheadFor(quote.SeriesFamily),
+		ShowKg:       views.ShowsKg(quote),
 		Created:      issuedAt,
 	}, nil
 }

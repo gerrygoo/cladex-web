@@ -37,6 +37,9 @@ type QuoteLineView struct {
 	MarginRaw    string
 	MarginMicros *money.Micros
 	LineID       int64
+	// KgPerUnit is the kg of material one unit of the product holds (its kg-priced
+	// materials as priced), nil when it has none. CCS quotes show it (issue #34).
+	KgPerUnit *money.Micros
 }
 
 templ QuotesList(quotes []store.Quote, lv ListView, customers, authors []string, successMsg string, user *NavUser) {
@@ -260,7 +263,7 @@ templ lineInput(folio string, line QuoteLineView, field, value, label, placehold
 // quoteLineRow is one editable builder line. On QL (freeLinesOnly) a line takes its cost
 // and margin and shows the price they give, read-only (issue #27); elsewhere a free
 // line takes its price, and an optional cost below it that is never printed.
-templ quoteLineRow(folio string, line QuoteLineView, freeLinesOnly bool, partida int) {
+templ quoteLineRow(folio string, line QuoteLineView, freeLinesOnly, kg bool, partida int) {
 	<tr>
 		<td class="num">{ strconv.Itoa(partida) }</td>
 		<td>
@@ -302,6 +305,10 @@ templ quoteLineRow(folio string, line QuoteLineView, freeLinesOnly bool, partida
 				{ line.UnitCode }
 			}
 		</td>
+		if kg {
+			<td class="num">{ KgPerUnitText(line) }</td>
+			<td class="num">{ KgText(line) }</td>
+		}
 		if freeLinesOnly {
 			<td class="num">
 				@lineInput(folio, line, "cost", line.CostRaw, "Costo unitario", "p. ej. 1500")
@@ -345,17 +352,22 @@ templ quoteLineRow(folio string, line QuoteLineView, freeLinesOnly bool, partida
 	</tr>
 	if line.Error != "" {
 		<tr>
-			<td colspan={ strconv.Itoa(lineColumns(freeLinesOnly)) } class="error">{ line.Error }</td>
+			<td colspan={ strconv.Itoa(lineColumns(freeLinesOnly, kg)) } class="error">{ line.Error }</td>
 		</tr>
 	}
 }
 
-// lineColumns is how many columns the editable lines table has: QL adds cost and margin.
-func lineColumns(freeLinesOnly bool) int {
+// lineColumns is how many columns the editable lines table has: QL adds cost and margin,
+// CCS kg por metro and kg.
+func lineColumns(freeLinesOnly, kg bool) int {
+	n := 6
 	if freeLinesOnly {
-		return 8
+		n += 2
 	}
-	return 6
+	if kg {
+		n += 2
+	}
+	return n
 }
 
 // QuoteLinesFragment is the swappable line-table+totals partial — rendered both as part
@@ -366,6 +378,7 @@ func lineColumns(freeLinesOnly bool) int {
 // to the dropdown so that picking another option (which swaps only this fragment)
 // clears it.
 templ QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, marginError string) {
+	{{ kg := ShowsKg(quote) }}
 	<div id="quote-lines-fragment" tabindex="-1" data-announce={ "Total: " + totals.Total.String() }>
 		<input type="hidden" name="line_keys" value={ lineKeysValue(lines) }/>
 		if marginError != "" {
@@ -382,7 +395,13 @@ templ QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricin
 						} else {
 							<th>Producto / Descripción</th>
 						}
-						<th class="num">Cantidad</th>
+						if kg {
+							<th class="num">Cantidad (m)</th>
+							<th class="num">Kg por metro</th>
+							<th class="num">Kg</th>
+						} else {
+							<th class="num">Cantidad</th>
+						}
 						if quote.SeriesFreeLines {
 							<th class="num">Costo unitario</th>
 							<th class="num">Margen %</th>
@@ -395,14 +414,14 @@ templ QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricin
 				<tbody>
 					if len(lines) == 0 {
 						<tr>
-							<td colspan={ strconv.Itoa(lineColumns(quote.SeriesFreeLines)) }>Sin líneas todavía.</td>
+							<td colspan={ strconv.Itoa(lineColumns(quote.SeriesFreeLines, kg)) }>Sin líneas todavía.</td>
 						</tr>
 					}
 					for i, line := range lines {
-						@quoteLineRow(quote.Folio, line, quote.SeriesFreeLines, i+1)
+						@quoteLineRow(quote.Folio, line, quote.SeriesFreeLines, kg, i+1)
 					}
 				</tbody>
-				@quoteTotals(totals, lineColumns(quote.SeriesFreeLines)-2, 1)
+				@quoteTotals(totals, lineColumns(quote.SeriesFreeLines, kg)-2, 1)
 			</table>
 		</div>
 		if used := materialsInUse(lines); len(used) > 0 {
@@ -513,15 +532,28 @@ func revisarPath(folio string) string {
 // QuoteLinesReadOnly renders an issued or revised quote's frozen lines — no qty
 // inputs, no remove buttons, nothing that implies the row can still change. Used
 // instead of QuoteLinesFragment once a quote leaves 'borrador'.
-templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
+templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals, kg bool) {
 	{{ costs := anyLineCost(lines) }}
+	{{ lead := 4 }}
+	if costs {
+		{{ lead += 2 }}
+	}
+	if kg {
+		{{ lead += 2 }}
+	}
 	<div class="table-scroll">
 		<table>
 			<thead>
 				<tr>
 					<th class="num">Partida</th>
 					<th>Producto / Descripción</th>
-					<th class="num">Cantidad</th>
+					if kg {
+						<th class="num">Cantidad (m)</th>
+						<th class="num">Kg por metro</th>
+						<th class="num">Kg</th>
+					} else {
+						<th class="num">Cantidad</th>
+					}
 					if costs {
 						<th class="num">Costo unitario <small>(no sale en el PDF)</small></th>
 						<th class="num">Margen</th>
@@ -533,7 +565,7 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
 			<tbody>
 				if len(lines) == 0 {
 					<tr>
-						<td colspan="5">Sin líneas.</td>
+						<td colspan={ strconv.Itoa(lead + 1) }>Sin líneas.</td>
 					</tr>
 				}
 				for i, line := range lines {
@@ -552,6 +584,10 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
 								{ " " + line.UnitCode }
 							}
 						</td>
+						if kg {
+							<td class="num">{ KgPerUnitText(line) }</td>
+							<td class="num">{ KgText(line) }</td>
+						}
 						if costs {
 							<td class="num">
 								if line.CostMicros != nil {
@@ -565,11 +601,7 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals) {
 					</tr>
 				}
 			</tbody>
-			if costs {
-				@quoteTotals(totals, 6, 0)
-			} else {
-				@quoteTotals(totals, 4, 0)
-			}
+			@quoteTotals(totals, lead, 0)
 		</table>
 	</div>
 }
@@ -847,7 +879,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 			</form>
 		} else {
 			@QuoteInfo(quote, lines)
-			@QuoteLinesReadOnly(lines, totals)
+			@QuoteLinesReadOnly(lines, totals, ShowsKg(quote))
 			if quote.Revisable() {
 				<form method="post" action={ templ.URL(revisarPath(quote.Folio)) }>
 					<button type="submit">Revisar</button>

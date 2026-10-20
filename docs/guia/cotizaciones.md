@@ -128,6 +128,12 @@ material ÷ (1 − margen); solo si el catálogo tiene el material *CCS 30%*). C
 margen**, escribe en cualquiera de los dos y el otro se actualiza al instante. El precio
 no puede ser menor que el costo del material.
 
+Las líneas de una cotización **QS** muestran también su peso: **Cantidad (m)**, **Kg por
+metro** (los kilos de material por metro del producto, con 4 decimales) y **Kg**
+(cantidad × kg por metro, con 2 decimales). Se calculan solos y se actualizan al cambiar la
+cantidad; no hay que capturar nada. Salen igual en el PDF. Una línea libre no tiene peso
+y deja esas columnas vacías.
+
 > La lista de márgenes la mantiene un administrador en Configuración del sistema. Si cambia el porcentaje
 > de tu margen, tu borrador toma el valor nuevo; si lo retira, tienes que
 > [elegir otro](#problemas-comunes) antes de emitir.

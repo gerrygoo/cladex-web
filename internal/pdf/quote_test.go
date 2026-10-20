@@ -146,3 +146,20 @@ func TestQuoteTypstNamesTheCurrency(t *testing.T) {
 		}
 	}
 }
+
+func TestQuoteTypstShowsKg(t *testing.T) {
+	doc := QuoteDocument{Folio: "QS0001", Lines: []QuoteLineDoc{{Description: "Cable", Qty: "1250", KgPerUnit: "0.1723", Kg: "215.38", UnitPrice: "$39.13", Total: "$48,912.50"}}}
+	if plain := buildQuoteTypst(doc); strings.Contains(plain, "Kg por metro") || strings.Contains(plain, "215.38") {
+		t.Error("a quote without ShowKg prints weights")
+	}
+	doc.ShowKg = true
+	kg := buildQuoteTypst(doc)
+	for _, want := range []string{"[Cantidad (m)]", "[Kg por metro]", "[Kg]", `"0.1723", "215.38"`} {
+		if !strings.Contains(kg, want) {
+			t.Errorf("kg layout is missing %q", want)
+		}
+	}
+	if _, err := RenderQuote(context.Background(), doc); err != nil {
+		t.Fatalf("RenderQuote: %v", err)
+	}
+}

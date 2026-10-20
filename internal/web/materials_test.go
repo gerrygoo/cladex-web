@@ -205,3 +205,60 @@ func TestProductMaterialsSection(t *testing.T) {
 		t.Fatalf("material still listed after delete: %+v", content)
 	}
 }
+
+// A CCS quote shows each line's weight, Kg por metro from the kg it was priced with and
+// Kg from the quantity, on the builder, the issued page and the PDF (issue #34). Other
+// series don't.
+func TestQuoteCCSShowsKg(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, flatProductID, _ := seedQuoteBuilderFixtures(t, a)
+	ccsProductID, _ := seedCCSProduct(t, a) // 0.1723 kg of CCS 30% per m
+	ctx := context.Background()
+	ccsMargin := marginOption(t, a, "CCS & AC")
+
+	draft, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QS")
+	form := costLineForm(ccsProductID, ccsMargin.ID)
+	form.Set("lines[0][qty]", "1250")
+	rec := doForm(t, a, userID, q.Recalcular, "POST", "/cotizaciones/"+draft.Folio+"/recalcular",
+		map[string]string{"folio": draft.Folio}, form, true)
+	body := rec.Body.String()
+	// 1,250 m × 0.1723 kg/m = 215.375 kg, rounded to 215.38.
+	for _, want := range []string{"Cantidad (m)", "Kg por metro", "<td class=\"num\">0.1723</td>", "<td class=\"num\">215.38</td>"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Recalcular missing %q: %s", want, body)
+		}
+	}
+
+	rec = doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+draft.Folio+"/emitir",
+		map[string]string{"folio": draft.Folio}, form, false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if body := builderBody(t, a, q, userID, draft.Folio); !strings.Contains(body, "Kg por metro") || !strings.Contains(body, "215.38") {
+		t.Errorf("issued page lost the weights: %s", body)
+	}
+	issued, err := a.store.QuoteByFolio(ctx, draft.Folio)
+	if err != nil || issued == nil {
+		t.Fatalf("QuoteByFolio: %v", err)
+	}
+	persisted, err := a.store.ListQuoteLines(ctx, issued.ID)
+	if err != nil {
+		t.Fatalf("ListQuoteLines: %v", err)
+	}
+	doc, err := issuedQuoteDocument(*issued, persisted)
+	if err != nil {
+		t.Fatalf("issuedQuoteDocument: %v", err)
+	}
+	if !doc.ShowKg || len(doc.Lines) != 1 || doc.Lines[0].KgPerUnit != "0.1723" || doc.Lines[0].Kg != "215.38" {
+		t.Errorf("PDF document = %+v, want the weights", doc)
+	}
+
+	other, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QA")
+	rec = doForm(t, a, userID, q.Recalcular, "POST", "/cotizaciones/"+other.Folio+"/recalcular",
+		map[string]string{"folio": other.Folio}, costLineForm(flatProductID, ccsMargin.ID), true)
+	if strings.Contains(rec.Body.String(), "Kg por metro") {
+		t.Error("a QA quote shows weights")
+	}
+}
