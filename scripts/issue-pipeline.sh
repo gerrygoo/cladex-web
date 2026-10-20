@@ -36,14 +36,24 @@ if [ "$needs_action" -eq 0 ]; then
   exit 0
 fi
 
-# Never run on a dirty tree: the pipeline commits and pushes to main.
-if [ -n "$(git status --porcelain)" ]; then
-  echo "$(date -Is) working tree dirty, skipping"
+# Work in a dedicated worktree, never the shared checkout someone may be using (see
+# "Parallel work" in the skill). It sits on the `pipeline` branch, reset to origin/main each
+# run, and pushes with `git push origin HEAD:main`.
+worktree="${CLADEX_PIPELINE_WORKTREE:-$HOME/code/cladex-web-pipeline}"
+git fetch -q origin main
+if [ ! -d "$worktree" ]; then
+  git worktree add -q -B pipeline "$worktree" origin/main
+fi
+cd "$worktree"
+# Never run over leftovers of a previous run: a human should look at them first.
+if [ -n "$(git status --porcelain)" ] || [ -n "$(git log origin/main..HEAD --oneline)" ]; then
+  echo "$(date -Is) pipeline worktree $worktree has uncommitted or unpushed work, skipping"
   exit 0
 fi
+git reset -q --hard origin/main
 
 echo "$(date -Is) $needs_action issue(s) need action"
-claude -p "/issue-pipeline" \
+claude -p "/issue-pipeline (you are in the pipeline worktree on branch 'pipeline'; push with git push origin HEAD:main)" \
   --max-budget-usd "${CLADEX_PIPELINE_MAX_USD:-3}" \
   --permission-mode acceptEdits \
   --allowedTools "Bash(gh issue:*) Bash(gh label:*) Bash(git:*) Bash(go:*) Bash(ls:*) Bash(grep:*) Read Edit Write Glob Grep"

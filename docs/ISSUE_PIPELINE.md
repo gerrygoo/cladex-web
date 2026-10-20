@@ -41,7 +41,11 @@ Each run goes through these gates, cheapest first, and exits quietly if any fail
    usage is over 70%. It **fails closed**: missing, stale (>30 min) or unparseable
    usage data means don't run.
 3. **Anything to do?** — a `gh`+`jq` check for issues where it is Claude's turn.
-4. **Clean working tree** — the run commits and pushes to `main`.
+4. **Own worktree** — the run never touches the shared checkout. It works in a dedicated
+   worktree (`~/code/cladex-web-pipeline`, branch `pipeline`, reset to `origin/main`) and
+   pushes `HEAD:main`; it skips if that worktree has leftovers from a previous run. Any
+   parallel work on this repo follows the same rule: its own worktree, and only the main
+   session (or this cron run) pushes `main`.
 5. **Spend cap** — `claude -p --max-budget-usd` (default 3) bounds the run; the
    skill also handles at most 3 issues per run.
 

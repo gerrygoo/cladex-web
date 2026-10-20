@@ -146,6 +146,13 @@ directory, once set up — no bespoke offsite push exists yet.
 - Clean up scratch artifacts (staged binaries, workbooks, etc.) immediately after a
   one-off run — nothing sensitive should linger on the NAS longer than the run itself.
 
+## Health check
+
+`scripts/nas-check.sh` (skill `nas-check`) is the read-only check: whether production runs
+`origin/main` (via `/healthz` on the LAN and publicly), and, when SSH is reachable,
+containers, Litestream, the newest backup and disk. As of 2026-10-19 the NAS refused SSH on
+port 22 from the LAN (SSH turned off in UGOS), while `:8090` answered.
+
 ## Quick reference
 
 | Task | Command |

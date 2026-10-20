@@ -64,7 +64,9 @@ comment). Then stop. Gerry leads; implement only after he decides.
 4. Commit message style: imperative, one line (see `git log`), body ends with `Refs #N`.
    **Never `Closes/Fixes #N`** — only the author closes. Include the Co-Authored-By trailer.
 5. `git push origin main`. **Pushing to main deploys** (CI `deploy.yml`, gated on tests), so never push
-   red or half-done work.
+   red or half-done work. Plain `git push` has no credentials here; use
+   `git -c credential.helper= -c credential.helper='!gh auth git-credential' push origin main`.
+   After the deploy run, `scripts/nas-check.sh` (skill `nas-check`) confirms production runs it.
 6. Comment: what changed in plain Spanish, **how to verify** (numbered steps in the app), ask them to
    check and close. Label `listo-para-verificar`.
 
@@ -75,6 +77,17 @@ changes, move to `requiere-diseño`, explain to Gerry.
 
 If the author reports a problem on a `listo-para-verificar` issue, treat it as new context: remove the
 label and return to step 1/2. **Never close issues.** (Issues authored by Gerry: he closes them.)
+
+## Parallel work: always a worktree
+
+Any work that runs alongside another session or agent on this repo (subagents, background
+agents, a cron sweep while someone works) happens in its **own git worktree**
+(`git worktree add`, or the Agent tool's `isolation: "worktree"`), never in the shared
+checkout. A worktree commits on its own branch and does not push; the main session reviews,
+merges into `main` and pushes, so only one place ever pushes `main`. The one exception is
+the unattended cron sweep (`scripts/issue-pipeline.sh`), which has no main session: it runs
+in its own `pipeline` worktree reset to `origin/main`, and pushes with
+`git push origin HEAD:main` (a rejected push means someone else pushed: fetch, rebase, re-test).
 
 ## Sweep mode (no argument / cron)
 
