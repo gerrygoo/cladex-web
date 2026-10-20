@@ -419,10 +419,14 @@ Emilio asked support the questions above; their answers, and what each changes:
    **There is no lookup by serie and folio.**
 3. **Facturoporti keeps nothing stamped through the API**: the XML and PDF come back in
    the response and are lost if we drop them (their storage service costs extra). The
-   app must store the XML (and PDF) in the same transaction that marks the factura
-   `timbrada`. Both are small, so they go in SQLite and are covered by Litestream and the
-   backups; the XML is the legal document and has to be kept for the SAT's retention
-   period. If the save fails after a successful stamp, the resend from (2) gets it back.
+   app must store the XML in the same transaction that marks the factura `timbrada`. It
+   is small text, so it goes in SQLite and is covered by Litestream and the backups; it
+   is the legal document and has to be kept for the SAT's retention period. If the save
+   fails after a successful stamp, the resend from (2) gets it back.
+   **The PDF is not stored (Gerry, 2026-10-20):** it is a representation of the XML, so
+   the app renders it on demand from the stored XML, deterministically, as quotes do: keep
+   the source text, generate files as needed. Facturoporti's own PDF is at most a
+   reference while building that template.
 4. **The current plan is portal-only.** API stamps ("Timbres RestAPI") are bought
    separately, only when going to production: $1.45 MXN per stamp up to 30,000, packages
    from 100. Development and sandbox are free.
