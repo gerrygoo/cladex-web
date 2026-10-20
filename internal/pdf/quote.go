@@ -11,8 +11,8 @@ import (
 //go:embed assets/cladex-logo.png
 var cladexLogoPNG []byte
 
-//go:embed assets/cable-anti-robo.png
-var cableAntiRoboLogoPNG []byte
+//go:embed assets/conduccasa.png
+var conduCCAsaLogoPNG []byte
 
 //go:embed assets/copperclad.png
 var coppercladLogoPNG []byte
@@ -22,8 +22,8 @@ var coppercladLogoPNG []byte
 type Letterhead int
 
 const (
-	LetterheadCladex        Letterhead = iota // the Cladex logo
-	LetterheadCableAntiRobo                   // Cable Anti Robo with copperclad below it (issue #16)
+	LetterheadCladex     Letterhead = iota // the Cladex logo
+	LetterheadConduCCAsa                   // ConduCCAsa with copperclad below it (issue #16)
 )
 
 // QuoteLineDoc is one priced line as it should appear on the rendered PDF — already
@@ -163,10 +163,10 @@ func buildQuoteTypst(doc QuoteDocument) string {
 // quotes that keep it reprint byte-for-byte.
 func writeLetterhead(b *strings.Builder, l Letterhead) {
 	switch l {
-	case LetterheadCableAntiRobo:
-		fmt.Fprintf(b, "#let cableAntiRobo = bytes((%s))\n", pngBytesLiteral(cableAntiRoboLogoPNG))
+	case LetterheadConduCCAsa:
+		fmt.Fprintf(b, "#let conduccasa = bytes((%s))\n", pngBytesLiteral(conduCCAsaLogoPNG))
 		fmt.Fprintf(b, "#let copperclad = bytes((%s))\n", pngBytesLiteral(coppercladLogoPNG))
-		b.WriteString("#let letterhead = stack(spacing: 0.3cm, image(cableAntiRobo, width: 3.6cm), image(copperclad, width: 3.6cm))\n")
+		b.WriteString("#let letterhead = stack(spacing: 0.3cm, image(conduccasa, width: 3.6cm), image(copperclad, width: 3.6cm))\n")
 	default:
 		fmt.Fprintf(b, "#let logo = bytes((%s))\n", pngBytesLiteral(cladexLogoPNG))
 		b.WriteString("#let letterhead = image(logo, width: 3.2cm)\n")
