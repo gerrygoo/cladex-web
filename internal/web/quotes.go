@@ -555,8 +555,10 @@ func parseLineMargin(raw string) (money.Micros, error) {
 // product, no cost, no usable margin) gets a row-level Error instead of failing the
 // whole request. freeLinesOnly (QL) prices each free line from its cost and its own
 // margin, rounded to whole centavos, instead of a typed price (issue #27); elsewhere a
-// free line keeps its typed price and may carry an optional cost.
-func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput, margin draftMargin, freeLinesOnly bool) []views.QuoteLineView {
+// free line keeps its typed price and may carry an optional cost. A product outside
+// family (the series family, when it has one) is a row error: a quote only takes its
+// own family's products (issue #33).
+func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput, margin draftMargin, freeLinesOnly bool, family string) []views.QuoteLineView {
 	result := make([]views.QuoteLineView, len(inputs))
 	for i, in := range inputs {
 		v := views.QuoteLineView{Key: in.Key, IsFree: in.Kind == "free", QtyRaw: in.Qty}
@@ -634,6 +636,12 @@ func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput,
 			result[i] = v
 			continue
 		}
+		if family != "" && product.FamilyName != family {
+			v.ProductLabel = product.SKU + " — " + product.Description
+			v.Error = "Este producto no es de la familia " + family + ". Quítalo de la cotización."
+			result[i] = v
+			continue
+		}
 		materials, err := q.store.ListProductMaterials(ctx, productID)
 		if err != nil {
 			v.Error = "Error al cargar el producto."
@@ -708,28 +716,26 @@ const productPageSize = 10
 
 // productPicker builds the builder's "add product" picker for either the full builder
 // page (initial load and every no-JS re-render) or the htmx results fragment. An empty
-// query browses: it lists every product in the series family (or the whole catalog with
-// the family toggle off) so a vendedor can pick without typing. Results are paginated
-// productPageSize at a time via ?pagina=, clamped to the available range. It reads
-// r.Form, so q/solo_familia/pagina come from either the URL (GET) or a POSTed builder
-// form, keeping the picker's state across a no-JS Recalcular.
+// query browses: it lists every product in the series family so a vendedor can pick
+// without typing. Only the series family's products are ever offered (issue #33).
+// Results are paginated productPageSize at a time via ?pagina=, clamped to the
+// available range. It reads r.Form, so q/pagina come from either the URL (GET) or a
+// POSTed builder form, keeping the picker's state across a no-JS Recalcular.
 func (q *Quotes) productPicker(ctx context.Context, r *http.Request, quote *store.Quote) (views.ProductPicker, error) {
 	if err := r.ParseForm(); err != nil {
 		return views.ProductPicker{}, err
 	}
-	soloFamilia := soloFamiliaParam(r)
 	picker := views.ProductPicker{
-		Folio:       quote.Folio,
-		Query:       strings.TrimSpace(r.Form.Get("q")),
-		SoloFamilia: soloFamilia,
-		Page:        1,
+		Folio: quote.Folio,
+		Query: strings.TrimSpace(r.Form.Get("q")),
+		Page:  1,
 	}
 	// Gauge (AWG) order, matching the Productos page default (see store.ListProducts).
 	products, err := q.store.ListProducts(ctx, picker.Query, "awg", "asc", nil)
 	if err != nil {
 		return views.ProductPicker{}, err
 	}
-	if family := searchFamily(quote, soloFamilia); family != "" {
+	if family := quote.SeriesFamily; family != "" {
 		filtered := products[:0]
 		for _, p := range products {
 			if p.FamilyName == family {
@@ -746,28 +752,6 @@ func (q *Quotes) productPicker(ctx context.Context, r *http.Request, quote *stor
 	start := (picker.Page - 1) * productPageSize
 	picker.Products = products[start:min(start+productPageSize, len(products))]
 	return picker, nil
-}
-
-// soloFamiliaParam reads the picker's "solo productos de la familia" toggle, which
-// defaults to on. The form pairs a hidden solo_familia=0 with the checkbox's
-// solo_familia=1, so an unchecked box still sends "0" — only a request that carries
-// neither (first page load) falls back to the default. Reads r.Form, so the caller
-// must have parsed it.
-func soloFamiliaParam(r *http.Request) bool {
-	values := r.Form["solo_familia"]
-	if len(values) == 0 {
-		return true
-	}
-	return slices.Contains(values, "1")
-}
-
-// searchFamily is the family the builder's product search filters to: the quote's
-// series family while the toggle is on, or "" (no filter) otherwise.
-func searchFamily(quote *store.Quote, soloFamilia bool) string {
-	if !soloFamilia {
-		return ""
-	}
-	return quote.SeriesFamily
 }
 
 // Builder renders the full quote-builder page at GET /cotizaciones/{folio}, starting
@@ -795,7 +779,7 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "error interno", http.StatusInternalServerError)
 			return
 		}
-		lines = q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, quote.SeriesFreeLines)
+		lines = q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, quote.SeriesFreeLines, quote.SeriesFamily)
 		totals = computeQuoteTotals(lines)
 	} else {
 		lines = frozenQuoteLines(persisted)
@@ -889,7 +873,7 @@ func missingTermsInputs(quote *store.Quote, today time.Time) map[string]string {
 }
 
 // renderBuilder renders the full builder page with the given (possibly unsaved) lines,
-// carrying the product picker's q/solo_familia/pagina over from the request so a no-JS
+// carrying the product picker's q/pagina over from the request so a no-JS
 // round trip keeps the picker where the user left it.
 func (q *Quotes) renderBuilder(w http.ResponseWriter, r *http.Request, quote *store.Quote, lines []views.QuoteLineView, totals pricing.Totals, margin views.MarginPicker, successMsg string, status int, fieldErrs map[string]string) {
 	ctx := r.Context()
@@ -947,7 +931,7 @@ func (q *Quotes) Recalcular(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	takeTermsInputs(r, quote)
-	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin, quote.SeriesFreeLines)
+	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin, quote.SeriesFreeLines, quote.SeriesFamily)
 	totals := computeQuoteTotals(lines)
 
 	if r.Header.Get("HX-Request") == "true" {
@@ -959,8 +943,8 @@ func (q *Quotes) Recalcular(w http.ResponseWriter, r *http.Request) {
 
 // BuscarProductos handles GET /cotizaciones/{folio}/productos: the htmx-driven live
 // product search behind the builder's "add line" picker (Builder's own ?q= handling is
-// the no-JS fallback for the same search). Defaults to the quote's series family, but
-// the toggle can lift that — per the user's decision, any product may go on any quote.
+// the no-JS fallback for the same search). Only the quote's series family is offered
+// (issue #33).
 func (q *Quotes) BuscarProductos(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	quote := q.loadQuoteOrNotFound(w, r)
@@ -998,7 +982,7 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	takeTermsInputs(r, quote)
-	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin, quote.SeriesFreeLines)
+	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin, quote.SeriesFreeLines, quote.SeriesFamily)
 	totals := computeQuoteTotals(lines)
 
 	if margin.badCustom {
@@ -1172,7 +1156,7 @@ func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "error interno", http.StatusInternalServerError)
 			return
 		}
-		lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, quote.SeriesFreeLines)
+		lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, quote.SeriesFreeLines, quote.SeriesFamily)
 		doc = draftQuoteDocument(*quote, lines, computeQuoteTotals(lines))
 	} else {
 		doc, err = issuedQuoteDocument(*quote, persisted)
@@ -1231,7 +1215,7 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	takeTermsInputs(r, quote)
-	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin, quote.SeriesFreeLines)
+	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin, quote.SeriesFreeLines, quote.SeriesFamily)
 	totals := computeQuoteTotals(lines)
 
 	if missing := missingTermsInputs(quote, time.Now()); len(missing) > 0 {

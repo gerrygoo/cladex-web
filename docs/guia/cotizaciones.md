@@ -65,11 +65,10 @@ Con la cotización en borrador:
    - Para acotar la lista, escribe el SKU o parte de la descripción (p. ej. `THW`) en
      el cuadro *"Buscar producto por SKU o descripción…"*. La lista se filtra
      mientras escribes y vuelve a la página 1.
-   - Junto al buscador está la casilla *"Solo productos de la familia …"* (CCA para
-     serie QA, CCS & AC para QS, ABASTILUM para QI; en QL no aparece, porque no tiene
-     productos), **marcada de inicio**: solo
-     aparecen productos de la familia de la serie. Desmárcala para ver o buscar en todo
-     el catálogo; cualquier producto se puede agregar a cualquier cotización.
+   - Solo aparecen productos de la familia de la serie (CCA para serie QA, CCS & AC
+     para QS, ABASTILUM para QI): una cotización no acepta productos de otra familia.
+     Si un borrador viejo trae uno, esa línea muestra *"Este producto no es de la
+     familia …"* y no cuenta en el total hasta que la quites.
 2. Haz clic en el producto. Se agrega como una línea nueva, con cantidad 1 y su precio
    ya calculado. La lista se queda en la misma página y en el mismo lugar de la
    pantalla, así que puedes seguir haciendo clic en el siguiente producto.

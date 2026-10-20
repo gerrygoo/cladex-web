@@ -66,7 +66,7 @@ func seedQuoteBuilderFixtures(t *testing.T, a *Auth) (customerID, flatProductID,
 	if err != nil {
 		t.Fatalf("CreateCustomer: %v", err)
 	}
-	familyID, err := a.store.UpsertFamily(ctx, "ABASTILUM", "")
+	familyID, err := a.store.UpsertFamily(ctx, "CCA", "")
 	if err != nil {
 		t.Fatalf("UpsertFamily: %v", err)
 	}
@@ -659,7 +659,7 @@ func TestQuotesBuscarProductosHTMXFragment(t *testing.T) {
 	customerID, flatProductID, _ := seedQuoteBuilderFixtures(t, a)
 	_ = flatProductID
 
-	quote, err := a.store.CreateDraftQuote(context.Background(), customerID, userID, "QI")
+	quote, err := a.store.CreateDraftQuote(context.Background(), customerID, userID, "QA")
 	if err != nil {
 		t.Fatalf("CreateDraftQuote: %v", err)
 	}
@@ -678,49 +678,63 @@ func TestQuotesBuscarProductosHTMXFragment(t *testing.T) {
 	}
 }
 
-// TestQuotesBuscarProductosFamilyFilter covers the picker's "solo productos de la
-// familia" toggle: on by default (a QA quote only sees CCA products), off when the
-// form sends only the hidden solo_familia=0.
-func TestQuotesBuscarProductosFamilyFilter(t *testing.T) {
+// TestQuotesProductsLockedToFamily covers issue #33: the picker only offers the
+// series family's products, with no way to widen it, and a product line from another
+// family is rejected instead of priced.
+func TestQuotesProductsLockedToFamily(t *testing.T) {
 	a := newTestAuth(t)
 	q := newTestQuotes(t, a)
 	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
-	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	customerID, flatProductID, _ := seedQuoteBuilderFixtures(t, a)
 	ctx := context.Background()
-	ccaFamilyID, err := a.store.UpsertFamily(ctx, "CCA", "CCA")
+	ablFamilyID, err := a.store.UpsertFamily(ctx, "ABASTILUM", "")
 	if err != nil {
-		t.Fatalf("UpsertFamily(CCA): %v", err)
+		t.Fatalf("UpsertFamily(ABASTILUM): %v", err)
 	}
 	cost := money.Micros(45_000_000)
-	if _, err := a.store.CreateProduct(ctx, store.Product{
-		FamilyID: ccaFamilyID, SKU: "cca-c12", Description: "Cable CCA 12", CostMicros: &cost,
-	}); err != nil {
-		t.Fatalf("CreateProduct(cca): %v", err)
+	ablID, err := a.store.CreateProduct(ctx, store.Product{
+		FamilyID: ablFamilyID, SKU: "abl-cable", Description: "Cable para lámpara", CostMicros: &cost,
+	})
+	if err != nil {
+		t.Fatalf("CreateProduct(abl): %v", err)
 	}
 	quote, err := a.store.CreateDraftQuote(ctx, customerID, userID, "QA")
 	if err != nil {
 		t.Fatalf("CreateDraftQuote: %v", err)
 	}
 
-	search := func(query string) string {
-		t.Helper()
+	// The old toggle's "off" value no longer widens the search.
+	for _, query := range []string{"q=cable", "q=cable&solo_familia=0"} {
 		rec := doForm(t, a, userID, q.BuscarProductos, "GET", "/cotizaciones/"+quote.Folio+"/productos?"+query,
 			map[string]string{"folio": quote.Folio}, nil, true)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("BuscarProductos(%s) status = %d, want 200", query, rec.Code)
+		body := rec.Body.String()
+		if rec.Code != http.StatusOK || !strings.Contains(body, "cca-c14") || strings.Contains(body, "abl-cable") {
+			t.Fatalf("BuscarProductos(%s) = %d, should show only CCA products: %s", query, rec.Code, body)
 		}
-		return rec.Body.String()
+	}
+	builder := doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+quote.Folio,
+		map[string]string{"folio": quote.Folio}, nil, false).Body.String()
+	if strings.Contains(builder, "Solo productos de la familia") {
+		t.Fatal("builder still offers the familia checkbox")
 	}
 
-	for _, query := range []string{"q=cable", "q=cable&solo_familia=0&solo_familia=1"} {
-		body := search(query)
-		if !strings.Contains(body, "cca-c12") || strings.Contains(body, "cca-c14") {
-			t.Fatalf("BuscarProductos(%s) should show only CCA-family products: %s", query, body)
-		}
+	rec := doForm(t, a, userID, q.Recalcular, "POST", "/cotizaciones/"+quote.Folio+"/recalcular",
+		map[string]string{"folio": quote.Folio}, url.Values{
+			"line_keys":            {"0,1"},
+			"lines[0][kind]":       {"product"},
+			"lines[0][product_id]": {strconv.FormatInt(flatProductID, 10)},
+			"lines[0][qty]":        {"1"},
+			"lines[1][kind]":       {"product"},
+			"lines[1][product_id]": {strconv.FormatInt(ablID, 10)},
+			"lines[1][qty]":        {"1"},
+		}, true)
+	body := rec.Body.String()
+	if !strings.Contains(body, "Este producto no es de la familia CCA") {
+		t.Fatalf("other-family line should be rejected: %s", body)
 	}
-	body := search("q=cable&solo_familia=0")
-	if !strings.Contains(body, "cca-c12") || !strings.Contains(body, "cca-c14") {
-		t.Fatalf("BuscarProductos with the toggle off should show every family: %s", body)
+	// Only the CCA line counts: $70.00 cost at the default 12.34% margin, plus IVA.
+	if !strings.Contains(body, `data-announce="Total: $92.63"`) {
+		t.Fatalf("the rejected line should not count toward the total: %s", body)
 	}
 }
 
@@ -733,19 +747,19 @@ func TestQuotesProductPickerBrowsesFamily(t *testing.T) {
 	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
 	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
 	ctx := context.Background()
-	ccaFamilyID, err := a.store.UpsertFamily(ctx, "CCA", "CCA")
+	ablFamilyID, err := a.store.UpsertFamily(ctx, "ABASTILUM", "")
 	if err != nil {
-		t.Fatalf("UpsertFamily(CCA): %v", err)
+		t.Fatalf("UpsertFamily(ABASTILUM): %v", err)
 	}
 	cost := money.Micros(45_000_000)
 	for i := 1; i <= 12; i++ {
 		if _, err := a.store.CreateProduct(ctx, store.Product{
-			FamilyID: ccaFamilyID, SKU: fmt.Sprintf("cca-b%02d", i), Description: fmt.Sprintf("Cable CCA %02d", i), CostMicros: &cost,
+			FamilyID: ablFamilyID, SKU: fmt.Sprintf("abl-b%02d", i), Description: fmt.Sprintf("Lámpara %02d", i), CostMicros: &cost,
 		}); err != nil {
-			t.Fatalf("CreateProduct(cca %d): %v", i, err)
+			t.Fatalf("CreateProduct(abl %d): %v", i, err)
 		}
 	}
-	quote, err := a.store.CreateDraftQuote(ctx, customerID, userID, "QA")
+	quote, err := a.store.CreateDraftQuote(ctx, customerID, userID, "QI")
 	if err != nil {
 		t.Fatalf("CreateDraftQuote: %v", err)
 	}
@@ -761,8 +775,8 @@ func TestQuotesProductPickerBrowsesFamily(t *testing.T) {
 
 	// The builder page opens on page 1 of the family without any search.
 	body := get(q.Builder, "/cotizaciones/"+quote.Folio, false)
-	if !strings.Contains(body, "cca-b01") || !strings.Contains(body, "cca-b10") || strings.Contains(body, "cca-b11") {
-		t.Fatalf("builder should list the first 10 CCA products: %s", body)
+	if !strings.Contains(body, "abl-b01") || !strings.Contains(body, "abl-b10") || strings.Contains(body, "abl-b11") {
+		t.Fatalf("builder should list the first 10 ABASTILUM products: %s", body)
 	}
 	if strings.Contains(body, "abl-foco") || strings.Contains(body, "cca-c14") {
 		t.Fatalf("builder should not list other families while browsing: %s", body)
@@ -773,8 +787,8 @@ func TestQuotesProductPickerBrowsesFamily(t *testing.T) {
 
 	for _, path := range []string{"/productos?pagina=2", "/productos?pagina=99"} {
 		body = get(q.BuscarProductos, "/cotizaciones/"+quote.Folio+path, true)
-		if !strings.Contains(body, "cca-b11") || !strings.Contains(body, "cca-b12") || strings.Contains(body, "cca-b10") {
-			t.Fatalf("BuscarProductos(%s) should list the last 2 CCA products: %s", path, body)
+		if !strings.Contains(body, "abl-b11") || !strings.Contains(body, "abl-b12") || strings.Contains(body, "abl-b10") {
+			t.Fatalf("BuscarProductos(%s) should list the last 2 ABASTILUM products: %s", path, body)
 		}
 		if !strings.Contains(body, "Página 2 de 2") || !strings.Contains(body, "Anterior") || strings.Contains(body, "Siguiente") {
 			t.Fatalf("BuscarProductos(%s) should show page 2 of 2 with only a previous button: %s", path, body)
@@ -783,7 +797,7 @@ func TestQuotesProductPickerBrowsesFamily(t *testing.T) {
 
 	// A search that fits on one page has no pager.
 	body = get(q.BuscarProductos, "/cotizaciones/"+quote.Folio+"/productos?q=b12", true)
-	if !strings.Contains(body, "cca-b12") || strings.Contains(body, "Página") {
+	if !strings.Contains(body, "abl-b12") || strings.Contains(body, "Página") {
 		t.Fatalf("single-page search should list its match without a pager: %s", body)
 	}
 }
@@ -990,11 +1004,11 @@ func TestQuotesLibreSeries(t *testing.T) {
 		return doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+folio,
 			map[string]string{"folio": folio}, nil, false).Body.String()
 	}
-	if body := builder("QL"); strings.Contains(body, "Solo productos de la familia") {
-		t.Fatal("QL builder offers a familia filter, but QL has no products")
+	if body := builder("QL"); strings.Contains(body, "Agregar líneas") {
+		t.Fatal("QL builder offers the product picker, but QL has no products")
 	}
-	if body := builder("QI"); !strings.Contains(body, "Solo productos de la familia ABASTILUM") {
-		t.Fatal("QI builder lost its familia filter")
+	if body := builder("QI"); !strings.Contains(body, "Agregar líneas") {
+		t.Fatal("QI builder lost its product picker")
 	}
 }
 
