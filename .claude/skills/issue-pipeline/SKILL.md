@@ -96,4 +96,5 @@ in its own `pipeline` worktree reset to `origin/main`, and pushes with
 
 List open issues with `gh issue list --json number,labels,comments,author`. Act only on issues where
 it's Claude's turn per the table above. Process at most 3 per run, oldest first. Print a one-line
-summary per issue of what you did. If nothing needs action, print `nothing to do` and exit.
+summary per issue of what you did, as `#N <title>: …`. Anywhere you mention an issue to Gerry,
+give its title next to the number, never a bare `#N`. If nothing needs action, print `nothing to do` and exit.
