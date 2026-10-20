@@ -383,3 +383,19 @@ support (soporte@facturoporti.com.mx):
 What we need from Cladex: the Facturoporti API user and password (or a separate API
 user), and the CSD's `.cer`, `.key` and password, handed over outside chat and email, to
 go on the NAS.
+
+**Update (Gerry, 2026-10-19): Facturoporti already holds Cladex's CSD** (used for the
+manual stamps done in its portal). That reshapes the secrets plan:
+
+- **First question for support**: can `timbrar/json` stamp with the CSD stored on the
+  account when `csd`, `llavePrivada` and `csdPassword` are left out? (Their docs call
+  those fields "solamente si se va a sellar el documento".) If yes, the `.key` and its
+  password never reach the NAS or travel in a request; the only secret we keep is the
+  token. If no, they go on the NAS as described above.
+- **Transport**: every call is HTTPS, so nothing crosses the internet in the clear; the
+  app keeps Go's default certificate verification and never disables it.
+- **Token**: `GET /token/crear` takes `Usuario` and `Password` **in the query string**,
+  which servers tend to log, and returns a token that never expires. So the token is
+  created once by hand (ideally for a separate API user), only the token goes in the
+  NAS `.env`, the app never holds the account password, and a leaked token is revoked
+  with `DELETE /token/borrar` and replaced.
