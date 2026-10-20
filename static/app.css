@@ -59,6 +59,12 @@
 
 /* ==== Base ============================================================== */
 
+/* The hidden attribute always hides, even on elements given a display below (label is
+   block), so a script can toggle a field with it. */
+[hidden] {
+  display: none !important;
+}
+
 /* 17px body text at the browser's default setting, and it still follows the user's own
    text-size preference. */
 html {

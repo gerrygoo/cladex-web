@@ -199,7 +199,7 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 					{ " · estaba en " + store.StageLabels[p.LostFrom] }
 				</dd>
 			</dl>
-			if user != nil && user.IsAdmin {
+			if user != nil {
 				<form method="post" action={ templ.URL(projectPath(p.Folio) + "/reabrir") } class="stage-form">
 					if p.LostFrom == "prospecto" {
 						<fieldset class="probability">
@@ -219,15 +219,11 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 					</label>
 					<button type="submit">Reabrir como { store.StageLabels[p.LostFrom] }</button>
 				</form>
-			} else {
-				<p class="hint">Si el proyecto revive, pídele a un administrador que lo reabra.</p>
 			}
 		}
-		if p.Status == "prospecto" || store.NextStage(p.Status) != "" {
-			<h2>Seguimiento</h2>
-		}
-		if p.Status == "prospecto" {
-			@FollowUpForm(p, today)
+		@followUpAndComments(p, today, comments, commentsLV)
+		if p.Status != "prospecto" && store.NextStage(p.Status) != "" {
+			<h2>Etapa</h2>
 		}
 		if p.Status == "prospecto" {
 			// The purchase order is only asked for once the sale is about to close.
@@ -427,35 +423,46 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 			</table>
 		</div>
 		<p><a href="/proyectos">Volver a proyectos</a></p>
-		<section id="historial">
-			<h2>Historial</h2>
-			<form method="post" action={ templ.URL(projectPath(p.Folio) + "/comentarios") }>
-				<label>
-					Agregar un comentario
-					<textarea name="comment" rows="3" maxlength="2000" required></textarea>
-				</label>
-				<button type="submit">Comentar</button>
-			</form>
-			if len(comments) == 0 {
-				<p class="comments-empty">Sin comentarios.</p>
-			} else {
-				<ol class="comments">
-					for _, c := range comments {
-						<li>
-							<p class="comment-body">{ c.Body }</p>
-							<p class="comment-meta">
-								{ c.UserName + " · " }
-								@Timestamp(c.CreatedAt)
-								{ " · en " }
-								<a href={ templ.URL("/cotizaciones/" + c.QuoteFolio) }>{ c.QuoteFolio }</a>
-							</p>
-						</li>
-					}
-				</ol>
-			}
-			@listPager(commentsLV, false)
-		</section>
 	}
+}
+
+// followUpAndComments is the proyecto's one place to write (issue #22): a prospecto's
+// follow-up form, or past prospecto a plain comment box, each with a single Guardar, and
+// right below it the history of comments, typed and automatic.
+templ followUpAndComments(p store.Project, today string, comments []store.ProjectComment, commentsLV ListView) {
+	<section id="historial">
+		<h2>Seguimiento y comentarios</h2>
+		if p.Status == "prospecto" {
+			@FollowUpForm(p, today)
+		} else {
+			<form method="post" action={ templ.URL(projectPath(p.Folio) + "/comentarios") } class="stage-form">
+				<label>
+					Comentario
+					<textarea name="comment" rows="2" maxlength="2000" required></textarea>
+				</label>
+				<button type="submit">Guardar<span class="visually-hidden">{ " comentario de " + p.Folio }</span></button>
+			</form>
+		}
+		<h3 class="visually-hidden">Historial</h3>
+		if len(comments) == 0 {
+			<p class="comments-empty">Sin comentarios.</p>
+		} else {
+			<ol class="comments">
+				for _, c := range comments {
+					<li>
+						<p class="comment-body">{ c.Body }</p>
+						<p class="comment-meta">
+							{ c.UserName + " · " }
+							@Timestamp(c.CreatedAt)
+							{ " · en " }
+							<a href={ templ.URL("/cotizaciones/" + c.QuoteFolio) }>{ c.QuoteFolio }</a>
+						</p>
+					</li>
+				}
+			</ol>
+		}
+		@listPager(commentsLV, false)
+	</section>
 }
 
 // FollowUpForm is where a prospecto's follow-up is kept: the probabilidad de cierre as
@@ -464,7 +471,9 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 // radios also show "Orden colocada 100%", which is only reached by receiving the purchase
 // order and can't be picked, and "Perdida", which asks for its Motivo instead of the dates
 // and comment (static/app.js swaps the fields; without it the server still checks
-// everything). today is the viewer's day, so the next follow-up must be after it.
+// everything). today is the viewer's day, so the next follow-up must be after it. The
+// dates come filled in with the current ones, so while the next follow-up is still ahead,
+// writing the comment is all it takes to save one.
 templ FollowUpForm(p store.Project, today string) {
 	<form method="post" action={ templ.URL(seguimientoPath(p.Folio)) } class="stage-form" data-followup>
 		<fieldset class="probability">
@@ -507,7 +516,7 @@ templ FollowUpForm(p store.Project, today string) {
 				<textarea name="note" rows="2" maxlength="2000" required></textarea>
 			</label>
 		</div>
-		<button type="submit">Guardar seguimiento<span class="visually-hidden">{ " de " + p.Folio }</span></button>
+		<button type="submit">Guardar<span class="visually-hidden">{ " seguimiento de " + p.Folio }</span></button>
 	</form>
 }
 

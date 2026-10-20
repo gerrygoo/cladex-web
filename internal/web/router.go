@@ -105,7 +105,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /proyectos/{folio}/pago", auth.RequireAuth(http.HandlerFunc(projects.Pago)))
 	mux.Handle("GET /proyectos/{folio}/archivos/{id}", auth.RequireAuth(http.HandlerFunc(projects.Archivo)))
 	mux.Handle("POST /proyectos/{folio}/perder", auth.RequireAuth(http.HandlerFunc(projects.Perder)))
-	mux.Handle("POST /proyectos/{folio}/reabrir", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(projects.Reabrir))))
+	mux.Handle("POST /proyectos/{folio}/reabrir", auth.RequireAuth(http.HandlerFunc(projects.Reabrir)))
 
 	mux.Handle("GET /usuarios", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(users.List))))
 	mux.Handle("POST /usuarios/{id}/rol", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(users.SetRole))))

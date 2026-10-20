@@ -55,13 +55,15 @@ Debajo del folio y del cliente verás este resumen:
   en borrador, aún sin emitir"*, alguien la está revisando.
 - **Total**: el de la cotización vigente.
 
-Más abajo están **Seguimiento** (el formulario y los botones para moverlo), **Orden de
-compra del cliente** y **Facturación y pago** (desde que se recibe la orden), **Cotizaciones** (la
-vigente y las que fueron revisadas, cada una con su enlace) e **Historial**.
+Más abajo están **Seguimiento y comentarios** (el formulario y, justo debajo, el
+historial), los botones para moverlo de etapa, **Orden de compra del cliente** y
+**Facturación y pago** (desde que se recibe la orden) y **Cotizaciones** (la vigente y las
+que fueron revisadas, cada una con su enlace).
 
 ## Dar seguimiento a un proyecto
 
-Todo el seguimiento se hace en la página del proyecto, en la sección **Seguimiento**.
+Todo el seguimiento se hace en la página del proyecto, en la sección **Seguimiento y
+comentarios**.
 Así el equipo sabe en qué punto está cada uno y el resumen de la
 [página de inicio](README.md#la-página-de-inicio) se mantiene al día.
 
@@ -79,9 +81,13 @@ Mientras el proyecto es prospecto, anota qué tan cerca está de cerrarse y qué
 4. En **Próximo seguimiento**, pon la fecha en que hay que volver a buscar al cliente.
    Es obligatoria y tiene que ser posterior a hoy.
 5. Escribe en **Comentario** qué pasó y cuáles son los siguientes pasos. Es obligatorio.
-6. Haz clic en **Guardar seguimiento**.
+6. Haz clic en **Guardar**.
 
-En **Historial** aparece una línea por cada cosa que cambió, como *"Probabilidad: Baja
+Las dos fechas ya vienen con las que tiene el proyecto. Si solo quieres dejar un
+comentario y el próximo seguimiento todavía no llega, escribe el comentario y guarda; si
+ya llegó o pasó, pon una fecha nueva.
+
+En el historial, justo debajo, aparece una línea por cada cosa que cambió, como *"Probabilidad: Baja
 → Alta."*, *"O.C. esperada: 15/10/2026."* o *"Próximo seguimiento: 09/10/2026."*, y
 debajo tu nota.
 
@@ -115,7 +121,7 @@ en **Inminente 90%**:
 6. Haz clic en **Pasar a O.C. recibida**.
 
 El proyecto queda en O.C. recibida, con la sección **Orden de compra del cliente**
-(número, fecha, forma de pago y el archivo para descargar). En **Historial** aparece
+(número, fecha, forma de pago y el archivo para descargar). En el historial aparece
 *"Pasó a O.C. recibida."* con los datos de la orden.
 
 - El número, la fecha, la forma de pago y el archivo son obligatorios para pasar a O.C.
@@ -164,7 +170,7 @@ El proyecto pasa a [[facturado]] y su estado de pago queda en *Pagado*.
    el **Folio del comprobante de pago** y la **Fecha de pago**, y haz clic en
    **Registrar pago completado**. El estado de pago queda en *Pagado*.
 
-- En **Historial** queda una línea por cada registro, con el folio y la fecha.
+- En el historial queda una línea por cada registro, con el folio y la fecha.
 - Una vez facturado, los datos de la orden de compra ya no se pueden cambiar.
 - En **Proyectos**, la columna **Pago** muestra el estado de pago y se puede filtrar.
 - ¿Te equivocaste en un folio? Pídele a un administrador que regrese el proyecto a
@@ -184,11 +190,11 @@ Después de facturar, el proyecto avanza con un botón:
 | [[cerrado]] | El pedido ya se entregó completo y el estado de pago es *Pagado*. | **Pasar a Cerrado** |
 
 1. Abre el proyecto.
-2. En **Seguimiento**, escribe en **Comentario** lo que pasó y los siguientes pasos
+2. En **Etapa**, escribe en **Comentario** lo que pasó y los siguientes pasos
    (opcional pero recomendado).
 3. Haz clic en el botón de la siguiente etapa.
 
-El proyecto queda en la etapa nueva y en **Historial** aparece una línea como
+El proyecto queda en la etapa nueva y en el historial aparece una línea como
 *"Pasó a En entrega."* con tu nota, quién la escribió y cuándo.
 
 - Solo se avanza de una etapa a la siguiente, sin saltarse ninguna.
@@ -254,40 +260,39 @@ cotización.
 
 1. Abre el proyecto.
 2. Si es prospecto, en **Probabilidad de cierre** elige **Perdida** y escribe el
-   **Motivo** (obligatorio): por qué se perdió. Si ya tiene la O.C. recibida, el
-   formulario de **Seguimiento** muestra *Orden colocada 100%* y **Perdida**; elige
+   **Motivo** (obligatorio): por qué se perdió. Si ya tiene la O.C. recibida, la
+   sección **Etapa** muestra *Orden colocada 100%* y **Perdida**; elige
    **Perdida** y escribe el motivo.
-3. Haz clic en **Guardar seguimiento** (o en **Marcar como perdida**) y confirma si te lo
-   pide.
+3. Haz clic en **Guardar** (o en **Marcar como perdida**) y confirma si te lo pide.
 
 Qué pasa al perderlo:
 
 - Su etapa pasa a [[perdido]] y la página muestra **Proyecto perdido** (la única vez que
   aparece esa sección) con el motivo,
   cuándo se perdió y en qué etapa estaba.
-- En **Historial** queda una línea *"Se perdió."* con el motivo.
+- En el historial queda una línea *"Se perdió."* con el motivo.
 - Deja de contar en la tabla de vendedores de la [página de inicio](README.md#la-página-de-inicio)
   y en el pronóstico.
 - Su cotización ya no se puede revisar.
 - Para verlos todos, en **Proyectos** filtra la columna **Etapa** por *Perdido*.
 
-Si el proyecto revive, pídele a un administrador que lo reabra.
-:::admin
-Un administrador ve en un proyecto perdido el botón **Reabrir como …**, que lo regresa
-a la etapa en que estaba. Es obligatorio escribir un **Comentario**. Si estaba en
+Si el proyecto revive, cualquier usuario puede reabrirlo con el botón **Reabrir como …**
+de la página del proyecto perdido, que lo regresa a la etapa en que estaba. Es obligatorio escribir un **Comentario**. Si estaba en
 prospecto, también elige con qué **Probabilidad de cierre** vuelve (Inicial a Inminente;
 trae la que tenía); uno que se perdió con la O.C. recibida vuelve a O.C. recibida. Queda
 un comentario *"Se reabrió como …"* y el motivo original se conserva en el historial.
-:::
 
 ## Comentar un proyecto
 
-El **Historial**, al final de la página, junta los comentarios de todas las
+El historial, en **Seguimiento y comentarios**, junta los comentarios de todas las
 cotizaciones del proyecto, los cambios de etapa y los de probabilidad. Los más nuevos
 van arriba, y cada uno dice quién lo escribió, cuándo y en qué cotización quedó.
 
-1. Abre el proyecto.
-2. Escribe en **Agregar un comentario** y haz clic en **Comentar**.
+Hay una sola caja para escribir, arriba del historial:
+
+- Mientras el proyecto es prospecto, es el **Comentario** del seguimiento (ver
+  [Anotar el seguimiento](#anotar-el-seguimiento)).
+- Después, es una caja **Comentario** con su botón **Guardar**.
 
 Este es el único lugar donde se comenta: las cotizaciones muestran los comentarios pero no
 tienen caja para escribir. El comentario se guarda en la cotización vigente, así que también

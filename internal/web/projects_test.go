@@ -102,11 +102,21 @@ func TestProjectsFollowUp(t *testing.T) {
 
 	// Issuing opened the proyecto as a prospecto at the lowest probability.
 	body := page(ana)
-	for _, want := range []string{"Proyecto " + folio, "Prospecto", "Inicial (10%)", "Guardar seguimiento",
-		"Orden colocada", "Perdida", "Cotización vigente", `href="/cotizaciones/` + folio + `"`} {
+	for _, want := range []string{"Proyecto " + folio, "Prospecto", "Inicial (10%)", "data-followup",
+		"Seguimiento y comentarios", "Orden colocada", "Perdida", "Cotización vigente", `href="/cotizaciones/` + folio + `"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("prospecto page missing %q", want)
 		}
+	}
+	// One box to write in (issue #22): the follow-up's Comentario, no separate Comentar.
+	for _, gone := range []string{"Agregar un comentario", ">Comentar<", `name="comment"`} {
+		if strings.Contains(body, gone) {
+			t.Errorf("prospecto page still has %q", gone)
+		}
+	}
+	// The Motivo field starts hidden; it shows only once Perdida is picked.
+	if !strings.Contains(body, "<label data-lost-only hidden>") {
+		t.Error("Motivo de la pérdida is not hidden on load")
 	}
 	if strings.Contains(body, "Regresar a") {
 		t.Error("a vendedor is offered going back a stage")
@@ -131,7 +141,7 @@ func TestProjectsFollowUp(t *testing.T) {
 			t.Errorf("quote page missing %q", want)
 		}
 	}
-	for _, gone := range []string{"Pasar a", "Guardar seguimiento"} {
+	for _, gone := range []string{"Pasar a", "data-followup"} {
 		if strings.Contains(body, gone) {
 			t.Errorf("quote page still shows %q", gone)
 		}
@@ -306,7 +316,7 @@ func TestProjectsWithARevisionInDraft(t *testing.T) {
 	}
 
 	body := doForm(t, a, ana, p.Page, "GET", "/proyectos/"+folio, pv, nil, false).Body.String()
-	for _, want := range []string{rev.Folio, "revisión en borrador", "primero emite la revisión", "Revisada", "Guardar seguimiento"} {
+	for _, want := range []string{rev.Folio, "revisión en borrador", "primero emite la revisión", "Revisada", "data-followup"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("proyecto page missing %q", want)
 		}
@@ -380,7 +390,6 @@ func TestProjectsLoseAndReopen(t *testing.T) {
 	q := newTestQuotes(t, a)
 	p := NewProjects(a.store)
 	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
-	beto := createTestUser(t, a, "beto", "admin", "hunter2")
 	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
 	seedPricingSettings(t, a, ana)
 
@@ -410,12 +419,12 @@ func TestProjectsLoseAndReopen(t *testing.T) {
 
 	body := page(ana)
 	for _, want := range []string{"Perdido", "Proyecto perdido", "Se fueron con otro proveedor", "estaba en Prospecto",
-		"pídele a un administrador que lo reabra", "Se perdió."} {
+		"Se perdió.", "Reabrir como Prospecto", `name="comment"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("lost proyecto page missing %q", want)
 		}
 	}
-	for _, gone := range []string{"Marcar como perdid", "Guardar seguimiento", "Pasar a", "Reabrir como", `value="perdida"`} {
+	for _, gone := range []string{"Marcar como perdid", "data-followup", "Pasar a", `value="perdida"`} {
 		if strings.Contains(body, gone) {
 			t.Errorf("lost proyecto page shows %q to a vendedor", gone)
 		}
@@ -433,12 +442,12 @@ func TestProjectsLoseAndReopen(t *testing.T) {
 		t.Error("the list filtered by Perdido doesn't show the lost proyecto")
 	}
 
-	// An admin reopens it, back to where it was. (The router keeps vendedores out.)
-	if body := page(beto); !strings.Contains(body, "Reabrir como Prospecto") || !strings.Contains(body, "Reabrir con probabilidad de cierre") {
-		t.Fatal("admin is not offered reopening, with the probability to come back at")
+	// Any user reopens it, back to where it was (issue #22): here the vendedor.
+	if body := page(ana); !strings.Contains(body, "Reabrir como Prospecto") || !strings.Contains(body, "Reabrir con probabilidad de cierre") {
+		t.Fatal("vendedor is not offered reopening, with the probability to come back at")
 	}
 	reopen := func(form url.Values) *httptest.ResponseRecorder {
-		return doForm(t, a, beto, p.Reabrir, "POST", base+"/reabrir", pv, form, false)
+		return doForm(t, a, ana, p.Reabrir, "POST", base+"/reabrir", pv, form, false)
 	}
 	// The comment is required, and the probability has to be one of the steps.
 	if rec := reopen(url.Values{"note": {"  "}}); rec.Code != http.StatusBadRequest {
@@ -520,11 +529,20 @@ func TestProjectsFollowUpDatesAndForecast(t *testing.T) {
 	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/proyectos/"+second+"#historial" {
 		t.Fatalf("Seguimiento status = %d, Location = %q", rec.Code, rec.Header().Get("Location"))
 	}
+	// Commenting without changing anything (issue #22): the form comes with the current
+	// probability and dates, and a next follow-up still ahead is enough to save a comment.
+	if rec := save(second, url.Values{"probabilidad": {"90"}, "proximo_seguimiento": {futureDay()}, "note": {"Solo un comentario"}}); rec.Code != http.StatusSeeOther {
+		t.Fatalf("comment-only Seguimiento status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if body := doForm(t, a, ana, p.Page, "GET", "/proyectos/"+second, map[string]string{"folio": second}, nil, false).Body.String(); !strings.Contains(body, "Solo un comentario") ||
+		!strings.Contains(body, `name="proximo_seguimiento" value="`+futureDay()+`"`) {
+		t.Error("the comment-only follow-up isn't in the history, or the form doesn't come with the current next follow-up")
+	}
 
 	body = forecast("")
 	for _, want := range []string{`id="p-` + first + `"`, `id="p-` + second + `"`, "Ver todos los prospectos",
 		"Alta (75%)", "Inminente (90%)", "15/10/2020", "09/01/2020",
-		"Compras pidió ajustar entrega", "Pidió fecha"} {
+		"Compras pidió ajustar entrega", "Solo un comentario"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("forecast page missing %q", want)
 		}

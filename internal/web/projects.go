@@ -295,7 +295,7 @@ func (p *Projects) Perder(w http.ResponseWriter, r *http.Request) {
 // Reabrir handles POST /proyectos/{folio}/reabrir: brings a lost proyecto back to the
 // stage it was lost from. The "note" is required: it goes into the comment that records
 // it, as with any change of stage. For one lost from prospecto, "probabilidad" may pick
-// the step it comes back at. Admin-only, enforced by the router, like going back a stage.
+// the step it comes back at. Any user may reopen one (issue #22).
 func (p *Projects) Reabrir(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := p.loadProjectOrNotFound(w, r)

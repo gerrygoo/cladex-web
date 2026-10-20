@@ -65,7 +65,7 @@ var appRoutes = []route{
 	{"POST", "/proyectos/QA0001/pago", false},
 	{"GET", "/proyectos/QA0001/archivos/1", false},
 	{"POST", "/proyectos/QA0001/perder", false},
-	{"POST", "/proyectos/QA0001/reabrir", true},
+	{"POST", "/proyectos/QA0001/reabrir", false},
 	{"GET", "/cotizaciones/QA0001/pdf", false},
 
 	{"GET", "/usuarios", true},

@@ -137,7 +137,7 @@ Un proyecto que ya se entregó y está pagado.
 ## Perdido
 
 Un proyecto que no se concretó: el cliente ya no va a comprar. Se marca con un motivo,
-sale de las etapas activas y ya no cuenta para el pronóstico. Solo un administrador
+sale de las etapas activas y ya no cuenta para el pronóstico. Cualquier usuario
 puede reabrirlo.
 
 ## Revisada
