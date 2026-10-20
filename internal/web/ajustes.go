@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gerrygoo/cladex-web/internal/facturoporti"
 	"github.com/gerrygoo/cladex-web/internal/money"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/views"
@@ -16,6 +17,8 @@ import (
 // holds no pricing input any more; it's kept for future non-pricing settings.
 type Settings struct {
 	store *store.Store
+	// facturacion is whether the Facturoporti secrets loaded at startup, shown read-only.
+	facturacion facturoporti.Status
 }
 
 func NewSettings(s *store.Store) *Settings {
@@ -56,7 +59,7 @@ func (s *Settings) render(w http.ResponseWriter, r *http.Request, successMsg, er
 		w.WriteHeader(http.StatusUnprocessableEntity)
 	}
 	authUser, _ := UserFromContext(ctx)
-	views.Ajustes(margins, materials, units, successMsg, errorMsg, navUserView(authUser)).Render(ctx, w)
+	views.Ajustes(margins, materials, units, s.facturacion, successMsg, errorMsg, navUserView(authUser)).Render(ctx, w)
 }
 
 // parseMarginPercent reads a margin as the percentage an admin types ("12.34", "12.34%")

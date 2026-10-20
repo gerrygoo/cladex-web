@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gerrygoo/cladex-web/internal/appenv"
+	"github.com/gerrygoo/cladex-web/internal/facturoporti"
 	"github.com/gerrygoo/cladex-web/internal/guia"
 	"github.com/gerrygoo/cladex-web/internal/pdf"
 	"github.com/gerrygoo/cladex-web/internal/store"
@@ -19,11 +21,14 @@ const sampleTypst = `
 Hello world — Typst render pipeline is up.
 `
 
-// Build identifies the running binary: the commit it was built from and when. A zero
-// Time means a local dev build.
+// Build identifies the running binary and instance: the commit it was built from and
+// when (a zero Time means a local dev build), which instance it is (production, staging,
+// development; see internal/appenv), and whether facturación is set up.
 type Build struct {
-	SHA  string
-	Time time.Time
+	SHA         string
+	Time        time.Time
+	Env         appenv.Env
+	Facturacion facturoporti.Status
 }
 
 // NewMux builds the application router. build.SHA is surfaced on /healthz; the home
@@ -36,14 +41,17 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
+	views.EnvironmentBanner = build.Env.Banner()
 	mux := http.NewServeMux()
 	auth := NewAuth(db, cookieSecure)
 	products := NewProducts(db)
 	customers := NewCustomers(db)
 	quotes := NewQuotes(db, logger)
+	quotes.watermark = build.Env.Watermark()
 	projects := NewProjects(db)
 	users := NewUsers(db)
 	settings := NewSettings(db)
+	settings.facturacion = build.Facturacion
 	units := NewUnits(db)
 	familias := NewFamilias(db)
 	documentos := NewDocumentos(db)

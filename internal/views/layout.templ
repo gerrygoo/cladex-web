@@ -1,5 +1,9 @@
 package views
 
+// EnvironmentBanner is the notice a non-production instance shows at the top of every
+// page (appenv.Env.Banner); empty in production. Set once at startup.
+var EnvironmentBanner string
+
 // NavUser is the trimmed view-model Layout needs to render the signed-in state —
 // callers build it from store.AuthenticatedUser without views importing internal/store.
 type NavUser struct {
@@ -25,6 +29,9 @@ templ Layout(title string, user *NavUser) {
 		</head>
 		<body>
 			<a class="skip-link" href="#contenido">Saltar al contenido</a>
+			if EnvironmentBanner != "" {
+				<p class="env-banner" role="note">{ EnvironmentBanner }</p>
+			}
 			<noscript>
 				<p class="noscript-banner">
 					JavaScript está desactivado. La aplicación funciona igual, pero cada acción recarga la página completa; actívalo para una experiencia más rápida.

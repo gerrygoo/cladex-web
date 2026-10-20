@@ -135,6 +135,64 @@ opening the DB — do this after any schema-shape change, before trusting new da
 on top of it. Offsite copy is deferred to UGREEN's own NAS-to-cloud sync pointed at that
 directory, once set up — no bespoke offsite push exists yet.
 
+## Secrets
+
+Facturoporti's token and Cladex's CSD reach the app as files, never as environment
+variables (`docker inspect` shows those). Each instance has its own directory, mounted
+read-only at `/run/secrets`:
+
+| Instance | Host directory |
+|---|---|
+| production | `/volume1/docker/cladex/secrets/` |
+| staging | `/volume1/docker/cladex/staging/secrets/` |
+
+| File | Contents |
+|---|---|
+| `facturoporti_token` | The API token (created once by hand with `/token/crear`; the account password never goes on the NAS) |
+| `csd_cer` | The CSD certificate, the SAT's `.cer` as is |
+| `csd_key` | The CSD private key, the SAT's encrypted `.key` as is |
+| `csd_password` | The key's password, alone on one line |
+
+- Both directories sit outside `data/` and `backups/`, so neither Litestream nor the
+  nightly tarball nor the cloud sync of `backups/` carries them. The durable copy of the
+  CSD stays with Cladex (and in 1Password); a lost NAS means putting the files back.
+- Ownership `1000:10`, directory `0700`, files `0400`:
+  `chown -R 1000:10 secrets && chmod 700 secrets && chmod 400 secrets/*`.
+- **Staging only ever gets the sandbox token and the SAT's public test CSD**
+  (`internal/facturoporti/testdata`, password `12345678a`). The real CSD and token exist only in
+  production's directory. Even so, only an instance with `APP_ENV=production` talks to
+  Facturoporti's production host (`internal/appenv`).
+- The app checks them at startup: the key opens with the password, matches the
+  certificate, and the certificate is in date. A missing or bad file leaves facturación
+  off without stopping the app; the reason is in the `facturacion` startup log line and in
+  **Configuración del sistema → Facturación**. After changing a file, restart the
+  container (`docker compose restart cladex`).
+
+## Staging
+
+`cladex-staging` is a second container in the same compose project: the same image,
+LAN-only on **:8091** (`http://192.168.3.169:8091`), with its own `staging/data` and
+`staging/secrets`. Being in the project, the deploy cron updates it with production on
+every push to `main`. `APP_ENV=staging` puts a banner on every page, a *PRUEBA*
+watermark on every PDF, and keeps facturación on the sandbox.
+
+Its database is a copy of production's, refreshed on demand:
+
+```bash
+scp -O scripts/staging-refresh.sh cladex-nas:/volume1/docker/cladex/
+ssh cladex-nas 'sh /volume1/docker/cladex/staging-refresh.sh'
+```
+
+It copies the live database with sqlite3's online backup (production keeps running),
+drops the sessions so production cookies don't open staging, and restarts staging.
+Everything done in staging since the last refresh is lost. Staging has no Litestream and
+no backups: its data is disposable.
+
+Sign in with your production user and password, as of the last refresh. Cookies don't
+tell ports apart, so with production also open by LAN IP (`:8090`) in the same browser,
+signing in to one signs you out of the other; production through
+`cotizador.cladex.com.mx` is unaffected.
+
 ## Running one-off commands against production
 
 - Cross-compile for the NAS's arch (`amd64`) before staging a binary there — the dev
@@ -157,7 +215,8 @@ port 22 from the LAN (SSH turned off in UGOS), while `:8090` answered.
 
 | Task | Command |
 |---|---|
-| Check the app is up | `ssh cladex-nas curl -s localhost:8090/healthz` |
+| Check the app is up | `ssh cladex-nas curl -s localhost:8090/healthz` (staging: `:8091`) |
+| Refresh staging from production | `ssh cladex-nas 'sh /volume1/docker/cladex/staging-refresh.sh'` |
 | See resource usage | `ssh cladex-nas docker stats --no-stream` |
 | Tail app logs | `ssh cladex-nas docker compose -f /volume1/docker/cladex/compose.yaml logs -f` |
 | Copy a file to the NAS | `scp -O <file> cladex-nas:/volume1/docker/cladex/<dest>` |

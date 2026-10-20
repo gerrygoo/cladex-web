@@ -14,7 +14,9 @@ import (
 	_ "time/tzdata" // the home page shows the build time in Mexico City time; don't depend on the image's zoneinfo
 
 	cladex "github.com/gerrygoo/cladex-web"
+	"github.com/gerrygoo/cladex-web/internal/appenv"
 	"github.com/gerrygoo/cladex-web/internal/cli"
+	"github.com/gerrygoo/cladex-web/internal/facturoporti"
 	"github.com/gerrygoo/cladex-web/internal/guia"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/web"
@@ -131,7 +133,19 @@ func runServer() {
 		os.Exit(1)
 	}
 
-	build := web.Build{SHA: buildSHA}
+	env, err := appenv.Parse(os.Getenv("APP_ENV"))
+	if err != nil {
+		logger.Error("environment", slog.Any("err", err))
+		os.Exit(1)
+	}
+	// Facturación stays off, not fatal, when its secrets are missing or don't check out:
+	// the rest of the app doesn't need them. The status says why, here and in /ajustes.
+	_, facturacion := facturoporti.Load(env, os.Getenv, time.Now())
+	logger.Info("facturacion", slog.String("env", env.Name), slog.Bool("enabled", facturacion.Enabled),
+		slog.Bool("sandbox", facturacion.Sandbox), slog.String("problem", facturacion.Problem),
+		slog.String("rfc", facturacion.RFC), slog.Time("csd_expires", facturacion.Expires))
+
+	build := web.Build{SHA: buildSHA, Env: env, Facturacion: facturacion}
 	if t, err := time.Parse(time.RFC3339, buildTime); err == nil {
 		build.Time = t
 	}

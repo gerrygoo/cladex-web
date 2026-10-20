@@ -28,6 +28,8 @@ import (
 type Quotes struct {
 	store  *store.Store
 	logger *slog.Logger
+	// watermark is stamped across every PDF of a non-production instance (appenv).
+	watermark string
 }
 
 // NewQuotes builds the /cotizaciones handlers; a nil logger discards.
@@ -1204,6 +1206,7 @@ func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	doc.Watermark = q.watermark
 	bytes, err := pdf.RenderQuote(ctx, doc)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
@@ -1328,6 +1331,7 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
+	doc.Watermark = q.watermark
 	pdfBytes, err := pdf.RenderQuote(ctx, doc)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)

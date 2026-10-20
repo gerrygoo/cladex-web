@@ -54,6 +54,10 @@ type QuoteDocument struct {
 	Terms    []string
 	// Letterhead is the logo block the PDF opens with; the caller picks it by familia.
 	Letterhead Letterhead
+	// Watermark, when set, is printed large and faint across every page, so a PDF from a
+	// test instance can't pass for a real quote. Empty in production, which keeps its
+	// bytes as they were.
+	Watermark string
 	// ShowKg adds Kg por metro and Kg columns, with quantity and unit price per metre
 	// (CCS quotes, issue #34).
 	ShowKg bool
@@ -80,6 +84,10 @@ func buildQuoteTypst(doc QuoteDocument) string {
 	var b strings.Builder
 
 	b.WriteString("#set page(paper: \"us-letter\", margin: 2cm)\n")
+	if doc.Watermark != "" {
+		fmt.Fprintf(&b, "#set page(background: rotate(-35deg, text(size: 96pt, weight: \"bold\", fill: rgb(200, 0, 0, 40))[#%s]))\n",
+			typstStringLiteral(doc.Watermark))
+	}
 	b.WriteString("#set text(size: 10pt)\n")
 	writeLetterhead(&b, doc.Letterhead)
 

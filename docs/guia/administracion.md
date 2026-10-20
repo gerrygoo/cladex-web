@@ -91,6 +91,25 @@ La columna **Actualizado** dice cuándo cambió por última vez (p. ej. *actuali
 La unidad no se puede cambiar después, porque las cantidades de los productos están
 escritas en ella. Los materiales no se pueden eliminar.
 
+## Facturación
+
+Al final de **Configuración del sistema**, **Facturación** muestra si la app puede timbrar
+con Facturoporti. Solo se consulta; los datos (token y certificado de sello digital) se
+instalan en el servidor ([cómo](../NAS_OPERATIONS.md#secrets)).
+
+- **Ambiente**: *Producción* o *Pruebas* (los timbres de pruebas no son válidos).
+- **Estado**: *Lista para timbrar*, o *Apagada* con la razón (por ejemplo, *no está
+  configurada* o *el certificado venció el …*).
+- **Certificado**: el RFC, el número y la fecha de vencimiento del certificado.
+
+## Ambiente de pruebas
+
+Hay una copia de la app para probar sin tocar los datos reales, en
+`http://192.168.3.169:8091` (solo desde la red de la oficina). Arriba de cada página dice
+*"Ambiente de pruebas"* y sus PDF llevan la marca *PRUEBA*. Sus datos son una copia de los
+reales del día en que se copiaron; lo que hagas ahí no cuenta y se borra en la siguiente
+copia. Entras con tu mismo usuario y contraseña.
+
 ## Cambiar el rol de un usuario
 
 1. En el menú **Catálogos**, elige **Usuarios**.

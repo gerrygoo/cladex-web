@@ -7,9 +7,15 @@ services:
     restart: unless-stopped
     volumes:
       - ./data:/data
+      # Facturoporti token and Cladex's CSD, one file each (see internal/facturoporti and
+      # docs/NAS_OPERATIONS.md#secrets). Outside data/ and backups/, so neither Litestream
+      # nor the nightly tarball carries them; a missing file just leaves facturación off.
+      - ./secrets:/run/secrets:ro
     environment:
       PORT: "8090"
       DB_PATH: "/data/cladex.db"
+      # Only an instance that says it is production may stamp real CFDIs (internal/appenv).
+      APP_ENV: "production"
       # json (default) keeps the access log greppable with jq; LOG_LEVEL=debug adds
       # static-asset and healthcheck requests.
       LOG_FORMAT: "json"
@@ -22,6 +28,35 @@ services:
       options:
         max-size: "10m"
         max-file: "5"
+
+  # Staging (docs/NAS_OPERATIONS.md#staging): the same image on its own port, database
+  # and secrets, LAN-only. It lives in this project so the deploy cron's
+  # `docker compose pull && docker compose up -d` updates it with production. Its database
+  # is a copy of production's made by scripts/staging-refresh.sh; Litestream and the
+  # nightly backup leave it out. APP_ENV=staging shows a banner, watermarks PDFs and keeps
+  # facturación on Facturoporti's sandbox whatever secrets it is given.
+  cladex-staging:
+    image: ghcr.io/gerrygoo/cladex-web:latest
+    container_name: cladex-staging
+    network_mode: host
+    user: "1000:10"
+    restart: unless-stopped
+    volumes:
+      - ./staging/data:/data
+      - ./staging/secrets:/run/secrets:ro
+    environment:
+      PORT: "8091"
+      DB_PATH: "/data/cladex.db"
+      APP_ENV: "staging"
+      # Plain HTTP on the LAN: a Secure cookie would never come back.
+      COOKIE_SECURE: "false"
+      LOG_FORMAT: "json"
+      LOG_LEVEL: "info"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Continuous point-in-time replication of the SQLite file; see litestream.yml.
   # Reads the same ./data mount as cladex and writes WAL frames to ./backups, which the

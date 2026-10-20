@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gerrygoo/cladex-web/internal/facturoporti"
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
@@ -28,7 +29,7 @@ func marginPath(o store.MarginOption, action string) string {
 // edited, made default, retired or restored by its own small form, then the materials
 // and their prices.
 // errorMsg is a refused margin or material action.
-templ Ajustes(margins []store.MarginOption, materials []store.Material, units []store.Unit, successMsg string, errorMsg string, user *NavUser) {
+templ Ajustes(margins []store.MarginOption, materials []store.Material, units []store.Unit, facturacion facturoporti.Status, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Configuración del sistema", user) {
 		<div class="page-title">
 			<h1>Configuración del sistema</h1>
@@ -164,5 +165,29 @@ templ Ajustes(margins []store.MarginOption, materials []store.Material, units []
 			</label>
 			<button type="submit">Agregar</button>
 		</form>
+		<h2>Facturación</h2>
+		<p>Los datos para timbrar con Facturoporti (token y certificado de sello digital) se instalan en el servidor, no aquí.</p>
+		<dl class="facturacion-status">
+			<dt>Ambiente</dt>
+			<dd>
+				if facturacion.Sandbox {
+					Pruebas (los timbres no son válidos)
+				} else {
+					Producción
+				}
+			</dd>
+			<dt>Estado</dt>
+			<dd>
+				if facturacion.Enabled {
+					Lista para timbrar
+				} else {
+					Apagada: { facturacion.Problem }
+				}
+			</dd>
+			if facturacion.RFC != "" {
+				<dt>Certificado</dt>
+				<dd>RFC { facturacion.RFC } · No. { facturacion.Number } · vence el { facturacion.Expires.Format("2006-01-02") }</dd>
+			}
+		</dl>
 	}
 }

@@ -163,3 +163,20 @@ func TestQuoteTypstShowsKg(t *testing.T) {
 		t.Fatalf("RenderQuote: %v", err)
 	}
 }
+
+// A test instance's PDFs carry a watermark; production's typst is untouched by it.
+func TestQuoteTypstWatermark(t *testing.T) {
+	doc := QuoteDocument{Folio: "QA0001", Subtotal: "$1.00", IVA: "$0.16", Total: "$1.16"}
+	plain := buildQuoteTypst(doc)
+	if strings.Contains(plain, "background") {
+		t.Error("a production document has a watermark")
+	}
+	doc.Watermark = "PRUEBA"
+	marked := buildQuoteTypst(doc)
+	if !strings.Contains(marked, `#set page(background: rotate(-35deg`) || !strings.Contains(marked, `[#"PRUEBA"]`) {
+		t.Errorf("watermark missing: %s", marked[:300])
+	}
+	if _, err := RenderQuote(context.Background(), doc); err != nil {
+		t.Fatalf("RenderQuote with a watermark: %v", err)
+	}
+}
