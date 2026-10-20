@@ -26,6 +26,7 @@ const (
 	HelpProductoEditar     HelpTopic = "/ayuda/productos#editar-un-producto"
 	HelpConversiones       HelpTopic = "/ayuda/productos#conversiones-de-unidades"
 	HelpProductoMateriales HelpTopic = "/ayuda/productos#materiales-de-un-producto"
+	HelpDocumentos         HelpTopic = "/ayuda/documentos"
 
 	// Admin-only screens link to the admin-only guide page.
 	HelpAjustes    HelpTopic = "/ayuda/administracion#márgenes"
@@ -55,6 +56,7 @@ var HelpTopics = map[HelpTopic]bool{
 	HelpProductoEditar:     false,
 	HelpConversiones:       false,
 	HelpProductoMateriales: false,
+	HelpDocumentos:         false,
 	HelpAjustes:            true,
 	HelpMateriales:         true,
 	HelpUsuarios:           true,

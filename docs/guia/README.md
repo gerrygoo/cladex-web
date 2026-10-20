@@ -15,6 +15,7 @@ parte de este manual que la explica.
 | [Cotizaciones](cotizaciones.md) | Crear una cotización, agregar productos por SKU, líneas libres, guardar, emitir, descargar el PDF, revisar |
 | [Proyectos](proyectos.md) | Dar seguimiento después de emitir: etapas, probabilidad de cierre, fechas, pronóstico, perdidos, historial |
 | [Productos](productos.md) | Buscar, dar de alta y editar productos; cómo se calcula cada precio; conversiones de unidades |
+| [Documentos oficiales](documentos.md) | Ver y descargar fichas técnicas, presentaciones y material de capacitación |
 :::admin
 | [Administración](administracion.md) | Márgenes; materiales; usuarios; unidades; familias y series (solo administradores) |
 :::
@@ -36,6 +37,8 @@ parte de este manual que la explica.
 | Sección | Vendedor | Administrador |
 |---|:---:|:---:|
 | Cotizaciones, Clientes, Productos | ✓ | ✓ |
+| Ver y descargar Documentos oficiales | ✓ | ✓ |
+| Subir y eliminar Documentos oficiales | — | ✓ |
 | Usuarios, Familias, Unidades, Configuración del sistema | — | ✓ |
 
 Si en el menú **Catálogos** solo ves **Productos** y **Clientes**, tu cuenta es de vendedor.

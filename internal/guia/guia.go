@@ -48,6 +48,7 @@ var pageDefs = []pageDef{
 	{"cotizaciones", "cotizaciones.md", "Cotizaciones", false},
 	{"proyectos", "proyectos.md", "Proyectos", false},
 	{"productos", "productos.md", "Productos", false},
+	{"documentos", "documentos.md", "Documentos oficiales", false},
 	{"administracion", "administracion.md", "Administración", true},
 	{"glosario", "glosario.md", "Glosario", false},
 }

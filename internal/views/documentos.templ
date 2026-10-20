@@ -1,0 +1,91 @@
+package views
+
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// DocumentoFormValues is the upload form's state, kept when validation sends it back.
+type DocumentoFormValues struct {
+	Title      string
+	Section    string // the picked section's id
+	NewSection string
+}
+
+func documentPath(d store.OfficialDocument) string {
+	return "/documentos/" + strconv.FormatInt(d.ID, 10)
+}
+
+// documentKind is the file type as people say it.
+func documentKind(contentType string) string {
+	if contentType == "application/pdf" {
+		return "PDF"
+	}
+	return "Imagen"
+}
+
+// Documentos is the Documentos oficiales page (issue #32): each section with its
+// documents, which open in a new tab or download; admins also get the upload form and a
+// remove button per document.
+templ Documentos(sections []store.DocumentSection, values DocumentoFormValues, fieldErrors map[string]string, successMsg string, user *NavUser) {
+	@Layout("Documentos oficiales", user) {
+		<div class="page-title">
+			<h1>Documentos oficiales</h1>
+			@HelpLink(HelpDocumentos)
+		</div>
+		@Flash(successMsg)
+		for _, sec := range sections {
+			<section aria-labelledby={ "seccion-" + strconv.FormatInt(sec.ID, 10) }>
+				<h2 id={ "seccion-" + strconv.FormatInt(sec.ID, 10) }>{ sec.Name }</h2>
+				if len(sec.Documents) == 0 {
+					<p>Todavía no hay documentos.</p>
+				} else {
+					<ul class="document-list">
+						for _, d := range sec.Documents {
+							<li>
+								<a href={ templ.URL(documentPath(d)) } target="_blank" rel="noopener">{ d.Title }<span class="visually-hidden"> (se abre en otra pestaña)</span></a>
+								<small>{ " · " + documentKind(d.ContentType) + " · " + fileSizeText(d.Size) + " · " }</small>
+								<a href={ templ.URL(documentPath(d) + "?descargar=1") }>Descargar<span class="visually-hidden">{ " " + d.Title }</span></a>
+								if user != nil && user.IsAdmin {
+									<form method="post" action={ templ.URL(documentPath(d) + "/eliminar") } class="inline-form">
+										<button type="submit" class="danger" data-confirm="¿Eliminar este documento?">Eliminar<span class="visually-hidden">{ " " + d.Title }</span></button>
+									</form>
+								}
+							</li>
+						}
+					</ul>
+				}
+			</section>
+		}
+		if user != nil && user.IsAdmin {
+			<h2 id="subir">Subir un documento</h2>
+			<form method="post" action="/documentos" enctype="multipart/form-data">
+				<label>
+					Archivo (PDF o imagen de hasta 25 MB)
+					<input type="file" name="archivo" accept="application/pdf,image/jpeg,image/png,image/webp,image/gif,.pdf,.jpg,.jpeg,.png,.webp,.gif" required { errAttrs(fieldErrors, "archivo")... }/>
+				</label>
+				@FieldError(fieldErrors, "archivo")
+				<label>
+					Título (opcional; si lo dejas vacío se usa el nombre del archivo)
+					<input type="text" name="titulo" value={ values.Title } maxlength="200" placeholder="p. ej. Ficha técnica Copperclad (CCS)" { errAttrs(fieldErrors, "titulo")... }/>
+				</label>
+				@FieldError(fieldErrors, "titulo")
+				<label>
+					Sección
+					<select name="seccion" { errAttrs(fieldErrors, "seccion")... }>
+						for _, sec := range sections {
+							<option value={ strconv.FormatInt(sec.ID, 10) } selected?={ values.Section == strconv.FormatInt(sec.ID, 10) }>{ sec.Name }</option>
+						}
+					</select>
+				</label>
+				<label>
+					O una sección nueva (opcional; si la escribes, el documento va ahí)
+					<input type="text" name="seccion_nueva" value={ values.NewSection } maxlength="100" placeholder="p. ej. Presentaciones"/>
+				</label>
+				@FieldError(fieldErrors, "seccion")
+				<button type="submit" class="primary">Subir documento</button>
+			</form>
+		}
+	}
+}

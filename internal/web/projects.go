@@ -402,24 +402,34 @@ func (p *Projects) OC(w http.ResponseWriter, r *http.Request) {
 // ocFile reads the form's optional "archivo". It returns nil when none was sent, and a
 // message with its HTTP status when the file is too large, empty or not an accepted kind.
 func ocFile(r *http.Request) (*store.NewFile, string, int) {
-	f, header, err := r.FormFile("archivo")
+	return uploadedFile(r, "archivo", maxOCFileBytes, ocFileTypes,
+		"el archivo no puede pesar más de 10 MB", "el archivo debe ser PDF, JPG o PNG", "orden-de-compra")
+}
+
+// uploadedFile reads the optional file in field, at most maxBytes, of one of types (by
+// what the bytes are, not by the name or what the browser says). It returns nil when none
+// was sent, and a message with its HTTP status when the file is too large (tooBig),
+// empty or not an accepted kind (badType). The name keeps only its last path element,
+// without control characters and at most 200 characters; fallback replaces a blank one.
+func uploadedFile(r *http.Request, field string, maxBytes int, types map[string]bool, tooBig, badType, fallback string) (*store.NewFile, string, int) {
+	f, header, err := r.FormFile(field)
 	if err != nil {
-		return nil, "", 0 // no file, or not a multipart form: the file is optional
+		return nil, "", 0 // no file, or not a multipart form
 	}
 	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, maxOCFileBytes+1))
+	data, err := io.ReadAll(io.LimitReader(f, int64(maxBytes)+1))
 	if err != nil {
 		return nil, "no se pudo leer el archivo", http.StatusBadRequest
 	}
-	if len(data) > maxOCFileBytes {
-		return nil, "el archivo no puede pesar más de 10 MB", http.StatusRequestEntityTooLarge
+	if len(data) > maxBytes {
+		return nil, tooBig, http.StatusRequestEntityTooLarge
 	}
 	if len(data) == 0 {
 		return nil, "el archivo está vacío", http.StatusBadRequest
 	}
 	contentType := http.DetectContentType(data)
-	if !ocFileTypes[contentType] {
-		return nil, "el archivo debe ser PDF, JPG o PNG", http.StatusBadRequest
+	if !types[contentType] {
+		return nil, badType, http.StatusBadRequest
 	}
 	// Browsers send only the name, but an old one or a script may send a path.
 	name := path.Base(strings.ReplaceAll(header.Filename, "\\", "/"))
@@ -430,7 +440,7 @@ func ocFile(r *http.Request) (*store.NewFile, string, int) {
 		return c
 	}, name)
 	if name = strings.TrimSpace(name); name == "" || name == "." || name == "/" {
-		name = "orden-de-compra"
+		name = fallback
 	}
 	if r := []rune(name); len(r) > 200 {
 		name = string(r[len(r)-200:])

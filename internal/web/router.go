@@ -46,6 +46,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	settings := NewSettings(db)
 	units := NewUnits(db)
 	familias := NewFamilias(db)
+	documentos := NewDocumentos(db)
 	help := NewHelp(guide)
 
 	static, err := newStaticHandler(staticFS)
@@ -106,6 +107,11 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("GET /proyectos/{folio}/archivos/{id}", auth.RequireAuth(http.HandlerFunc(projects.Archivo)))
 	mux.Handle("POST /proyectos/{folio}/perder", auth.RequireAuth(http.HandlerFunc(projects.Perder)))
 	mux.Handle("POST /proyectos/{folio}/reabrir", auth.RequireAuth(http.HandlerFunc(projects.Reabrir)))
+
+	mux.Handle("GET /documentos", auth.RequireAuth(http.HandlerFunc(documentos.List)))
+	mux.Handle("GET /documentos/{id}", auth.RequireAuth(http.HandlerFunc(documentos.Archivo)))
+	mux.Handle("POST /documentos", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(documentos.Subir))))
+	mux.Handle("POST /documentos/{id}/eliminar", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(documentos.Eliminar))))
 
 	mux.Handle("GET /usuarios", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(users.List))))
 	mux.Handle("POST /usuarios/{id}/rol", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(users.SetRole))))

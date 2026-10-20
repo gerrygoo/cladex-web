@@ -1367,3 +1367,28 @@ div.notice.warning li {
   padding: 0.45rem 0.6rem;
   color: var(--text-muted);
 }
+
+/* Documentos oficiales: one line per document, its links and (admins) a remove button. */
+ul.document-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem;
+}
+
+ul.document-list > li {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+ul.document-list small {
+  color: var(--text-muted);
+}
+
+ul.document-list form.inline-form {
+  display: inline;
+  margin-left: 0.75rem;
+}
+
+ul.document-list form.inline-form > button[type="submit"] {
+  margin-top: 0;
+}
