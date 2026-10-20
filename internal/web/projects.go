@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/gerrygoo/cladex-web/internal/facturacion"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
@@ -20,6 +21,9 @@ import (
 // that follow it up (stage, probabilidad de cierre, comments).
 type Projects struct {
 	store *store.Store
+	// fact is facturación: when it can stamp, a proyecto's factura and pago are CFDIs
+	// made from its page instead of folios typed in.
+	fact *facturacion.Service
 }
 
 func NewProjects(s *store.Store) *Projects {
@@ -91,8 +95,13 @@ func (p *Projects) Page(w http.ResponseWriter, r *http.Request) {
 	}
 	comments, pager := paginate(r, comments)
 	commentsLV := views.ListView{Base: "/proyectos/" + project.Folio, Pager: pager, Anchor: "historial"}
+	facturas, err := p.store.ListComprobantes(ctx, project.ID)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
 	user, _ := UserFromContext(ctx)
-	views.ProjectPage(*project, today(r), quotes, files, comments, commentsLV, navUserView(user)).Render(ctx, w)
+	views.ProjectPage(*project, today(r), quotes, files, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user)).Render(ctx, w)
 }
 
 // Etapa handles POST /proyectos/{folio}/etapa: moves the proyecto one stage along the

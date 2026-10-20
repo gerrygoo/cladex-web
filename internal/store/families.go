@@ -18,6 +18,9 @@ type Family struct {
 	SeriesLabel   string
 	Terms         string // the series' terms block, one term per line
 	FreeLinesOnly bool   // holds no catalog products: quoted with líneas libres only
+	// SATProductCode is the SAT's c_ClaveProdServ a factura's lines from this familia's
+	// series start with; "" when not set.
+	SATProductCode string
 }
 
 // Series is a quote series a new quote can start in: the folio prefix, how the picker
@@ -39,11 +42,11 @@ func (s Series) PickerLabel() string {
 	return s.Prefix + " — " + label
 }
 
-const familyCols = `id, name, COALESCE(series, ''), COALESCE(series_label, ''), terms, free_lines_only`
+const familyCols = `id, name, COALESCE(series, ''), COALESCE(series_label, ''), terms, free_lines_only, COALESCE(sat_product_code, '')`
 
 func scanFamily(row interface{ Scan(...any) error }) (Family, error) {
 	var f Family
-	err := row.Scan(&f.ID, &f.Name, &f.Series, &f.SeriesLabel, &f.Terms, &f.FreeLinesOnly)
+	err := row.Scan(&f.ID, &f.Name, &f.Series, &f.SeriesLabel, &f.Terms, &f.FreeLinesOnly, &f.SATProductCode)
 	return f, err
 }
 
@@ -149,6 +152,14 @@ func (s *Store) UpdateFamilyTerms(ctx context.Context, id int64, seriesLabel, te
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// SetFamilySATCode sets a familia's default c_ClaveProdServ; "" clears it.
+func (s *Store) SetFamilySATCode(ctx context.Context, id int64, code string) error {
+	if _, err := s.exec(ctx, `UPDATE product_families SET sat_product_code = NULLIF(?, '') WHERE id = ?`, code, id); err != nil {
+		return fmt.Errorf("store: familia %d sat code: %w", id, err)
 	}
 	return nil
 }

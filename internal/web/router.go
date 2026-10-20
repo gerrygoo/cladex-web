@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gerrygoo/cladex-web/internal/appenv"
+	"github.com/gerrygoo/cladex-web/internal/facturacion"
 	"github.com/gerrygoo/cladex-web/internal/facturoporti"
 	"github.com/gerrygoo/cladex-web/internal/guia"
 	"github.com/gerrygoo/cladex-web/internal/pdf"
@@ -37,9 +38,15 @@ type Build struct {
 // TLS-terminating proxy), false for local plain-HTTP dev. logger receives the access
 // log; pass nil to discard it, as the handler tests do. guide is the pre-rendered
 // user guide served under /ayuda.
-func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, cookieSecure bool, logger *slog.Logger) http.Handler {
+//
+// fact is facturación (internal/facturacion); nil builds one that is off, as when the
+// Facturoporti secrets aren't installed.
+func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, cookieSecure bool, logger *slog.Logger, fact *facturacion.Service) http.Handler {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
+	}
+	if fact == nil {
+		fact = facturacion.New(db, nil, build.Facturacion)
 	}
 	views.EnvironmentBanner = build.Env.Banner()
 	mux := http.NewServeMux()
@@ -49,6 +56,8 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	quotes := NewQuotes(db, logger)
 	quotes.watermark = build.Env.Watermark()
 	projects := NewProjects(db)
+	projects.fact = fact
+	facturas := NewFacturas(db, fact, logger)
 	users := NewUsers(db)
 	settings := NewSettings(db)
 	settings.facturacion = build.Facturacion
@@ -116,6 +125,21 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /proyectos/{folio}/perder", auth.RequireAuth(http.HandlerFunc(projects.Perder)))
 	mux.Handle("POST /proyectos/{folio}/reabrir", auth.RequireAuth(http.HandlerFunc(projects.Reabrir)))
 
+	mux.Handle("GET /facturas", auth.RequireAuth(http.HandlerFunc(facturas.List)))
+	mux.Handle("GET /facturas/{id}", auth.RequireAuth(http.HandlerFunc(facturas.Page)))
+	mux.Handle("GET /facturas/{id}/xml", auth.RequireAuth(http.HandlerFunc(facturas.XML)))
+	mux.Handle("GET /facturas/{id}/pdf", auth.RequireAuth(http.HandlerFunc(facturas.PDF)))
+	admin := func(h http.HandlerFunc) http.Handler { return auth.RequireAuth(auth.RequireAdmin(h)) }
+	mux.Handle("POST /proyectos/{folio}/factura/nueva", admin(facturas.Crear))
+	mux.Handle("POST /facturas/{id}", admin(facturas.Guardar))
+	mux.Handle("POST /facturas/{id}/validar", admin(facturas.Validar))
+	mux.Handle("POST /facturas/{id}/editar", admin(facturas.Editar))
+	mux.Handle("POST /facturas/{id}/timbrar", admin(facturas.Timbrar))
+	mux.Handle("POST /facturas/{id}/cancelar", admin(facturas.Cancelar))
+	mux.Handle("POST /facturas/{id}/consultar", admin(facturas.Consultar))
+	mux.Handle("POST /facturas/{id}/sustituir", admin(facturas.Sustituir))
+	mux.Handle("POST /facturas/{id}/pago", admin(facturas.Pago))
+
 	mux.Handle("GET /documentos", auth.RequireAuth(http.HandlerFunc(documentos.List)))
 	mux.Handle("GET /documentos/{id}", auth.RequireAuth(http.HandlerFunc(documentos.Archivo)))
 	mux.Handle("POST /documentos", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(documentos.Subir))))
@@ -132,11 +156,13 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /ajustes/margenes/{id}/predeterminado", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.PredeterminarMargen))))
 	mux.Handle("POST /ajustes/margenes/{id}/retirar", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.RetirarMargen))))
 	mux.Handle("POST /ajustes/margenes/{id}/restaurar", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.RestaurarMargen))))
+	mux.Handle("POST /ajustes/emisor", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.Emisor))))
 	mux.Handle("POST /ajustes/materiales", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.CreateMaterial))))
 	mux.Handle("POST /ajustes/materiales/{id}", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(settings.UpdateMaterial))))
 
 	mux.Handle("GET /unidades", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(units.List))))
 	mux.Handle("POST /unidades", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(units.Create))))
+	mux.Handle("POST /unidades/{id}/sat", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(units.SetSAT))))
 
 	mux.Handle("GET /familias", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(familias.List))))
 	mux.Handle("POST /familias", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(familias.Create))))

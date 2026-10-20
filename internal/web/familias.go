@@ -25,6 +25,12 @@ func NewFamilias(s *store.Store) *Familias {
 	return &Familias{store: s}
 }
 
+// satProductPattern is a SAT c_ClaveProdServ: eight digits.
+var satProductPattern = regexp.MustCompile(`^[0-9]{8}$`)
+
+// satUnitPattern is a SAT c_ClaveUnidad: two or three capitals or digits.
+var satUnitPattern = regexp.MustCompile(`^[A-Z0-9]{2,3}$`)
+
 // seriesPattern is what a series prefix looks like: Q and one more letter, like QA.
 var seriesPattern = regexp.MustCompile(`^Q[A-Z]$`)
 
@@ -138,6 +144,18 @@ func (f *Familias) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	label := strings.TrimSpace(r.FormValue("series_label"))
 	terms := strings.Join(store.SplitTerms(r.FormValue("terms")), "\n")
+	satCode := strings.TrimSpace(r.FormValue("sat_product_code"))
+	if satCode != "" && !satProductPattern.MatchString(satCode) {
+		user, _ := UserFromContext(r.Context())
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		fam.SATProductCode = satCode
+		views.FamiliaEdit(fam, label, terms, navUserView(user)).Render(r.Context(), w)
+		return
+	}
+	if err := f.store.SetFamilySATCode(r.Context(), fam.ID, satCode); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
 	if err := f.store.UpdateFamilyTerms(r.Context(), fam.ID, label, terms); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.NotFound(w, r)

@@ -14,6 +14,7 @@ parte de este manual que la explica.
 | [Clientes](clientes.md) | Dar de alta, buscar, editar y eliminar clientes |
 | [Cotizaciones](cotizaciones.md) | Crear una cotización, agregar productos por SKU, líneas libres, guardar, emitir, descargar el PDF, revisar |
 | [Proyectos](proyectos.md) | Dar seguimiento después de emitir: etapas, probabilidad de cierre, fechas, pronóstico, perdidos, historial |
+| [Facturas](facturas.md) | Timbrar la factura de un proyecto y su comprobante de pago, descargar XML y PDF, sustituir y cancelar |
 | [Productos](productos.md) | Buscar, dar de alta y editar productos; cómo se calcula cada precio; conversiones de unidades |
 | [Documentos oficiales](documentos.md) | Ver y descargar fichas técnicas, presentaciones y material de capacitación |
 :::admin

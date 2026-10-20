@@ -212,6 +212,10 @@ QA0012-R1  Constructora X · Laura M.          $482,000        ( Inicial | Baja 
 
 ## M5 — Bases de facturación
 
+> **Status (2026-10-20):** M5.3, M6, M7.2 (through the PAC's email) and M8 are built and
+> tested against Facturoporti's sandbox; see §9 of the facturas doc. Waiting on real
+> credentials for the first production stamp (M6.4's last step).
+
 Starts as decisions, in parallel with M4. No user-visible feature except 5.2.
 
 | # | Slice | Done when |

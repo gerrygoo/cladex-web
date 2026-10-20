@@ -125,7 +125,7 @@ templ ProjectsTableBody(projects []store.Project) {
 // ProjectPage is a proyecto: where it stands, the controls that move it (probability
 // while it is a prospecto, the next stage, and an admin-only step back), every quote it
 // has had, and its history — the comments of all those quotes in one timeline.
-templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []store.ProjectFile, comments []store.ProjectComment, commentsLV ListView, user *NavUser) {
+templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []store.ProjectFile, comments []store.ProjectComment, commentsLV ListView, facturas []store.Comprobante, factEnabled bool, user *NavUser) {
 	@Layout("Proyecto "+p.Folio, user) {
 		<div class="page-title">
 			<h1>Proyecto { p.Folio }</h1>
@@ -285,7 +285,20 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 						<dd>{ dateText(p.PaidAt) }</dd>
 					}
 				</dl>
-				if p.Status == "oc_recibida" {
+				@ProjectFacturas(facturas)
+				if factEnabled {
+					if p.Status == "oc_recibida" && !hasActiveFactura(facturas) {
+						if user != nil && user.IsAdmin {
+							<form method="post" action={ templ.URL(projectPath(p.Folio) + "/factura/nueva") } class="stage-form">
+								<h3>Facturar</h3>
+								<p>Crea la factura con las partidas de la cotización. Al timbrarla, el proyecto pasa a Facturado.</p>
+								<button type="submit" class="primary">Crear factura</button>
+							</form>
+						} else {
+							<p>Un administrador crea y timbra la factura.</p>
+						}
+					}
+				} else if p.Status == "oc_recibida" {
 					<form method="post" action={ templ.URL(projectPath(p.Folio) + "/factura") } class="stage-form">
 						if p.OC.PaymentMethod == "PUE" {
 							<h3>Registrar pago y factura</h3>
@@ -320,7 +333,7 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 							}
 						</button>
 					</form>
-				} else if p.PaymentStatus == store.PaymentAdvanceInvoiced && (p.Status == "facturado" || p.Status == "en_entrega") {
+				} else if p.PaymentStatus == store.PaymentAdvanceInvoiced && (p.Status == "facturado" || p.Status == "en_entrega") && !hasStampedFactura(facturas) {
 					<form method="post" action={ templ.URL(projectPath(p.Folio) + "/pago") } class="stage-form">
 						<h3>Registrar pago completado</h3>
 						<p>Cuando el cliente termine de pagar y se emita el comprobante de pago, regístralo aquí. Sin esto el proyecto no se puede cerrar.</p>

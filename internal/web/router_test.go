@@ -104,7 +104,7 @@ func newTestMux(t *testing.T, a *Auth) http.Handler {
 	if err != nil {
 		t.Fatalf("guia.New: %v", err)
 	}
-	return NewMux(Build{SHA: "testsha"}, staticFS, guide, a.store, false, nil)
+	return NewMux(Build{SHA: "testsha"}, staticFS, guide, a.store, false, nil, nil)
 }
 
 // TestRoutesRequireAuth walks every application route signed out. Every one of them must

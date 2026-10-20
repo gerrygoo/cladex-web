@@ -16,6 +16,7 @@ import (
 	cladex "github.com/gerrygoo/cladex-web"
 	"github.com/gerrygoo/cladex-web/internal/appenv"
 	"github.com/gerrygoo/cladex-web/internal/cli"
+	factsvc "github.com/gerrygoo/cladex-web/internal/facturacion"
 	"github.com/gerrygoo/cladex-web/internal/facturoporti"
 	"github.com/gerrygoo/cladex-web/internal/guia"
 	"github.com/gerrygoo/cladex-web/internal/store"
@@ -140,7 +141,7 @@ func runServer() {
 	}
 	// Facturación stays off, not fatal, when its secrets are missing or don't check out:
 	// the rest of the app doesn't need them. The status says why, here and in /ajustes.
-	_, facturacion := facturoporti.Load(env, os.Getenv, time.Now())
+	factCfg, facturacion := facturoporti.Load(env, os.Getenv, time.Now())
 	logger.Info("facturacion", slog.String("env", env.Name), slog.Bool("enabled", facturacion.Enabled),
 		slog.Bool("sandbox", facturacion.Sandbox), slog.String("problem", facturacion.Problem),
 		slog.String("rfc", facturacion.RFC), slog.Time("csd_expires", facturacion.Expires))
@@ -150,7 +151,7 @@ func runServer() {
 		build.Time = t
 	}
 
-	mux := web.NewMux(build, staticFS, guide, db, cookieSecure, logger)
+	mux := web.NewMux(build, staticFS, guide, db, cookieSecure, logger, factsvc.New(db, factCfg, facturacion))
 
 	addr := fmt.Sprintf(":%s", port)
 	logger.Info("listening", slog.String("addr", addr), slog.String("build", buildSHA), slog.String("built", buildTime))

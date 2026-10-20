@@ -27,14 +27,14 @@ type CFDIDocument struct {
 	Pagos        []CFDIPago
 	TotalLetra   string
 
-	SelloCFD        string
-	SelloSAT        string
-	CadenaOriginal  string
-	NoCertificado   string
+	SelloCFD         string
+	SelloSAT         string
+	CadenaOriginal   string
+	NoCertificado    string
 	NoCertificadoSAT string
-	FechaTimbrado   string
-	RfcProvCertif   string
-	VerificationURL string
+	FechaTimbrado    string
+	RfcProvCertif    string
+	VerificationURL  string
 
 	// Sandbox CFDIs carry a watermark: they have no fiscal value.
 	Sandbox bool
@@ -47,7 +47,7 @@ type CFDIConcepto struct {
 
 type CFDIPago struct {
 	Fecha, Forma, Moneda, Monto string
-	Documentos              [][]string // UUID, serie-folio, parcialidad, saldo anterior, pagado, insoluto
+	Documentos                  [][]string // UUID, serie-folio, parcialidad, saldo anterior, pagado, insoluto
 }
 
 // RenderCFDI lays out a CFDI's printed representation.

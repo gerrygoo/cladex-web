@@ -1,11 +1,8 @@
 # Facturas: timbrado digital y envío
 
-**Proposed, nothing shipped.** No factura code, tables or UI exist today. What does
-exist and is reusable: `customers` already carries `rfc`, `postal_code` and `tax_regime`
-(migration 0004, added "so the future invoicing/billing portal (CFDI) integration can
-read them directly"), quotes already use a draft → frozen pattern (`borrador` →
-`emitida`), and there is an append-only `audit_log` plus `quote_comments`. There is
-**no outbound email** of any kind in the app (see §5).
+**Built (2026-10-20), against Facturoporti's sandbox; not yet stamping for real.** What
+shipped and the decisions it took are in [§9](#9-built-2026-10-20); §1–§7 are the design it
+follows, §8 the research.
 
 This is the "facturas" item from [`docs/PLAN.md`'s backlog](../PLAN.md#backlog--deprioritized-not-scheduled),
 and the invoicing half of the payment states in
@@ -438,3 +435,53 @@ Emilio asked support the questions above; their answers, and what each changes:
 
 Next for Cladex: forward that email to Gerry, create the API user, and hand over the CSD
 (`.cer`, `.key`, password) privately when stamping in the sandbox works.
+
+## 9. Built (2026-10-20)
+
+Gerry asked for the whole feature against Facturoporti's API while real credentials are
+pending. Code: `internal/facturoporti` (client, secrets, fake), `internal/facturacion`
+(validation, request building, stamp/cancel orchestration, printed representation),
+`internal/cfdi` (reading the stamped XML), `internal/store/comprobantes.go` and migration
+0024, the `/facturas` screens. User guide: `docs/guia/facturas.md`.
+
+Checked against the real sandbox (`FACTUROPORTI_SANDBOX=1 go test ./internal/facturoporti
+./internal/facturacion`, public test user `PruebasTimbrado`): a factura with Cladex's
+6-decimal unit prices, a P.P.D. factura and its Pagos 2.0 complement, a replacement
+(relación 04) and a motivo 01 cancellation all pass the SAT's rules.
+
+Decisions taken while building, beyond §1–§8:
+
+- **`timbrado incierto` is resolved by resending the identical request**, not by a lookup:
+  tested in the sandbox, Facturoporti answers a byte-identical request with the stamp it
+  already made, while any change (even the `Fecha`) stamps anew. So the validated request
+  is stored exactly (without the CSD, added at send time) and every retry sends those
+  bytes. Re-validating re-dates the request and is only possible from `borrador`, which an
+  `incierto` comprobante can't reach.
+- **Facturoporti replaces the request's `Fecha`** with its own stamping time, so a stored
+  request doesn't go stale.
+- **Amounts are the quote's**: each concepto is a quote line (quantity, unit price to the
+  micro, importe) and can't be edited on the factura; only descriptions and SAT codes can.
+  IVA is computed per concepto and added up, as the CFDI states it, which can differ by a
+  centavo from the quote's IVA on the subtotal.
+- **One factura per proyecto** (open question 3), plus its replacements and one
+  comprobante de pago for the whole total (no parcialidades yet).
+- **SAT codes**: `c_ClaveUnidad` on units (MTR, KGM, H87 seeded), a default
+  `c_ClaveProdServ` per familia (empty until the contador confirms them), both editable per
+  concepto on the draft.
+- **Sending** (§2) uses Facturoporti's `enviaEmail` at stamping time, to the addresses on the
+  draft (the customer's email by default). There is no resend: that waits for #18.
+- **The PDF is rendered from the stored XML** on demand (deterministic, with the SAT
+  verification QR), never stored. Facturoporti's own PDF is not kept.
+- **Proyecto gates (M6.4)**: stamping a factura moves the proyecto to Facturado in the same
+  transaction (P.U.E.: pagado; P.P.D.: facturado de anticipo); stamping its pago leaves it
+  pagado; a replacement updates the proyecto's factura reference. If the proyecto moved by
+  hand meanwhile, the stamp is still recorded and the history says the proyecto wasn't
+  moved. While facturación is off (no secrets), the typed folio forms stay.
+- **Cancellation doesn't move the proyecto back**; an admin does that by hand if needed.
+  The SAT won't cancel a factura with a stamped pago until the pago is cancelled.
+- **Admin-only** actions; anyone signed in sees and downloads.
+- **Environment guard**: each comprobante records whether it was validated for the
+  sandbox; an instance won't stamp or cancel one made for the other host.
+
+Not built: parcialidades, standalone facturas (without a proyecto), notas de crédito,
+resending by email, a background job for retries.

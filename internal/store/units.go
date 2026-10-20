@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -15,11 +16,14 @@ type Unit struct {
 	ID   int64
 	Code string
 	Name string
+	// SATCode is the SAT's c_ClaveUnidad (MTR, KGM, H87), which a factura's lines take
+	// from their product's unit; "" when not set.
+	SATCode string
 }
 
 // ListUnits returns all units ordered by code.
 func (s *Store) ListUnits(ctx context.Context) ([]Unit, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, code, name FROM units ORDER BY code`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, code, name, COALESCE(sat_code, '') FROM units ORDER BY code`)
 	if err != nil {
 		return nil, fmt.Errorf("store: list units: %w", err)
 	}
@@ -28,12 +32,24 @@ func (s *Store) ListUnits(ctx context.Context) ([]Unit, error) {
 	var units []Unit
 	for rows.Next() {
 		var u Unit
-		if err := rows.Scan(&u.ID, &u.Code, &u.Name); err != nil {
+		if err := rows.Scan(&u.ID, &u.Code, &u.Name, &u.SATCode); err != nil {
 			return nil, fmt.Errorf("store: list units: %w", err)
 		}
 		units = append(units, u)
 	}
 	return units, rows.Err()
+}
+
+// SetUnitSATCode sets a unit's c_ClaveUnidad; "" clears it.
+func (s *Store) SetUnitSATCode(ctx context.Context, id int64, code string) error {
+	res, err := s.exec(ctx, `UPDATE units SET sat_code = NULLIF(?, '') WHERE id = ?`, code, id)
+	if err != nil {
+		return fmt.Errorf("store: unit %d sat code: %w", id, err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 // ErrDuplicateUnitCode is returned by CreateUnit when a unit with the same code

@@ -144,6 +144,10 @@ El proyecto queda en O.C. recibida, con la sección **Orden de compra del client
 
 ### Registrar la factura y el pago
 
+> Con la facturación configurada en el servidor, la factura y el comprobante de pago se
+> timbran desde la app y el proyecto avanza solo: ver [Facturas](facturas.md). Lo que sigue
+> es para registrar a mano una factura hecha fuera de la app.
+
 Las facturas se siguen emitiendo fuera de la app; aquí se anota su folio para que el
 proyecto pueda avanzar. Hay dos reglas: **sin factura no se entrega** y **sin pago no
 se cierra**. Todo se hace en la sección **Facturación y pago** del proyecto, que

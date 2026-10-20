@@ -1,8 +1,10 @@
 package web
 
 import (
+	"database/sql"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gerrygoo/cladex-web/internal/store"
@@ -57,6 +59,29 @@ func (u *Units) Create(w http.ResponseWriter, r *http.Request) {
 	if _, err := u.store.CreateUnit(ctx, code, name); err != nil {
 		if errors.Is(err, store.ErrDuplicateUnitCode) {
 			u.renderListError(w, r, "Ya existe una unidad con este código.")
+			return
+		}
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/unidades?guardado=1", http.StatusSeeOther)
+}
+
+// SetSAT handles POST /unidades/{id}/sat: sets a unit's SAT c_ClaveUnidad ("" clears it).
+func (u *Units) SetSAT(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	code := strings.ToUpper(strings.TrimSpace(r.FormValue("sat_code")))
+	if code != "" && !satUnitPattern.MatchString(code) {
+		u.renderListError(w, r, "La clave de unidad SAT son 2 o 3 letras o números, p. ej. MTR, KGM o H87.")
+		return
+	}
+	if err := u.store.SetUnitSATCode(r.Context(), id, code); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.NotFound(w, r)
 			return
 		}
 		http.Error(w, "error interno", http.StatusInternalServerError)

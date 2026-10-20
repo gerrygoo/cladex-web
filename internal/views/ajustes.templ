@@ -29,7 +29,7 @@ func marginPath(o store.MarginOption, action string) string {
 // edited, made default, retired or restored by its own small form, then the materials
 // and their prices.
 // errorMsg is a refused margin or material action.
-templ Ajustes(margins []store.MarginOption, materials []store.Material, units []store.Unit, facturacion facturoporti.Status, successMsg string, errorMsg string, user *NavUser) {
+templ Ajustes(margins []store.MarginOption, materials []store.Material, units []store.Unit, facturacion facturoporti.Status, emisor store.Emisor, emisorErrs map[string]string, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Configuración del sistema", user) {
 		<div class="page-title">
 			<h1>Configuración del sistema</h1>
@@ -189,5 +189,45 @@ templ Ajustes(margins []store.MarginOption, materials []store.Material, units []
 				<dd>RFC { facturacion.RFC } · No. { facturacion.Number } · vence el { facturacion.Expires.Format("2006-01-02") }</dd>
 			}
 		</dl>
+		<h3 id="emisor">Emisor</h3>
+		<p>Los datos de Cladex como aparecen en su constancia de situación fiscal. El RFC debe ser el del certificado instalado.</p>
+		<form method="post" action="/ajustes/emisor">
+			<label>
+				RFC
+				<input type="text" name="rfc" value={ emisor.RFC } maxlength="13" autocapitalize="characters" required { errAttrs(emisorErrs, "rfc")... }/>
+			</label>
+			@FieldError(emisorErrs, "rfc")
+			<label>
+				Razón social (sin el régimen de capital, p. ej. sin «S.A. de C.V.»)
+				<input type="text" name="nombre" value={ emisor.Name } required { errAttrs(emisorErrs, "nombre")... }/>
+			</label>
+			@FieldError(emisorErrs, "nombre")
+			<label>
+				Régimen fiscal
+				<select name="regimen" required { errAttrs(emisorErrs, "regimen")... }>
+					<option value="">Elige…</option>
+					for _, c := range store.TaxRegimes {
+						<option value={ c.Code } selected?={ c.Code == emisor.TaxRegime }>{ c.Code } - { c.Description }</option>
+					}
+				</select>
+			</label>
+			@FieldError(emisorErrs, "regimen")
+			<label>
+				Código postal del lugar de expedición
+				<input type="text" name="cp" value={ emisor.PostalCode } inputmode="numeric" maxlength="5" required { errAttrs(emisorErrs, "cp")... }/>
+			</label>
+			@FieldError(emisorErrs, "cp")
+			<label>
+				Serie de las facturas
+				<input type="text" name="serie_factura" value={ emisor.SerieFactura } maxlength="10" required { errAttrs(emisorErrs, "serie_factura")... }/>
+			</label>
+			@FieldError(emisorErrs, "serie_factura")
+			<label>
+				Serie de los comprobantes de pago
+				<input type="text" name="serie_pago" value={ emisor.SeriePago } maxlength="10" required { errAttrs(emisorErrs, "serie_pago")... }/>
+			</label>
+			@FieldError(emisorErrs, "serie_pago")
+			<button type="submit">Guardar emisor</button>
+		</form>
 	}
 }

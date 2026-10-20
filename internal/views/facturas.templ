@@ -1,0 +1,540 @@
+package views
+
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// FacturaView is everything the page of one comprobante (factura or comprobante de pago)
+// shows. Related is the factura a pago pays or a replacement replaces; Replacement is the
+// factura that replaces this one, Pago the comprobante de pago of this P.P.D. factura.
+// Problems is what a draft still needs before it can be validated. Enabled and Sandbox
+// describe this instance's facturación; WrongEnv marks a comprobante made for the other
+// Facturoporti host, which can't be stamped or cancelled here.
+type FacturaView struct {
+	C           store.Comprobante
+	Related     *store.Comprobante
+	Replacement *store.Comprobante
+	Pago        *store.Comprobante
+	Problems    []string
+	Events      []store.ComprobanteEvent
+	Enabled     bool
+	Sandbox     bool
+	WrongEnv    bool
+	Today       string
+	Success     string
+	Error       string
+}
+
+func facturaPath(id int64) string { return "/facturas/" + strconv.FormatInt(id, 10) }
+
+// ComprobanteTitle names a comprobante for headings and links: "Factura F-12",
+// "Comprobante de pago P-3", or "Factura (borrador)" before its folio.
+func ComprobanteTitle(c store.Comprobante) string {
+	kind := "Factura"
+	if c.Tipo == store.TipoPago {
+		kind = "Comprobante de pago"
+	}
+	if sf := c.SerieFolio(); sf != "" {
+		return kind + " " + sf
+	}
+	return kind + " (borrador)"
+}
+
+func comprobanteBadge(status string) string {
+	switch status {
+	case store.CompTimbrada:
+		return "emitida"
+	case store.CompRechazada, store.CompCancelada:
+		return "perdido"
+	case store.CompIncierto, store.CompTimbrando, store.CompCancelPend:
+		return "en_entrega"
+	case store.CompLista:
+		return "oc_recibida"
+	}
+	return "borrador"
+}
+
+templ ComprobanteBadge(status string) {
+	<span class={ "badge", "badge-" + comprobanteBadge(status) }>{ store.ComprobanteStatusLabels[status] }</span>
+}
+
+var eventLabels = map[string]string{
+	"created":           "Borrador creado",
+	"edited":            "Regresó a borrador para editar",
+	"validated":         "Validada: lista para timbrar",
+	"stamp_requested":   "Se pidió el timbre",
+	"stamp_succeeded":   "Timbrada",
+	"stamp_refused":     "Rechazada",
+	"stamp_unknown":     "Sin respuesta clara: timbrado incierto",
+	"project_not_moved": "El proyecto no se movió",
+	"cancel_requested":  "Se pidió la cancelación",
+	"cancel_cancelled":  "Cancelada",
+	"cancel_pending":    "Cancelación en espera del receptor",
+	"cancel_refused":    "Cancelación rechazada",
+	"cancel_unknown":    "Sin respuesta clara sobre la cancelación",
+	"cancel_vigente":    "El receptor rechazó la cancelación: sigue vigente",
+}
+
+func eventLabel(e string) string {
+	if l, ok := eventLabels[e]; ok {
+		return l
+	}
+	return e
+}
+
+func methodLabel(m string) string {
+	switch m {
+	case "PUE":
+		return "PUE - Pago en una sola exhibición"
+	case "PPD":
+		return "PPD - Pago en parcialidades o diferido"
+	}
+	return m
+}
+
+func microsInput(m *store.Comprobante) string {
+	if m.TipoCambioMicros == nil {
+		return ""
+	}
+	return m.TipoCambioMicros.String()
+}
+
+templ FacturaPage(v FacturaView, user *NavUser) {
+	{{ c := v.C }}
+	{{ admin := user != nil && user.IsAdmin }}
+	@Layout(ComprobanteTitle(c), user) {
+		<div class="page-title">
+			<h1>{ ComprobanteTitle(c) }</h1>
+			@HelpLink(HelpFactura)
+		</div>
+		@Flash(v.Success)
+		@FormError(v.Error)
+		<dl class="quote-info">
+			<dt>Estado</dt>
+			<dd>
+				@ComprobanteBadge(c.Status)
+				if c.Sandbox || (c.Status == store.CompBorrador && v.Sandbox) {
+					<span class="badge badge-revisada">Pruebas: sin validez fiscal</span>
+				}
+			</dd>
+			<dt>Proyecto</dt>
+			<dd><a href={ templ.URL(projectPath(c.ProjectFolio)) }>{ c.ProjectFolio }</a></dd>
+			if c.QuoteFolio != "" {
+				<dt>Cotización</dt>
+				<dd><a href={ templ.URL("/cotizaciones/" + c.QuoteFolio) }>{ c.QuoteFolio }</a></dd>
+			}
+			<dt>Cliente</dt>
+			<dd><a href={ templ.URL("/clientes/" + strconv.FormatInt(c.Customer.ID, 10)) }>{ c.Customer.Name }</a></dd>
+			if c.Tipo == store.TipoFactura {
+				<dt>Método de pago</dt>
+				<dd>{ methodLabel(c.MetodoPago) }</dd>
+			}
+			if v.Related != nil {
+				if c.Tipo == store.TipoPago {
+					<dt>Paga la factura</dt>
+				} else {
+					<dt>Sustituye a</dt>
+				}
+				<dd><a href={ templ.URL(facturaPath(v.Related.ID)) }>{ ComprobanteTitle(*v.Related) }</a></dd>
+			}
+			if v.Replacement != nil {
+				<dt>Sustituida por</dt>
+				<dd><a href={ templ.URL(facturaPath(v.Replacement.ID)) }>{ ComprobanteTitle(*v.Replacement) }</a> · { store.ComprobanteStatusLabels[v.Replacement.Status] }</dd>
+			}
+			if v.Pago != nil {
+				<dt>Comprobante de pago</dt>
+				<dd><a href={ templ.URL(facturaPath(v.Pago.ID)) }>{ ComprobanteTitle(*v.Pago) }</a> · { store.ComprobanteStatusLabels[v.Pago.Status] }</dd>
+			}
+			if c.UUID != "" {
+				<dt>Folio fiscal (UUID)</dt>
+				<dd><code>{ c.UUID }</code></dd>
+				<dt>Timbrada</dt>
+				<dd>
+					@Timestamp(c.StampedAt)
+				</dd>
+				if c.Recipients != "" {
+					<dt>Enviada por correo</dt>
+					<dd>
+						if c.EmailSent {
+							{ "Sí, a " + c.Recipients }
+						} else {
+							{ "No se pudo enviar a " + c.Recipients }
+						}
+					</dd>
+				}
+			}
+			<dt>Total</dt>
+			<dd>{ c.Total.String() } { c.Moneda }</dd>
+		</dl>
+		if v.WrongEnv {
+			<p class="error" role="alert">Este comprobante se validó para el otro ambiente de Facturoporti (pruebas o producción) y aquí no se puede timbrar ni cancelar.</p>
+		}
+		if c.Error != "" && (c.Status == store.CompRechazada || c.Status == store.CompIncierto) {
+			<div class="error" role="alert">
+				if c.Status == store.CompRechazada {
+					<p><strong>Facturoporti la rechazó; no se timbró nada.</strong></p>
+				} else {
+					<p><strong>No sabemos si se timbró.</strong></p>
+				}
+				<p>{ c.Error }</p>
+			</div>
+		}
+		switch c.Status {
+			case store.CompBorrador:
+				if admin {
+					@facturaDraftForm(v)
+				} else {
+					<p>Un administrador la está preparando.</p>
+					@conceptosTable(c)
+				}
+			case store.CompLista:
+				@conceptosTable(c)
+				if admin && v.Enabled && !v.WrongEnv {
+					<form method="post" action={ templ.URL(facturaPath(c.ID) + "/timbrar") } class="stage-form">
+						<p>Está validada y lista. Al timbrarla se vuelve un CFDI ante el SAT: ya no se puede editar, solo cancelar.</p>
+						if c.Recipients != "" {
+							<p>Facturoporti la enviará a { c.Recipients }.</p>
+						}
+						<button type="submit" class="primary" data-confirm="¿Timbrar? Ya no se podrá editar.">Timbrar</button>
+					</form>
+				}
+				if admin {
+					@facturaBackToDraft(c)
+				}
+			case store.CompTimbrando, store.CompIncierto:
+				@conceptosTable(c)
+				if c.Status == store.CompTimbrando {
+					<p>Se está timbrando. Si esto no cambia en unos minutos, recarga la página.</p>
+				} else {
+					<p>Facturoporti no contestó claramente. Reintentar manda exactamente la misma solicitud, y Facturoporti responde a una solicitud idéntica con el timbre que ya hizo, así que no se timbra dos veces.</p>
+				}
+				if admin && v.Enabled && !v.WrongEnv {
+					<form method="post" action={ templ.URL(facturaPath(c.ID) + "/timbrar") } class="stage-form">
+						<button type="submit" class="primary">Reintentar con la misma solicitud</button>
+					</form>
+				}
+			case store.CompRechazada:
+				@conceptosTable(c)
+				if admin {
+					@facturaBackToDraft(c)
+				}
+			default:
+				@conceptosTable(c)
+				if c.UUID != "" {
+					<p>
+						<a href={ templ.URL(facturaPath(c.ID) + "/pdf") } target="_blank">Descargar PDF</a>
+						· <a href={ templ.URL(facturaPath(c.ID) + "/xml") }>Descargar XML</a>
+					</p>
+				}
+				if admin && v.Enabled && !v.WrongEnv {
+					@facturaStampedActions(v)
+				}
+		}
+		<section id="historial">
+			<h2>Historial</h2>
+			<ul class="comprobante-events">
+				for _, e := range v.Events {
+					<li>
+						@Timestamp(e.CreatedAt)
+						{ " · " + eventLabel(e.Event) }
+						if e.UserName != "" {
+							{ " · " + e.UserName }
+						}
+					</li>
+				}
+			</ul>
+		</section>
+	}
+}
+
+templ facturaBackToDraft(c store.Comprobante) {
+	<form method="post" action={ templ.URL(facturaPath(c.ID) + "/editar") } class="stage-form">
+		<button type="submit">Regresar a borrador para corregir</button>
+	</form>
+}
+
+templ conceptosTable(c store.Comprobante) {
+	if c.Tipo == store.TipoFactura {
+		<div class="table-scroll">
+			<table>
+				<thead>
+					<tr>
+						<th class="num">Partida</th>
+						<th>Clave SAT</th>
+						<th>Unidad</th>
+						<th>Descripción</th>
+						<th class="num">Cantidad</th>
+						<th class="num">Valor unitario</th>
+						<th class="num">Importe</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, l := range c.Conceptos {
+						<tr>
+							<td class="num">{ strconv.Itoa(l.LineNo) }</td>
+							<td>{ l.SATProductCode }</td>
+							<td>{ l.SATUnitCode } { l.UnitName }</td>
+							<td>{ l.Description }</td>
+							<td class="num">{ l.QtyMilli.String() }</td>
+							<td class="num">{ "$" + l.UnitPriceMicros.String() }</td>
+							<td class="num">{ l.Importe.String() }</td>
+						</tr>
+					}
+				</tbody>
+				@quoteTotals(pricingTotals(c), 6, 0)
+			</table>
+		</div>
+	} else {
+		<dl class="quote-info">
+			<dt>Fecha del pago</dt>
+			<dd>{ dateText(c.PagoFecha) }</dd>
+			<dt>Forma de pago</dt>
+			<dd>{ store.SATLabel(store.PaymentForms, c.FormaPago) }</dd>
+			<dt>Monto</dt>
+			<dd>{ c.Total.String() } { c.Moneda }</dd>
+		</dl>
+	}
+}
+
+templ facturaDraftForm(v FacturaView) {
+	{{ c := v.C }}
+	<form method="post" action={ templ.URL(facturaPath(c.ID)) } class="factura-form">
+		<h2>Receptor</h2>
+		<p>
+			Los datos fiscales se toman del cliente. Para corregirlos,
+			<a href={ templ.URL("/clientes/" + strconv.FormatInt(c.Customer.ID, 10)) }>edita el cliente</a>.
+		</p>
+		<dl class="quote-info">
+			<dt>RFC</dt>
+			<dd>{ orDash(c.Customer.RFC) }</dd>
+			<dt>Razón social</dt>
+			<dd>{ orDash(c.Customer.LegalName) }</dd>
+			<dt>Régimen fiscal</dt>
+			<dd>{ orDash(store.SATLabel(store.TaxRegimes, c.Customer.TaxRegime)) }</dd>
+			<dt>Código postal fiscal</dt>
+			<dd>{ orDash(c.Customer.PostalCode) }</dd>
+		</dl>
+		if c.Tipo == store.TipoFactura {
+			<label>
+				Uso de CFDI
+				<select name="uso_cfdi">
+					<option value="">Elige…</option>
+					for _, u := range store.CFDIUses {
+						<option value={ u.Code } selected?={ u.Code == c.UsoCFDI }>{ u.Code } - { u.Description }</option>
+					}
+				</select>
+			</label>
+			if c.MetodoPago == "PPD" {
+				<input type="hidden" name="forma_pago" value="99"/>
+				<p>Forma de pago: 99 - Por definir (la factura es P.P.D.; el pago se documenta después con un comprobante de pago).</p>
+			} else {
+				<label>
+					Forma de pago (cómo pagó el cliente)
+					<select name="forma_pago">
+						<option value="">Elige…</option>
+						for _, f := range store.PaymentForms {
+							if f.Code != "99" {
+								<option value={ f.Code } selected?={ f.Code == c.FormaPago }>{ f.Code } - { f.Description }</option>
+							}
+						}
+					</select>
+				</label>
+			}
+		} else {
+			<label>
+				Fecha en que se recibió el pago
+				<input type="date" name="pago_fecha" value={ c.PagoFecha } max={ v.Today }/>
+			</label>
+			<label>
+				Forma de pago
+				<select name="forma_pago">
+					<option value="">Elige…</option>
+					for _, f := range store.PaymentForms {
+						if f.Code != "99" {
+							<option value={ f.Code } selected?={ f.Code == c.FormaPago }>{ f.Code } - { f.Description }</option>
+						}
+					}
+				</select>
+			</label>
+			<p>Monto: { c.Total.String() } { c.Moneda }, el total de la factura, en un solo pago.</p>
+		}
+		if c.Moneda == "USD" {
+			<label>
+				Tipo de cambio (pesos por dólar)
+				<input type="text" name="tipo_cambio" value={ microsInput(&c) } inputmode="decimal" placeholder="p. ej. 18.4520"/>
+			</label>
+		}
+		<label>
+			Enviar por correo a (opcional; separa varios con punto y coma)
+			<input type="text" name="recipients" value={ c.Recipients } placeholder="compras@cliente.com"/>
+		</label>
+		<p class="hint">Facturoporti la manda con su XML y su PDF al timbrarla.</p>
+		if c.Tipo == store.TipoFactura {
+			<h2>Conceptos</h2>
+			<p class="hint">Cantidades y precios son los de la cotización y no cambian aquí. Las claves SAT salen de la familia y de la unidad de cada producto.</p>
+			<div class="table-scroll">
+				<table>
+					<thead>
+						<tr>
+							<th class="num">Partida</th>
+							<th>Clave de producto SAT</th>
+							<th>Clave de unidad SAT</th>
+							<th>Unidad</th>
+							<th>Descripción</th>
+							<th class="num">Cantidad</th>
+							<th class="num">Valor unitario</th>
+							<th class="num">Importe</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, l := range c.Conceptos {
+							<tr>
+								<td class="num">
+									{ strconv.Itoa(l.LineNo) }
+									<input type="hidden" name="concepto_id" value={ strconv.FormatInt(l.ID, 10) }/>
+								</td>
+								<td><input type="text" name={ "sat_product_" + strconv.FormatInt(l.ID, 10) } value={ l.SATProductCode } size="9" maxlength="8" inputmode="numeric" aria-label={ "Clave de producto SAT, partida " + strconv.Itoa(l.LineNo) }/></td>
+								<td><input type="text" name={ "sat_unit_" + strconv.FormatInt(l.ID, 10) } value={ l.SATUnitCode } size="4" maxlength="3" aria-label={ "Clave de unidad SAT, partida " + strconv.Itoa(l.LineNo) }/></td>
+								<td><input type="text" name={ "unit_name_" + strconv.FormatInt(l.ID, 10) } value={ l.UnitName } size="8" aria-label={ "Unidad, partida " + strconv.Itoa(l.LineNo) }/></td>
+								<td><input type="text" name={ "description_" + strconv.FormatInt(l.ID, 10) } value={ l.Description } aria-label={ "Descripción, partida " + strconv.Itoa(l.LineNo) }/></td>
+								<td class="num">{ l.QtyMilli.String() }</td>
+								<td class="num">{ "$" + l.UnitPriceMicros.String() }</td>
+								<td class="num">{ l.Importe.String() }</td>
+							</tr>
+						}
+					</tbody>
+					@quoteTotals(pricingTotals(c), 7, 0)
+				</table>
+			</div>
+		}
+		if len(v.Problems) > 0 {
+			<div class="hint" role="status">
+				<p>Para validarla falta:</p>
+				<ul>
+					for _, p := range v.Problems {
+						<li>{ p }</li>
+					}
+				</ul>
+			</div>
+		}
+		<div class="quote-actions">
+			<button type="submit">Guardar borrador</button>
+			<button type="submit" class="primary" formaction={ templ.URL(facturaPath(c.ID) + "/validar") }>Guardar y validar</button>
+		</div>
+	</form>
+}
+
+templ facturaStampedActions(v FacturaView) {
+	{{ c := v.C }}
+	if c.Status == store.CompTimbrada {
+		if c.Tipo == store.TipoFactura && c.MetodoPago == "PPD" && v.Pago == nil {
+			<form method="post" action={ templ.URL(facturaPath(c.ID) + "/pago") } class="stage-form">
+				<h2>Pago</h2>
+				<p>Cuando el cliente termine de pagar, emite el comprobante de pago. Al timbrarlo, el proyecto queda pagado.</p>
+				<button type="submit" class="primary">Crear comprobante de pago</button>
+			</form>
+		}
+		<section id="cancelar">
+			<h2>Corregir o cancelar</h2>
+			if c.Tipo == store.TipoFactura && v.Replacement == nil {
+				<form method="post" action={ templ.URL(facturaPath(c.ID) + "/sustituir") } class="stage-form">
+					<p>Para corregir una factura timbrada se hace una nueva que la sustituye: se timbra la nueva y después se cancela esta con el motivo 01.</p>
+					<button type="submit">Crear factura que la sustituye</button>
+				</form>
+			}
+			<form method="post" action={ templ.URL(facturaPath(c.ID) + "/cancelar") } class="stage-form">
+				<label>
+					Motivo de cancelación
+					<select name="motivo" required>
+						<option value="">Elige…</option>
+						for _, m := range store.CancelMotives {
+							if m.Code != "01" || (v.Replacement != nil && v.Replacement.Status == store.CompTimbrada) {
+								<option value={ m.Code }>{ m.Code } - { m.Description }</option>
+							}
+						}
+					</select>
+				</label>
+				if v.Replacement != nil && v.Replacement.Status == store.CompTimbrada {
+					<input type="hidden" name="sustitucion" value={ v.Replacement.UUID }/>
+					<p class="hint">Con el motivo 01 se indica que la sustituye { ComprobanteTitle(*v.Replacement) }.</p>
+				}
+				if v.Pago != nil && v.Pago.Status == store.CompTimbrada {
+					<p class="hint">Esta factura tiene un comprobante de pago timbrado: el SAT no la cancela hasta que se cancele el pago.</p>
+				}
+				<button type="submit" class="danger" data-confirm="¿Pedir la cancelación ante el SAT? No se puede deshacer.">Cancelar ante el SAT</button>
+			</form>
+		</section>
+	} else if c.Status == store.CompCancelPend {
+		<form method="post" action={ templ.URL(facturaPath(c.ID) + "/consultar") } class="stage-form">
+			<p>La cancelación espera que el receptor la acepte (tiene 72 horas; si no contesta, el SAT la cancela).</p>
+			<button type="submit">Consultar el estado en el SAT</button>
+		</form>
+	}
+}
+
+// FacturasList is /facturas: every comprobante, newest first.
+templ FacturasList(list []store.Comprobante, user *NavUser) {
+	@Layout("Facturas", user) {
+		<div class="page-title">
+			<h1>Facturas</h1>
+			@HelpLink(HelpFacturas)
+		</div>
+		<div class="table-scroll">
+			<table>
+				<thead>
+					<tr>
+						<th>Comprobante</th>
+						<th>Proyecto</th>
+						<th>Cliente</th>
+						<th>Estado</th>
+						<th class="num">Total</th>
+						<th>Folio fiscal</th>
+					</tr>
+				</thead>
+				<tbody>
+					if len(list) == 0 {
+						<tr>
+							<td colspan="6">Todavía no hay facturas. Se crean desde un proyecto con su orden de compra.</td>
+						</tr>
+					}
+					for _, c := range list {
+						<tr>
+							<td>
+								<a href={ templ.URL(facturaPath(c.ID)) }>{ ComprobanteTitle(c) }</a>
+								if c.Sandbox {
+									<small>{ " (pruebas)" }</small>
+								}
+							</td>
+							<td><a href={ templ.URL(projectPath(c.ProjectFolio)) }>{ c.ProjectFolio }</a></td>
+							<td>{ c.Customer.Name }</td>
+							<td>
+								@ComprobanteBadge(c.Status)
+							</td>
+							<td class="num">{ c.Total.String() }</td>
+							<td><small>{ c.UUID }</small></td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
+
+// ProjectFacturas is the CFDI part of a proyecto's Facturación y pago section.
+templ ProjectFacturas(list []store.Comprobante) {
+	if len(list) > 0 {
+		<h3>CFDI</h3>
+		<ul>
+			for _, c := range list {
+				<li>
+					<a href={ templ.URL(facturaPath(c.ID)) }>{ ComprobanteTitle(c) }</a>
+					{ " · " }
+					@ComprobanteBadge(c.Status)
+					{ " · " + c.Total.String() }
+				</li>
+			}
+		</ul>
+	}
+}

@@ -30,6 +30,7 @@ templ FamiliasList(families []store.Family, values FamiliaFormValues, fieldError
 						<th>Serie</th>
 						<th>Descripción de la serie</th>
 						<th>Productos</th>
+						<th>Clave SAT</th>
 						<th><span class="visually-hidden">Acciones</span></th>
 					</tr>
 				</thead>
@@ -46,6 +47,7 @@ templ FamiliasList(families []store.Family, values FamiliaFormValues, fieldError
 									De catálogo
 								}
 							</td>
+							<td>{ f.SATProductCode }</td>
 							<td><a href={ templ.URL("/familias/" + strconv.FormatInt(f.ID, 10)) }>Editar términos<span class="visually-hidden">{ " de " + f.Name }</span></a></td>
 						</tr>
 					}
@@ -97,6 +99,11 @@ templ FamiliaEdit(f store.Family, seriesLabel string, terms string, user *NavUse
 				Descripción de la serie (opcional)
 				<input type="text" name="series_label" value={ seriesLabel }/>
 			</label>
+			<label>
+				Clave de producto SAT para facturar (8 dígitos, opcional)
+				<input type="text" name="sat_product_code" value={ f.SATProductCode } inputmode="numeric" maxlength="8" pattern="[0-9]{8}" placeholder="p. ej. 26121600"/>
+			</label>
+			<p class="hint">La usan de inicio las partidas de las facturas de esta serie; en cada factura se puede cambiar. Confírmala con el contador.</p>
 			<p>Escribe <code>{ store.DeliveryTimeToken }</code> donde va el tiempo de entrega, p. ej. <em>Tiempo de entrega: { store.DeliveryTimeToken }</em>. Cada cotización de esta serie pedirá ese dato y no se podrá emitir sin él.</p>
 			<p>Escribe <code>{ store.CurrencyToken }</code> donde va la moneda (MXN o USD), p. ej. <em>Precios en { store.CurrencyToken }, no incluyen IVA</em>. Cada cotización pedirá elegirla.</p>
 			<label>

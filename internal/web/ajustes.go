@@ -32,14 +32,52 @@ func (s *Settings) Page(w http.ResponseWriter, r *http.Request) {
 		successMsg = "Margen guardado."
 	case r.URL.Query().Get("material") == "1":
 		successMsg = "Material guardado."
+	case r.URL.Query().Get("emisor") == "1":
+		successMsg = "Emisor guardado."
 	}
 	s.render(w, r, successMsg, "")
+}
+
+// Emisor handles POST /ajustes/emisor: Cladex's fiscal data as the issuer of its CFDIs.
+func (s *Settings) Emisor(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	e := store.Emisor{
+		RFC:          strings.ToUpper(strings.TrimSpace(r.FormValue("rfc"))),
+		Name:         strings.TrimSpace(r.FormValue("nombre")),
+		TaxRegime:    r.FormValue("regimen"),
+		PostalCode:   strings.TrimSpace(r.FormValue("cp")),
+		SerieFactura: strings.ToUpper(strings.TrimSpace(r.FormValue("serie_factura"))),
+		SeriePago:    strings.ToUpper(strings.TrimSpace(r.FormValue("serie_pago"))),
+	}
+	if errs := e.Errors(); len(errs) > 0 {
+		s.renderWith(w, r, "", "", &e, errs)
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	if err := s.store.SetEmisor(ctx, e, user.ID); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/ajustes?emisor=1#emisor", http.StatusSeeOther)
 }
 
 // render draws /ajustes. errorMsg is a refused margin or material action's message,
 // rendered with 422.
 func (s *Settings) render(w http.ResponseWriter, r *http.Request, successMsg, errorMsg string) {
+	s.renderWith(w, r, successMsg, errorMsg, nil, nil)
+}
+
+// renderWith is render with the emisor form's state when it was refused.
+func (s *Settings) renderWith(w http.ResponseWriter, r *http.Request, successMsg, errorMsg string, emisor *store.Emisor, emisorErrs map[string]string) {
 	ctx := r.Context()
+	if emisor == nil {
+		e, err := s.store.EmisorSettings(ctx)
+		if err != nil {
+			http.Error(w, "error interno", http.StatusInternalServerError)
+			return
+		}
+		emisor = &e
+	}
 	margins, err := s.store.ListMarginOptions(ctx)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
@@ -55,11 +93,11 @@ func (s *Settings) render(w http.ResponseWriter, r *http.Request, successMsg, er
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
-	if errorMsg != "" {
+	if errorMsg != "" || len(emisorErrs) > 0 {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 	}
 	authUser, _ := UserFromContext(ctx)
-	views.Ajustes(margins, materials, units, s.facturacion, successMsg, errorMsg, navUserView(authUser)).Render(ctx, w)
+	views.Ajustes(margins, materials, units, s.facturacion, *emisor, emisorErrs, successMsg, errorMsg, navUserView(authUser)).Render(ctx, w)
 }
 
 // parseMarginPercent reads a margin as the percentage an admin types ("12.34", "12.34%")
