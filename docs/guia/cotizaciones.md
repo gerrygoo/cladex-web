@@ -249,6 +249,11 @@ de nuevo la vigencia.
 3. Envíalo al cliente por tu medio habitual (correo, WhatsApp). La app no envía
    correos.
 
+> **Logo del PDF.** Las cotizaciones de las series **QA — Cable CCA** y **QS — Cable
+> CCS & AC** llevan arriba a la izquierda el logo de *Cable Anti Robo* con el de
+> *copperclad* debajo. Las de las demás series (**QI**, **QL** y las que agregue un
+> administrador) llevan el logo de CLADEX.
+
 ## Revisar una cotización emitida
 
 Cuando el cliente pide un cambio (otra cantidad, otro producto). Una cotización emitida

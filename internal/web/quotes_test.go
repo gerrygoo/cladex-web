@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
+	"github.com/gerrygoo/cladex-web/internal/pdf"
 	"github.com/gerrygoo/cladex-web/internal/pricing"
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
@@ -325,6 +326,41 @@ func TestQuotesPDF(t *testing.T) {
 	}
 	if !strings.HasPrefix(rec.Body.String(), "%PDF") {
 		t.Fatalf("body doesn't look like a PDF")
+	}
+}
+
+// TestQuotePDFLetterheadByFamilia pins issue #16: quotes in the CCA (QA) and CCS & AC
+// (QS) series print the Cable Anti Robo and copperclad logos, every other series (QI,
+// QL) the Cladex logo, on the draft preview and on the issued PDF alike.
+func TestQuotePDFLetterheadByFamilia(t *testing.T) {
+	a := newTestAuth(t)
+	ctx := context.Background()
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+
+	issuedAt, names, terms := "2026-08-02T15:04:05Z", "Nombre", "Término"
+	for prefix, want := range map[string]pdf.Letterhead{
+		"QA": pdf.LetterheadCableAntiRobo,
+		"QS": pdf.LetterheadCableAntiRobo,
+		"QI": pdf.LetterheadCladex,
+		"QL": pdf.LetterheadCladex,
+	} {
+		quote, err := a.store.CreateDraftQuote(ctx, customerID, userID, prefix)
+		if err != nil {
+			t.Fatalf("CreateDraftQuote(%s): %v", prefix, err)
+		}
+		if got := draftQuoteDocument(*quote, nil, pricing.Totals{}).Letterhead; got != want {
+			t.Errorf("%s draft letterhead = %v, want %v", prefix, got, want)
+		}
+		quote.IssuedAt, quote.TermsSnapshot = &issuedAt, &terms
+		quote.CustomerNameSnapshot, quote.VendedorSnapshot = &names, &names
+		doc, err := issuedQuoteDocument(*quote, nil)
+		if err != nil {
+			t.Fatalf("issuedQuoteDocument(%s): %v", prefix, err)
+		}
+		if doc.Letterhead != want {
+			t.Errorf("%s issued letterhead = %v, want %v", prefix, doc.Letterhead, want)
+		}
 	}
 }
 

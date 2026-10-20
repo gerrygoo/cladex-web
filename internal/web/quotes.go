@@ -962,7 +962,20 @@ func draftQuoteDocument(quote store.Quote, lines []views.QuoteLineView, totals p
 		IVA:          totals.IVA.String(),
 		Total:        totals.Total.String(),
 		Terms:        store.RenderTerms(quote.SeriesTerms, termsInputs(quote)),
+		Letterhead:   letterheadFor(quote.SeriesFamily),
 	}
+}
+
+// letterheadFor picks the PDF's logo block by the familia that owns the quote's series:
+// the copper cable familias print the Cable Anti Robo and copperclad logos (issue #16),
+// every other one the Cladex logo. A series never changes familia and a familia is never
+// renamed, so this is as fixed for an issued quote as its frozen row.
+func letterheadFor(familia string) pdf.Letterhead {
+	switch familia {
+	case "CCA", "CCS & AC":
+		return pdf.LetterheadCableAntiRobo
+	}
+	return pdf.LetterheadCladex
 }
 
 // issuedQuoteDocument assembles an issued or revised quote's PDF purely from what
@@ -995,6 +1008,7 @@ func issuedQuoteDocument(quote store.Quote, persisted []store.QuoteLine) (pdf.Qu
 		IVA:          quote.IVA.String(),
 		Total:        quote.Total.String(),
 		Terms:        store.SplitTerms(*quote.TermsSnapshot),
+		Letterhead:   letterheadFor(quote.SeriesFamily),
 		Created:      issuedAt,
 	}, nil
 }

@@ -11,6 +11,21 @@ import (
 //go:embed assets/cladex-logo.png
 var cladexLogoPNG []byte
 
+//go:embed assets/cable-anti-robo.png
+var cableAntiRoboLogoPNG []byte
+
+//go:embed assets/copperclad.png
+var coppercladLogoPNG []byte
+
+// Letterhead picks the logo block in the PDF's top-left corner. The zero value is the
+// Cladex logo, so a document that doesn't set one renders as it always did.
+type Letterhead int
+
+const (
+	LetterheadCladex        Letterhead = iota // the Cladex logo
+	LetterheadCableAntiRobo                   // Cable Anti Robo with copperclad below it (issue #16)
+)
+
 // QuoteLineDoc is one priced line as it should appear on the rendered PDF — already
 // display-formatted (money as "$1,234.56", qty via money.Milli.String()) by the caller;
 // this package does no money math of its own.
@@ -37,6 +52,8 @@ type QuoteDocument struct {
 	IVA      string
 	Total    string
 	Terms    []string
+	// Letterhead is the logo block the PDF opens with; the caller picks it by familia.
+	Letterhead Letterhead
 	// Created is the PDF's embedded creation date: issued_at for an issued quote, so
 	// every reprint is byte-identical; zero (render time) for a draft preview.
 	Created time.Time
@@ -60,7 +77,7 @@ func buildQuoteTypst(doc QuoteDocument) string {
 
 	b.WriteString("#set page(paper: \"us-letter\", margin: 2cm)\n")
 	b.WriteString("#set text(size: 10pt)\n")
-	fmt.Fprintf(&b, "#let logo = bytes((%s))\n", pngBytesLiteral(cladexLogoPNG))
+	writeLetterhead(&b, doc.Letterhead)
 
 	fmt.Fprintf(&b, "#let customerName = %s\n", typstStringLiteral(doc.CustomerName))
 	fmt.Fprintf(&b, "#let folio = %s\n", typstStringLiteral(doc.Folio))
@@ -89,7 +106,7 @@ func buildQuoteTypst(doc QuoteDocument) string {
 #grid(
   columns: (auto, 1fr),
   align: (left, right),
-  image(logo, width: 3.2cm),
+  letterhead,
   align(right)[
     #text(size: 8pt)[
       Camino Real de Carretas 356 \
@@ -139,6 +156,21 @@ func buildQuoteTypst(doc QuoteDocument) string {
 `))
 
 	return b.String()
+}
+
+// writeLetterhead binds #letterhead to l's logo block. Only the logos it shows are
+// embedded, and the Cladex block lays out exactly as before letterheads existed, so
+// quotes that keep it reprint byte-for-byte.
+func writeLetterhead(b *strings.Builder, l Letterhead) {
+	switch l {
+	case LetterheadCableAntiRobo:
+		fmt.Fprintf(b, "#let cableAntiRobo = bytes((%s))\n", pngBytesLiteral(cableAntiRoboLogoPNG))
+		fmt.Fprintf(b, "#let copperclad = bytes((%s))\n", pngBytesLiteral(coppercladLogoPNG))
+		b.WriteString("#let letterhead = stack(spacing: 0.3cm, image(cableAntiRobo, width: 3.6cm), image(copperclad, width: 3.6cm))\n")
+	default:
+		fmt.Fprintf(b, "#let logo = bytes((%s))\n", pngBytesLiteral(cladexLogoPNG))
+		b.WriteString("#let letterhead = image(logo, width: 3.2cm)\n")
+	}
 }
 
 // currencyLabels names the currency on the amount labels of the static layout. With no

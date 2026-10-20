@@ -95,6 +95,40 @@ func TestRenderQuoteIsDeterministic(t *testing.T) {
 	}
 }
 
+// TestQuoteLetterhead pins the two logo blocks (issue #16): the default is the Cladex
+// logo alone, and the Cable Anti Robo letterhead embeds that logo and copperclad's
+// instead, and still compiles.
+func TestQuoteLetterhead(t *testing.T) {
+	doc := sampleDoc()
+	cladex := buildQuoteTypst(doc)
+	if !strings.Contains(cladex, "#let letterhead = image(logo, width: 3.2cm)") ||
+		strings.Contains(cladex, "cableAntiRobo") || strings.Contains(cladex, "copperclad") {
+		t.Error("default letterhead isn't the Cladex logo alone")
+	}
+
+	doc.Letterhead = LetterheadCableAntiRobo
+	cable := buildQuoteTypst(doc)
+	for _, want := range []string{
+		"#let cableAntiRobo = bytes((" + pngBytesLiteral(cableAntiRoboLogoPNG) + "))",
+		"#let copperclad = bytes((" + pngBytesLiteral(coppercladLogoPNG) + "))",
+		"#let letterhead = stack(",
+	} {
+		if !strings.Contains(cable, want) {
+			t.Errorf("Cable Anti Robo letterhead is missing %.60q", want)
+		}
+	}
+	if strings.Contains(cable, "#let logo = ") {
+		t.Error("Cable Anti Robo letterhead still embeds the Cladex logo")
+	}
+	out, err := RenderQuote(context.Background(), doc)
+	if err != nil {
+		t.Fatalf("RenderQuote(Cable Anti Robo): %v", err)
+	}
+	if !strings.HasPrefix(string(out), "%PDF") {
+		t.Fatal("Cable Anti Robo output doesn't look like a PDF")
+	}
+}
+
 // TestQuoteTypstNamesTheCurrency pins that a quote's currency labels the amounts, and
 // that without one the layout is exactly what it was before currencies existed.
 func TestQuoteTypstNamesTheCurrency(t *testing.T) {
