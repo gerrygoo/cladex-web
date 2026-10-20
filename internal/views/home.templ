@@ -26,12 +26,12 @@ templ Home(built, now time.Time, buildSHA string, d *store.Dashboard, user *NavU
 					<tr>
 						<th scope="col">Vendedor</th>
 						<th scope="col" class="num">Proyectos totales</th>
-						<th scope="col" class="num">Pipeline total</th>
-						<th scope="col" class="num">Margen pipeline</th>
-						<th scope="col" class="num">Monto para pronóstico</th>
+						<th scope="col" class="num">Pipeline total (sin IVA)</th>
+						<th scope="col" class="num">Margen pipeline (sin IVA)</th>
+						<th scope="col" class="num">Monto para pronóstico (sin IVA)</th>
 						<th scope="col" class="num">Proyectos en pronóstico</th>
 						<th scope="col" class="num">Sin seguimiento</th>
-						<th scope="col" class="num">Monto sin seguimiento</th>
+						<th scope="col" class="num">Monto sin seguimiento (sin IVA)</th>
 						<th scope="col" class="num">O.C. vencidas</th>
 					</tr>
 				</thead>
@@ -74,10 +74,10 @@ templ Saludo(mensaje string) {
 	<p>{ mensaje }</p>
 }
 
-// folioList is a count that opens the list of its proyectos' folios, each leading to its
-// page. Zero is just "0", with nothing to open. It is a native <details>, so it works
+// folioList is a count that opens the list of its proyectos, biggest first: folio
+// (leading to its page), client and amount before IVA. Zero is just "0", with nothing to open. It is a native <details>, so it works
 // without JS.
-templ folioList(folios []string, label string) {
+templ folioList(folios []store.DashboardProject, label string) {
 	if len(folios) == 0 {
 		0
 	} else {
@@ -85,7 +85,7 @@ templ folioList(folios []string, label string) {
 			<summary aria-label={ label + ": " + strconv.Itoa(len(folios)) }>{ strconv.Itoa(len(folios)) }</summary>
 			<ul>
 				for _, f := range folios {
-					<li><a href={ templ.URL(projectPath(f)) }>{ f }</a></li>
+					<li><a href={ templ.URL(projectPath(f.Folio)) }>{ f.Folio }</a>{ " · " + f.Customer + " · " + f.Amount.String() }</li>
 				}
 			</ul>
 		</details>

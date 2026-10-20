@@ -59,7 +59,7 @@ func Home(built, now time.Time, buildSHA string, d *store.Dashboard, user *NavUs
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div><p><small>Solo proyectos activos: los que siguen en seguimiento, sin orden de compra recibida y sin estar perdidos. Ordenados por monto sin seguimiento. Un proyecto está sin seguimiento si no tiene fecha de próximo seguimiento o esa fecha es hoy o ya pasó.</small></p><div class=\"table-scroll\"><table class=\"seller-table\"><thead><tr><th scope=\"col\">Vendedor</th><th scope=\"col\" class=\"num\">Proyectos totales</th><th scope=\"col\" class=\"num\">Pipeline total</th><th scope=\"col\" class=\"num\">Margen pipeline</th><th scope=\"col\" class=\"num\">Monto para pronóstico</th><th scope=\"col\" class=\"num\">Proyectos en pronóstico</th><th scope=\"col\" class=\"num\">Sin seguimiento</th><th scope=\"col\" class=\"num\">Monto sin seguimiento</th><th scope=\"col\" class=\"num\">O.C. vencidas</th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div><p><small>Solo proyectos activos: los que siguen en seguimiento, sin orden de compra recibida y sin estar perdidos. Ordenados por monto sin seguimiento. Un proyecto está sin seguimiento si no tiene fecha de próximo seguimiento o esa fecha es hoy o ya pasó.</small></p><div class=\"table-scroll\"><table class=\"seller-table\"><thead><tr><th scope=\"col\">Vendedor</th><th scope=\"col\" class=\"num\">Proyectos totales</th><th scope=\"col\" class=\"num\">Pipeline total (sin IVA)</th><th scope=\"col\" class=\"num\">Margen pipeline (sin IVA)</th><th scope=\"col\" class=\"num\">Monto para pronóstico (sin IVA)</th><th scope=\"col\" class=\"num\">Proyectos en pronóstico</th><th scope=\"col\" class=\"num\">Sin seguimiento</th><th scope=\"col\" class=\"num\">Monto sin seguimiento (sin IVA)</th><th scope=\"col\" class=\"num\">O.C. vencidas</th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -281,10 +281,10 @@ func Saludo(mensaje string) templ.Component {
 	})
 }
 
-// folioList is a count that opens the list of its proyectos' folios, each leading to its
-// page. Zero is just "0", with nothing to open. It is a native <details>, so it works
+// folioList is a count that opens the list of its proyectos, biggest first: folio
+// (leading to its page), client and amount before IVA. Zero is just "0", with nothing to open. It is a native <details>, so it works
 // without JS.
-func folioList(folios []string, label string) templ.Component {
+func folioList(folios []store.DashboardProject, label string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -347,9 +347,9 @@ func folioList(folios []string, label string) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var17 templ.SafeURL
-				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(projectPath(f)))
+				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(projectPath(f.Folio)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/home.templ`, Line: 88, Col: 44}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/home.templ`, Line: 88, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 				if templ_7745c5c3_Err != nil {
@@ -360,20 +360,33 @@ func folioList(folios []string, label string) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var18 string
-				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(f)
+				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(f.Folio)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/home.templ`, Line: 88, Col: 50}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/home.templ`, Line: 88, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</a></li>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</a>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var19 string
+				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(" · " + f.Customer + " · " + f.Amount.String())
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/home.templ`, Line: 88, Col: 118}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</li>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</ul></details>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</ul></details>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

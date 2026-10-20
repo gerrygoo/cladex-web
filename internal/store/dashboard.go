@@ -25,18 +25,25 @@ var DashboardSellers = []struct{ Username, Name string }{
 type SellerRow struct {
 	Name     string
 	Projects int            // active proyectos
-	Pipeline money.Centavos // their Totals added up
+	Pipeline money.Centavos // their subtotals (before IVA) added up
 	Profit   money.Centavos // their profits added up; Profit / Pipeline is the pipeline margin
-	// Forecast is the active proyectos at Alta (75%) or more: how many, and their Total.
+	// Forecast is the active proyectos at Alta (75%) or more: how many, and their subtotal.
 	ForecastCount  int
 	ForecastAmount money.Centavos
-	// Untracked are the folios of the active proyectos without follow-up: no next
-	// follow-up day, or one that is today or past. UntrackedAmount adds up their Totals.
-	Untracked       []string
+	// Untracked are the active proyectos without follow-up: no next follow-up day, or one
+	// that is today or past. UntrackedAmount adds up their subtotals.
+	Untracked       []DashboardProject
 	UntrackedAmount money.Centavos
-	// OverdueOC are the folios of the active proyectos whose expected purchase order day
-	// has passed and whose order hasn't arrived.
-	OverdueOC []string
+	// OverdueOC are the active proyectos whose expected purchase order day has passed and
+	// whose order hasn't arrived.
+	OverdueOC []DashboardProject
+}
+
+// DashboardProject is one proyecto in a SellerRow list. The lists run from the biggest
+// Amount (subtotal, before IVA) down.
+type DashboardProject struct {
+	Folio, Customer string
+	Amount          money.Centavos
 }
 
 // Dashboard is the home page's Vendedores table.
@@ -44,8 +51,8 @@ type Dashboard struct {
 	Sellers []SellerRow // ranked by UntrackedAmount, the biggest first
 }
 
-// SalesDashboard builds the home page's table. A proyecto's amount is its current
-// quote's Total and its profit the same figure the Pronóstico shows (see quoteProfitSQL).
+// SalesDashboard builds the home page's table. Every amount is before IVA (issue #24),
+// as in the Pronóstico: a proyecto's amount is its current quote's subtotal and its profit the same figure the Pronóstico shows (see quoteProfitSQL).
 // today (YYYY-MM-DD, in the viewer's zone) decides which follow-ups and purchase orders
 // are overdue.
 func (s *Store) SalesDashboard(ctx context.Context, today string) (*Dashboard, error) {
@@ -55,10 +62,11 @@ func (s *Store) SalesDashboard(ctx context.Context, today string) (*Dashboard, e
 		usernames[i], marks[i] = sl.Username, "?"
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT u.username, u.name, p.folio, q.total, `+quoteProfitSQL+`, p.probability,
+		SELECT u.username, u.name, p.folio, c.name, q.subtotal, `+quoteProfitSQL+`, p.probability,
 			COALESCE(p.next_followup_date, ''), COALESCE(p.expected_oc_date, '')
 		FROM projects p
 		JOIN quotes q ON q.project_id = p.id AND q.status != 'revisada'
+		JOIN customers c ON c.id = p.customer_id
 		JOIN users u ON u.id = p.user_id
 		WHERE p.status = 'prospecto' AND u.username IN (`+strings.Join(marks, ", ")+`)
 		ORDER BY p.folio`, usernames...)
@@ -75,10 +83,10 @@ func (s *Store) SalesDashboard(ctx context.Context, today string) (*Dashboard, e
 	}
 	seenName := map[string]bool{}
 	for rows.Next() {
-		var username, name, folio, followUp, expectedOC string
+		var username, name, folio, customer, followUp, expectedOC string
 		var total, profit money.Centavos
 		var probability int
-		if err := rows.Scan(&username, &name, &folio, &total, &profit, &probability, &followUp, &expectedOC); err != nil {
+		if err := rows.Scan(&username, &name, &folio, &customer, &total, &profit, &probability, &followUp, &expectedOC); err != nil {
 			return nil, fmt.Errorf("store: sales dashboard: %w", err)
 		}
 		row := byUser[username]
@@ -92,16 +100,24 @@ func (s *Store) SalesDashboard(ctx context.Context, today string) (*Dashboard, e
 			row.ForecastCount++
 			row.ForecastAmount += total
 		}
+		dp := DashboardProject{Folio: folio, Customer: customer, Amount: total}
 		if followUp == "" || followUp <= today {
-			row.Untracked = append(row.Untracked, folio)
+			row.Untracked = append(row.Untracked, dp)
 			row.UntrackedAmount += total
 		}
 		if expectedOC != "" && expectedOC < today {
-			row.OverdueOC = append(row.OverdueOC, folio)
+			row.OverdueOC = append(row.OverdueOC, dp)
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("store: sales dashboard: %w", err)
+	}
+	biggestFirst := func(ps []DashboardProject) {
+		sort.SliceStable(ps, func(i, j int) bool { return ps[i].Amount > ps[j].Amount })
+	}
+	for i := range d.Sellers {
+		biggestFirst(d.Sellers[i].Untracked)
+		biggestFirst(d.Sellers[i].OverdueOC)
 	}
 	sort.SliceStable(d.Sellers, func(i, j int) bool { return d.Sellers[i].UntrackedAmount > d.Sellers[j].UntrackedAmount })
 	return d, nil

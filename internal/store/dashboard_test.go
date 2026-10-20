@@ -21,8 +21,8 @@ func insertProject(t *testing.T, s *Store, folio string, customerID, userID int6
 	}
 	projectID, _ := res.LastInsertId()
 	res, err = s.db.ExecContext(ctx,
-		`INSERT INTO quotes (folio, prefix, customer_id, user_id, status, total, project_id) VALUES (?, ?, ?, ?, 'emitida', ?, ?)`,
-		folio, folio[:2], customerID, userID, total, projectID)
+		`INSERT INTO quotes (folio, prefix, customer_id, user_id, status, subtotal, total, project_id) VALUES (?, ?, ?, ?, 'emitida', ?, ?, ?)`,
+		folio, folio[:2], customerID, userID, total, total*116/100, projectID)
 	if err != nil {
 		t.Fatalf("insert quote %s: %v", folio, err)
 	}
@@ -30,6 +30,16 @@ func insertProject(t *testing.T, s *Store, folio string, customerID, userID int6
 	return id
 }
 
+func folios(ps []DashboardProject) []string {
+	out := make([]string, len(ps))
+	for i, p := range ps {
+		out[i] = p.Folio
+	}
+	return out
+}
+
+// TestSalesDashboard's amounts are subtotals: every money figure on the dashboard is
+// before IVA (issue #24), so the totals seeded with IVA must not show up.
 func TestSalesDashboard(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
@@ -109,15 +119,15 @@ func TestSalesDashboard(t *testing.T) {
 	if e.ForecastCount != 1 || e.ForecastAmount != 1_000_00 {
 		t.Errorf("Emilio forecast = %d, %v; want 1 and $1,000.00", e.ForecastCount, e.ForecastAmount)
 	}
-	if !reflect.DeepEqual(e.Untracked, []string{"QA0002"}) || e.UntrackedAmount != 500_00 {
+	if !reflect.DeepEqual(e.Untracked, []DashboardProject{{"QA0002", "Grupo PEME", 500_00}}) || e.UntrackedAmount != 500_00 {
 		t.Errorf("Emilio untracked = %v, %v; want QA0002 and $500.00 (follow-up today counts, a future one doesn't)", e.Untracked, e.UntrackedAmount)
 	}
 	// An O.C. date of today hasn't passed; yesterday has.
-	if !reflect.DeepEqual(e.OverdueOC, []string{"QA0002"}) {
+	if !reflect.DeepEqual(folios(e.OverdueOC), []string{"QA0002"}) {
 		t.Errorf("Emilio overdue O.C. = %v, want QA0002", e.OverdueOC)
 	}
 	// Rodolfo: no follow-up date at all is "sin seguimiento".
-	if r.Projects != 1 || r.ForecastCount != 1 || !reflect.DeepEqual(r.Untracked, []string{"QA0005"}) || !reflect.DeepEqual(r.OverdueOC, []string{"QA0005"}) {
+	if r.Projects != 1 || r.ForecastCount != 1 || !reflect.DeepEqual(folios(r.Untracked), []string{"QA0005"}) || !reflect.DeepEqual(folios(r.OverdueOC), []string{"QA0005"}) {
 		t.Errorf("Rodolfo = %+v", r)
 	}
 	// The third user doesn't exist: still listed, at zero, with the fallback name.

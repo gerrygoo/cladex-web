@@ -55,25 +55,26 @@ Las columnas, en orden:
 
 1. **Vendedor**.
 2. **Proyectos totales**: cuántos proyectos activos tiene.
-3. **Pipeline total**: la suma del total (con IVA) de esos proyectos.
-4. **Margen pipeline**: el porcentaje y, junto a él, la utilidad en pesos (por ejemplo,
-   *18.0% · $799,000.00*). El porcentaje es la suma de utilidades entre la suma de totales,
+3. **Pipeline total (sin IVA)**: la suma del precio sin IVA de esos proyectos.
+4. **Margen pipeline (sin IVA)**: el porcentaje y, junto a él, la utilidad en pesos (por ejemplo,
+   *18.0% · $799,000.00*). El porcentaje es la suma de utilidades entre la suma de precios sin IVA,
    no un promedio de porcentajes. *—* si no tiene proyectos.
-5. **Monto para pronóstico** y **Proyectos en pronóstico**: la suma y la cantidad de sus
+5. **Monto para pronóstico (sin IVA)** y **Proyectos en pronóstico**: la suma y la cantidad de sus
    proyectos con probabilidad **Alta 75%** o más. Se ven en el
    [pronóstico](proyectos.md#revisar-el-pronóstico).
-6. **Sin seguimiento** y **Monto sin seguimiento**: los proyectos sin fecha de próximo
+6. **Sin seguimiento** y **Monto sin seguimiento (sin IVA)**: los proyectos sin fecha de próximo
    seguimiento, o con una fecha de hoy o anterior, y lo que suman. Un proyecto deja de
    contar cuando guardas un seguimiento con comentario y una fecha de próximo seguimiento
    posterior a hoy.
 7. **O.C. vencidas**: los proyectos cuya fecha de *O.C. esperada* ya pasó y todavía no
    tienen la orden de compra.
 
-Haz clic en el número de **Sin seguimiento** o de **O.C. vencidas** para ver los folios de
-esos proyectos; cada folio abre el proyecto. Las filas van ordenadas por **Monto sin
+Haz clic en el número de **Sin seguimiento** o de **O.C. vencidas** para ver esos
+proyectos, del monto mayor al menor: folio, cliente y monto sin IVA (por ejemplo,
+*QA0026 · Pruebas · $892,631.19*); cada folio abre el proyecto. Las filas van ordenadas por **Monto sin
 seguimiento**, de mayor a menor. Si las columnas no caben, la tabla se desliza de lado y
-la columna **Vendedor** se queda fija. Los montos están en pesos (MXN) con IVA incluido, y
-las utilidades salen de las cotizaciones (las líneas libres no tienen costo, así que no
+la columna **Vendedor** se queda fija. Los montos están en pesos (MXN) sin IVA, igual que en
+el pronóstico, y las utilidades salen de las cotizaciones (las líneas libres no tienen costo, así que no
 suman utilidad).
 
 Abajo, **Compilado el …** indica cuándo se instaló la versión actual de la app.

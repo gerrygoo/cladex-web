@@ -1286,3 +1286,7 @@ details.folio-list ul {
   list-style: none;
   text-align: left;
 }
+
+details.folio-list li {
+  white-space: nowrap;
+}

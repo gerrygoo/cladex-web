@@ -196,7 +196,7 @@ func nextDay(day string) string {
 }
 
 // SellerMargin is the pipeline margin and the profit behind it ("18.0% · $799,000.00"):
-// the sum of profits over the sum of Totals of the active proyectos, not an average of
+// the sum of profits over the sum of subtotals (before IVA) of the active proyectos, not an average of
 // their margins. "—" when there are no proyectos.
 func SellerMargin(v store.SellerRow) string {
 	if v.Pipeline == 0 {
