@@ -17,6 +17,12 @@ rm -f "$NEW"
 sqlite3 "$PROD_DB" ".backup '$NEW'"
 sqlite3 "$NEW" "PRAGMA integrity_check;" | grep -qx ok
 sqlite3 "$NEW" "DELETE FROM sessions;"
+# Staging stamps with the SAT's test CSD (ESCUELA KEMPER URGATE), so its emisor is that
+# company, and its CFDIs get their own series so they never look like production's.
+sqlite3 "$NEW" "INSERT INTO settings (key, value) VALUES
+  ('emisor_rfc', 'EKU9003173C9'), ('emisor_nombre', 'ESCUELA KEMPER URGATE'), ('emisor_regimen', '601'),
+  ('emisor_cp', '42501'), ('factura_serie', 'PRUEBAF'), ('pago_serie', 'PRUEBAP')
+  ON CONFLICT (key) DO UPDATE SET value = excluded.value;"
 
 cd "$APP_DIR"
 docker compose stop cladex-staging

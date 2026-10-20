@@ -159,7 +159,11 @@ read-only at `/run/secrets`:
 - Ownership `1000:10`, directory `0700`, files `0400`:
   `chown -R 1000:10 secrets && chmod 700 secrets && chmod 400 secrets/*`.
 - **Staging only ever gets the sandbox token and the SAT's public test CSD**
-  (`internal/facturoporti/testdata`, password `12345678a`). The real CSD and token exist only in
+  (`internal/facturoporti/testdata`, password `12345678a`). Its token is from Facturoporti's
+  public sandbox user (`PruebasTimbrado`, published in their API docs), so staging stamps
+  for real against the sandbox; the refresh script sets its emisor to the test CSD's
+  company (EKU9003173C9). To invoice a customer there, give it one of the SAT's test RFCs
+  (e.g. IIA040805DZ4, régimen 601, C.P. 62661). The real CSD and token exist only in
   production's directory. Even so, only an instance with `APP_ENV=production` talks to
   Facturoporti's production host (`internal/appenv`).
 - The app checks them at startup: the key opens with the password, matches the
