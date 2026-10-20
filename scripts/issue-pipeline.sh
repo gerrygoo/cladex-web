@@ -56,4 +56,4 @@ echo "$(date -Is) $needs_action issue(s) need action"
 claude -p "/issue-pipeline (you are in the pipeline worktree on branch 'pipeline'; push with git push origin HEAD:main)" \
   --max-budget-usd "${CLADEX_PIPELINE_MAX_USD:-3}" \
   --permission-mode acceptEdits \
-  --allowedTools "Bash(gh issue:*) Bash(gh label:*) Bash(git:*) Bash(go:*) Bash(ls:*) Bash(grep:*) Read Edit Write Glob Grep"
+  --allowedTools "Bash(gh issue:*) Bash(gh label:*) Bash(git:*) Bash(go:*) Bash(scripts/nas-check.sh) Bash(ls:*) Bash(grep:*) Read Edit Write Glob Grep"

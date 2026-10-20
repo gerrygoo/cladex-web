@@ -10,8 +10,9 @@ around it.
 
 Triage against the code and `docs/guia/` → ask the author (comments in Spanish,
 prefixed `🤖 **Claude:**`) until clear → classify. **Small and well-defined**: Claude
-implements with tests, pushes straight to `main`, comments how to verify, and labels
-`listo-para-verificar`. **Large or sensitive** (migration, major restructure, money,
+implements with tests, pushes straight to `main`, and once `scripts/nas-check.sh` shows
+it live in production, comments how to verify, asks the author to take a look and close,
+and labels `listo-para-verificar`. **Large or sensitive** (migration, major restructure, money,
 regulatory/CFDI/fiscal, permissions, business-model state changes; read-only reporting
 that only displays existing money figures is not sensitive): label
 `requiere-diseño` and stop; Gerry leads. Commits say `Refs #N`, never `Closes #N` —

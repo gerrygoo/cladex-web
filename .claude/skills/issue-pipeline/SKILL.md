@@ -66,9 +66,12 @@ comment). Then stop. Gerry leads; implement only after he decides.
 5. `git push origin main`. **Pushing to main deploys** (CI `deploy.yml`, gated on tests), so never push
    red or half-done work. Plain `git push` has no credentials here; use
    `git -c credential.helper= -c credential.helper='!gh auth git-credential' push origin main`.
-   After the deploy run, `scripts/nas-check.sh` (skill `nas-check`) confirms production runs it.
-6. Comment: what changed in plain Spanish, **how to verify** (numbered steps in the app), ask them to
-   check and close. Label `listo-para-verificar`.
+6. **Wait until it is live**: after the deploy run, `scripts/nas-check.sh` (skill `nas-check`) must
+   show production serving a SHA that contains the commit (allow ~15 min). Don't ask the author to
+   verify something production doesn't run yet.
+7. Once live, comment: what changed in plain Spanish, that it's already in production, **how to
+   verify** (numbered steps in the app), and ask them to take a look and close the issue. Label
+   `listo-para-verificar`. If it isn't live within the window, say so in the run output instead.
 
 If implementation reveals it's bigger or more sensitive than thought: don't push; revert local
 changes, move to `requiere-diseño`, explain to Gerry.
