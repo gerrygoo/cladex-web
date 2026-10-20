@@ -32,7 +32,9 @@ func TestCustomersCreateListEditDelete(t *testing.T) {
 		"contact_name": {"Juan Pérez"},
 		"email":        {"juan@grupopeme.mx"},
 		"postal_code":  {"76000"},
-		"tax_regime":   {"601 - General de Ley Personas Morales"},
+		"tax_regime":   {"601"},
+		"legal_name":   {"GRUPO PEME"},
+		"cfdi_use":     {"G01"},
 	}
 	req := httptest.NewRequest("POST", "/clientes/nuevo", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -73,8 +75,9 @@ func TestCustomersCreateListEditDelete(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "PEM010101ABC") {
 		t.Fatalf("EditPage body missing prefilled RFC: %s", rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "76000") || !strings.Contains(rec.Body.String(), "General de Ley Personas Morales") {
-		t.Fatalf("EditPage body missing prefilled postal code / tax regime: %s", rec.Body.String())
+	if b := rec.Body.String(); !strings.Contains(b, "76000") || !strings.Contains(b, `<option value="601" selected>601 - General de Ley Personas Morales</option>`) ||
+		!strings.Contains(b, `name="legal_name" value="GRUPO PEME"`) || !strings.Contains(b, `<option value="G01" selected>G01 - Adquisición de mercancías</option>`) {
+		t.Fatalf("EditPage body missing prefilled fiscal data (postal code, régimen, razón social, uso de CFDI): %s", b)
 	}
 
 	// Update — change the name.
@@ -311,5 +314,25 @@ func TestNewCustomerFromQuoteAndDuplicates(t *testing.T) {
 	// Nothing alike: saved right away.
 	if rec := create(url.Values{"name": {"Constructora Nueva"}}); rec.Code != http.StatusSeeOther || !strings.Contains(rec.Header().Get("Location"), "guardado=1") {
 		t.Errorf("Create(unique) = %d, Location %q", rec.Code, rec.Header().Get("Location"))
+	}
+}
+
+// TestCustomerFiscalCatalogs pins issue #17: the régimen fiscal and the uso de CFDI are
+// picked from the SAT catalogs, so a value outside them is refused; both stay optional.
+func TestCustomerFiscalCatalogs(t *testing.T) {
+	a := newTestAuth(t)
+	cs := newTestCustomers(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	for name, f := range map[string]url.Values{
+		"free-text régimen": {"name": {"X1"}, "tax_regime": {"601 - General de Ley"}},
+		"unknown uso":       {"name": {"X2"}, "cfdi_use": {"G99"}},
+	} {
+		rec := doForm(t, a, userID, cs.Create, "POST", "/clientes/nuevo", nil, f, false)
+		if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), "de la lista") {
+			t.Errorf("%s: Create = %d, want 422 asking to pick from the list", name, rec.Code)
+		}
+	}
+	if rec := doForm(t, a, userID, cs.Create, "POST", "/clientes/nuevo", nil, url.Values{"name": {"Prospecto sin datos"}}, false); rec.Code != http.StatusSeeOther {
+		t.Errorf("Create without fiscal data = %d, want 303", rec.Code)
 	}
 }

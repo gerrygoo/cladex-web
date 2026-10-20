@@ -37,12 +37,14 @@ type CustomerForm struct {
 	PostalCode  string
 	TaxRegime   string
 	Notes       string
+	LegalName   string
+	CFDIUse     string
 }
 
 func parseCustomerForm(r *http.Request) CustomerForm {
 	return CustomerForm{
 		Name:        strings.TrimSpace(r.FormValue("name")),
-		RFC:         strings.TrimSpace(r.FormValue("rfc")),
+		RFC:         strings.ToUpper(strings.TrimSpace(r.FormValue("rfc"))),
 		ContactName: strings.TrimSpace(r.FormValue("contact_name")),
 		Phone:       strings.TrimSpace(r.FormValue("phone")),
 		Email:       strings.TrimSpace(r.FormValue("email")),
@@ -50,6 +52,8 @@ func parseCustomerForm(r *http.Request) CustomerForm {
 		PostalCode:  strings.TrimSpace(r.FormValue("postal_code")),
 		TaxRegime:   strings.TrimSpace(r.FormValue("tax_regime")),
 		Notes:       strings.TrimSpace(r.FormValue("notes")),
+		LegalName:   strings.TrimSpace(r.FormValue("legal_name")),
+		CFDIUse:     strings.TrimSpace(r.FormValue("cfdi_use")),
 	}
 }
 
@@ -60,6 +64,12 @@ func (f CustomerForm) Validate() map[string]string {
 	}
 	if f.Email != "" && !strings.Contains(f.Email, "@") {
 		errs["email"] = "Email inválido."
+	}
+	if !store.ValidSATCode(store.TaxRegimes, f.TaxRegime) {
+		errs["tax_regime"] = "Elige un régimen fiscal de la lista."
+	}
+	if !store.ValidSATCode(store.CFDIUses, f.CFDIUse) {
+		errs["cfdi_use"] = "Elige un uso de CFDI de la lista."
 	}
 	return errs
 }
@@ -75,6 +85,8 @@ func (f CustomerForm) toValues() views.CustomerFormValues {
 		PostalCode:  f.PostalCode,
 		TaxRegime:   f.TaxRegime,
 		Notes:       f.Notes,
+		LegalName:   f.LegalName,
+		CFDIUse:     f.CFDIUse,
 	}
 }
 
@@ -89,6 +101,8 @@ func (f CustomerForm) toCustomer() store.Customer {
 		PostalCode:  f.PostalCode,
 		TaxRegime:   f.TaxRegime,
 		Notes:       f.Notes,
+		LegalName:   f.LegalName,
+		CFDIUse:     f.CFDIUse,
 	}
 }
 
@@ -103,6 +117,8 @@ func customerToValues(c store.Customer) views.CustomerFormValues {
 		PostalCode:  c.PostalCode,
 		TaxRegime:   c.TaxRegime,
 		Notes:       c.Notes,
+		LegalName:   c.LegalName,
+		CFDIUse:     c.CFDIUse,
 	}
 }
 

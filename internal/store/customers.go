@@ -18,16 +18,20 @@ type Customer struct {
 	Email       string
 	Address     string
 	PostalCode  string
-	TaxRegime   string
+	TaxRegime   string // c_RegimenFiscal code (see TaxRegimes), "" when unknown
 	Notes       string
+	// LegalName is the razón social as registered with the SAT, without the corporate
+	// regime; CFDIUse the default uso de CFDI (see CFDIUses). Issue #17.
+	LegalName string
+	CFDIUse   string
 }
 
-const customerSelectCols = `id, name, rfc, contact_name, phone, email, address, postal_code, tax_regime, notes`
+const customerSelectCols = `id, name, rfc, contact_name, phone, email, address, postal_code, tax_regime, notes, legal_name, cfdi_use`
 
 func scanCustomer(row interface{ Scan(...any) error }) (*Customer, error) {
 	var c Customer
-	var rfc, contactName, phone, email, address, postalCode, taxRegime, notes sql.NullString
-	err := row.Scan(&c.ID, &c.Name, &rfc, &contactName, &phone, &email, &address, &postalCode, &taxRegime, &notes)
+	var rfc, contactName, phone, email, address, postalCode, taxRegime, notes, legalName, cfdiUse sql.NullString
+	err := row.Scan(&c.ID, &c.Name, &rfc, &contactName, &phone, &email, &address, &postalCode, &taxRegime, &notes, &legalName, &cfdiUse)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -42,6 +46,8 @@ func scanCustomer(row interface{ Scan(...any) error }) (*Customer, error) {
 	c.PostalCode = postalCode.String
 	c.TaxRegime = taxRegime.String
 	c.Notes = notes.String
+	c.LegalName = legalName.String
+	c.CFDIUse = cfdiUse.String
 	return &c, nil
 }
 
@@ -112,11 +118,11 @@ func (s *Store) CustomerByID(ctx context.Context, id int64) (*Customer, error) {
 // CreateCustomer inserts a new customer, returning its id.
 func (s *Store) CreateCustomer(ctx context.Context, c Customer) (int64, error) {
 	res, err := s.exec(ctx, `
-		INSERT INTO customers (name, rfc, contact_name, phone, email, address, postal_code, tax_regime, notes)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO customers (name, rfc, contact_name, phone, email, address, postal_code, tax_regime, notes, legal_name, cfdi_use)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		c.Name, nullIfEmpty(c.RFC), nullIfEmpty(c.ContactName), nullIfEmpty(c.Phone),
 		nullIfEmpty(c.Email), nullIfEmpty(c.Address), nullIfEmpty(c.PostalCode),
-		nullIfEmpty(c.TaxRegime), nullIfEmpty(c.Notes),
+		nullIfEmpty(c.TaxRegime), nullIfEmpty(c.Notes), nullIfEmpty(c.LegalName), nullIfEmpty(c.CFDIUse),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("store: create customer %q: %w", c.Name, err)
@@ -137,11 +143,13 @@ func (s *Store) UpdateCustomer(ctx context.Context, c Customer) error {
 			postal_code  = ?,
 			tax_regime   = ?,
 			notes        = ?,
+			legal_name   = ?,
+			cfdi_use     = ?,
 			updated_at   = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 		WHERE id = ?`,
 		c.Name, nullIfEmpty(c.RFC), nullIfEmpty(c.ContactName), nullIfEmpty(c.Phone),
 		nullIfEmpty(c.Email), nullIfEmpty(c.Address), nullIfEmpty(c.PostalCode),
-		nullIfEmpty(c.TaxRegime), nullIfEmpty(c.Notes), c.ID,
+		nullIfEmpty(c.TaxRegime), nullIfEmpty(c.Notes), nullIfEmpty(c.LegalName), nullIfEmpty(c.CFDIUse), c.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("store: update customer %d: %w", c.ID, err)

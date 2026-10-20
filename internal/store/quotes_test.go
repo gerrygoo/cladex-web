@@ -38,10 +38,13 @@ func TestNextFolio(t *testing.T) {
 // and a cost+margin one) for the quote tests below.
 func seedQuoteFixtures(t *testing.T, s *Store, ctx context.Context) (customerID, userID, flatProductID, costProductID int64) {
 	t.Helper()
-	customerID, err := s.CreateCustomer(ctx, Customer{Name: "Grupo PEME"})
+	// A raw insert of the one column every schema has, so migration tests that stop at an
+	// older schema can seed with it too.
+	res, err := s.db.ExecContext(ctx, `INSERT INTO customers (name) VALUES ('Grupo PEME')`)
 	if err != nil {
-		t.Fatalf("CreateCustomer: %v", err)
+		t.Fatalf("insert customer: %v", err)
 	}
+	customerID, _ = res.LastInsertId()
 	userID, err = s.CreateUser(ctx, "vendedor1", "Vendedor Uno", "hash", "vendedor")
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)

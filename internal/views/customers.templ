@@ -93,6 +93,8 @@ type CustomerFormValues struct {
 	PostalCode  string
 	TaxRegime   string
 	Notes       string
+	LegalName   string
+	CFDIUse     string
 	// Volver and Serie carry a trip from Nueva cotización (issue #29) through the form;
 	// CancelHref is where Cancelar goes then ("" for the catalog).
 	Volver     string
@@ -193,14 +195,38 @@ templ CustomerForm(title string, action string, values CustomerFormValues, field
 				Dirección (opcional)
 				<input type="text" name="address" value={ values.Address }/>
 			</label>
-			<label>
-				Código postal (opcional)
-				<input type="text" name="postal_code" value={ values.PostalCode }/>
-			</label>
-			<label>
-				Régimen fiscal (opcional)
-				<input type="text" name="tax_regime" value={ values.TaxRegime }/>
-			</label>
+			<fieldset>
+				<legend>Datos fiscales (opcionales; se piden al facturar)</legend>
+				<label>
+					Razón social (opcional)
+					<span class="hint">Como aparece en la constancia de situación fiscal, sin el régimen de capital (sin "S.A. de C.V.").</span>
+					<input type="text" name="legal_name" value={ values.LegalName }/>
+				</label>
+				<label>
+					Código postal fiscal (opcional)
+					<input type="text" name="postal_code" value={ values.PostalCode } inputmode="numeric" maxlength="5"/>
+				</label>
+				<label>
+					Régimen fiscal (opcional)
+					<select name="tax_regime" { errAttrs(fieldErrors, "tax_regime")... }>
+						<option value="">— Sin definir —</option>
+						for _, c := range store.TaxRegimes {
+							<option value={ c.Code } selected?={ c.Code == values.TaxRegime }>{ c.Code + " - " + c.Description }</option>
+						}
+					</select>
+				</label>
+				@FieldError(fieldErrors, "tax_regime")
+				<label>
+					Uso de CFDI predeterminado (opcional)
+					<select name="cfdi_use" { errAttrs(fieldErrors, "cfdi_use")... }>
+						<option value="">— Sin definir —</option>
+						for _, c := range store.CFDIUses {
+							<option value={ c.Code } selected?={ c.Code == values.CFDIUse }>{ c.Code + " - " + c.Description }</option>
+						}
+					</select>
+				</label>
+				@FieldError(fieldErrors, "cfdi_use")
+			</fieldset>
 			<label>
 				Notas (opcional)
 				<input type="text" name="notes" value={ values.Notes }/>

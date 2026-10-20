@@ -9,8 +9,18 @@ existir antes de cotizarle.
 2. Haz clic en **Nuevo cliente**.
 3. Escribe el **Nombre**. Es el único campo obligatorio y es el nombre que aparece en
    las cotizaciones y en el PDF, así que escríbelo como el cliente espera verlo.
-4. Opcional: **RFC**, **Contacto**, **Teléfono**, **Email**, **Dirección**,
-   **Código postal**, **Régimen fiscal**, **Notas**.
+4. Opcional: **RFC**, **Contacto**, **Teléfono**, **Email**, **Dirección**, **Notas** y,
+   en **Datos fiscales**, lo que se necesitará para facturarle:
+   - **Razón social**: como aparece en su constancia de situación fiscal, **sin** el
+     régimen de capital (escribe *GRUPO PEME*, no *GRUPO PEME S.A. de C.V.*). El
+     **Nombre** de arriba es el que sale en las cotizaciones y puede ser el comercial.
+   - **Código postal fiscal**: el de su domicilio fiscal.
+   - **Régimen fiscal**: elígelo de la lista del SAT (p. ej. *601 - General de Ley
+     Personas Morales*).
+   - **Uso de CFDI predeterminado**: el que usa normalmente (p. ej. *G01 - Adquisición
+     de mercancías*); en cada factura se podrá cambiar.
+
+   Todos son opcionales: un prospecto puede no tenerlos. Se revisarán al facturar.
 5. Haz clic en **Guardar**.
 
 Verás *"Cliente guardado."* y te quedas en la ficha del cliente. Cualquier usuario,
