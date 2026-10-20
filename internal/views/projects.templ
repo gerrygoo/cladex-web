@@ -599,10 +599,6 @@ templ ForecastPage(f Forecast, lv ListView, owners []string, user *NavUser) {
 								<td>{ p.UserName }</td>
 								<td>
 									{ probabilityText(p.Probability) }
-									if p.ForecastRelevant() {
-										<br/>
-										<strong class="forecast">{ forecastLabel }</strong>
-									}
 								</td>
 								<td>
 									@dateWarningCell(p.NextFollowUpDate, FollowUpWarning(p, f.Today))
@@ -618,11 +614,10 @@ templ ForecastPage(f Forecast, lv ListView, owners []string, user *NavUser) {
 								<td class="num">{ p.Subtotal.String() }</td>
 								<td class="num">{ p.Profit.String() }</td>
 								<td class="num">{ ProjectMargin(p) }</td>
-								<td>
+								<td class="last-comment">
 									if p.LastBody != "" {
-										<span class="comment-body">{ p.LastBody }</span>
-										<br/>
-										<small>
+										<span class="comment-clamp" title={ p.LastBody }>{ p.LastBody }</span>
+										<small class="comment-meta">
 											{ p.LastUserName + " · " }
 											@Timestamp(p.LastAt)
 										</small>
@@ -646,10 +641,7 @@ templ ForecastPage(f Forecast, lv ListView, owners []string, user *NavUser) {
 					</tfoot>
 				</table>
 			</div>
-			<p>
-				<strong>Total ponderado:</strong> { totals.Weighted.String() }
-				<small>Cada total con IVA por su probabilidad de cierre. El margen total es la suma de utilidades entre la suma de precios.</small>
-			</p>
+			<p><small>El margen total es la suma de utilidades entre la suma de precios.</small></p>
 		}
 	}
 }

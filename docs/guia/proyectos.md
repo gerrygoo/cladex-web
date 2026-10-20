@@ -221,11 +221,11 @@ Las columnas, en orden:
    último comentario o cambio).
 6. **Costo sin IVA**, **Precio de venta sin IVA**, **Utilidad** (precio menos costo) y
    **Margen** (utilidad entre precio).
-7. **Último comentario**: el más reciente del historial, con quién lo escribió y cuándo.
+7. **Último comentario**: el más reciente del historial, hasta dos renglones (pasa el
+   mouse encima para leerlo completo), con quién lo escribió y cuándo debajo.
 
 La fila **Total** suma costo, precio y utilidad; su margen es la suma de las utilidades
-entre la suma de los precios, no un promedio de márgenes. Debajo, **Total ponderado**
-suma cada total con IVA multiplicado por su probabilidad de cierre.
+entre la suma de los precios, no un promedio de márgenes.
 
 Lo que necesita atención se marca con una palabra en rojo, no solo con color:
 

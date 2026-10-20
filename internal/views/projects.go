@@ -85,25 +85,23 @@ type Forecast struct {
 }
 
 // ForecastTotals is what the listed proyectos add up to before IVA: cost, price and
-// profit, and the margin that profit is of the price; and the expected amount, each
-// total (with IVA, as in the proyectos list) times its probability.
+// profit, and the margin that profit is of the price.
 type ForecastTotals struct {
-	Cost, Price, Profit, Weighted money.Centavos
-	Margin                        string
+	Cost, Price, Profit money.Centavos
+	Margin              string
 }
 
 // Totals adds up the listed proyectos. The margin is the sum of profits over the sum of
 // prices, not an average of their margins.
 func (f Forecast) Totals() ForecastTotals {
-	var price, profit, weight int64
+	var price, profit int64
 	for _, p := range f.Projects {
 		price += int64(p.Subtotal)
 		profit += int64(p.Profit)
-		weight += p.Weight()
 	}
 	return ForecastTotals{
 		Cost: money.Centavos(price - profit), Price: money.Centavos(price), Profit: money.Centavos(profit),
-		Weighted: store.WeightedTotal(weight), Margin: marginPercentText(profit, price),
+		Margin: marginPercentText(profit, price),
 	}
 }
 

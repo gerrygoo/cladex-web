@@ -50,9 +50,6 @@ func TestForecastTotalsAndDays(t *testing.T) {
 	if got.Price != 40000 || got.Profit != 5500 || got.Cost != 34500 || got.Margin != "13.8%" {
 		t.Errorf("Totals = %+v", got)
 	}
-	if want := (11600*50 + 34800*90 + 50) / 100; int64(got.Weighted) != int64(want) {
-		t.Errorf("Weighted = %d, want %d", got.Weighted, want)
-	}
 	if m := (Forecast{}).Totals().Margin; m != "—" {
 		t.Errorf("empty margin = %q, want —", m)
 	}

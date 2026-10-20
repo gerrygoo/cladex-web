@@ -1235,9 +1235,30 @@ table.forecast-table thead th:first-child {
   background: var(--bg);
 }
 
-table.forecast-table td {
+table.forecast-table td,
+table.forecast-table th[scope="row"] {
   vertical-align: top;
+}
+
+table.forecast-table td {
   min-width: 7rem;
+}
+
+/* Último comentario: wide enough to read, at most two lines (the full text is the title) */
+table.forecast-table td.last-comment {
+  min-width: 18rem;
+}
+
+.comment-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+td.last-comment .comment-meta {
+  display: block;
 }
 
 table.forecast-table tfoot th,

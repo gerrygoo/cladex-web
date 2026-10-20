@@ -492,7 +492,7 @@ func TestProjectsFollowUpDatesAndForecast(t *testing.T) {
 	}
 	body := forecast("todos=1")
 	for _, want := range []string{`id="p-` + first + `"`, `id="p-` + second + `"`, "Ver solo los relevantes para pronóstico",
-		"Sin fecha", "Sin comentarios", "Total ponderado"} {
+		"Sin fecha", "Sin comentarios"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("all-prospects page missing %q", want)
 		}
@@ -523,10 +523,16 @@ func TestProjectsFollowUpDatesAndForecast(t *testing.T) {
 
 	body = forecast("")
 	for _, want := range []string{`id="p-` + first + `"`, `id="p-` + second + `"`, "Ver todos los prospectos",
-		"Alta (75%)", "Inminente (90%)", "Relevante para pronóstico", "15/10/2020", "09/01/2020",
-		"Compras pidió ajustar entrega", "Pidió fecha", "Total ponderado"} {
+		"Alta (75%)", "Inminente (90%)", "15/10/2020", "09/01/2020",
+		"Compras pidió ajustar entrega", "Pidió fecha"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("forecast page missing %q", want)
+		}
+	}
+	// Everything listed is relevant, so no row says so, and there is no weighted total (#23).
+	for _, gone := range []string{"Relevante para pronóstico", "Total ponderado"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("forecast page still has %q", gone)
 		}
 	}
 	// Column order: project number, cliente, vendedor, probabilidad, seguimiento, O.C.,
@@ -554,9 +560,8 @@ func TestProjectsFollowUpDatesAndForecast(t *testing.T) {
 		t.Error("the forecast doesn't put the soonest expected O.C. first")
 	}
 	// Each proyecto is a $64.29 line at 30%: $45.00 of cost and $19.29 of profit. The totals
-	// row adds them, with the margin as profit over price, and 75% + 90% of the two $74.58
-	// totals is $123.06.
-	for _, want := range []string{"$45.00", "$64.29", "$19.29", "30.0%", "$90.00", "$128.58", "$38.58", "$123.06"} {
+	// row adds them, with the margin as profit over price.
+	for _, want := range []string{"$45.00", "$64.29", "$19.29", "30.0%", "$90.00", "$128.58", "$38.58"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("forecast missing %s", want)
 		}
