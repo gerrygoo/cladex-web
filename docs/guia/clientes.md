@@ -53,7 +53,8 @@ Es solo un aviso: siempre puedes darlo de alta. Al editar un cliente no se revis
 2. Escribe en el cuadro *"Buscar por nombre, RFC o contacto…"*. La lista se filtra
    mientras escribes.
 3. Para ordenar, haz clic en el encabezado de una columna (**Nombre**, **RFC**,
-   **Contacto**, **Teléfono**, **Email**). Otro clic invierte el orden.
+   **Contacto**, **Teléfono**, **Email**). Otro clic invierte el orden. Los nombres se
+   ordenan sin importar mayúsculas o minúsculas.
 4. Para acotar más, [filtra por columna](README.md#filtrar-las-tablas) con el embudo de cada encabezado.
 
 ## Editar un cliente

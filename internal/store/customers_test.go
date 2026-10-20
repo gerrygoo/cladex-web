@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -89,5 +90,32 @@ func TestCustomerCRUDLifecycle(t *testing.T) {
 	}
 	if deletedAt == nil {
 		t.Fatal("deleted_at is still NULL after soft-delete")
+	}
+}
+
+func TestListCustomersSortsNamesIgnoringCase(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	for _, name := range []string{"ZASA", "pruebas finales", "SODIMAC", "alberto", "CUVEXA"} {
+		if _, err := s.CreateCustomer(ctx, Customer{Name: name}); err != nil {
+			t.Fatalf("CreateCustomer(%q): %v", name, err)
+		}
+	}
+	for _, dir := range []string{"asc", "desc"} {
+		customers, err := s.ListCustomers(ctx, "", "name", dir, nil)
+		if err != nil {
+			t.Fatalf("ListCustomers: %v", err)
+		}
+		var got []string
+		for _, c := range customers {
+			got = append(got, c.Name)
+		}
+		want := []string{"alberto", "CUVEXA", "pruebas finales", "SODIMAC", "ZASA"}
+		if dir == "desc" {
+			want = []string{"ZASA", "SODIMAC", "pruebas finales", "CUVEXA", "alberto"}
+		}
+		if strings.Join(got, "|") != strings.Join(want, "|") {
+			t.Errorf("%s: names = %v, want %v", dir, got, want)
+		}
 	}
 }

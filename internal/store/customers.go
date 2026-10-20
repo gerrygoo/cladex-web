@@ -52,13 +52,15 @@ func scanCustomer(row interface{ Scan(...any) error }) (*Customer, error) {
 }
 
 // customerSortColumns is the sortable-column whitelist for ListCustomers; the first
-// entry (name) is the default when sort doesn't match a known column.
+// entry (name) is the default when sort doesn't match a known column. Text sorts
+// ignore case, so "pruebas" lands between "Pruebas" and "SODIMAC", not after "ZASA"
+// (issue #35).
 var customerSortColumns = []sortColumn{
-	{"name", "name"},
-	{"rfc", "rfc"},
-	{"contact_name", "contact_name"},
+	{"name", "name COLLATE NOCASE"},
+	{"rfc", "rfc COLLATE NOCASE"},
+	{"contact_name", "contact_name COLLATE NOCASE"},
 	{"phone", "phone"},
-	{"email", "email"},
+	{"email", "email COLLATE NOCASE"},
 }
 
 // customerFilterColumns are the per-column filters ListCustomers accepts.
