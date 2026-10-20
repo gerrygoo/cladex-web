@@ -334,3 +334,52 @@ there.
 - **DNS and email: GoDaddy.** cladex.com.mx's DNS and mailboxes are at GoDaddy, so any
   SPF/DKIM records for a sending provider (#18) are added in GoDaddy's DNS panel. M7
   still starts with Facturapi sending the factura, which needs no DNS change.
+
+### Change of PAC: Facturoporti (2026-10-19)
+
+Emilio had already signed Cladex up with **Facturoporti**, so that replaces Facturapi. From
+its API reference ([docs](https://developers.facturoporti.com.mx/reference/api-facturacion-electronica),
+[index](https://developers.facturoporti.com.mx/llms.txt)); none of this has been tried yet:
+
+- **Hosts**: sandbox `https://testapi.facturoporti.com.mx`, production
+  `https://api.facturoporti.com.mx`. Auth is a bearer token created from the account's
+  user and password. The environment is picked by host and credentials, so a factura row
+  records which one stamped it, and `/ajustes` shows which one is configured.
+- **Stamping from JSON** (`POST /servicios/timbrar/json`): we send datos generales,
+  encabezado (with our `serie` and `folio`), conceptos; it builds the XML and returns
+  `uuid`, `cfdixml` (the stamped XML), optionally `pdf` (base64) and `urlpdf`. The status
+  code `000` means success.
+- **The CSD travels with every request**: `csd` (certificate, base64), `llavePrivada`
+  (key, base64) and `csdPassword` are fields of the stamping call; Facturoporti signs
+  with them. Unlike Facturapi, **the CSD key lives on our side**: the files go on the NAS
+  outside the DB and the repo (e.g. a read-only mount next to `data/`), the password and
+  API credentials in the NAS env. Nothing secret is logged or stored in the event log.
+- **PDF and email are built in**: `generaPDF`, and `enviaEmail` with `receptorEmail`, CC
+  and BCC (semicolon-separated), subject and message; the response says `emailEnviado`.
+  So M7 can send through the PAC, as planned for Facturapi, and #18 stays off the
+  critical path.
+- **Cancellation**: with CSD or PFX, single or multiple, plus the pending
+  accept/reject requests the SAT routes to the receptor.
+- **Status**: `POST /validar/estatuscfdi` asks the SAT for a CFDI's status, which needs
+  its UUID.
+- **Useful extra**: `POST /validar/rfc-sat` checks RFC, name, régimen and postal code
+  against the SAT's list. That is a "Validar con el SAT" button on the customer's fiscal
+  data from #17, and catches a bad receptor before a stamp is rejected.
+
+**Gap: no idempotency key or lookup by our own folio** in the docs. After a timeout we
+don't have the UUID, so the status query can't tell us whether the stamp happened. Until
+Facturoporti answers otherwise, `timbrado incierto` is resolved by a person checking the
+Facturoporti portal (their list of stamped documents, by serie and folio) before
+retrying, which the design already allows (no blind retry). Questions for Facturoporti
+support (soporte@facturoporti.com.mx):
+
+1. If the same serie/folio is sent twice, is the second refused or does it return the
+   first stamp? Is there an endpoint to look up a CFDI by serie/folio or by our own
+   reference?
+2. Does the sandbox take the SAT's test CSDs, and are sandbox stamps free?
+3. Does our plan include API access, and how many stamps does it have
+   (`GET /servicios/consultar/timbres` answers the second once we have a token)?
+
+What we need from Cladex: the Facturoporti API user and password (or a separate API
+user), and the CSD's `.cer`, `.key` and password, handed over outside chat and email, to
+go on the NAS.
