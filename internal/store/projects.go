@@ -400,8 +400,19 @@ func (s *Store) RecordInvoice(ctx context.Context, projectID, userID int64, invo
 	if err := stampActor(ctx, tx); err != nil {
 		return fmt.Errorf("store: record invoice of project %d: %w", projectID, err)
 	}
+	if err := recordInvoiceTx(ctx, tx, projectID, userID, invoice, note); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: record invoice of project %d: %w", projectID, err)
+	}
+	return nil
+}
+
+// recordInvoiceTx is RecordInvoice inside tx, which a stamped factura also goes through.
+func recordInvoiceTx(ctx context.Context, tx *sql.Tx, projectID, userID int64, invoice Document, note string) error {
 	var method string
-	err = tx.QueryRowContext(ctx, `
+	err := tx.QueryRowContext(ctx, `
 		SELECT payment_method FROM projects
 		WHERE id = ? AND status = 'oc_recibida' AND oc_number IS NOT NULL AND payment_method IS NOT NULL`,
 		projectID).Scan(&method)
@@ -438,9 +449,6 @@ func (s *Store) RecordInvoice(ctx context.Context, projectID, userID int64, invo
 		`INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`, quoteID, userID, body); err != nil {
 		return fmt.Errorf("store: record invoice of project %d: comment: %w", projectID, err)
 	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: record invoice of project %d: %w", projectID, err)
-	}
 	return nil
 }
 
@@ -462,6 +470,18 @@ func (s *Store) RecordPayment(ctx context.Context, projectID, userID int64, rece
 	if err := stampActor(ctx, tx); err != nil {
 		return fmt.Errorf("store: record payment of project %d: %w", projectID, err)
 	}
+	if err := recordPaymentTx(ctx, tx, projectID, userID, receipt, note); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: record payment of project %d: %w", projectID, err)
+	}
+	return nil
+}
+
+// recordPaymentTx is RecordPayment inside tx, which a stamped comprobante de pago also
+// goes through.
+func recordPaymentTx(ctx context.Context, tx *sql.Tx, projectID, userID int64, receipt Document, note string) error {
 	quoteID, _, err := currentQuote(ctx, tx, projectID)
 	if err != nil {
 		return fmt.Errorf("store: record payment of project %d: %w", projectID, err)
@@ -486,9 +506,6 @@ func (s *Store) RecordPayment(ctx context.Context, projectID, userID int64, rece
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`, quoteID, userID, body); err != nil {
 		return fmt.Errorf("store: record payment of project %d: comment: %w", projectID, err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: record payment of project %d: %w", projectID, err)
 	}
 	return nil
 }

@@ -81,3 +81,39 @@ func SATLabel(catalog []SATCode, code string) string {
 	}
 	return code
 }
+
+// PaymentForms is the SAT's c_FormaPago catalog: how a factura was (P.U.E.) or a payment
+// is paid. 99 "Por definir" is what a P.P.D. factura carries, never a payment.
+var PaymentForms = []SATCode{
+	{"01", "Efectivo"},
+	{"02", "Cheque nominativo"},
+	{"03", "Transferencia electrónica de fondos"},
+	{"04", "Tarjeta de crédito"},
+	{"05", "Monedero electrónico"},
+	{"06", "Dinero electrónico"},
+	{"08", "Vales de despensa"},
+	{"12", "Dación en pago"},
+	{"13", "Pago por subrogación"},
+	{"14", "Pago por consignación"},
+	{"15", "Condonación"},
+	{"17", "Compensación"},
+	{"23", "Novación"},
+	{"24", "Confusión"},
+	{"25", "Remisión de deuda"},
+	{"26", "Prescripción o caducidad"},
+	{"27", "A satisfacción del acreedor"},
+	{"28", "Tarjeta de débito"},
+	{"29", "Tarjeta de servicios"},
+	{"30", "Aplicación de anticipos"},
+	{"31", "Intermediario pagos"},
+	{"99", "Por definir"},
+}
+
+// CancelMotives is the SAT's c_Motivo for cancelling a CFDI. 01 needs the UUID of the
+// CFDI that replaces it.
+var CancelMotives = []SATCode{
+	{"01", "Comprobante emitido con errores con relación"},
+	{"02", "Comprobante emitido con errores sin relación"},
+	{"03", "No se llevó a cabo la operación"},
+	{"04", "Operación nominativa relacionada en una factura global"},
+}
