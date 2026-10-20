@@ -96,36 +96,35 @@ func TestRenderQuoteIsDeterministic(t *testing.T) {
 }
 
 // TestQuoteLetterhead pins the two logo blocks (issue #16): the default is the Cladex
-// logo alone, and the ConduCCAsa letterhead embeds that logo and copperclad's
-// instead, and still compiles.
+// logo alone, and the copperclad letterhead embeds copperclad's logo instead, and still
+// compiles.
 func TestQuoteLetterhead(t *testing.T) {
 	doc := sampleDoc()
 	cladex := buildQuoteTypst(doc)
 	if !strings.Contains(cladex, "#let letterhead = image(logo, width: 3.2cm)") ||
-		strings.Contains(cladex, "conduccasa") || strings.Contains(cladex, "copperclad") {
+		strings.Contains(cladex, "copperclad") {
 		t.Error("default letterhead isn't the Cladex logo alone")
 	}
 
-	doc.Letterhead = LetterheadConduCCAsa
+	doc.Letterhead = LetterheadCopperclad
 	withCCA := buildQuoteTypst(doc)
 	for _, want := range []string{
-		"#let conduccasa = bytes((" + pngBytesLiteral(conduCCAsaLogoPNG) + "))",
 		"#let copperclad = bytes((" + pngBytesLiteral(coppercladLogoPNG) + "))",
-		"#let letterhead = stack(",
+		"#let letterhead = image(copperclad, width: 4.5cm)",
 	} {
 		if !strings.Contains(withCCA, want) {
-			t.Errorf("ConduCCAsa letterhead is missing %.60q", want)
+			t.Errorf("copperclad letterhead is missing %.60q", want)
 		}
 	}
 	if strings.Contains(withCCA, "#let logo = ") {
-		t.Error("ConduCCAsa letterhead still embeds the Cladex logo")
+		t.Error("copperclad letterhead still embeds the Cladex logo")
 	}
 	out, err := RenderQuote(context.Background(), doc)
 	if err != nil {
-		t.Fatalf("RenderQuote(ConduCCAsa): %v", err)
+		t.Fatalf("RenderQuote(copperclad): %v", err)
 	}
 	if !strings.HasPrefix(string(out), "%PDF") {
-		t.Fatal("ConduCCAsa output doesn't look like a PDF")
+		t.Fatal("copperclad output doesn't look like a PDF")
 	}
 }
 

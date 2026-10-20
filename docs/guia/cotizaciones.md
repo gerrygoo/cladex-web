@@ -250,8 +250,7 @@ de nuevo la vigencia.
    correos.
 
 > **Logo del PDF.** Las cotizaciones de las series **QA — Cable CCA** y **QS — Cable
-> CCS & AC** llevan arriba a la izquierda el logo de *ConduCCAsa* con el de
-> *copperclad* debajo. Las de las demás series (**QI**, **QL** y las que agregue un
+> CCS & AC** llevan arriba a la izquierda el logo de *copperclad*. Las de las demás series (**QI**, **QL** y las que agregue un
 > administrador) llevan el logo de CLADEX.
 
 ## Revisar una cotización emitida

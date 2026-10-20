@@ -330,7 +330,7 @@ func TestQuotesPDF(t *testing.T) {
 }
 
 // TestQuotePDFLetterheadByFamilia pins issue #16: quotes in the CCA (QA) and CCS & AC
-// (QS) series print the ConduCCAsa and copperclad logos, every other series (QI,
+// (QS) series print the copperclad logo, every other series (QI,
 // QL) the Cladex logo, on the draft preview and on the issued PDF alike.
 func TestQuotePDFLetterheadByFamilia(t *testing.T) {
 	a := newTestAuth(t)
@@ -340,8 +340,8 @@ func TestQuotePDFLetterheadByFamilia(t *testing.T) {
 
 	issuedAt, names, terms := "2026-08-02T15:04:05Z", "Nombre", "Término"
 	for prefix, want := range map[string]pdf.Letterhead{
-		"QA": pdf.LetterheadConduCCAsa,
-		"QS": pdf.LetterheadConduCCAsa,
+		"QA": pdf.LetterheadCopperclad,
+		"QS": pdf.LetterheadCopperclad,
 		"QI": pdf.LetterheadCladex,
 		"QL": pdf.LetterheadCladex,
 	} {

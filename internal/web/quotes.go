@@ -967,13 +967,13 @@ func draftQuoteDocument(quote store.Quote, lines []views.QuoteLineView, totals p
 }
 
 // letterheadFor picks the PDF's logo block by the familia that owns the quote's series:
-// the copper cable familias print the ConduCCAsa and copperclad logos (issue #16),
+// the copper cable familias print the copperclad logo (issue #16),
 // every other one the Cladex logo. A series never changes familia and a familia is never
 // renamed, so this is as fixed for an issued quote as its frozen row.
 func letterheadFor(familia string) pdf.Letterhead {
 	switch familia {
 	case "CCA", "CCS & AC":
-		return pdf.LetterheadConduCCAsa
+		return pdf.LetterheadCopperclad
 	}
 	return pdf.LetterheadCladex
 }
