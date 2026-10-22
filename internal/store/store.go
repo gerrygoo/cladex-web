@@ -19,16 +19,27 @@ type Store struct {
 	db *sql.DB
 }
 
-// Open opens (creating if necessary) the SQLite database at path, applies any
+// connParams are added to the DSN so the driver applies them to every connection it
+// opens. PRAGMAs are per connection, so running them once through the sql.DB pool would
+// only configure whichever connection happened to run them. busy_timeout makes a writer
+// wait for the lock instead of failing with SQLITE_BUSY, and _txlock=immediate takes the
+// write lock at BEGIN, so a transaction that reads before it writes can't fail to upgrade.
+const connParams = "_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_txlock=immediate"
+
+// Open opens (creating if necessary) the SQLite database at dsn, applies any
 // pending migrations from migrationsFS, and returns a ready Store.
 func Open(ctx context.Context, dsn string, migrationsFS fs.FS) (*Store, error) {
-	db, err := sql.Open("sqlite", dsn)
+	sep := "?"
+	if strings.Contains(dsn, "?") {
+		sep = "&"
+	}
+	db, err := sql.Open("sqlite", dsn+sep+connParams)
 	if err != nil {
 		return nil, fmt.Errorf("store: open: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, `PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;`); err != nil {
+	if err := db.PingContext(ctx); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("store: pragma: %w", err)
+		return nil, fmt.Errorf("store: open: %w", err)
 	}
 	if err := migrate(ctx, db, migrationsFS); err != nil {
 		db.Close()
