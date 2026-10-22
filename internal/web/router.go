@@ -41,7 +41,6 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	if fact == nil {
 		fact = facturacion.New(db, nil, build.Facturacion)
 	}
-	views.EnvironmentBanner = build.Env.Banner()
 	mux := http.NewServeMux()
 	auth := NewAuth(db, cookieSecure)
 	products := NewProducts(db)
@@ -187,7 +186,11 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	// Outermost first: the access log has to see the status the CSRF check produces, and
 	// its panic recovery has to cover everything below it.
 	csrf := http.NewCrossOriginProtection()
-	return AccessLog(logger)(securityHeaders(csrf.Handler(mux)))
+	banner := build.Env.Banner()
+	withBanner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mux.ServeHTTP(w, r.WithContext(views.WithEnvironmentBanner(r.Context(), banner)))
+	})
+	return AccessLog(logger)(securityHeaders(csrf.Handler(withBanner)))
 }
 
 // securityHeaders forbids framing any page, so another site can't overlay the app's

@@ -5,9 +5,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	cladex "github.com/gerrygoo/cladex-web"
+	"github.com/gerrygoo/cladex-web/internal/appenv"
 	"github.com/gerrygoo/cladex-web/internal/guia"
 )
 
@@ -183,6 +185,35 @@ func TestRoutesAdminReachesAdminRoutes(t *testing.T) {
 				t.Fatalf("status = 403 for an admin")
 			}
 		})
+	}
+}
+
+// The banner belongs to the mux that was built for staging, not to the process: a
+// production mux built alongside it shows none.
+func TestEnvironmentBannerIsPerMux(t *testing.T) {
+	a := newTestAuth(t)
+	staging, err := appenv.Parse("staging")
+	if err != nil {
+		t.Fatal(err)
+	}
+	staticFS, _ := fs.Sub(cladex.StaticFS, "static")
+	guide, err := guia.New(os.DirFS("../../docs/guia"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stagingMux := NewMux(Build{Env: staging}, staticFS, guide, a.store, false, nil, nil)
+	prodMux := newTestMux(t, a)
+
+	page := func(h http.Handler) string {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest("GET", "/login", nil))
+		return rec.Body.String()
+	}
+	if !strings.Contains(page(stagingMux), "env-banner") {
+		t.Error("staging login page has no environment banner")
+	}
+	if strings.Contains(page(prodMux), "env-banner") {
+		t.Error("production login page shows an environment banner")
 	}
 }
 
