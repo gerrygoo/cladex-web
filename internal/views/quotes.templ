@@ -670,7 +670,7 @@ func validUntilValue(quote store.Quote) string {
 	return *quote.ValidUntil
 }
 
-templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, fieldErrs map[string]string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser) {
+templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, fieldErrs map[string]string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser, supplier SupplierQuoteView) {
 	@Layout("Cotización "+quote.Folio, user) {
 		<script src="/static/margin.js" defer></script>
 		<div class="page-title">
@@ -823,6 +823,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 							<textarea name="extra_terms" id="extra-terms" rows="3" maxlength="2000">{ quote.ExtraTerms }</textarea>
 						</label>
 					</div>
+					@SupplierQuoteSection(supplier, true)
 					// The button to add a line sits right above the lines on QL, which has no
 					// catalog picker below them (issue #25).
 					<p class="picker-free">
@@ -880,6 +881,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 		} else {
 			@QuoteInfo(quote, lines)
 			@QuoteLinesReadOnly(lines, totals, ShowsKg(quote))
+			@SupplierQuoteSection(supplier, false)
 			if quote.Revisable() {
 				<form method="post" action={ templ.URL(revisarPath(quote.Folio)) }>
 					<button type="submit">Revisar</button>
@@ -894,6 +896,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 				<p>Esta cotización fue revisada. Ver <a href={ templ.URL("/cotizaciones/" + quote.SupersededByFolio) }>{ quote.SupersededByFolio }</a>.</p>
 			}
 		}
+		@SupplierQuoteForm(supplier)
 		<p>
 			<a href={ templ.URL("/cotizaciones/" + quote.Folio + "/pdf") } target="_blank">Descargar PDF</a> ·
 			<a href="/cotizaciones">Volver a cotizaciones</a>

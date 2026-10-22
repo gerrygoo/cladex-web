@@ -611,3 +611,28 @@ func TestGuiaProductosColumnaCosto(t *testing.T) {
 		t.Errorf("materials-only row doesn't show just %q: %s", "materiales", got)
 	}
 }
+
+// --- docs/guia/cotizaciones.md, "Cotización del proveedor en QL" ---
+
+// The section's fields and buttons as the guide names them. Its refusal messages are
+// pinned in TestSupplierQuote.
+func TestGuiaCotizacionProveedor(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	userID := createTestUser(t, a, "rodolfo", "vendedor", "hunter2")
+	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	ql, err := a.store.CreateDraftQuote(context.Background(), customerID, userID, "QL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+ql.Folio, map[string]string{"folio": ql.Folio}, nil, false).Body.String()
+	for _, want := range []string{
+		"Cotización del proveedor", "Proveedor (opcional)", "No. de cotización del proveedor (opcional)",
+		"Agregar archivos (PDF, JPG o PNG de hasta 10 MB cada uno)", "Guardar cotización del proveedor",
+		"no aparece en el PDF que se le manda al cliente",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("QL builder missing %q", want)
+		}
+	}
+}

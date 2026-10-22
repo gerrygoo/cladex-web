@@ -60,6 +60,12 @@ historial), los botones para moverlo de etapa, **Orden de compra del cliente** y
 **Facturación y pago** (desde que se recibe la orden) y **Cotizaciones** (la vigente y las
 que fueron revisadas, cada una con su enlace).
 
+En un proyecto **QL**, antes de **Cotizaciones** está también la **Cotización del
+proveedor**: el proveedor, su número de cotización y los archivos, los mismos que en la
+cotización (ver [Cotización del proveedor en
+QL](cotizaciones.md#cotización-del-proveedor-en-ql)). Aquí solo se consultan, pero puedes
+agregar más archivos con **Subir archivos**.
+
 ## Dar seguimiento a un proyecto
 
 Todo el seguimiento se hace en la página del proyecto, en la sección **Seguimiento y

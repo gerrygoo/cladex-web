@@ -1,0 +1,119 @@
+package views
+
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// SupplierQuoteView is the "Cotización del proveedor" section of a QL quote or proyecto
+// (issue #39). Quote is nil where the section doesn't apply (any series but QL).
+// FilesBase is where the files are served and removed (a quote of the chain), Action
+// where new files and the supplier's data are posted. Message and Error are the outcome
+// of the last post.
+type SupplierQuoteView struct {
+	Quote     *store.SupplierQuote
+	FilesBase string
+	Action    string
+	Message   string
+	Error     string
+}
+
+const supplierFormID = "proveedor-form"
+
+func supplierFilePath(v SupplierQuoteView, f store.SupplierQuoteFile) string {
+	return v.FilesBase + "/proveedor/" + strconv.FormatInt(f.ID, 10)
+}
+
+// SupplierQuoteSection lists the chain's supplier data and files, with the controls to
+// add files (always) and, when editable (the page of the chain's current quote, a
+// borrador), to edit the data and remove the files that can still go.
+//
+// Its controls belong to the form SupplierQuoteForm renders, through their form
+// attribute, so the section can sit inside the quote builder's own form without
+// nesting one form in another. data-guard-ignore keeps typing here from counting as an
+// unsaved change to the quote.
+templ SupplierQuoteSection(v SupplierQuoteView, editable bool) {
+	if v.Quote != nil {
+		<section id="cotizacion-proveedor" class="supplier-quote" aria-labelledby="cotizacion-proveedor-titulo" data-guard-ignore>
+			<h2 id="cotizacion-proveedor-titulo">Cotización del proveedor</h2>
+			<p class="hint">Opcional y solo para uso interno: no aparece en el PDF que se le manda al cliente.</p>
+			// Enter in a text field submits through the form's first submit button: make
+			// it the save button, not a file's "Eliminar".
+			<button type="submit" form={ supplierFormID } class="visually-hidden" tabindex="-1" aria-hidden="true">Guardar</button>
+			@Flash(v.Message)
+			@FormError(v.Error)
+			if editable {
+				<div class="quote-meta">
+					<label>
+						Proveedor (opcional)
+						<input type="text" name="proveedor" form={ supplierFormID } value={ v.Quote.Supplier } maxlength="200" placeholder="Quién nos mandó la cotización"/>
+					</label>
+					<label>
+						No. de cotización del proveedor (opcional)
+						<input type="text" name="numero" form={ supplierFormID } value={ v.Quote.Number } maxlength="100"/>
+					</label>
+				</div>
+			} else {
+				<dl class="quote-info">
+					<dt>Proveedor</dt>
+					<dd>{ orNone(v.Quote.Supplier) }</dd>
+					<dt>No. de cotización del proveedor</dt>
+					<dd>{ orNone(v.Quote.Number) }</dd>
+				</dl>
+			}
+			if len(v.Quote.Files) == 0 {
+				<p>Todavía no hay archivos.</p>
+			} else {
+				<ul class="document-list">
+					for _, f := range v.Quote.Files {
+						<li>
+							<a href={ templ.URL(supplierFilePath(v, f)) } target="_blank" rel="noopener">{ f.Filename }<span class="visually-hidden">{ " (se abre en otra pestaña)" }</span></a>
+							<small>
+								{ " · " + documentKind(f.ContentType) + " · " + fileSizeText(f.Size) + " · " + f.UploadedByName + " · " }
+								@Timestamp(f.UploadedAt)
+								{ " · " }
+							</small>
+							<a href={ templ.URL(supplierFilePath(v, f) + "?descargar=1") }>Descargar<span class="visually-hidden">{ " " + f.Filename }</span></a>
+							if editable && f.Removable {
+								<button
+									type="submit"
+									form={ supplierFormID }
+									formaction={ templ.URL(supplierFilePath(v, f) + "/eliminar") }
+									class="danger inline-button"
+									data-confirm="¿Eliminar este archivo?"
+								>Eliminar<span class="visually-hidden">{ " " + f.Filename }</span></button>
+							}
+						</li>
+					}
+				</ul>
+			}
+			<label>
+				Agregar archivos (PDF, JPG o PNG de hasta 10 MB cada uno)
+				<input type="file" name="archivos" form={ supplierFormID } multiple accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"/>
+			</label>
+			<button type="submit" form={ supplierFormID }>
+				if editable {
+					Guardar cotización del proveedor
+				} else {
+					Subir archivos
+				}
+			</button>
+		</section>
+	}
+}
+
+// SupplierQuoteForm is the form SupplierQuoteSection's controls belong to. It has to
+// sit outside any other form.
+templ SupplierQuoteForm(v SupplierQuoteView) {
+	if v.Quote != nil {
+		<form id={ supplierFormID } method="post" action={ templ.URL(v.Action) } enctype="multipart/form-data"></form>
+	}
+}
+
+func orNone(s string) string {
+	if s == "" {
+		return "Sin capturar"
+	}
+	return s
+}

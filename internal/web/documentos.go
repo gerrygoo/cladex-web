@@ -159,12 +159,19 @@ func (d *Documentos) Archivo(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	serveUploadedFile(w, r, doc.Filename, doc.ContentType, data)
+}
+
+// serveUploadedFile sends an uploaded file of the given type (detected at upload) inline
+// or, with ?descargar=1, as a download. Inline it is sandboxed and never sniffed, so it
+// can't run as part of the app.
+func serveUploadedFile(w http.ResponseWriter, r *http.Request, filename, contentType string, data []byte) {
 	disposition := "inline"
 	if r.URL.Query().Get("descargar") != "" {
 		disposition = "attachment"
 	}
-	w.Header().Set("Content-Type", doc.ContentType)
-	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": doc.Filename}))
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": filename}))
 	w.Header().Set("Content-Security-Policy", "sandbox")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "private, no-store")

@@ -309,6 +309,29 @@ El PDF solo muestra partida, descripción, cantidad, precio unitario y total: **
 costo ni el margen**. En la cotización emitida ves el **Costo total**, la **Utilidad** y el
 **Margen**, que también llegan al proyecto, al pronóstico y a la página de inicio.
 
+### Cotización del proveedor en QL
+
+Debajo de los términos adicionales, la sección **Cotización del proveedor** guarda la
+cotización que te mandó el proveedor y en la que te basaste. Es opcional (no hace falta
+para guardar ni para emitir) y solo para uso interno: **nunca aparece en el PDF** que se
+le manda al cliente.
+
+1. Escribe **Proveedor (opcional)** y **No. de cotización del proveedor (opcional)**.
+2. En **Agregar archivos**, elige uno o varios PDF, JPG o PNG de hasta 10 MB cada uno.
+3. Haz clic en **Guardar cotización del proveedor**.
+
+Cada archivo aparece con su nombre, tipo, tamaño, quién lo subió y cuándo. Haz clic en
+el nombre para abrirlo en otra pestaña, o en **Descargar**. Si un archivo no es PDF, JPG
+ni PNG, o pesa más de 10 MB, no se sube ninguno de los que elegiste y te dice cuál fue
+(*"No se subió ningún archivo: «…» no es PDF, JPG ni PNG."*).
+
+Mientras la cotización es borrador puedes **Eliminar** un archivo. Ya emitida, sus
+archivos quedan fijos y el proveedor y el número ya no se cambian, pero puedes seguir
+agregando archivos con **Subir archivos**. Una [revisión](#revisar-una-cotización-emitida)
+ve los mismos archivos y datos, puede cambiar el proveedor y el número y agregar más
+archivos; solo puede eliminar los que se subieron después de la última emisión. El
+[proyecto](proyectos.md#ver-el-detalle-de-un-proyecto) muestra la misma sección.
+
 ## Descargar y enviar el PDF
 
 1. Abre la cotización: en el menú **Cotizaciones**, elige **Ver cotizaciones** y haz clic

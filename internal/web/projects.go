@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"path"
@@ -100,8 +101,19 @@ func (p *Projects) Page(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
+	var current *store.Quote
+	for i := range quotes {
+		if quotes[i].ID == project.CurrentQuoteID {
+			current = &quotes[i]
+		}
+	}
+	supplier, err := supplierQuoteView(r, p.store, current, "/cotizaciones/"+project.CurrentQuoteFolio, "/proyectos/"+project.Folio+"/proveedor")
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
 	user, _ := UserFromContext(ctx)
-	views.ProjectPage(*project, today(r), quotes, files, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user)).Render(ctx, w)
+	views.ProjectPage(*project, today(r), quotes, files, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user), supplier).Render(ctx, w)
 }
 
 // Etapa handles POST /proyectos/{folio}/etapa: moves the proyecto one stage along the
@@ -424,6 +436,17 @@ func uploadedFile(r *http.Request, field string, maxBytes int, types map[string]
 	f, header, err := r.FormFile(field)
 	if err != nil {
 		return nil, "", 0 // no file, or not a multipart form
+	}
+	f.Close()
+	return readUploadedFile(header, maxBytes, types, tooBig, badType, fallback)
+}
+
+// readUploadedFile is uploadedFile for one file of a multipart form, which may hold
+// several under one field.
+func readUploadedFile(header *multipart.FileHeader, maxBytes int, types map[string]bool, tooBig, badType, fallback string) (*store.NewFile, string, int) {
+	f, err := header.Open()
+	if err != nil {
+		return nil, "no se pudo leer el archivo", http.StatusBadRequest
 	}
 	defer f.Close()
 	data, err := io.ReadAll(io.LimitReader(f, int64(maxBytes)+1))

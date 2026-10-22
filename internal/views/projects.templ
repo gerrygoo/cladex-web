@@ -125,7 +125,7 @@ templ ProjectsTableBody(projects []store.Project) {
 // ProjectPage is a proyecto: where it stands, the controls that move it (probability
 // while it is a prospecto, the next stage, and an admin-only step back), every quote it
 // has had, and its history — the comments of all those quotes in one timeline.
-templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []store.ProjectFile, comments []store.ProjectComment, commentsLV ListView, facturas []store.Comprobante, factEnabled bool, user *NavUser) {
+templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []store.ProjectFile, comments []store.ProjectComment, commentsLV ListView, facturas []store.Comprobante, factEnabled bool, user *NavUser, supplier SupplierQuoteView) {
 	@Layout("Proyecto "+p.Folio, user) {
 		<div class="page-title">
 			<h1>Proyecto { p.Folio }</h1>
@@ -406,6 +406,8 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 				<button type="submit">Regresar a { store.StageLabels[prev] }</button>
 			</form>
 		}
+		@SupplierQuoteSection(supplier, false)
+		@SupplierQuoteForm(supplier)
 		<h2>Cotizaciones</h2>
 		<div class="table-scroll">
 			<table>
