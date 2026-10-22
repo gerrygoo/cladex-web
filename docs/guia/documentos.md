@@ -18,7 +18,8 @@ y descargar los documentos.
 
 Solo los administradores suben y eliminan documentos.
 
-1. En **Documentos oficiales**, baja a **Subir un documento**.
+1. En **Documentos oficiales**, haz clic en **Subir documento**, arriba de las
+   secciones, para abrir el formulario.
 2. Elige el **Archivo**: PDF o imagen (JPG, PNG, WebP o GIF) de hasta 25 MB.
 3. Opcional: escribe el **Título** con el que se verá en la lista (p. ej. *Ficha
    técnica Copperclad (CCS)*). Si lo dejas vacío, se usa el nombre del archivo.

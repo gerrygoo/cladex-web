@@ -60,11 +60,12 @@ func TestDocumentosOficiales(t *testing.T) {
 			t.Errorf("page missing %q", want)
 		}
 	}
-	if strings.Contains(body, "Subir un documento") {
+	if strings.Contains(body, `action="/documentos"`) {
 		t.Error("a vendedor sees the upload form")
 	}
-	if !strings.Contains(page(admin), "Subir un documento") {
-		t.Error("an admin doesn't see the upload form")
+	// An admin gets it folded behind "Subir documento" until they open it.
+	if adminBody := page(admin); !strings.Contains(adminBody, `<details class="disclosure" id="subir"><summary>Subir documento</summary>`) {
+		t.Error("an admin doesn't see the folded upload form")
 	}
 
 	// Only admins upload.
@@ -75,6 +76,8 @@ func TestDocumentosOficiales(t *testing.T) {
 	// The type comes from the bytes: a script named .pdf is refused, and so is no file.
 	if rec := postDocumento(t, a, d, admin, fields, "ficha.pdf", []byte("<script>alert(1)</script>")); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "El archivo debe ser PDF o una imagen") {
 		t.Fatalf("html upload = %d: %s", rec.Code, rec.Body.String())
+	} else if !strings.Contains(rec.Body.String(), `<details class="disclosure" id="subir" open>`) {
+		t.Error("a refused upload comes back with the form folded")
 	}
 	if rec := postDocumento(t, a, d, admin, fields, "", nil); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "Elige el archivo") {
 		t.Fatalf("upload without a file = %d", rec.Code)

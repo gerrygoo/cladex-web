@@ -449,9 +449,11 @@ form > button[type="submit"] + a {
 
 /* ==== Buttons ===========================================================
    Default (secondary): outlined. .primary: the one main action on a screen, solid.
-   .danger: destructive, outlined in red. a.button is a link styled the same way. */
+   .danger: destructive, outlined in red. a.button is a link styled the same way, and
+   details.disclosure > summary a toggle that opens a form below it. */
 button,
-a.button {
+a.button,
+details.disclosure > summary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -471,9 +473,34 @@ a.button {
 }
 
 button:hover,
-a.button:hover {
+a.button:hover,
+details.disclosure > summary:hover {
   background: var(--surface);
   border-color: var(--text-muted);
+}
+
+details.disclosure > summary {
+  list-style: none;
+}
+
+details.disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.disclosure > summary::after {
+  content: "";
+  border: 0.3rem solid transparent;
+  border-top-color: currentColor;
+  border-bottom-width: 0;
+}
+
+details.disclosure[open] > summary::after {
+  border-top-width: 0;
+  border-bottom: 0.3rem solid currentColor;
+}
+
+details.disclosure {
+  margin-bottom: 1.5rem;
 }
 
 button.primary,

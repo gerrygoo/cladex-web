@@ -31,7 +31,9 @@ past 1 GB per render).
 - **VPS**: `ssh cladex-vps` → `5.78.203.98` (Hetzner), user `root`, key `cladex-vps` in
   1Password's SSH agent. Runs nginx + certbot + FRP server, multiplexing the public
   domains (`cotizador.cladex.com.mx`, `c.cladex.com.mx`) onto the NAS over FRP, since
-  the NAS itself is behind NAT.
+  the NAS itself is behind NAT. The `cotizador` site sets `client_max_body_size 30m`
+  (added 2026-10-21, issue #32): nginx's 1 MB default refused Documentos oficiales
+  uploads with a bare 413 before they reached the app, which caps them at 25 MB itself.
 
 ## scp is broken — use `scp -O`
 
