@@ -1,7 +1,8 @@
 // Quote builder: the custom margin's two fields ("Margen (%)" and the copper price per
 // kg) stay in step as either is typed in. The server treats whichever was edited last
 // (margin_edited) as the source of truth and derives the other, so this script only
-// mirrors that math for display: price = cost / (1 - margin).
+// mirrors that math for display: price = cost / (1 - margin). margin_edited stays empty
+// until a field is typed in; the server then keeps the saved margin.
 (function () {
   var box = document.getElementById("margin-controls");
   if (!box) return;
@@ -29,11 +30,12 @@
 
   function priceToPct() {
     var v = num(price);
-    if (isNaN(cost) || v === null || v < cost) {
+    if (isNaN(cost) || v === null || v <= cost) {
       pct.value = "";
       return;
     }
-    pct.value = ((1 - cost / v) * 100).toFixed(4).replace(/\.?0+$/, "");
+    // Shown to two decimals; the server keeps the full margin of the typed price.
+    pct.value = ((1 - cost / v) * 100).toFixed(2).replace(/\.?0+$/, "");
   }
 
   pct.addEventListener("input", function () {

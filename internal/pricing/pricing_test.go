@@ -243,3 +243,25 @@ func TestPriceMarginRoundTrip(t *testing.T) {
 		t.Error("PriceFromMargin at 100%: want error")
 	}
 }
+
+// A price typed per kg of a material prices a product at exactly that ratio (issue
+// #38), not at the margin it implies rounded to the micro.
+func TestUnitPriceAtPrice(t *testing.T) {
+	p := Product{Materials: []MaterialContent{{QtyPerUnit: 172_300, Price: 160_000_000}}} // $27.568
+	got, err := UnitPriceAtPrice(p, 160_000_000, 188_500_000)
+	if err != nil || got != 32_478_550 { // 27.568 × 188.5 / 160
+		t.Fatalf("UnitPriceAtPrice = %v, %v; want 32.47855", got, err)
+	}
+	m, _ := MarginFromPrice(160_000_000, 188_500_000)
+	if viaMargin, _ := UnitPrice(p, &m); viaMargin == got {
+		t.Errorf("rounded margin %v priced the same; the test no longer shows the difference", m)
+	}
+	for _, price := range []money.Micros{160_000_000, 100_000_000} {
+		if _, err := UnitPriceAtPrice(p, 160_000_000, price); err == nil {
+			t.Errorf("UnitPriceAtPrice(price %v, not above cost) didn't error", price)
+		}
+	}
+	if _, err := UnitPriceAtPrice(Product{}, 160_000_000, 188_500_000); !errors.Is(err, ErrNoCost) {
+		t.Errorf("no cost: err = %v, want ErrNoCost", err)
+	}
+}

@@ -48,6 +48,9 @@ type Quote struct {
 	MarginSnapshotMicros *money.Micros
 	// CustomMarginMicros, when set, prices the draft instead of MarginOptionID's value.
 	CustomMarginMicros *money.Micros
+	// CustomCopperPriceMicros is the CCS 30% price per kg the custom margin was typed
+	// as, when it was (issue #38): that price, not the margin, then prices the draft.
+	CustomCopperPriceMicros *money.Micros
 	// SeriesFamily is the product familia the quote's series belongs to, "" when the
 	// series has no familia or the familia is free-lines-only: the builder's product
 	// search defaults to it. SeriesTerms is that series' current terms block, one term
@@ -158,7 +161,7 @@ const quoteSelectCols = `
 	q.subtotal, q.iva, q.total, q.terms_snapshot, q.created_at,
 	q.issued_at, q.valid_until, q.supersedes_quote_id, q.customer_name_snapshot,
 	q.vendedor_snapshot, q.pdf_sha256, q.margin_option_id, q.margin_name_snapshot,
-	q.margin_snapshot_micros, q.custom_margin_micros,
+	q.margin_snapshot_micros, q.custom_margin_micros, q.custom_copper_price_micros,
 	(SELECT o.folio FROM quotes o WHERE o.id = q.supersedes_quote_id),
 	(SELECT r.folio FROM quotes r WHERE r.supersedes_quote_id = q.id),
 	CASE WHEN f.free_lines_only = 0 THEN f.name END, COALESCE(f.terms, ''), COALESCE(q.delivery_time, ''),
@@ -177,12 +180,12 @@ func scanQuote(row interface{ Scan(...any) error }) (*Quote, error) {
 	var q Quote
 	var termsSnapshot, issuedAt, validUntil, customerNameSnapshot, vendedorSnapshot, pdfSHA256 sql.NullString
 	var supersedesFolio, supersededByFolio, seriesFamily sql.NullString
-	var supersedesQuoteID, marginOptionID, marginSnapshotMicros, customMarginMicros, projectID sql.NullInt64
+	var supersedesQuoteID, marginOptionID, marginSnapshotMicros, customMarginMicros, customCopperPrice, projectID sql.NullInt64
 	var marginNameSnapshot sql.NullString
 	err := row.Scan(&q.ID, &q.Folio, &q.Prefix, &q.CustomerID, &q.CustomerName, &q.UserID, &q.UserName,
 		&q.Status, &q.Subtotal, &q.IVA, &q.Total, &termsSnapshot, &q.CreatedAt,
 		&issuedAt, &validUntil, &supersedesQuoteID, &customerNameSnapshot, &vendedorSnapshot, &pdfSHA256,
-		&marginOptionID, &marginNameSnapshot, &marginSnapshotMicros, &customMarginMicros,
+		&marginOptionID, &marginNameSnapshot, &marginSnapshotMicros, &customMarginMicros, &customCopperPrice,
 		&supersedesFolio, &supersededByFolio, &seriesFamily, &q.SeriesTerms, &q.DeliveryTime,
 		&q.Currency, &q.SeriesFreeLines,
 		&projectID, &q.ProjectFolio, &q.Stage, &q.Probability, &q.ExtraTerms)
@@ -226,6 +229,10 @@ func scanQuote(row interface{ Scan(...any) error }) (*Quote, error) {
 	if customMarginMicros.Valid {
 		m := money.Micros(customMarginMicros.Int64)
 		q.CustomMarginMicros = &m
+	}
+	if customCopperPrice.Valid {
+		p := money.Micros(customCopperPrice.Int64)
+		q.CustomCopperPriceMicros = &p
 	}
 	if marginSnapshotMicros.Valid {
 		m := money.Micros(marginSnapshotMicros.Int64)
@@ -422,7 +429,7 @@ func (s *Store) ListQuoteLines(ctx context.Context, quoteID int64) ([]QuoteLine,
 // (see migrations/0004_audit_log.sql), but quotes is, so the totals UPDATE below stamps
 // the actor first via stampActor — this method can't just call s.exec for it, since
 // that write has to share this transaction with the quote_lines delete+reinsert.
-func (s *Store) ReplaceQuoteLines(ctx context.Context, quoteID int64, marginOptionID *int64, customMargin *money.Micros, lines []QuoteLine, totals pricing.Totals) error {
+func (s *Store) ReplaceQuoteLines(ctx context.Context, quoteID int64, marginOptionID *int64, customMargin *CustomMargin, lines []QuoteLine, totals pricing.Totals) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("store: replace quote lines for quote %d: %w", quoteID, err)
@@ -461,21 +468,31 @@ func (s *Store) ReplaceQuoteLines(ctx context.Context, quoteID int64, marginOpti
 	if marginOptionID != nil {
 		marginArg = *marginOptionID
 	}
-	var customArg any
+	var customArg, copperArg any
 	if customMargin != nil {
-		customArg = int64(*customMargin)
+		customArg = int64(customMargin.Micros)
+		if customMargin.CopperPrice != nil {
+			copperArg = int64(*customMargin.CopperPrice)
+		}
 	}
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE quotes SET subtotal = ?, iva = ?, total = ?,
 			margin_option_id = COALESCE(?, margin_option_id),
-			custom_margin_micros = ?
+			custom_margin_micros = ?, custom_copper_price_micros = ?
 		WHERE id = ?`,
-		int64(totals.Subtotal), int64(totals.IVA), int64(totals.Total), marginArg, customArg, quoteID,
+		int64(totals.Subtotal), int64(totals.IVA), int64(totals.Total), marginArg, customArg, copperArg, quoteID,
 	); err != nil {
 		return fmt.Errorf("store: replace quote lines for quote %d: update totals: %w", quoteID, err)
 	}
 
 	return tx.Commit()
+}
+
+// CustomMargin is a draft's margin of its own ("Otro margen"): the fraction it prices
+// with and, when it was typed as the CCS 30% price per kg, that exact price.
+type CustomMargin struct {
+	Micros      money.Micros
+	CopperPrice *money.Micros
 }
 
 // SetQuoteTermsInputs saves what a draft's terms and series ask the salesperson for: the
@@ -720,10 +737,10 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 		return nil, ErrQuoteNotIssued
 	}
 	res, err = tx.ExecContext(ctx, `
-		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, supersedes_quote_id, margin_option_id, custom_margin_micros, delivery_time, currency, project_id, extra_terms)
-		VALUES (?, ?, ?, ?, 'borrador', ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''))`,
+		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, supersedes_quote_id, margin_option_id, custom_margin_micros, custom_copper_price_micros, delivery_time, currency, project_id, extra_terms)
+		VALUES (?, ?, ?, ?, 'borrador', ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''))`,
 		newFolio, original.Prefix, original.CustomerID, userID, originalID,
-		original.MarginOptionID, original.CustomMarginMicros, original.DeliveryTime, original.Currency,
+		original.MarginOptionID, original.CustomMarginMicros, original.CustomCopperPriceMicros, original.DeliveryTime, original.Currency,
 		original.ProjectID, original.ExtraTerms,
 	)
 	if err != nil {

@@ -61,6 +61,11 @@ type draftMargin struct {
 	option *store.MarginOption
 	custom *money.Micros
 	picker views.MarginPicker
+	// copperPrice is set when the custom margin was typed as the copper price per kg
+	// (issue #38): that exact price, against copperCost, prices the lines; custom is the
+	// margin it implies.
+	copperPrice *money.Micros
+	copperCost  money.Micros
 	// badCustom is set when "Otro margen" is picked with a percentage that can't be used
 	// (empty, out of range, too many decimals): the draft can't be saved or issued, rather
 	// than falling back to its saved menu option.
@@ -101,6 +106,23 @@ func (m draftMargin) name() string {
 	return ""
 }
 
+// customRow is the custom margin to save onto the draft, nil when it has none.
+func (m draftMargin) customRow() *store.CustomMargin {
+	if m.custom == nil {
+		return nil
+	}
+	return &store.CustomMargin{Micros: *m.custom, CopperPrice: m.copperPrice}
+}
+
+// unitPrice prices a catalog product with the margin: from the typed copper price when
+// there is one, else cost / (1 - margin).
+func (m draftMargin) unitPrice(p pricing.Product) (money.Micros, error) {
+	if m.usable() && m.custom != nil && m.copperPrice != nil {
+		return pricing.UnitPriceAtPrice(p, m.copperCost, *m.copperPrice)
+	}
+	return pricing.UnitPrice(p, m.value())
+}
+
 // id is the option to save onto the draft, or nil to leave its current one.
 func (m draftMargin) id() *int64 {
 	if m.option == nil {
@@ -117,17 +139,16 @@ func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url
 	// (QA, QS, QI); QL prices each line with its own margin instead.
 	allowCustom := !quote.SeriesFreeLines
 	selected := quote.MarginOptionID
-	var custom *money.Micros
+	var custom, savedCustom, savedPrice *money.Micros
 	if allowCustom {
-		custom = quote.CustomMarginMicros
+		savedCustom, savedPrice = quote.CustomMarginMicros, quote.CustomCopperPriceMicros
 	}
-	customMode := custom != nil
+	customMode := savedCustom != nil
 	submitted := false
 	if v, ok := form["margin_option_id"]; ok && len(v) > 0 {
 		v0 := strings.TrimSpace(v[0])
 		customMode = allowCustom && v0 == views.CustomMarginValue
 		submitted = true
-		custom = nil
 		if id, err := strconv.ParseInt(v0, 10, 64); err == nil {
 			selected = &id
 		}
@@ -168,21 +189,54 @@ func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url
 			m.picker.CopperName = copper.Name
 			m.picker.CopperCost = views.CopperPriceText(copper.PriceMicros)
 		}
+		// The saved margin, as the builder shows it. A saved price per kg (issue #38)
+		// wins over the saved margin: if the copper cost has moved, the margin follows.
+		var price *money.Micros
 		var errMsg string
+		var shown views.MarginPicker
+		if savedCustom != nil {
+			custom = savedCustom
+			if savedPrice != nil && copper != nil {
+				price = savedPrice
+				custom, errMsg = marginFromCopperPrice(*savedPrice, copper)
+			}
+			display := *savedCustom
+			if custom != nil {
+				display = *custom
+			}
+			shown.SetMarginDisplay(display, price, copper)
+		}
 		pctRaw, copperRaw := strings.TrimSpace(form.Get("margin_pct")), strings.TrimSpace(form.Get("copper_price"))
 		if submitted {
-			custom, errMsg = parseCustomMargin(form.Get("margin_edited"), pctRaw, copperRaw, copper)
+			edited := form.Get("margin_edited")
+			// margin_edited is empty when neither field was typed in since the page
+			// loaded (or without JS): a field still showing the saved margin keeps it,
+			// so a percentage shown rounded from a price isn't re-read as a typed one.
+			switch {
+			case edited == "" && savedCustom != nil && pctRaw == shown.CustomPct && copperRaw == shown.CopperPrice:
+				// unchanged: keep the saved margin (or its error)
+			case edited == "" && savedCustom != nil && pctRaw == shown.CustomPct:
+				custom, price, errMsg = parseCustomMargin("copper", pctRaw, copperRaw, copper)
+			default:
+				custom, price, errMsg = parseCustomMargin(edited, pctRaw, copperRaw, copper)
+			}
 		}
-		m.custom = custom
+		m.custom, m.copperPrice = custom, price
+		if copper != nil {
+			m.copperCost = copper.PriceMicros
+		}
 		if custom != nil {
-			m.picker.SetMarginDisplay(*custom, copper)
+			m.picker.SetMarginDisplay(*custom, price, copper)
 		} else {
 			m.picker.CustomPct, m.picker.CopperPrice = pctRaw, copperRaw
+			if !submitted {
+				m.picker.CustomPct, m.picker.CopperPrice = shown.CustomPct, shown.CopperPrice
+			}
 			if errMsg == "" {
 				errMsg = invalidCustomMarginMsg
 			}
 			m.picker.Error = errMsg
-			m.badCustom = submitted
+			m.badCustom = true
 		}
 		return m, nil
 	}
@@ -203,7 +257,7 @@ func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url
 	// The fields show the chosen option's margin read-only, so the copper price it
 	// implies is always in view.
 	if allowCustom && m.option != nil {
-		m.picker.SetMarginDisplay(m.option.ValueMicros, copper)
+		m.picker.SetMarginDisplay(m.option.ValueMicros, nil, copper)
 	}
 	return m, nil
 }
@@ -214,24 +268,36 @@ const invalidCustomMarginMsg = "Otro margen inválido: escribe un porcentaje de 
 // which one the salesperson touched last ("copper" or anything else for the
 // percentage): the other is derived from it, so they can never disagree. copper is the
 // material the price field is measured against (nil when the catalog has none, in
-// which case only the percentage exists). errMsg is set when the value is unusable.
-func parseCustomMargin(edited, pctRaw, copperRaw string, copper *store.Material) (margin *money.Micros, errMsg string) {
+// which case only the percentage exists). price is set when the copper price was the
+// one typed (issue #38): it then prices the lines exactly. errMsg is set when the value
+// is unusable.
+func parseCustomMargin(edited, pctRaw, copperRaw string, copper *store.Material) (margin, price *money.Micros, errMsg string) {
 	if edited == "copper" && copper != nil {
-		price, err := money.ParseMicros(strings.TrimPrefix(copperRaw, "$"))
-		if err != nil {
-			return nil, "Precio de " + copper.Name + " inválido: escribe un monto por kg, p. ej. 220.00."
+		p, err := money.ParseMicros(amountInput(copperRaw))
+		if err != nil || p%10_000 != 0 {
+			return nil, nil, "Precio de " + copper.Name + " inválido: escribe un monto por kg con hasta 2 decimales, p. ej. 220.00."
 		}
-		m, err := pricing.MarginFromPrice(copper.PriceMicros, price)
-		if err != nil {
-			return nil, "El precio de " + copper.Name + " no puede ser menor que su costo (" + views.CopperPriceText(copper.PriceMicros) + " por kg)."
+		m, errMsg := marginFromCopperPrice(p, copper)
+		if m == nil {
+			return nil, nil, errMsg
 		}
-		return &m, ""
+		return m, &p, ""
 	}
 	// Typed, it takes up to two decimals of a percent (19.85%); one derived from the
-	// copper price above may carry more.
+	// copper price above keeps every decimal it has.
 	m, err := parseMarginPercent(pctRaw)
 	if err != nil || m%100 != 0 {
-		return nil, invalidCustomMarginMsg
+		return nil, nil, invalidCustomMarginMsg
+	}
+	return &m, nil, ""
+}
+
+// marginFromCopperPrice is the margin that sells copper for price, which must be above
+// its cost: at or below it the margin would be zero or negative.
+func marginFromCopperPrice(price money.Micros, copper *store.Material) (*money.Micros, string) {
+	m, err := pricing.MarginFromPrice(copper.PriceMicros, price)
+	if err != nil || price <= copper.PriceMicros {
+		return nil, "El precio de " + copper.Name + " debe ser mayor que su costo (" + views.CopperPriceText(copper.PriceMicros) + " por kg); con ese precio el margen sería cero o negativo."
 	}
 	return &m, ""
 }
@@ -693,7 +759,7 @@ func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput,
 			pp.Materials = append(pp.Materials, pricing.MaterialContent{QtyPerUnit: m.QtyPerUnitMicros, Price: m.Material.PriceMicros})
 			v.Materials = append(v.Materials, m.Material)
 		}
-		unitPrice, err := pricing.UnitPrice(pp, margin.value())
+		unitPrice, err := margin.unitPrice(pp)
 		if err != nil {
 			v.Error = friendlyPricingError(err)
 			result[i] = v
@@ -1044,7 +1110,7 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 			CostMicros:          l.CostMicros,
 		}
 	}
-	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, margin.id(), margin.custom, storeLines, totals); err != nil {
+	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, margin.id(), margin.customRow(), storeLines, totals); err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
@@ -1286,7 +1352,7 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 			CostMicros:          l.CostMicros,
 		}
 	}
-	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, margin.id(), margin.custom, storeLines, totals); err != nil {
+	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, margin.id(), margin.customRow(), storeLines, totals); err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}

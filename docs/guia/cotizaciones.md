@@ -125,8 +125,18 @@ En las cotizaciones **QS** (CCS y AC), junto a **Margen** siempre ves el margen 
 de dos maneras (con uno de la lista, solo de lectura): el porcentaje y el **Precio CCS
 30% ($/kg)**, el precio de venta por kilo del cobre que ese margen implica (costo del
 material ÷ (1 − margen); solo si el catálogo tiene el material *CCS 30%*). Con **Otro
-margen**, escribe en cualquiera de los dos y el otro se actualiza al instante. El precio
-no puede ser menor que el costo del material.
+margen**, escribe en cualquiera de los dos y el otro se actualiza al instante. Manda el
+que escribiste:
+
+- Si escribes el **margen**, aplica la regla de arriba (hasta 2 decimales) y el precio por
+  kilo se calcula.
+- Si escribes el **precio por kilo** (hasta 2 decimales, p. ej. `188.50`), ese precio se
+  respeta exacto en las líneas y en el PDF. El margen se calcula con todos sus decimales:
+  en pantalla lo ves redondeado a 2, p. ej. *Otro margen (12.47%)*, pero los precios
+  salen del precio por kilo que escribiste. El precio debe ser mayor que el costo del
+  material; si es igual o menor, no se puede guardar ni emitir.
+- Una revisión arranca con el mismo precio por kilo. Si el costo del material cambió
+  mientras tanto, el precio se queda y el margen se ajusta.
 
 Las líneas de una cotización **QS** muestran también su peso: **Cantidad (m)**, **Kg por
 metro** (los kilos de material por metro del producto, con 4 decimales) y **Kg**
