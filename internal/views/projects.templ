@@ -376,7 +376,7 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 								if i > 0 {
 									<br/>
 								}
-								<a href={ templ.URL(projectFilePath(p.Folio, f.ID)) }>{ f.Filename }</a>
+								<a href={ templ.URL(projectFilePath(p.Folio, f.ID) + "?descargar=1") }>{ f.Filename }</a>
 								<small>
 									{ " · " + fileSizeText(f.Size) + " · " + f.UploadedByName + " · " }
 									@Timestamp(f.UploadedAt)

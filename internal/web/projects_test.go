@@ -748,12 +748,12 @@ func TestProjectsReceiveOC(t *testing.T) {
 	}
 	id := strconv.FormatInt(files[0].ID, 10)
 	download := func(folio, id string) *httptest.ResponseRecorder {
-		return doForm(t, a, ana, p.Archivo, "GET", "/proyectos/"+folio+"/archivos/"+id, map[string]string{"folio": folio, "id": id}, nil, false)
+		return doForm(t, a, ana, p.Archivo, "GET", "/proyectos/"+folio+"/archivos/"+id+"?descargar=1", map[string]string{"folio": folio, "id": id}, nil, false)
 	}
 	rec = download(folio, id)
 	if rec.Code != http.StatusOK || !bytes.Equal(rec.Body.Bytes(), pdf) || rec.Header().Get("Content-Type") != "application/pdf" ||
 		!strings.HasPrefix(rec.Header().Get("Content-Disposition"), "attachment") || !strings.Contains(rec.Header().Get("Content-Disposition"), "OC 4411.pdf") ||
-		rec.Header().Get("X-Content-Type-Options") != "nosniff" {
+		rec.Header().Get("X-Content-Type-Options") != "nosniff" || rec.Header().Get("Content-Security-Policy") != "sandbox" {
 		t.Errorf("download = %d, headers %v", rec.Code, rec.Header())
 	}
 	other := issueTestQuote(t, a, q, ana, customerID, costProductID)

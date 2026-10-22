@@ -3,7 +3,6 @@ package web
 import (
 	"errors"
 	"io"
-	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -502,12 +501,7 @@ func (p *Projects) Archivo(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": file.Filename}))
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Cache-Control", "private, no-store")
-	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-	w.Write(data)
+	serveUploadedFile(w, r, file.Filename, file.ContentType, data)
 }
 
 // documentForm reads a hand-typed fiscal document from a form: "folio" and "fecha" (a
