@@ -37,6 +37,21 @@ jobs:
 
       - run: go vet ./...
 
+      - name: staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+
+      # Fails only on vulnerabilities the code actually reaches; the usual fix is a newer
+      # go directive in go.mod or a dependency bump.
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+      # The generated *_templ.go files are committed; regenerating with go.mod's templ
+      # must not change them.
+      - name: templ files in sync
+        run: |
+          go run github.com/a-h/templ/cmd/templ@$(go list -m -f '{{.Version}}' github.com/a-h/templ) generate
+          git diff --exit-code -- '*_templ.go'
+
       - run: go test ./...
 
   build-push:
