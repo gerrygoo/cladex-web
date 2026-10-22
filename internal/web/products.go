@@ -69,6 +69,28 @@ func (f ProductForm) Validate() map[string]string {
 	return errs
 }
 
+// requireWeight adds a kg_per_m error to errs when the form files the product under the
+// QG familia without a Peso: there its price per metre is its cost per kg × that weight
+// (issue #37).
+func (p *Products) requireWeight(ctx context.Context, f ProductForm, errs map[string]string) error {
+	if errs["family_id"] != "" || errs["kg_per_m"] != "" {
+		return nil
+	}
+	if kg, err := money.ParseMicros(f.KgPerM); f.KgPerM != "" && err == nil && kg > 0 {
+		return nil
+	}
+	families, err := p.store.ListFamilies(ctx)
+	if err != nil {
+		return err
+	}
+	for _, fam := range families {
+		if strconv.FormatInt(fam.ID, 10) == f.FamilyID && fam.Series == views.KgPricedSeries {
+			errs["kg_per_m"] = "El peso es obligatorio en la serie " + views.KgPricedSeries + ": el precio por metro sale del costo por kg × el peso. Escríbelo en kg/m, p. ej. 0.3896."
+		}
+	}
+	return nil
+}
+
 func (f ProductForm) toValues() views.ProductFormValues {
 	return views.ProductFormValues{
 		FamilyID:    f.FamilyID,
@@ -200,6 +222,10 @@ func (p *Products) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	form := parseProductForm(r)
 	fieldErrors := form.Validate()
+	if err := p.requireWeight(ctx, form, fieldErrors); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
 
 	if fieldErrors["sku"] == "" {
 		existing, err := p.store.ProductBySKU(ctx, form.SKU)
@@ -448,6 +474,10 @@ func (p *Products) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	form := parseProductForm(r)
 	fieldErrors := form.Validate()
+	if err := p.requireWeight(ctx, form, fieldErrors); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
 
 	if fieldErrors["sku"] == "" {
 		existing, err := p.store.ProductBySKU(ctx, form.SKU)

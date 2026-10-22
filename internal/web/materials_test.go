@@ -263,3 +263,130 @@ func TestQuoteCCSShowsKg(t *testing.T) {
 		t.Error("a QA quote shows weights")
 	}
 }
+
+// A QG quote prices like a CCS one, per metre from kg (issue #37): the product's cost is
+// per kg, a metre holds its Peso of it, and the quote's margin applies on top. The line
+// shows its weight, the PDF has the CCS columns, the proyecto earns the margin, and a
+// product without a Peso can't be quoted.
+func TestQuoteQGPricesPerMetreFromKg(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	ctx := context.Background()
+	familyID, err := a.store.CreateFamily(ctx, store.Family{Name: "Alumoclad", Series: "QG",
+		SeriesLabel: "Cable Alumoclad 7#8 AWG hilo de guarda", Terms: "Precios en pesos mexicanos (MXN), no incluyen IVA"})
+	if err != nil {
+		t.Fatalf("CreateFamily: %v", err)
+	}
+	cost, kg := money.Micros(95_000_000), money.Micros(389_600)
+	alcID, err := a.store.CreateProduct(ctx, store.Product{FamilyID: familyID, SKU: "ALC-C7#8",
+		Description: "Cable Alumoclad 7#8 AWG", CostMicros: &cost, KgPerMMicros: &kg})
+	if err != nil {
+		t.Fatalf("CreateProduct: %v", err)
+	}
+	noWeightID, err := a.store.CreateProduct(ctx, store.Product{FamilyID: familyID, SKU: "ALC-SIN-PESO",
+		Description: "Alumoclad sin peso", CostMicros: &cost})
+	if err != nil {
+		t.Fatalf("CreateProduct: %v", err)
+	}
+	marginID, err := a.store.CreateMarginOption(ctx, "Diez", 100_000, userID)
+	if err != nil {
+		t.Fatalf("CreateMarginOption: %v", err)
+	}
+
+	draft, err := a.store.CreateDraftQuote(ctx, customerID, userID, "QG")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+	form := costLineForm(alcID, marginID)
+	form.Set("lines[0][qty]", "1000")
+	rec := doForm(t, a, userID, q.Recalcular, "POST", "/cotizaciones/"+draft.Folio+"/recalcular",
+		map[string]string{"folio": draft.Folio}, form, true)
+	body := rec.Body.String()
+	// $95/kg × 0.3896 kg/m = $37.012 per metre; ÷ (1 − 0.10) = $41.1244, $41.12 shown;
+	// 1,000 m of it is $41,124.44 and 389.60 kg.
+	for _, want := range []string{"Cantidad (m)", "<td class=\"num\">0.3896</td>", "<td class=\"num\">389.60</td>",
+		"<td class=\"num\">$41.12</td>", "<td class=\"num\">$41,124.44</td>"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Recalcular missing %q: %s", want, body)
+		}
+	}
+
+	rec = doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+draft.Folio+"/emitir",
+		map[string]string{"folio": draft.Folio}, form, false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	issued, err := a.store.QuoteByFolio(ctx, draft.Folio)
+	if err != nil || issued == nil {
+		t.Fatalf("QuoteByFolio: %v", err)
+	}
+	persisted, err := a.store.ListQuoteLines(ctx, issued.ID)
+	if err != nil || len(persisted) != 1 {
+		t.Fatalf("ListQuoteLines = %+v, %v", persisted, err)
+	}
+	if persisted[0].UnitPriceMicros != 41_124_444 || persisted[0].LineTotal != 41_124_44 {
+		t.Errorf("issued line = %+v, want $41.124444/m and $41,124.44", persisted[0])
+	}
+	if in := *persisted[0].PricingInputsJSON; !strings.Contains(in, `"cost":"95"`) || !strings.Contains(in, `"kg_per_unit":"0.3896"`) {
+		t.Errorf("pricing_inputs = %s, want the cost per kg and the weight", in)
+	}
+	doc, err := issuedQuoteDocument(*issued, persisted)
+	if err != nil {
+		t.Fatalf("issuedQuoteDocument: %v", err)
+	}
+	if !doc.ShowKg || doc.Lines[0].KgPerUnit != "0.3896" || doc.Lines[0].Kg != "389.60" || doc.Lines[0].UnitPrice != "$41.12" {
+		t.Errorf("PDF document = %+v, want the CCS columns", doc)
+	}
+	// It earns the margin on the price: 10% of $41,124.44.
+	project, _ := a.store.ProjectByFolio(ctx, issued.ProjectFolio)
+	if project == nil || project.Profit != 4_112_44 {
+		t.Fatalf("proyecto profit = %+v, want $4,112.44", project)
+	}
+
+	other, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QG")
+	form = costLineForm(noWeightID, marginID)
+	rec = doForm(t, a, userID, q.Recalcular, "POST", "/cotizaciones/"+other.Folio+"/recalcular",
+		map[string]string{"folio": other.Folio}, form, true)
+	// Quoted verbatim in docs/guia/cotizaciones.md's Problemas comunes.
+	if !strings.Contains(rec.Body.String(), "Este producto no tiene Peso (kg/m) y en esta serie el precio por metro sale de él. Quítalo de la cotización y captura su peso en Productos.") {
+		t.Errorf("a product without a weight was priced: %s", rec.Body.String())
+	}
+	rec = doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+other.Folio+"/guardar",
+		map[string]string{"folio": other.Folio}, form, false)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Errorf("Guardar with a weightless QG product = %d, want 422", rec.Code)
+	}
+}
+
+// A QG product needs its Peso, which its price per metre comes from (issue #37); other
+// familias still take it as optional.
+func TestProductQGRequiresWeight(t *testing.T) {
+	a := newTestAuth(t)
+	p := newTestProducts(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	ctx := context.Background()
+	qgID, err := a.store.CreateFamily(ctx, store.Family{Name: "Alumoclad", Series: "QG", SeriesLabel: "Alumoclad", Terms: "Precios en MXN"})
+	if err != nil {
+		t.Fatalf("CreateFamily: %v", err)
+	}
+	otherID := seedFamily(t, a, "CCA")
+	form := func(family int64, sku, kg string) url.Values {
+		return url.Values{"family_id": {itoa(family)}, "sku": {sku}, "description": {"Cable"}, "cost": {"95"}, "kg_per_m": {kg}}
+	}
+	// Quoted verbatim in docs/guia/productos.md's Problemas comunes.
+	const msg = "El peso es obligatorio en la serie QG: el precio por metro sale del costo por kg × el peso. Escríbelo en kg/m, p. ej. 0.3896."
+	for _, kg := range []string{"", "0"} {
+		rec := doForm(t, a, userID, p.Create, "POST", "/productos/nuevo", nil, form(qgID, "ALC-1", kg), false)
+		if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), msg) {
+			t.Errorf("QG product with Peso %q: status %d", kg, rec.Code)
+		}
+	}
+	if rec := doForm(t, a, userID, p.Create, "POST", "/productos/nuevo", nil, form(qgID, "ALC-1", "0.3896"), false); rec.Code != http.StatusSeeOther {
+		t.Errorf("QG product with a Peso: status %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if rec := doForm(t, a, userID, p.Create, "POST", "/productos/nuevo", nil, form(otherID, "CCA-1", ""), false); rec.Code != http.StatusSeeOther {
+		t.Errorf("CCA product without a Peso: status %d; body = %s", rec.Code, rec.Body.String())
+	}
+}
