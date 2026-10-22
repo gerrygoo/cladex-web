@@ -537,11 +537,13 @@ func friendlyPricingError(err error) string {
 
 // pricingInputsSnapshot is the JSON shape stored in quote_lines.pricing_inputs — the
 // inputs that produced a product line's price, per docs/PLAN.md's "Quote persistence"
-// design: its flat cost and/or materials, and the margin applied to them.
+// design: its flat cost and/or materials, and the margin applied to them. KgPerUnit is
+// set on a QG line, whose Cost is per kg and is multiplied by it (issue #37).
 type pricingInputsSnapshot struct {
 	Margin       string                   `json:"margin"`
 	MarginOption string                   `json:"margin_option,omitempty"`
 	Cost         string                   `json:"cost,omitempty"`
+	KgPerUnit    string                   `json:"kg_per_unit,omitempty"`
 	Materials    []materialInputsSnapshot `json:"materials,omitempty"`
 }
 
@@ -554,11 +556,15 @@ type materialInputsSnapshot struct {
 }
 
 // buildPricingInputsJSON records what produced a product line's price: the product's
-// flat cost and materials, and the quote's margin option by name and value.
-func buildPricingInputsJSON(p *store.Product, materials []store.ProductMaterial, margin money.Micros, marginName string) *string {
+// flat cost (per kg when kgPerM is set) and materials, and the quote's margin option by
+// name and value.
+func buildPricingInputsJSON(p *store.Product, materials []store.ProductMaterial, kgPerM *money.Micros, margin money.Micros, marginName string) *string {
 	snap := pricingInputsSnapshot{Margin: margin.String(), MarginOption: marginName}
 	if p.CostMicros != nil {
 		snap.Cost = p.CostMicros.String()
+	}
+	if kgPerM != nil {
+		snap.KgPerUnit = kgPerM.String()
 	}
 	for _, m := range materials {
 		snap.Materials = append(snap.Materials, materialInputsSnapshot{
@@ -577,9 +583,9 @@ func buildPricingInputsJSON(p *store.Product, materials []store.ProductMaterial,
 }
 
 // kgPerUnit is the kg of material in one unit of a product line, from its pricing
-// inputs: the materials priced per kg, added up (e.g. 0.1723 kg of CCS 30% per m). It
-// reads what the line was priced from, so an issued quote keeps its weights even if the
-// catalog changes. nil for a line without any.
+// inputs: a QG line's weight plus the materials priced per kg, added up (e.g. 0.1723 kg
+// of CCS 30% per m). It reads what the line was priced from, so an issued quote keeps
+// its weights even if the catalog changes. nil for a line without any.
 func kgPerUnit(inputs *string) *money.Micros {
 	if inputs == nil {
 		return nil
@@ -590,6 +596,13 @@ func kgPerUnit(inputs *string) *money.Micros {
 	}
 	var kg money.Micros
 	found := false
+	if snap.KgPerUnit != "" {
+		q, err := money.ParseMicros(snap.KgPerUnit)
+		if err != nil {
+			return nil
+		}
+		kg, found = q, true
+	}
 	for _, m := range snap.Materials {
 		if m.Unit != "kg" {
 			continue
@@ -635,6 +648,10 @@ func freeLineInputsJSON(cost, margin money.Micros) *string {
 	return &str
 }
 
+// noWeightMsg is a QG line's error for a product without a Peso (kg/m), which its price
+// per metre can't do without (issue #37).
+const noWeightMsg = "Este producto no tiene Peso (kg/m) y en esta serie el precio por metro sale de él. Quítalo de la cotización y captura su peso en Productos."
+
 const invalidLineMarginMsg = "Margen inválido: escribe un porcentaje de 0 a 99.99, con hasta 2 decimales, p. ej. 10."
 
 // parseLineMargin reads a QL line's margin, typed as a percentage ("10" is 10%) with up
@@ -656,8 +673,9 @@ func parseLineMargin(raw string) (money.Micros, error) {
 // margin, rounded to whole centavos, instead of a typed price (issue #27); elsewhere a
 // free line keeps its typed price and may carry an optional cost. A product outside
 // family (the series family, when it has one) is a row error: a quote only takes its
-// own family's products (issue #33).
-func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput, margin draftMargin, freeLinesOnly bool, family string) []views.QuoteLineView {
+// own family's products (issue #33). kgPriced (QG, issue #37) quotes products per metre
+// from their cost per kg and Peso (kg/m), as CCS prices its materials.
+func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput, margin draftMargin, freeLinesOnly bool, family string, kgPriced bool) []views.QuoteLineView {
 	result := make([]views.QuoteLineView, len(inputs))
 	for i, in := range inputs {
 		v := views.QuoteLineView{Key: in.Key, IsFree: in.Kind == "free", QtyRaw: in.Qty}
@@ -755,6 +773,21 @@ func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput,
 		v.UnitCode = product.UnitCode
 
 		pp := pricing.Product{CostMicros: product.CostMicros}
+		var kgPerM *money.Micros
+		if kgPriced {
+			// The cost is per kg: a metre holds Peso kg of it, like a CCS material.
+			if product.KgPerMMicros == nil || *product.KgPerMMicros <= 0 {
+				v.Error = noWeightMsg
+				result[i] = v
+				continue
+			}
+			kgPerM = product.KgPerMMicros
+			pp.CostMicros = nil
+			if product.CostMicros != nil {
+				pp.Materials = append(pp.Materials, pricing.MaterialContent{QtyPerUnit: *kgPerM, Price: *product.CostMicros})
+			}
+			v.UnitCode = "m"
+		}
 		for _, m := range materials {
 			pp.Materials = append(pp.Materials, pricing.MaterialContent{QtyPerUnit: m.QtyPerUnitMicros, Price: m.Material.PriceMicros})
 			v.Materials = append(v.Materials, m.Material)
@@ -767,7 +800,7 @@ func (q *Quotes) computeQuoteLines(ctx context.Context, inputs []quoteLineInput,
 		}
 		v.UnitPriceMicros = unitPrice
 		v.LineTotal = money.LineTotalCentavos(unitPrice, qty)
-		v.PricingInputsJSON = buildPricingInputsJSON(product, materials, *margin.value(), margin.name())
+		v.PricingInputsJSON = buildPricingInputsJSON(product, materials, kgPerM, *margin.value(), margin.name())
 		v.KgPerUnit = kgPerUnit(v.PricingInputsJSON)
 		result[i] = v
 	}
@@ -880,7 +913,7 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "error interno", http.StatusInternalServerError)
 			return
 		}
-		lines = q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, quote.SeriesFreeLines, quote.SeriesFamily)
+		lines = q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.Prefix == views.KgPricedSeries)
 		totals = computeQuoteTotals(lines)
 	} else {
 		lines = frozenQuoteLines(persisted)
@@ -1032,7 +1065,7 @@ func (q *Quotes) Recalcular(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	takeTermsInputs(r, quote)
-	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin, quote.SeriesFreeLines, quote.SeriesFamily)
+	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.Prefix == views.KgPricedSeries)
 	totals := computeQuoteTotals(lines)
 
 	if r.Header.Get("HX-Request") == "true" {
@@ -1083,7 +1116,7 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	takeTermsInputs(r, quote)
-	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin, quote.SeriesFreeLines, quote.SeriesFamily)
+	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.Prefix == views.KgPricedSeries)
 	totals := computeQuoteTotals(lines)
 
 	if margin.badCustom {
@@ -1261,7 +1294,7 @@ func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "error interno", http.StatusInternalServerError)
 			return
 		}
-		lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, quote.SeriesFreeLines, quote.SeriesFamily)
+		lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.Prefix == views.KgPricedSeries)
 		doc = draftQuoteDocument(*quote, lines, computeQuoteTotals(lines))
 	} else {
 		doc, err = issuedQuoteDocument(*quote, persisted)
@@ -1321,7 +1354,7 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	takeTermsInputs(r, quote)
-	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin, quote.SeriesFreeLines, quote.SeriesFamily)
+	lines := q.computeQuoteLines(ctx, parseQuoteLineInputs(r), margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.Prefix == views.KgPricedSeries)
 	totals := computeQuoteTotals(lines)
 
 	if missing := missingTermsInputs(quote, time.Now()); len(missing) > 0 {

@@ -385,7 +385,7 @@ templ QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricin
 			<p class="error">{ marginError }</p>
 		}
 		<div class="table-scroll">
-			<table>
+			<table class={ templ.KV("kg-lines", kg) }>
 				<caption class="visually-hidden">Líneas de la cotización</caption>
 				<thead>
 					<tr>
@@ -542,7 +542,7 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals, kg bool) 
 		{{ lead += 2 }}
 	}
 	<div class="table-scroll">
-		<table>
+		<table class={ templ.KV("kg-lines", kg) }>
 			<thead>
 				<tr>
 					<th class="num">Partida</th>

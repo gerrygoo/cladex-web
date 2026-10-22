@@ -733,6 +733,14 @@ td input.num {
   font-variant-numeric: tabular-nums;
 }
 
+/* Lines that show weights center their figures, as the printed quote does (issue #34);
+   the totals below still line up under Total. */
+table.kg-lines thead th.num,
+table.kg-lines tbody td.num,
+table.kg-lines tbody td input.num {
+  text-align: center;
+}
+
 tbody tr:hover {
   background: color-mix(in srgb, var(--surface), var(--rule) 30%);
 }
