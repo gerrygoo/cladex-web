@@ -162,6 +162,10 @@ func (d *Documentos) Archivo(w http.ResponseWriter, r *http.Request) {
 	serveUploadedFile(w, r, doc.Filename, doc.ContentType, data)
 }
 
+// uploadCSP sandboxes an uploaded file shown inline, and replaces securityHeaders' policy
+// for it, so it repeats frame-ancestors.
+const uploadCSP = "sandbox; frame-ancestors 'none'"
+
 // serveUploadedFile sends an uploaded file of the given type (detected at upload) inline
 // or, with ?descargar=1, as a download. Inline it is sandboxed and never sniffed, so it
 // can't run as part of the app.
@@ -172,7 +176,7 @@ func serveUploadedFile(w http.ResponseWriter, r *http.Request, filename, content
 	}
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": filename}))
-	w.Header().Set("Content-Security-Policy", "sandbox")
+	w.Header().Set("Content-Security-Policy", uploadCSP)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))

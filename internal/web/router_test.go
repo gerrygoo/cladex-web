@@ -186,6 +186,20 @@ func TestRoutesAdminReachesAdminRoutes(t *testing.T) {
 	}
 }
 
+// No page may be framed, including the login page and responses RequireAuth redirects.
+func TestPagesRefuseFraming(t *testing.T) {
+	a := newTestAuth(t)
+	mux := newTestMux(t, a)
+
+	for _, path := range []string{"/login", "/cotizaciones"} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest("GET", path, nil))
+		if rec.Header().Get("X-Frame-Options") != "DENY" || rec.Header().Get("Content-Security-Policy") != "frame-ancestors 'none'" {
+			t.Errorf("%s headers = %v, want framing refused", path, rec.Header())
+		}
+	}
+}
+
 // TestPublicRoutes pins the routes that are deliberately outside RequireAuth. /healthz in
 // particular is hit by the NAS deploy check, which has no session.
 func TestPublicRoutes(t *testing.T) {

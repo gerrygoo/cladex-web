@@ -187,5 +187,16 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	// Outermost first: the access log has to see the status the CSRF check produces, and
 	// its panic recovery has to cover everything below it.
 	csrf := http.NewCrossOriginProtection()
-	return AccessLog(logger)(csrf.Handler(mux))
+	return AccessLog(logger)(securityHeaders(csrf.Handler(mux)))
+}
+
+// securityHeaders forbids framing any page, so another site can't overlay the app's
+// buttons with its own (clickjacking). Nothing in the app frames its own pages either.
+// A handler that sets its own Content-Security-Policy has to keep frame-ancestors in it.
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
+		next.ServeHTTP(w, r)
+	})
 }

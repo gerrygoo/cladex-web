@@ -753,7 +753,7 @@ func TestProjectsReceiveOC(t *testing.T) {
 	rec = download(folio, id)
 	if rec.Code != http.StatusOK || !bytes.Equal(rec.Body.Bytes(), pdf) || rec.Header().Get("Content-Type") != "application/pdf" ||
 		!strings.HasPrefix(rec.Header().Get("Content-Disposition"), "attachment") || !strings.Contains(rec.Header().Get("Content-Disposition"), "OC 4411.pdf") ||
-		rec.Header().Get("X-Content-Type-Options") != "nosniff" || rec.Header().Get("Content-Security-Policy") != "sandbox" {
+		rec.Header().Get("X-Content-Type-Options") != "nosniff" || rec.Header().Get("Content-Security-Policy") != uploadCSP {
 		t.Errorf("download = %d, headers %v", rec.Code, rec.Header())
 	}
 	other := issueTestQuote(t, a, q, ana, customerID, costProductID)

@@ -130,7 +130,7 @@ func TestSupplierQuote(t *testing.T) {
 		return doForm(t, a, ana, q.ProveedorArchivo, "GET", "/cotizaciones/"+f+"/proveedor/"+id+query, map[string]string{"folio": f, "id": id}, nil, false)
 	}
 	rec = serve(folio, pdfID, "")
-	if rec.Code != 200 || rec.Header().Get("Content-Type") != "application/pdf" || rec.Header().Get("Content-Security-Policy") != "sandbox" ||
+	if rec.Code != 200 || rec.Header().Get("Content-Type") != "application/pdf" || rec.Header().Get("Content-Security-Policy") != uploadCSP ||
 		!strings.HasPrefix(rec.Header().Get("Content-Disposition"), "inline") || !bytes.Equal(rec.Body.Bytes(), testPDF) {
 		t.Fatalf("open = %d %v", rec.Code, rec.Header())
 	}
