@@ -133,7 +133,7 @@ func (p *Projects) Etapa(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, _ := UserFromContext(ctx)
-	if to != "" && to == store.PrevStage(project.Status) && user.Role != "admin" {
+	if to != "" && to == store.PrevStage(project.Status) && user.Role != store.RoleAdmin {
 		http.Error(w, "solo un administrador puede regresar un proyecto de etapa", http.StatusForbidden)
 		return
 	}

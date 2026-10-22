@@ -681,11 +681,11 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 		if quote.SupersedesFolio != "" {
 			<p>Esta es una revisión de <a href={ templ.URL("/cotizaciones/" + quote.SupersedesFolio) }>{ quote.SupersedesFolio }</a>.</p>
 		}
-		if quote.Status == "borrador" && quote.ProjectID != nil {
+		if quote.Status == store.QuoteBorrador && quote.ProjectID != nil {
 			<p>Proyecto: <a href={ templ.URL(projectPath(quote.ProjectFolio)) }>{ quote.ProjectFolio }</a>. Al emitirla será su cotización vigente.</p>
 		}
 		@Flash(successMsg)
-		if quote.Status == "borrador" {
+		if quote.Status == store.QuoteBorrador {
 			<form
 				id="linea-form"
 				method="post"
@@ -886,13 +886,13 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 				<form method="post" action={ templ.URL(revisarPath(quote.Folio)) }>
 					<button type="submit">Revisar</button>
 				</form>
-			} else if quote.Status == "emitida" {
+			} else if quote.Status == store.QuoteEmitida {
 				if quote.Stage == "perdido" {
 					<p>Esta cotización ya no se puede revisar: su proyecto se marcó como perdido.</p>
 				} else {
 					<p>Esta cotización ya no se puede revisar: su proyecto está en { statusLabel(quote.Stage) }.</p>
 				}
-			} else if quote.Status == "revisada" && quote.SupersededByFolio != "" {
+			} else if quote.Status == store.QuoteRevisada && quote.SupersededByFolio != "" {
 				<p>Esta cotización fue revisada. Ver <a href={ templ.URL("/cotizaciones/" + quote.SupersededByFolio) }>{ quote.SupersededByFolio }</a>.</p>
 			}
 		}
@@ -901,7 +901,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 			<a href={ templ.URL("/cotizaciones/" + quote.Folio + "/pdf") } target="_blank">Descargar PDF</a> ·
 			<a href="/cotizaciones">Volver a cotizaciones</a>
 		</p>
-		if quote.Status == "borrador" {
+		if quote.Status == store.QuoteBorrador {
 			<p class="hint pdf-note" data-unsaved-note>El PDF muestra lo último guardado, sin los cambios de la pantalla.</p>
 		}
 		@QuoteComments(quote.ProjectFolio, comments, commentsLV)
@@ -936,7 +936,7 @@ templ QuoteInfo(quote store.Quote, lines []QuoteLineView) {
 				<a href={ templ.URL(projectPath(quote.ProjectFolio)) }>{ quote.ProjectFolio }</a>
 				{ " " }
 				@StatusBadge(quote.Stage)
-				if quote.Status == "emitida" {
+				if quote.Status == store.QuoteEmitida {
 					<br/>
 					<small>El seguimiento (etapa y probabilidad de cierre) se lleva en el proyecto.</small>
 				}

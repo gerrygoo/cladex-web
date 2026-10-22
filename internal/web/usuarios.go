@@ -59,7 +59,7 @@ func (u *Users) SetRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := r.FormValue("role")
-	if role != "admin" && role != "vendedor" {
+	if role != store.RoleAdmin && role != store.RoleVendedor {
 		u.renderListError(w, r, "Rol inválido.")
 		return
 	}

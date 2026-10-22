@@ -8,7 +8,7 @@ import (
 
 // roleLabel returns the Spanish display label for a users.role value.
 func roleLabel(role string) string {
-	if role == "admin" {
+	if role == store.RoleAdmin {
 		return "Administrador"
 	}
 	return "Vendedor"
@@ -44,15 +44,15 @@ templ UsersList(users []store.User, currentUserID int64, lv ListView, successMsg
 									{ roleLabel(u.Role) }
 								} else {
 									<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/rol") }>
-										if u.Role == "admin" {
+										if u.Role == store.RoleAdmin {
 											<select name="role" aria-label={ "Rol de " + u.Username }>
-												<option value="admin" selected>Administrador</option>
-												<option value="vendedor">Vendedor</option>
+												<option value={ store.RoleAdmin } selected>Administrador</option>
+												<option value={ store.RoleVendedor }>Vendedor</option>
 											</select>
 										} else {
 											<select name="role" aria-label={ "Rol de " + u.Username }>
-												<option value="admin">Administrador</option>
-												<option value="vendedor" selected>Vendedor</option>
+												<option value={ store.RoleAdmin }>Administrador</option>
+												<option value={ store.RoleVendedor } selected>Vendedor</option>
 											</select>
 										}
 										<button type="submit">Guardar rol</button>

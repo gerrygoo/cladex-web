@@ -26,6 +26,14 @@ const KgPricedSeries = "QG"
 // MarginOptionID is the margin a draft is priced with, read live (drafts follow edits to
 // the option); MarginNameSnapshot and MarginSnapshotMicros freeze it at issue. See
 // migrations/0001_init.sql and 0007_margin_options.sql.
+// Quote statuses, as stored in quotes.status: a draft is issued exactly once, and an
+// issued quote is superseded by its revision.
+const (
+	QuoteBorrador = "borrador"
+	QuoteEmitida  = "emitida"
+	QuoteRevisada = "revisada"
+)
+
 type Quote struct {
 	ID                   int64
 	Folio                string
@@ -88,7 +96,7 @@ type Quote struct {
 // and its proyecto is still a prospecto. Once the client's purchase order is in, the
 // quote it answers is locked.
 func (q Quote) Revisable() bool {
-	return q.Status == "emitida" && (q.Stage == "" || q.Stage == "prospecto")
+	return q.Status == QuoteEmitida && (q.Stage == "" || q.Stage == "prospecto")
 }
 
 // QuoteLine is a quote_lines row. ProductID is nil for a free-text ("Cotizador libre")
@@ -766,7 +774,7 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 	if original == nil {
 		return nil, nil
 	}
-	if original.Status != "emitida" {
+	if original.Status != QuoteEmitida {
 		return nil, ErrQuoteNotIssued
 	}
 	if !original.Revisable() {

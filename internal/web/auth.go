@@ -61,7 +61,7 @@ func navUserView(u *store.AuthenticatedUser) *views.NavUser {
 	if u == nil {
 		return nil
 	}
-	return &views.NavUser{Username: u.Username, IsAdmin: u.Role == "admin"}
+	return &views.NavUser{Username: u.Username, IsAdmin: u.Role == store.RoleAdmin}
 }
 
 // RequireAuth redirects to /login unless the request carries a valid, unexpired
@@ -112,7 +112,7 @@ func (a *Auth) RequireAuth(next http.Handler) http.Handler {
 // actions; the routes behind those actions are gated by RequireAdmin regardless.
 func isAdmin(ctx context.Context) bool {
 	user, ok := UserFromContext(ctx)
-	return ok && user.Role == "admin"
+	return ok && user.Role == store.RoleAdmin
 }
 
 // forbiddenMessage is what a vendedor reads on an admin-only action reached by a URL or
@@ -125,7 +125,7 @@ const forbiddenMessage = "No tienes permiso para hacer esto. Solo un administrad
 func (a *Auth) RequireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, ok := UserFromContext(r.Context())
-		if !ok || user.Role != "admin" {
+		if !ok || user.Role != store.RoleAdmin {
 			http.Error(w, forbiddenMessage, http.StatusForbidden)
 			return
 		}

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gerrygoo/cladex-web/internal/guia"
+	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
 
@@ -20,7 +21,7 @@ func NewHelp(g *guia.Guide) *Help {
 
 func (h *Help) Page(w http.ResponseWriter, r *http.Request) {
 	user, _ := UserFromContext(r.Context())
-	isAdmin := user.Role == "admin"
+	isAdmin := user.Role == store.RoleAdmin
 	page, ok := h.guide.Page(r.PathValue("pagina"), isAdmin)
 	if !ok {
 		http.NotFound(w, r)

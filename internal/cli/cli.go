@@ -52,7 +52,7 @@ func userAdd(ctx context.Context, s *store.Store, args []string) error {
 
 	fs := flag.NewFlagSet("user add", flag.ContinueOnError)
 	name := fs.String("name", "", "nombre completo")
-	role := fs.String("role", "vendedor", "admin o vendedor")
+	role := fs.String("role", store.RoleVendedor, "admin o vendedor")
 	if err := fs.Parse(rest); err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func userAdd(ctx context.Context, s *store.Store, args []string) error {
 	if *name == "" {
 		return fmt.Errorf("--name es obligatorio")
 	}
-	if *role != "admin" && *role != "vendedor" {
+	if *role != store.RoleAdmin && *role != store.RoleVendedor {
 		return fmt.Errorf("--role debe ser admin o vendedor")
 	}
 

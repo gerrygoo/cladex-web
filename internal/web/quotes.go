@@ -907,7 +907,7 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 	var lines []views.QuoteLineView
 	var totals pricing.Totals
 	var margin draftMargin
-	if quote.Status == "borrador" {
+	if quote.Status == store.QuoteBorrador {
 		margin, err = q.resolveMargin(ctx, quote, nil)
 		if err != nil {
 			serverError(w, r, err)
@@ -1012,7 +1012,7 @@ func missingTermsInputs(quote *store.Quote, today time.Time) map[string]string {
 func (q *Quotes) renderBuilder(w http.ResponseWriter, r *http.Request, quote *store.Quote, lines []views.QuoteLineView, totals pricing.Totals, margin views.MarginPicker, successMsg string, status int, fieldErrs map[string]string) {
 	ctx := r.Context()
 	var picker views.ProductPicker
-	if quote.Status == "borrador" && !quote.SeriesFreeLines {
+	if quote.Status == store.QuoteBorrador && !quote.SeriesFreeLines {
 		var err error
 		picker, err = q.productPicker(ctx, r, quote)
 		if err != nil {
@@ -1056,7 +1056,7 @@ func (q *Quotes) Recalcular(w http.ResponseWriter, r *http.Request) {
 	if quote == nil {
 		return
 	}
-	if quote.Status != "borrador" {
+	if quote.Status != store.QuoteBorrador {
 		http.Error(w, "esta cotización ya no es editable", http.StatusConflict)
 		return
 	}
@@ -1107,7 +1107,7 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 	if quote == nil {
 		return
 	}
-	if quote.Status != "borrador" {
+	if quote.Status != store.QuoteBorrador {
 		http.Error(w, "esta cotización ya no es editable", http.StatusConflict)
 		return
 	}
@@ -1293,7 +1293,7 @@ func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var doc pdf.QuoteDocument
-	if quote.Status == "borrador" {
+	if quote.Status == store.QuoteBorrador {
 		margin, err := q.resolveMargin(ctx, quote, nil)
 		if err != nil {
 			serverError(w, r, err)
@@ -1345,7 +1345,7 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 	if quote == nil {
 		return
 	}
-	if quote.Status != "borrador" {
+	if quote.Status != store.QuoteBorrador {
 		http.Error(w, "esta cotización ya fue emitida", http.StatusConflict)
 		return
 	}

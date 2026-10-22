@@ -617,7 +617,7 @@ func ProjectPage(p store.Project, today string, quotes []store.Quote, files []st
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if p.CurrentQuoteStatus == "borrador" {
+			if p.CurrentQuoteStatus == store.QuoteBorrador {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "· revisión en borrador, aún sin emitir")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -805,7 +805,7 @@ func ProjectPage(p store.Project, today string, quotes []store.Quote, files []st
 					return templ_7745c5c3_Err
 				}
 				if p.Probability == store.ReceiveOCProbability {
-					if p.CurrentQuoteStatus != "emitida" {
+					if p.CurrentQuoteStatus != store.QuoteEmitida {
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "<p>Para pasarlo a ")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
