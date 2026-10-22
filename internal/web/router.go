@@ -111,6 +111,9 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /cotizaciones/{folio}/emitir", auth.RequireAuth(http.HandlerFunc(quotes.Emitir)))
 	mux.Handle("POST /cotizaciones/{folio}/revisar", auth.RequireAuth(http.HandlerFunc(quotes.Revisar)))
 	mux.Handle("GET /cotizaciones/{folio}/pdf", auth.RequireAuth(http.HandlerFunc(quotes.PDF)))
+	mux.Handle("POST /cotizaciones/{folio}/proveedor", auth.RequireAuth(http.HandlerFunc(quotes.Proveedor)))
+	mux.Handle("GET /cotizaciones/{folio}/proveedor/{id}", auth.RequireAuth(http.HandlerFunc(quotes.ProveedorArchivo)))
+	mux.Handle("POST /cotizaciones/{folio}/proveedor/{id}/eliminar", auth.RequireAuth(http.HandlerFunc(quotes.ProveedorEliminar)))
 
 	mux.Handle("GET /proyectos", auth.RequireAuth(http.HandlerFunc(projects.List)))
 	mux.Handle("GET /proyectos/{folio}", auth.RequireAuth(http.HandlerFunc(projects.Page)))
@@ -122,6 +125,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /proyectos/{folio}/factura", auth.RequireAuth(http.HandlerFunc(projects.Factura)))
 	mux.Handle("POST /proyectos/{folio}/pago", auth.RequireAuth(http.HandlerFunc(projects.Pago)))
 	mux.Handle("GET /proyectos/{folio}/archivos/{id}", auth.RequireAuth(http.HandlerFunc(projects.Archivo)))
+	mux.Handle("POST /proyectos/{folio}/proveedor", auth.RequireAuth(http.HandlerFunc(projects.Proveedor)))
 	mux.Handle("POST /proyectos/{folio}/perder", auth.RequireAuth(http.HandlerFunc(projects.Perder)))
 	mux.Handle("POST /proyectos/{folio}/reabrir", auth.RequireAuth(http.HandlerFunc(projects.Reabrir)))
 

@@ -928,9 +928,14 @@ func (q *Quotes) renderBuilder(w http.ResponseWriter, r *http.Request, quote *st
 	}
 	comments, pager := paginate(r, comments)
 	commentsLV := views.ListView{Base: "/cotizaciones/" + quote.Folio, Pager: pager, Anchor: "comentarios"}
+	supplier, err := supplierQuoteView(r, q.store, quote, "/cotizaciones/"+quote.Folio, "/cotizaciones/"+quote.Folio+"/proveedor")
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
 	user, _ := UserFromContext(ctx)
 	w.WriteHeader(status)
-	views.QuoteBuilder(*quote, lines, totals, margin, successMsg, fieldErrs, picker, comments, commentsLV, navUserView(user)).Render(ctx, w)
+	views.QuoteBuilder(*quote, lines, totals, margin, successMsg, fieldErrs, picker, comments, commentsLV, navUserView(user), supplier).Render(ctx, w)
 }
 
 // amountInput tidies a typed amount for parsing: no "$" and no thousands commas, so

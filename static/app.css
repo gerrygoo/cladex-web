@@ -1420,6 +1420,16 @@ ul.document-list form.inline-form > button[type="submit"] {
   margin-top: 0;
 }
 
+/* Cotización del proveedor (issue #39): the same list, whose remove buttons belong to
+   the section's form instead of a form of their own. */
+ul.document-list button.inline-button {
+  margin: 0 0 0 0.75rem;
+}
+
+section.supplier-quote {
+  margin: 1.5rem 0;
+}
+
 /* A non-production instance (APP_ENV staging or development) says so on every page. */
 p.env-banner {
   margin: 0;
