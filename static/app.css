@@ -1265,7 +1265,31 @@ table.forecast-table th[scope="row"],
 table.forecast-table thead th:first-child {
   position: sticky;
   left: 0;
+  /* Above the Vendedor header, which is positioned for its filter funnel. */
+  z-index: 1;
   background: var(--bg);
+}
+
+/* Smaller type (13.6px, headers 12.75px) and padding than other tables, so a laptop
+   shows No. de proyecto through Precio de venta sin IVA without scrolling (issue #42).
+   Headers may wrap to two lines. */
+table.forecast-table {
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+table.forecast-table th,
+table.forecast-table td {
+  padding: 0.35rem 0.5rem;
+}
+
+table.forecast-table thead th {
+  font-size: 0.75rem;
+  vertical-align: bottom;
+}
+
+table.forecast-table th.col-header:not(:has(.col-filter)) {
+  white-space: normal;
 }
 
 table.forecast-table td,
@@ -1273,18 +1297,39 @@ table.forecast-table th[scope="row"] {
   vertical-align: top;
 }
 
+/* Short values stay on one line; only Cliente and Último comentario wrap. */
 table.forecast-table td {
-  min-width: 7rem;
+  white-space: nowrap;
 }
 
-/* Último comentario: wide enough to read, shown whole (the row grows to fit it) */
-table.forecast-table td.last-comment {
-  min-width: 18rem;
+table.forecast-table td.customer {
+  min-width: 9em;
   white-space: normal;
+}
+
+/* Último comentario: two lines of text that scroll inside the cell, without pulling the
+   page along, with the author and date always showing under them. app.js makes one that
+   overflows a named tab stop and fades its bottom edge until it is read to the end. */
+table.forecast-table td.last-comment {
+  min-width: 24em;
+  white-space: normal;
+}
+
+td.last-comment .comment-body {
+  display: block;
+  max-height: 2.7em;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+}
+
+td.last-comment .comment-body.more {
+  mask-image: linear-gradient(to bottom, #000 60%, rgb(0 0 0 / 0.3));
 }
 
 td.last-comment .comment-meta {
   display: block;
+  font-size: 0.9em;
 }
 
 table.forecast-table tfoot th,

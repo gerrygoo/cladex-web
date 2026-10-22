@@ -233,8 +233,13 @@ Las columnas, en orden:
    último comentario o cambio).
 6. **Costo sin IVA**, **Precio de venta sin IVA**, **Utilidad** (precio menos costo) y
    **Margen** (utilidad entre precio).
-7. **Último comentario**: el más reciente del historial, completo (si es largo, la fila
-   crece para que quepa), con quién lo escribió y cuándo debajo.
+7. **Último comentario**: el más reciente del historial, con quién lo escribió y cuándo
+   debajo. Se ven hasta dos renglones; si es más largo, la orilla de abajo se desvanece y
+   el resto se lee deslizando dentro de la celda (con la rueda del mouse, o con las
+   flechas después de llegar a la celda con Tab). Quién y cuándo se ven siempre.
+
+En una laptop se ven sin deslizar de lado las columnas desde **No. de proyecto** hasta
+**Precio de venta sin IVA**; las demás, deslizando la tabla a la derecha.
 
 La fila **Total** suma costo, precio y utilidad; su margen es la suma de las utilidades
 entre la suma de los precios, no un promedio de márgenes.
