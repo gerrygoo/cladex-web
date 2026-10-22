@@ -131,7 +131,7 @@ func buildQuoteTypst(doc QuoteDocument) string {
 }
 
 // quoteTable is the line-item table of quoteLayout; kgQuoteTable replaces it when the
-// document shows weights.
+// document shows weights, with every column but the description centered (issue #34).
 const quoteTable = `#table(
   columns: (auto, 1fr, auto, auto, auto),
   align: (right, left, right, right, right),
@@ -149,7 +149,7 @@ const quoteTable = `#table(
 
 const kgQuoteTable = `#table(
   columns: (auto, 1fr, auto, auto, auto, auto, auto),
-  align: (right, left, right, right, right, right, right),
+  align: (center, left, center, center, center, center, center),
   stroke: 0.5pt + rgb("#cccccc"),
   fill: (col, row) => if row == 0 { rgb("#AC5424") } else { white },
   table.header(

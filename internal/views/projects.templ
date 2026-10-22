@@ -620,7 +620,7 @@ templ ForecastPage(f Forecast, lv ListView, owners []string, user *NavUser) {
 						for _, p := range f.Projects {
 							<tr id={ "p-" + p.Folio }>
 								<th scope="row"><a href={ templ.URL(projectPath(p.Folio)) }>{ p.Folio }</a></th>
-								<td>{ p.CustomerName }</td>
+								<td class="customer">{ p.CustomerName }</td>
 								<td>{ p.UserName }</td>
 								<td>
 									{ probabilityText(p.Probability) }
