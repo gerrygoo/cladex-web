@@ -225,7 +225,8 @@ func TestQuoteCCSShowsKg(t *testing.T) {
 		map[string]string{"folio": draft.Folio}, form, true)
 	body := rec.Body.String()
 	// 1,250 m × 0.1723 kg/m = 215.375 kg, rounded to 215.38.
-	for _, want := range []string{"Cantidad (m)", "Kg por metro", "<td class=\"num\">0.1723</td>", "<td class=\"num\">215.38</td>"} {
+	// The weight table is centered (issue #34); app.css keys it on kg-lines.
+	for _, want := range []string{`<table class="kg-lines">`, "Cantidad (m)", "Kg por metro", "<td class=\"num\">0.1723</td>", "<td class=\"num\">215.38</td>"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("Recalcular missing %q: %s", want, body)
 		}
@@ -258,7 +259,7 @@ func TestQuoteCCSShowsKg(t *testing.T) {
 	other, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QA")
 	rec = doForm(t, a, userID, q.Recalcular, "POST", "/cotizaciones/"+other.Folio+"/recalcular",
 		map[string]string{"folio": other.Folio}, costLineForm(flatProductID, ccsMargin.ID), true)
-	if strings.Contains(rec.Body.String(), "Kg por metro") {
+	if strings.Contains(rec.Body.String(), "Kg por metro") || strings.Contains(rec.Body.String(), "kg-lines") {
 		t.Error("a QA quote shows weights")
 	}
 }

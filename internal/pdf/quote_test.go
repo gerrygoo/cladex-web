@@ -154,7 +154,8 @@ func TestQuoteTypstShowsKg(t *testing.T) {
 	}
 	doc.ShowKg = true
 	kg := buildQuoteTypst(doc)
-	for _, want := range []string{"[Cantidad (m)]", "[Kg por metro]", "[Kg]", `"0.1723", "215.38"`} {
+	for _, want := range []string{"[Cantidad (m)]", "[Kg por metro]", "[Kg]", `"0.1723", "215.38"`,
+		"align: (center, left, center, center, center, center, center)"} {
 		if !strings.Contains(kg, want) {
 			t.Errorf("kg layout is missing %q", want)
 		}
