@@ -1,8 +1,14 @@
 # Productos
 
-El catálogo del que salen los precios de las cotizaciones. Vendedores y administradores
-pueden editarlo, así que cualquier cambio aquí afecta los precios de **todos** los
-borradores que incluyen el producto.
+El catálogo del que salen los precios de las cotizaciones. Cualquier usuario puede dar de
+alta un producto, pero una vez creado **solo un administrador** puede editarlo (precio,
+costo, materiales, conversiones o cualquier otro dato) o eliminarlo, porque cualquier
+cambio aquí afecta los precios de **todos** los borradores que incluyen el producto.
+
+Si eres vendedor, en la lista verás **Ver** en lugar de **Editar** y **Eliminar**: el
+producto se abre en solo lectura, con *"Solo un administrador puede modificar o eliminar
+este producto."* Si encuentras un dato equivocado, pídele a un administrador que lo
+corrija.
 
 ## Buscar un producto
 
@@ -60,11 +66,14 @@ convertido a pesos.
    **Peso (kg/m)**, solo informativo, p. ej. `0.123`.
 6. Opcional: elige la **Unidad** (p. ej. metro). Aparece junto a la cantidad en las
    cotizaciones.
-7. Haz clic en **Guardar**. Verás *"Producto guardado."*
+7. Haz clic en **Guardar**. Antes de crearlo aparece un cuadro: *"¿Revisaste que todos
+   los datos sean correctos? Una vez creado, solo un administrador podrá modificarlo."*
+   - **Sí, crear producto**: lo crea. Verás *"Producto guardado."*
+   - **Regresar a revisar**: cierra el cuadro sin guardar y deja lo que escribiste.
 
 ## Editar un producto
 
-Por ejemplo, para actualizar un precio o un costo.
+Solo un administrador. Por ejemplo, para actualizar un precio o un costo.
 
 1. [Busca el producto](#buscar-un-producto).
 2. Haz clic en **Editar** en su fila.
@@ -76,7 +85,8 @@ no cambian.
 
 ## Materiales de un producto
 
-Para los productos cuyo costo sale de lo que están hechos (p. ej. Cable CCS & AC). En la
+Para los productos cuyo costo sale de lo que están hechos (p. ej. Cable CCS & AC). Solo un
+administrador los agrega o quita; un vendedor los ve en la página del producto. En la
 página de edición del producto, sección **Materiales**:
 
 1. En **Material**, elige el material (p. ej. *CCS 30% (kg)*). Los materiales los da de
@@ -93,7 +103,8 @@ cambian.
 
 ## Conversiones de unidades
 
-En la página de edición de un producto, sección **Conversiones de unidades**:
+Solo un administrador. En la página de edición de un producto, sección **Conversiones de
+unidades**:
 
 1. En **De**, elige la unidad de origen; en **A**, la de destino.
 2. En **Tasa**, escribe cuántas unidades "A" hay en 1 unidad "De". Por ejemplo, De
@@ -107,6 +118,8 @@ Para quitar una conversión, haz clic en **Eliminar** en su fila.
 > las da de alta un administrador en [Unidades](administracion.md#unidades).
 
 ## Eliminar un producto
+
+Solo un administrador.
 
 1. [Busca el producto](#buscar-un-producto).
 2. Haz clic en **Eliminar** en su fila y confirma *"¿Eliminar este producto?"*.

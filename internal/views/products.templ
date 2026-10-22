@@ -23,6 +23,35 @@ func productPriceDisplay(p store.Product) string {
 	}
 }
 
+// familyName and unitName look up the name of the family or unit a product form's
+// value (an id as text) refers to; "" when it refers to none.
+func familyName(families []store.ProductFamily, id string) string {
+	for _, f := range families {
+		if strconv.FormatInt(f.ID, 10) == id {
+			return f.Name
+		}
+	}
+	return ""
+}
+
+func unitName(units []store.Unit, id string) string {
+	for _, u := range units {
+		if strconv.FormatInt(u.ID, 10) == id {
+			return u.Name
+		}
+	}
+	return ""
+}
+
+// sectionColspan spans a materials or conversions table's empty row across its columns:
+// three, plus the actions column for an admin.
+func sectionColspan(canEdit bool) string {
+	if canEdit {
+		return "4"
+	}
+	return "3"
+}
+
 // ProductEditSections is what the edit form shows below the product's own fields: its
 // unit conversions and its materials, each with the error of a refused change to it.
 // The create form leaves it zero, since those sections need an existing product.
@@ -74,14 +103,16 @@ templ ProductsList(products []store.Product, lv ListView, families []FilterOptio
 						<th><span class="visually-hidden">Acciones</span></th>
 					</tr>
 				</thead>
-				@ProductsTableBody(products)
+				@ProductsTableBody(products, user != nil && user.IsAdmin)
 			</table>
 		</div>
 		@listPager(lv, false)
 	}
 }
 
-templ ProductsTableBody(products []store.Product) {
+// ProductsTableBody lists products. Only an admin may change one once created (issue
+// #41), so a vendedor's row offers "Ver" instead of Editar and Eliminar.
+templ ProductsTableBody(products []store.Product, canEdit bool) {
 	<tbody id="productos-tbody" data-announce={ countAnnouncement(len(products), "producto", "productos") }>
 		if len(products) == 0 {
 			<tr>
@@ -96,13 +127,17 @@ templ ProductsTableBody(products []store.Product) {
 				<td class="num">{ productPriceDisplay(p) }</td>
 				<td>{ p.UnitCode }</td>
 				<td class="actions">
-					<a class="button" href={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10)) }>Editar<span class="visually-hidden">{ " " + p.SKU }</span></a>
-					<form
-						method="post"
-						action={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10) + "/eliminar") }
-					>
-						<button type="submit" class="danger" data-confirm="¿Eliminar este producto?">Eliminar<span class="visually-hidden">{ " " + p.SKU }</span></button>
-					</form>
+					if canEdit {
+						<a class="button" href={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10)) }>Editar<span class="visually-hidden">{ " " + p.SKU }</span></a>
+						<form
+							method="post"
+							action={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10) + "/eliminar") }
+						>
+							<button type="submit" class="danger" data-confirm="¿Eliminar este producto?">Eliminar<span class="visually-hidden">{ " " + p.SKU }</span></button>
+						</form>
+					} else {
+						<a class="button" href={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10)) }>Ver<span class="visually-hidden">{ " " + p.SKU }</span></a>
+					}
 				</td>
 			</tr>
 		}
@@ -123,6 +158,9 @@ type ProductFormValues struct {
 // ProductForm renders the create/edit form. productID is 0 for the create form, which
 // omits the unit-conversions section below it — conversions reference an existing
 // product, so they only make sense once one exists (see ProductConversionsSection).
+// An existing product is only editable by an admin (issue #41): a vendedor sees it
+// read-only, with no forms. Creating one asks first, in a dialog (static/app.js), since
+// it can't be fixed afterwards without an admin.
 templ ProductForm(title string, action string, values ProductFormValues, fieldErrors map[string]string, successMsg string, families []store.ProductFamily, units []store.Unit, productID int64, sections ProductEditSections, user *NavUser) {
 	@Layout(title, user) {
 		<div class="page-title">
@@ -134,68 +172,113 @@ templ ProductForm(title string, action string, values ProductFormValues, fieldEr
 			}
 		</div>
 		@Flash(successMsg)
-		<form method="post" action={ templ.URL(action) }>
-			<label>
-				SKU
-				<input type="text" name="sku" value={ values.SKU } required { errAttrs(fieldErrors, "sku")... }/>
-			</label>
-			@FieldError(fieldErrors, "sku")
-			<label>
-				Descripción
-				<input type="text" name="description" value={ values.Description } required { errAttrs(fieldErrors, "description")... }/>
-			</label>
-			@FieldError(fieldErrors, "description")
-			<label>
-				Familia
-				<select name="family_id" required { errAttrs(fieldErrors, "family_id")... }>
-					<option value="">— Selecciona —</option>
-					for _, f := range families {
-						if strconv.FormatInt(f.ID, 10) == values.FamilyID {
-							<option value={ strconv.FormatInt(f.ID, 10) } selected>{ f.Name }</option>
-						} else {
-							<option value={ strconv.FormatInt(f.ID, 10) }>{ f.Name }</option>
-						}
-					}
-				</select>
-			</label>
-			@FieldError(fieldErrors, "family_id")
-			<label>
-				Costo (pesos, sin margen — opcional si el producto tiene materiales)
-				<input type="text" name="cost" value={ values.Cost } placeholder="p. ej. 45.00" { errAttrs(fieldErrors, "cost")... }/>
-			</label>
-			@FieldError(fieldErrors, "cost")
-			<label>
-				Peso (kg/m, opcional — solo informativo, no cambia el precio)
-				<input type="text" name="kg_per_m" value={ values.KgPerM } placeholder="p. ej. 0.123" { errAttrs(fieldErrors, "kg_per_m")... }/>
-			</label>
-			@FieldError(fieldErrors, "kg_per_m")
-			<label>
-				Unidad (opcional)
-				<select name="unit_id">
-					<option value="">— Ninguna —</option>
-					for _, u := range units {
-						if strconv.FormatInt(u.ID, 10) == values.UnitID {
-							<option value={ strconv.FormatInt(u.ID, 10) } selected>{ u.Name }</option>
-						} else {
-							<option value={ strconv.FormatInt(u.ID, 10) }>{ u.Name }</option>
-						}
-					}
-				</select>
-			</label>
-			<button type="submit" class="primary">Guardar</button>
-			<a href="/productos">Cancelar</a>
-		</form>
+		if productID != 0 && (user == nil || !user.IsAdmin) {
+			@productReadOnly(values, families, units)
+		} else {
+			@productFields(action, values, fieldErrors, families, units, productID == 0)
+		}
 		if productID != 0 {
-			@ProductMaterialsSection(productID, sections.Materials, sections.AllMaterials, sections.MaterialsError)
-			@ProductConversionsSection(productID, sections.Conversions, units, sections.ConversionsError)
+			@ProductMaterialsSection(productID, sections.Materials, sections.AllMaterials, sections.MaterialsError, user != nil && user.IsAdmin)
+			@ProductConversionsSection(productID, sections.Conversions, units, sections.ConversionsError, user != nil && user.IsAdmin)
 		}
 	}
+}
+
+// productReadOnly is an existing product as a vendedor sees it: its fields as text.
+templ productReadOnly(values ProductFormValues, families []store.ProductFamily, units []store.Unit) {
+	<p>Solo un administrador puede modificar o eliminar este producto.</p>
+	<dl class="quote-info">
+		<dt>SKU</dt>
+		<dd>{ values.SKU }</dd>
+		<dt>Descripción</dt>
+		<dd>{ values.Description }</dd>
+		<dt>Familia</dt>
+		<dd>{ orDash(familyName(families, values.FamilyID)) }</dd>
+		<dt>Costo (pesos, sin margen)</dt>
+		<dd>{ orDash(values.Cost) }</dd>
+		<dt>Peso (kg/m)</dt>
+		<dd>{ orDash(values.KgPerM) }</dd>
+		<dt>Unidad</dt>
+		<dd>{ orDash(unitName(units, values.UnitID)) }</dd>
+	</dl>
+	<p><a href="/productos">Regresar a productos</a></p>
+}
+
+// productFields is the product's own form: the create form, or the edit form for an
+// admin. confirmCreate adds the "¿Revisaste…?" dialog to Guardar.
+templ productFields(action string, values ProductFormValues, fieldErrors map[string]string, families []store.ProductFamily, units []store.Unit, confirmCreate bool) {
+	<form method="post" action={ templ.URL(action) }>
+		<label>
+			SKU
+			<input type="text" name="sku" value={ values.SKU } required { errAttrs(fieldErrors, "sku")... }/>
+		</label>
+		@FieldError(fieldErrors, "sku")
+		<label>
+			Descripción
+			<input type="text" name="description" value={ values.Description } required { errAttrs(fieldErrors, "description")... }/>
+		</label>
+		@FieldError(fieldErrors, "description")
+		<label>
+			Familia
+			<select name="family_id" required { errAttrs(fieldErrors, "family_id")... }>
+				<option value="">— Selecciona —</option>
+				for _, f := range families {
+					if strconv.FormatInt(f.ID, 10) == values.FamilyID {
+						<option value={ strconv.FormatInt(f.ID, 10) } selected>{ f.Name }</option>
+					} else {
+						<option value={ strconv.FormatInt(f.ID, 10) }>{ f.Name }</option>
+					}
+				}
+			</select>
+		</label>
+		@FieldError(fieldErrors, "family_id")
+		<label>
+			Costo (pesos, sin margen — opcional si el producto tiene materiales)
+			<input type="text" name="cost" value={ values.Cost } placeholder="p. ej. 45.00" { errAttrs(fieldErrors, "cost")... }/>
+		</label>
+		@FieldError(fieldErrors, "cost")
+		<label>
+			Peso (kg/m, opcional — solo informativo, no cambia el precio)
+			<input type="text" name="kg_per_m" value={ values.KgPerM } placeholder="p. ej. 0.123" { errAttrs(fieldErrors, "kg_per_m")... }/>
+		</label>
+		@FieldError(fieldErrors, "kg_per_m")
+		<label>
+			Unidad (opcional)
+			<select name="unit_id">
+				<option value="">— Ninguna —</option>
+				for _, u := range units {
+					if strconv.FormatInt(u.ID, 10) == values.UnitID {
+						<option value={ strconv.FormatInt(u.ID, 10) } selected>{ u.Name }</option>
+					} else {
+						<option value={ strconv.FormatInt(u.ID, 10) }>{ u.Name }</option>
+					}
+				}
+			</select>
+		</label>
+		if confirmCreate {
+			<button type="submit" class="primary" data-confirm-dialog="confirmar-alta">Guardar</button>
+		} else {
+			<button type="submit" class="primary">Guardar</button>
+		}
+		<a href="/productos">Cancelar</a>
+		if confirmCreate {
+			<dialog id="confirmar-alta" class="confirm" aria-labelledby="confirmar-alta-titulo" aria-describedby="confirmar-alta-texto">
+				<p id="confirmar-alta-titulo"><strong>¿Revisaste que todos los datos sean correctos?</strong></p>
+				<p id="confirmar-alta-texto">Una vez creado, solo un administrador podrá modificarlo.</p>
+				<p>
+					<button type="submit" class="primary">Sí, crear producto</button>
+					<button type="button" data-close-dialog>Regresar a revisar</button>
+				</p>
+			</dialog>
+		}
+	</form>
 }
 
 // ProductConversionsSection lists a product's unit conversion rates and offers a form
 // to add another. rate_micros is displayed and entered as a plain decimal (the amount
 // of "A" per 1 "De" — see migrations/0003_add_units_and_conversions.sql).
-templ ProductConversionsSection(productID int64, conversions []store.ProductUnitConversion, units []store.Unit, errorMsg string) {
+// canEdit (an admin) adds the delete buttons and the form to add another.
+templ ProductConversionsSection(productID int64, conversions []store.ProductUnitConversion, units []store.Unit, errorMsg string, canEdit bool) {
 	<div class="section-title">
 		<h2>Conversiones de unidades</h2>
 		@SectionHelpLink(HelpConversiones, "conversiones de unidades")
@@ -208,13 +291,15 @@ templ ProductConversionsSection(productID int64, conversions []store.ProductUnit
 					<th>De</th>
 					<th>A</th>
 					<th>Tasa (A por 1 De)</th>
-					<th><span class="visually-hidden">Acciones</span></th>
+					if canEdit {
+						<th><span class="visually-hidden">Acciones</span></th>
+					}
 				</tr>
 			</thead>
 			<tbody>
 				if len(conversions) == 0 {
 					<tr>
-						<td colspan="4">Sin conversiones registradas.</td>
+						<td colspan={ sectionColspan(canEdit) }>Sin conversiones registradas.</td>
 					</tr>
 				}
 				for _, c := range conversions {
@@ -222,48 +307,53 @@ templ ProductConversionsSection(productID int64, conversions []store.ProductUnit
 						<td>{ c.FromUnitCode }</td>
 						<td>{ c.ToUnitCode }</td>
 						<td>{ c.RateMicros.String() }</td>
-						<td>
-							<form
-								method="post"
-								action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/conversiones/" + strconv.FormatInt(c.ID, 10) + "/eliminar") }
-							>
-								<button type="submit" class="danger" data-confirm="¿Eliminar esta conversión?">Eliminar<span class="visually-hidden">{ " " + ("conversión " + c.FromUnitCode + " a " + c.ToUnitCode) }</span></button>
-							</form>
-						</td>
+						if canEdit {
+							<td>
+								<form
+									method="post"
+									action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/conversiones/" + strconv.FormatInt(c.ID, 10) + "/eliminar") }
+								>
+									<button type="submit" class="danger" data-confirm="¿Eliminar esta conversión?">Eliminar<span class="visually-hidden">{ " " + ("conversión " + c.FromUnitCode + " a " + c.ToUnitCode) }</span></button>
+								</form>
+							</td>
+						}
 					</tr>
 				}
 			</tbody>
 		</table>
 	</div>
-	<form method="post" action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/conversiones") }>
-		<label>
-			De
-			<select name="from_unit_id" required>
-				for _, u := range units {
-					<option value={ strconv.FormatInt(u.ID, 10) }>{ u.Code }</option>
-				}
-			</select>
-		</label>
-		<label>
-			A
-			<select name="to_unit_id" required>
-				for _, u := range units {
-					<option value={ strconv.FormatInt(u.ID, 10) }>{ u.Code }</option>
-				}
-			</select>
-		</label>
-		<label>
-			Tasa
-			<input type="text" name="rate" placeholder="p. ej. 100" required/>
-		</label>
-		<button type="submit">Agregar conversión</button>
-	</form>
+	if canEdit {
+		<form method="post" action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/conversiones") }>
+			<label>
+				De
+				<select name="from_unit_id" required>
+					for _, u := range units {
+						<option value={ strconv.FormatInt(u.ID, 10) }>{ u.Code }</option>
+					}
+				</select>
+			</label>
+			<label>
+				A
+				<select name="to_unit_id" required>
+					for _, u := range units {
+						<option value={ strconv.FormatInt(u.ID, 10) }>{ u.Code }</option>
+					}
+				</select>
+			</label>
+			<label>
+				Tasa
+				<input type="text" name="rate" placeholder="p. ej. 100" required/>
+			</label>
+			<button type="submit">Agregar conversión</button>
+		</form>
+	}
 }
 
 // ProductMaterialsSection lists what one unit of the product is made of, and offers a
 // form to add another material. A product's cost is its Costo field plus each
 // material's quantity x current price; see internal/pricing.
-templ ProductMaterialsSection(productID int64, materials []store.ProductMaterial, all []store.Material, errorMsg string) {
+// canEdit (an admin) adds the delete buttons and the form to add another.
+templ ProductMaterialsSection(productID int64, materials []store.ProductMaterial, all []store.Material, errorMsg string, canEdit bool) {
 	<div class="section-title">
 		<h2>Materiales</h2>
 		@SectionHelpLink(HelpProductoMateriales, "los materiales del producto")
@@ -276,13 +366,15 @@ templ ProductMaterialsSection(productID int64, materials []store.ProductMaterial
 					<th>Material</th>
 					<th>Cantidad por unidad del producto</th>
 					<th>Precio del material</th>
-					<th><span class="visually-hidden">Acciones</span></th>
+					if canEdit {
+						<th><span class="visually-hidden">Acciones</span></th>
+					}
 				</tr>
 			</thead>
 			<tbody>
 				if len(materials) == 0 {
 					<tr>
-						<td colspan="4">Sin materiales registrados.</td>
+						<td colspan={ sectionColspan(canEdit) }>Sin materiales registrados.</td>
 					</tr>
 				}
 				for _, m := range materials {
@@ -290,20 +382,22 @@ templ ProductMaterialsSection(productID int64, materials []store.ProductMaterial
 						<td>{ m.Material.Name }</td>
 						<td>{ m.QtyPerUnitMicros.String() } { m.Material.UnitCode }</td>
 						<td>{ MaterialPrice(m.Material) }</td>
-						<td>
-							<form
-								method="post"
-								action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/materiales/" + strconv.FormatInt(m.ID, 10) + "/eliminar") }
-							>
-								<button type="submit" class="danger" data-confirm="¿Quitar este material?">Eliminar<span class="visually-hidden">{ " " + m.Material.Name }</span></button>
-							</form>
-						</td>
+						if canEdit {
+							<td>
+								<form
+									method="post"
+									action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/materiales/" + strconv.FormatInt(m.ID, 10) + "/eliminar") }
+								>
+									<button type="submit" class="danger" data-confirm="¿Quitar este material?">Eliminar<span class="visually-hidden">{ " " + m.Material.Name }</span></button>
+								</form>
+							</td>
+						}
 					</tr>
 				}
 			</tbody>
 		</table>
 	</div>
-	if len(all) > 0 {
+	if canEdit && len(all) > 0 {
 		<form method="post" action={ templ.URL("/productos/" + strconv.FormatInt(productID, 10) + "/materiales") }>
 			<label>
 				Material

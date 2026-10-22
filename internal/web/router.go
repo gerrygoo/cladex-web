@@ -83,23 +83,27 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("GET /mi-cuenta", auth.RequireAuth(http.HandlerFunc(auth.MiCuentaPage)))
 	mux.Handle("POST /mi-cuenta", auth.RequireAuth(http.HandlerFunc(auth.MiCuentaSubmit)))
 
+	admin := func(h http.HandlerFunc) http.Handler { return auth.RequireAuth(auth.RequireAdmin(h)) }
+
+	// A vendedor may add products but not change them once created, conversions and
+	// materials included since they change the price, nor delete a customer (issue #41).
 	mux.Handle("GET /productos", auth.RequireAuth(http.HandlerFunc(products.List)))
 	mux.Handle("GET /productos/nuevo", auth.RequireAuth(http.HandlerFunc(products.NewPage)))
 	mux.Handle("POST /productos/nuevo", auth.RequireAuth(http.HandlerFunc(products.Create)))
 	mux.Handle("GET /productos/{id}", auth.RequireAuth(http.HandlerFunc(products.EditPage)))
-	mux.Handle("POST /productos/{id}", auth.RequireAuth(http.HandlerFunc(products.Update)))
-	mux.Handle("POST /productos/{id}/eliminar", auth.RequireAuth(http.HandlerFunc(products.Delete)))
-	mux.Handle("POST /productos/{id}/conversiones", auth.RequireAuth(http.HandlerFunc(products.CreateConversion)))
-	mux.Handle("POST /productos/{id}/conversiones/{cid}/eliminar", auth.RequireAuth(http.HandlerFunc(products.DeleteConversion)))
-	mux.Handle("POST /productos/{id}/materiales", auth.RequireAuth(http.HandlerFunc(products.AddMaterial)))
-	mux.Handle("POST /productos/{id}/materiales/{mid}/eliminar", auth.RequireAuth(http.HandlerFunc(products.DeleteMaterial)))
+	mux.Handle("POST /productos/{id}", admin(products.Update))
+	mux.Handle("POST /productos/{id}/eliminar", admin(products.Delete))
+	mux.Handle("POST /productos/{id}/conversiones", admin(products.CreateConversion))
+	mux.Handle("POST /productos/{id}/conversiones/{cid}/eliminar", admin(products.DeleteConversion))
+	mux.Handle("POST /productos/{id}/materiales", admin(products.AddMaterial))
+	mux.Handle("POST /productos/{id}/materiales/{mid}/eliminar", admin(products.DeleteMaterial))
 
 	mux.Handle("GET /clientes", auth.RequireAuth(http.HandlerFunc(customers.List)))
 	mux.Handle("GET /clientes/nuevo", auth.RequireAuth(http.HandlerFunc(customers.NewPage)))
 	mux.Handle("POST /clientes/nuevo", auth.RequireAuth(http.HandlerFunc(customers.Create)))
 	mux.Handle("GET /clientes/{id}", auth.RequireAuth(http.HandlerFunc(customers.EditPage)))
 	mux.Handle("POST /clientes/{id}", auth.RequireAuth(http.HandlerFunc(customers.Update)))
-	mux.Handle("POST /clientes/{id}/eliminar", auth.RequireAuth(http.HandlerFunc(customers.Delete)))
+	mux.Handle("POST /clientes/{id}/eliminar", admin(customers.Delete))
 
 	mux.Handle("GET /cotizaciones", auth.RequireAuth(http.HandlerFunc(quotes.List)))
 	mux.Handle("GET /cotizaciones/nueva", auth.RequireAuth(http.HandlerFunc(quotes.NewPage)))
@@ -129,7 +133,6 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("GET /facturas/{id}", auth.RequireAuth(http.HandlerFunc(facturas.Page)))
 	mux.Handle("GET /facturas/{id}/xml", auth.RequireAuth(http.HandlerFunc(facturas.XML)))
 	mux.Handle("GET /facturas/{id}/pdf", auth.RequireAuth(http.HandlerFunc(facturas.PDF)))
-	admin := func(h http.HandlerFunc) http.Handler { return auth.RequireAuth(auth.RequireAdmin(h)) }
 	mux.Handle("POST /proyectos/{folio}/factura/nueva", admin(facturas.Crear))
 	mux.Handle("POST /facturas/{id}", admin(facturas.Guardar))
 	mux.Handle("POST /facturas/{id}/validar", admin(facturas.Validar))

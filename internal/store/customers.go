@@ -133,22 +133,28 @@ func (s *Store) CreateCustomer(ctx context.Context, c Customer) (int64, error) {
 }
 
 // UpdateCustomer overwrites an existing customer's editable fields, identified by c.ID.
+// Saving without changing anything writes nothing, so the customer's Historial (its
+// audit trail) gets no empty entry (issue #41).
 func (s *Store) UpdateCustomer(ctx context.Context, c Customer) error {
 	_, err := s.exec(ctx, `
 		UPDATE customers SET
-			name         = ?,
-			rfc          = ?,
-			contact_name = ?,
-			phone        = ?,
-			email        = ?,
-			address      = ?,
-			postal_code  = ?,
-			tax_regime   = ?,
-			notes        = ?,
-			legal_name   = ?,
-			cfdi_use     = ?,
+			name         = ?1,
+			rfc          = ?2,
+			contact_name = ?3,
+			phone        = ?4,
+			email        = ?5,
+			address      = ?6,
+			postal_code  = ?7,
+			tax_regime   = ?8,
+			notes        = ?9,
+			legal_name   = ?10,
+			cfdi_use     = ?11,
 			updated_at   = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-		WHERE id = ?`,
+		WHERE id = ?12
+		  AND (name IS NOT ?1 OR rfc IS NOT ?2 OR contact_name IS NOT ?3 OR phone IS NOT ?4
+		       OR email IS NOT ?5 OR address IS NOT ?6 OR postal_code IS NOT ?7
+		       OR tax_regime IS NOT ?8 OR notes IS NOT ?9 OR legal_name IS NOT ?10
+		       OR cfdi_use IS NOT ?11)`,
 		c.Name, nullIfEmpty(c.RFC), nullIfEmpty(c.ContactName), nullIfEmpty(c.Phone),
 		nullIfEmpty(c.Email), nullIfEmpty(c.Address), nullIfEmpty(c.PostalCode),
 		nullIfEmpty(c.TaxRegime), nullIfEmpty(c.Notes), nullIfEmpty(c.LegalName), nullIfEmpty(c.CFDIUse), c.ID,
@@ -157,6 +163,17 @@ func (s *Store) UpdateCustomer(ctx context.Context, c Customer) error {
 		return fmt.Errorf("store: update customer %d: %w", c.ID, err)
 	}
 	return nil
+}
+
+// CustomerCreatedAt is when the customer row was created (ISO-8601 UTC), for a
+// Historial whose audit trail has no creation entry: customers from before the trail.
+func (s *Store) CustomerCreatedAt(ctx context.Context, id int64) (string, error) {
+	var at string
+	err := s.db.QueryRowContext(ctx, `SELECT created_at FROM customers WHERE id = ?`, id).Scan(&at)
+	if err != nil {
+		return "", fmt.Errorf("store: customer %d created_at: %w", id, err)
+	}
+	return at, nil
 }
 
 // SoftDeleteCustomer sets deleted_at, hiding the customer from

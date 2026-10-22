@@ -64,8 +64,26 @@ Es solo un aviso: siempre puedes darlo de alta. Al editar un cliente no se revis
 3. Cambia lo necesario y haz clic en **Guardar**.
 
 Las cotizaciones ya emitidas no cambian: su PDF conserva los datos con que se emitió.
+Cualquier usuario, administrador o vendedor, puede editar clientes.
+
+## Historial de un cliente
+
+Al final de la ficha de cada cliente está la sección **Historial**, de lo más reciente a lo
+más antiguo. Es solo de consulta: no se puede editar ni borrar.
+
+- **Alta**: *"Creado por Emilio Flores · 16/10/2026 - 12:45"*.
+- **Cada edición**: quién la hizo, la fecha y la hora, y cada dato que cambió con su valor
+  anterior y el nuevo, p. ej. *"RFC: (vacío) → CUV130412725"*. *(vacío)* quiere decir que
+  el dato estaba o quedó en blanco.
+
+Si guardas sin cambiar nada, no se registra nada. Los clientes dados de alta antes de que
+existiera el historial muestran solo la fecha (*"Creado: …"*), sin nombre. Lo que hizo el
+sistema por su cuenta, sin un usuario (p. ej. una carga de datos), aparece como
+*Sistema*.
 
 ## Eliminar un cliente
+
+Solo un administrador; un vendedor no ve el botón **Eliminar**.
 
 1. [Busca el cliente](#buscar-un-cliente).
 2. Haz clic en **Eliminar** en su fila y confirma *"¿Eliminar este cliente?"*.

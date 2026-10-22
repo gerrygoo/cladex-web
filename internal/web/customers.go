@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -139,7 +140,7 @@ func (cs *Customers) List(w http.ResponseWriter, r *http.Request) {
 	lv := views.ListView{Base: "/clientes", Query: query, Sort: sort, Dir: dir, Filters: filters, Pager: pager}
 
 	if r.Header.Get("HX-Request") == "true" {
-		views.CustomersTableBody(customers).Render(ctx, w)
+		views.CustomersTableBody(customers, isAdmin(ctx)).Render(ctx, w)
 		views.ListPagerOOB(lv).Render(ctx, w)
 		return
 	}
@@ -199,7 +200,7 @@ func (cs *Customers) NewPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user, _ := UserFromContext(ctx)
 	values := parseReturnTo(r).newValues(views.CustomerFormValues{})
-	views.CustomerForm("Nuevo cliente", "/clientes/nuevo", values, nil, nil, "", navUserView(user)).Render(ctx, w)
+	views.CustomerForm("Nuevo cliente", "/clientes/nuevo", values, nil, nil, "", nil, navUserView(user)).Render(ctx, w)
 }
 
 // Create handles POST /clientes/nuevo. Before creating, it looks for customers the new
@@ -258,7 +259,7 @@ func (cs *Customers) renderNewForm(w http.ResponseWriter, r *http.Request, form 
 		matches = append(matches, views.SimilarCustomer{Customer: c, UseHref: use})
 	}
 	w.WriteHeader(http.StatusUnprocessableEntity)
-	views.CustomerForm("Nuevo cliente", "/clientes/nuevo", rt.newValues(form.toValues()), fieldErrors, matches, "", navUserView(user)).Render(ctx, w)
+	views.CustomerForm("Nuevo cliente", "/clientes/nuevo", rt.newValues(form.toValues()), fieldErrors, matches, "", nil, navUserView(user)).Render(ctx, w)
 }
 
 // EditPage renders the edit form at GET /clientes/{id}.
@@ -282,9 +283,14 @@ func (cs *Customers) EditPage(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("guardado") == "1" {
 		successMsg = "Cliente guardado."
 	}
+	history, err := cs.history(ctx, id)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
 	user, _ := UserFromContext(ctx)
 	action := fmt.Sprintf("/clientes/%d", id)
-	views.CustomerForm("Editar cliente", action, customerToValues(*customer), nil, nil, successMsg, navUserView(user)).Render(ctx, w)
+	views.CustomerForm("Editar cliente", action, customerToValues(*customer), nil, nil, successMsg, history, navUserView(user)).Render(ctx, w)
 }
 
 // Update handles POST /clientes/{id}.
@@ -302,7 +308,7 @@ func (cs *Customers) Update(w http.ResponseWriter, r *http.Request) {
 	form := parseCustomerForm(r)
 	fieldErrors := form.Validate()
 	if len(fieldErrors) > 0 {
-		cs.renderFormError(w, r, "Editar cliente", fmt.Sprintf("/clientes/%d", id), form, fieldErrors)
+		cs.renderFormError(w, r, id, form, fieldErrors)
 		return
 	}
 
@@ -330,9 +336,118 @@ func (cs *Customers) Delete(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/clientes?eliminado=1", http.StatusSeeOther)
 }
 
-func (cs *Customers) renderFormError(w http.ResponseWriter, r *http.Request, title, action string, form CustomerForm, fieldErrors map[string]string) {
+// renderFormError re-renders the edit form of customer id with its errors.
+func (cs *Customers) renderFormError(w http.ResponseWriter, r *http.Request, id int64, form CustomerForm, fieldErrors map[string]string) {
 	ctx := r.Context()
+	history, err := cs.history(ctx, id)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
 	user, _ := UserFromContext(ctx)
 	w.WriteHeader(http.StatusUnprocessableEntity)
-	views.CustomerForm(title, action, form.toValues(), fieldErrors, nil, "", navUserView(user)).Render(ctx, w)
+	views.CustomerForm("Editar cliente", fmt.Sprintf("/clientes/%d", id), form.toValues(), fieldErrors, nil, "", history, navUserView(user)).Render(ctx, w)
+}
+
+// customerFieldLabels names each audited customer column as the form labels it, in the
+// form's order, which is the order an edit's changes are listed in. deleted_at isn't
+// here: a deleted customer has no page.
+var customerFieldLabels = []struct{ Column, Label string }{
+	{"name", "Nombre"},
+	{"rfc", "RFC"},
+	{"contact_name", "Contacto"},
+	{"phone", "Teléfono"},
+	{"email", "Email"},
+	{"address", "Dirección"},
+	{"legal_name", "Razón social"},
+	{"postal_code", "Código postal fiscal"},
+	{"tax_regime", "Régimen fiscal"},
+	{"cfdi_use", "Uso de CFDI predeterminado"},
+	{"notes", "Notas"},
+}
+
+// history builds customer id's Historial from the audit trail (migrations/0004 and
+// 0022), newest first: each edit with the fields it changed, then its creation. An
+// update that changed none of the shown fields is left out. A customer from before the
+// trail has no creation entry, so its row's created_at stands in, with nobody named.
+func (cs *Customers) history(ctx context.Context, id int64) ([]views.CustomerHistoryEntry, error) {
+	entries, err := cs.store.AuditLog(ctx, store.AuditFilter{TableName: "customers", RowKey: strconv.FormatInt(id, 10), Limit: 1000})
+	if err != nil {
+		return nil, err
+	}
+	var history []views.CustomerHistoryEntry
+	created := false
+	for _, e := range entries {
+		switch e.Op {
+		case "insert":
+			created = true
+			history = append(history, views.CustomerHistoryEntry{Who: auditWho(e), At: e.At, Created: true})
+		case "update":
+			changed := map[string]bool{}
+			for _, k := range e.ChangedFields() {
+				changed[k] = true
+			}
+			var changes []views.CustomerFieldChange
+			for _, f := range customerFieldLabels {
+				if changed[f.Column] {
+					changes = append(changes, views.CustomerFieldChange{
+						Label: f.Label,
+						Old:   customerFieldText(f.Column, e.OldValues[f.Column]),
+						New:   customerFieldText(f.Column, e.NewValues[f.Column]),
+					})
+				}
+			}
+			if len(changes) > 0 {
+				history = append(history, views.CustomerHistoryEntry{Who: auditWho(e), At: e.At, Changes: changes})
+			}
+		}
+	}
+	if !created {
+		at, err := cs.store.CustomerCreatedAt(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		history = append(history, views.CustomerHistoryEntry{At: at, Created: true})
+	}
+	return history, nil
+}
+
+// auditWho is who an audit entry names: the user's full name, or "Sistema" for a write
+// with no user behind it (the admin command line, the old workbook import).
+func auditWho(e store.AuditEntry) string {
+	switch {
+	case e.ActorFull != "":
+		return e.ActorFull
+	case e.ActorName != "":
+		return e.ActorName
+	}
+	return "Sistema"
+}
+
+// customerFieldText is how one audited value reads in the Historial: "(vacío)" when
+// empty, and a SAT code with its description.
+func customerFieldText(column string, v any) string {
+	text := ""
+	if v != nil {
+		text = strings.TrimSpace(fmt.Sprint(v))
+	}
+	if text == "" {
+		return "(vacío)"
+	}
+	switch column {
+	case "tax_regime":
+		return satText(store.TaxRegimes, text)
+	case "cfdi_use":
+		return satText(store.CFDIUses, text)
+	}
+	return text
+}
+
+func satText(catalog []store.SATCode, code string) string {
+	for _, c := range catalog {
+		if c.Code == code {
+			return c.Code + " - " + c.Description
+		}
+	}
+	return code
 }

@@ -46,14 +46,16 @@ templ CustomersList(customers []store.Customer, lv ListView, successMsg string, 
 						<th><span class="visually-hidden">Acciones</span></th>
 					</tr>
 				</thead>
-				@CustomersTableBody(customers)
+				@CustomersTableBody(customers, user != nil && user.IsAdmin)
 			</table>
 		</div>
 		@listPager(lv, false)
 	}
 }
 
-templ CustomersTableBody(customers []store.Customer) {
+// CustomersTableBody lists customers. Any user may edit one; only an admin may delete
+// it (issue #41).
+templ CustomersTableBody(customers []store.Customer, canDelete bool) {
 	<tbody id="clientes-tbody" data-announce={ countAnnouncement(len(customers), "cliente", "clientes") }>
 		if len(customers) == 0 {
 			<tr>
@@ -69,12 +71,14 @@ templ CustomersTableBody(customers []store.Customer) {
 				<td>{ c.Email }</td>
 				<td class="actions">
 					<a class="button" href={ templ.URL("/clientes/" + strconv.FormatInt(c.ID, 10)) }>Editar<span class="visually-hidden">{ " " + c.Name }</span></a>
-					<form
-						method="post"
-						action={ templ.URL("/clientes/" + strconv.FormatInt(c.ID, 10) + "/eliminar") }
-					>
-						<button type="submit" class="danger" data-confirm="¿Eliminar este cliente?">Eliminar<span class="visually-hidden">{ " " + c.Name }</span></button>
-					</form>
+					if canDelete {
+						<form
+							method="post"
+							action={ templ.URL("/clientes/" + strconv.FormatInt(c.ID, 10) + "/eliminar") }
+						>
+							<button type="submit" class="danger" data-confirm="¿Eliminar este cliente?">Eliminar<span class="visually-hidden">{ " " + c.Name }</span></button>
+						</form>
+					}
 				</td>
 			</tr>
 		}
@@ -130,11 +134,26 @@ func similarText(c store.Customer) string {
 	return t
 }
 
+// CustomerHistoryEntry is one line of a customer's Historial (issue #41): its creation,
+// or an edit with the fields it changed. Who is "" when nobody is recorded, and At is
+// "" when not even the date is.
+type CustomerHistoryEntry struct {
+	Who     string
+	At      string // ISO-8601 UTC
+	Created bool
+	Changes []CustomerFieldChange
+}
+
+// CustomerFieldChange is one field an edit changed, with its values as shown on screen.
+type CustomerFieldChange struct {
+	Label, Old, New string
+}
+
 // CustomerForm is the new and edit customer form. similar, on a new one, lists the
 // customers it may duplicate (issue #29): a warning, not a block, with a way to use each
 // of them, to create the new one anyway (confirmar=1 resubmits the same values) or to go
-// back to editing.
-templ CustomerForm(title string, action string, values CustomerFormValues, fieldErrors map[string]string, similar []SimilarCustomer, successMsg string, user *NavUser) {
+// back to editing. history, on an existing one, is its Historial, newest first.
+templ CustomerForm(title string, action string, values CustomerFormValues, fieldErrors map[string]string, similar []SimilarCustomer, successMsg string, history []CustomerHistoryEntry, user *NavUser) {
 	@Layout(title, user) {
 		<div class="page-title">
 			<h1>{ title }</h1>
@@ -234,5 +253,41 @@ templ CustomerForm(title string, action string, values CustomerFormValues, field
 			<button type="submit" class="primary">Guardar</button>
 			<a href={ templ.URL(cancelHref(values)) }>Cancelar</a>
 		</form>
+		if len(history) > 0 {
+			@customerHistory(history)
+		}
 	}
+}
+
+// customerHistory is the read-only Historial at the bottom of a customer's page.
+templ customerHistory(entries []CustomerHistoryEntry) {
+	<div class="section-title">
+		<h2 id="historial">Historial</h2>
+	</div>
+	<ol class="comments history" aria-labelledby="historial">
+		for _, e := range entries {
+			<li>
+				if e.Created {
+					if e.At == "" {
+						Creado: sin registro
+					} else if e.Who == "" {
+						{ "Creado: " }
+						@Timestamp(e.At)
+					} else {
+						{ "Creado por " + e.Who + " · " }
+						@Timestamp(e.At)
+					}
+				} else {
+					<strong>{ e.Who }</strong>
+					{ "· " }
+					@Timestamp(e.At)
+					<ul>
+						for _, c := range e.Changes {
+							<li>{ c.Label + ": " + c.Old + " → " + c.New }</li>
+						}
+					</ul>
+				}
+			</li>
+		}
+	</ol>
 }

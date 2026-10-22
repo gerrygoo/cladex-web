@@ -140,7 +140,7 @@ func (p *Products) List(w http.ResponseWriter, r *http.Request) {
 	lv := views.ListView{Base: "/productos", Query: query, Sort: sort, Dir: dir, Filters: filters, Pager: pager}
 
 	if r.Header.Get("HX-Request") == "true" {
-		views.ProductsTableBody(products).Render(ctx, w)
+		views.ProductsTableBody(products, isAdmin(ctx)).Render(ctx, w)
 		views.ListPagerOOB(lv).Render(ctx, w)
 		return
 	}
@@ -291,7 +291,11 @@ func (p *Products) EditPage(w http.ResponseWriter, r *http.Request) {
 	}
 	user, _ := UserFromContext(ctx)
 	action := fmt.Sprintf("/productos/%d", id)
-	views.ProductForm("Editar producto", action, productToValues(*product), nil, successMsg, families, units, id, sections, navUserView(user)).Render(ctx, w)
+	title := "Editar producto"
+	if !isAdmin(ctx) {
+		title = "Producto" // read-only for a vendedor (issue #41)
+	}
+	views.ProductForm(title, action, productToValues(*product), nil, successMsg, families, units, id, sections, navUserView(user)).Render(ctx, w)
 }
 
 // renderSectionError re-renders the edit form with a validation error scoped to one of

@@ -37,12 +37,18 @@ parte de este manual que la explica.
 
 | Sección | Vendedor | Administrador |
 |---|:---:|:---:|
-| Cotizaciones, Clientes, Productos | ✓ | ✓ |
+| Cotizaciones | ✓ | ✓ |
+| Dar de alta y editar Clientes | ✓ | ✓ |
+| Eliminar Clientes | — | ✓ |
+| Dar de alta Productos | ✓ | ✓ |
+| Editar y eliminar Productos (con sus materiales y conversiones) | — | ✓ |
 | Ver y descargar Documentos oficiales | ✓ | ✓ |
 | Subir y eliminar Documentos oficiales | — | ✓ |
 | Usuarios, Familias, Unidades, Configuración del sistema | — | ✓ |
 
 Si en el menú **Catálogos** solo ves **Productos** y **Clientes**, tu cuenta es de vendedor.
+Si intentas algo que solo puede hacer un administrador, la app lo bloquea con *"No tienes
+permiso para hacer esto. Solo un administrador puede hacerlo."*
 
 ## La página de inicio
 

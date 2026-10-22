@@ -120,6 +120,10 @@ func TestGuiaNavLinksByRole(t *testing.T) {
 	}
 }
 
+// What each role may do with Productos and Clientes, the "No tienes permiso…" message,
+// the "¿Revisaste…?" dialog (productos.md, "Dar de alta un producto") and the Historial
+// (clientes.md, "Historial de un cliente") are pinned in permisos_test.go.
+
 // --- docs/guia/clientes.md ---
 
 // "Verás Cliente guardado. y te quedas en la ficha del cliente", plus the page's

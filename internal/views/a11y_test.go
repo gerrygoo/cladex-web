@@ -45,7 +45,7 @@ func TestLayoutHasSkipLinkAndLiveRegion(t *testing.T) {
 
 func TestFieldErrorsAreTiedToTheirFields(t *testing.T) {
 	html := render(t, CustomerForm("Nuevo cliente", "/clientes/nuevo", CustomerFormValues{},
-		map[string]string{"name": "El nombre es obligatorio."}, nil, "", &NavUser{Username: "ana"}))
+		map[string]string{"name": "El nombre es obligatorio."}, nil, "", nil, &NavUser{Username: "ana"}))
 	assertContains(t, html,
 		`name="name" value="" required aria-describedby="error-name" aria-invalid="true"`,
 		`<p class="error" id="error-name">El nombre es obligatorio.</p>`,
@@ -90,7 +90,7 @@ func TestListsUseLinksNotButtonsInsideLinks(t *testing.T) {
 }
 
 func TestRowActionsNameTheirRow(t *testing.T) {
-	html := render(t, CustomersTableBody([]store.Customer{{ID: 7, Name: "Constructora Bajío"}}))
+	html := render(t, CustomersTableBody([]store.Customer{{ID: 7, Name: "Constructora Bajío"}}, true))
 	assertContains(t, html,
 		`Editar<span class="visually-hidden"> Constructora Bajío</span>`,
 		`Eliminar<span class="visually-hidden"> Constructora Bajío</span>`,

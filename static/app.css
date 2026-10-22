@@ -1343,6 +1343,28 @@ div.notice.warning li {
   margin-block: 0.5rem;
 }
 
+/* A question asked before a final action, like creating a product (issue #41): a modal
+   with the same attention border as the warning notice. */
+dialog.confirm {
+  max-width: min(32rem, calc(100vw - 2rem));
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--warning);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+}
+
+dialog.confirm::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+
+/* A customer's Historial (issue #41): each edit's changed fields under its author. */
+ol.history ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.25rem;
+}
+
 /* Nueva cotización's customer search, right above the list it filters */
 /* Nueva cotización's customer combobox (static/app.js): the search field, with the
    matching customers listed under it as you type. */

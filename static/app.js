@@ -8,6 +8,21 @@
     if (msg && !window.confirm(msg)) e.preventDefault();
   }, true);
 
+  // A submit button with data-confirm-dialog="id" opens that <dialog> instead of sending
+  // the form; the dialog's own submit button sends it, and a [data-close-dialog] button
+  // (or Escape) closes it, leaving what was typed. Like New producto (issue #41).
+  document.addEventListener("submit", function (e) {
+    var btn = e.submitter;
+    var dialog = btn && btn.dataset.confirmDialog && document.getElementById(btn.dataset.confirmDialog);
+    if (!dialog || !dialog.showModal) return;
+    e.preventDefault();
+    dialog.showModal();
+  }, true);
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest && e.target.closest("[data-close-dialog]");
+    if (btn) btn.closest("dialog").close();
+  });
+
   // Nueva cotización's customer list (issue #29) becomes a combobox: a search field in
   // place of the list, whose matches (by name, RFC or contact, ignoring case and
   // accents) show under it as you type, with "Agregar nuevo cliente" always first. The

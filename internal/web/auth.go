@@ -108,6 +108,17 @@ func (a *Auth) RequireAuth(next http.Handler) http.Handler {
 	})
 }
 
+// isAdmin reports whether the request's user is an admin, for pages that show admin-only
+// actions; the routes behind those actions are gated by RequireAdmin regardless.
+func isAdmin(ctx context.Context) bool {
+	user, ok := UserFromContext(ctx)
+	return ok && user.Role == "admin"
+}
+
+// forbiddenMessage is what a vendedor reads on an admin-only action reached by a URL or
+// a stale page.
+const forbiddenMessage = "No tienes permiso para hacer esto. Solo un administrador puede hacerlo."
+
 // RequireAdmin gates a route to the "admin" role. It must run downstream of RequireAuth
 // so a user is already in the request context; a vendedor gets a plain 403, not a
 // redirect — this is enforcement, not just a hidden nav link.
@@ -115,7 +126,7 @@ func (a *Auth) RequireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, ok := UserFromContext(r.Context())
 		if !ok || user.Role != "admin" {
-			http.Error(w, "prohibido", http.StatusForbidden)
+			http.Error(w, forbiddenMessage, http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)

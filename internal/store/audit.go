@@ -106,6 +106,7 @@ type AuditEntry struct {
 	Op        string // "insert", "update", or "delete"
 	ActorID   *int64
 	ActorName string // joined from users; empty for CLI/import/unattributed writes
+	ActorFull string // the actor's full name (users.name), for showing on screen
 	Source    string
 	OldValues map[string]any
 	NewValues map[string]any
@@ -130,7 +131,7 @@ func (s *Store) AuditLog(ctx context.Context, f AuditFilter) ([]AuditEntry, erro
 	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT a.id, a.table_name, a.row_key, a.op, a.actor_id,
-		       COALESCE(u.username, ''), COALESCE(a.source, ''),
+		       COALESCE(u.username, ''), COALESCE(u.name, ''), COALESCE(a.source, ''),
 		       a.old_values, a.new_values, a.at
 		FROM audit_log a
 		LEFT JOIN users u ON u.id = a.actor_id
@@ -152,7 +153,7 @@ func (s *Store) AuditLog(ctx context.Context, f AuditFilter) ([]AuditEntry, erro
 		var actorID sql.NullInt64
 		var oldJSON, newJSON sql.NullString
 		if err := rows.Scan(&e.ID, &e.TableName, &e.RowKey, &e.Op, &actorID,
-			&e.ActorName, &e.Source, &oldJSON, &newJSON, &e.At); err != nil {
+			&e.ActorName, &e.ActorFull, &e.Source, &oldJSON, &newJSON, &e.At); err != nil {
 			return nil, fmt.Errorf("store: audit log: %w", err)
 		}
 		if actorID.Valid {
