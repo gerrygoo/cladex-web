@@ -233,12 +233,12 @@ templ productFields(action string, values ProductFormValues, fieldErrors map[str
 		</label>
 		@FieldError(fieldErrors, "family_id")
 		<label>
-			Costo (pesos, sin margen — opcional si el producto tiene materiales)
+			Costo (pesos, sin margen — opcional si el producto tiene materiales; por kg en la serie QG)
 			<input type="text" name="cost" value={ values.Cost } placeholder="p. ej. 45.00" { errAttrs(fieldErrors, "cost")... }/>
 		</label>
 		@FieldError(fieldErrors, "cost")
 		<label>
-			Peso (kg/m, opcional — solo informativo, no cambia el precio)
+			Peso (kg/m — obligatorio en la serie QG, donde da el precio por metro; en las demás, solo informativo)
 			<input type="text" name="kg_per_m" value={ values.KgPerM } placeholder="p. ej. 0.123" { errAttrs(fieldErrors, "kg_per_m")... }/>
 		</label>
 		@FieldError(fieldErrors, "kg_per_m")

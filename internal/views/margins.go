@@ -14,9 +14,15 @@ func MarginPercent(m money.Micros) string {
 	return money.Micros(int64(m) * 100).String()
 }
 
+// ShortMarginPercent is MarginPercent rounded half up to two decimals: a margin derived
+// from a price per kg (issue #38) is kept in full, 124_668 -> "12.47".
+func ShortMarginPercent(m money.Micros) string {
+	return MarginPercent(money.Micros(money.RoundHalfUp(int64(m), 100) * 100))
+}
+
 // MarginLabel is how a margin option reads everywhere it's shown: "Estándar (12.34%)".
 func MarginLabel(name string, value money.Micros) string {
-	return name + " (" + MarginPercent(value) + "%)"
+	return name + " (" + ShortMarginPercent(value) + "%)"
 }
 
 // MarginChoice is one <option> of the quote builder's margin dropdown.
@@ -76,14 +82,17 @@ func NewMarginPicker(opts []store.MarginOption, selectedID *int64) MarginPicker 
 	return p
 }
 
-// SetMarginDisplay fills the percentage field with margin and, when the catalog has the
-// copper material, the price per kg that margin implies.
-func (p *MarginPicker) SetMarginDisplay(margin money.Micros, copper *store.Material) {
-	p.CustomPct = MarginPercent(margin)
+// SetMarginDisplay fills the percentage field with margin, to two decimals, and, when
+// the catalog has the copper material, the price per kg: price when the margin was typed
+// as one, else the price margin implies.
+func (p *MarginPicker) SetMarginDisplay(margin money.Micros, price *money.Micros, copper *store.Material) {
+	p.CustomPct = ShortMarginPercent(margin)
 	if copper == nil {
 		return
 	}
-	if price, err := pricing.PriceFromMargin(copper.PriceMicros, margin); err == nil {
+	if price != nil {
+		p.CopperPrice = CopperPriceText(*price)
+	} else if price, err := pricing.PriceFromMargin(copper.PriceMicros, margin); err == nil {
 		p.CopperPrice = CopperPriceText(price)
 	}
 }
@@ -100,7 +109,7 @@ const CustomMarginValue = "custom"
 const CustomMarginName = "Otro margen"
 
 // CustomOptionLabel is the dropdown's "Otro margen" entry, with its percentage once the
-// draft is on one: "Otro margen (19.8%)".
+// draft is on one: "Otro margen (19.8%)", to two decimals.
 func (p MarginPicker) CustomOptionLabel() string {
 	if p.Custom && p.CustomPct != "" && p.Error == "" {
 		return CustomMarginName + " (" + p.CustomPct + "%)"

@@ -32,10 +32,11 @@ type Product struct {
 }
 
 // ProductFamily is a product_families row, for populating the product form's family
-// selector.
+// selector. Series is its quote series' prefix, "" when it has none.
 type ProductFamily struct {
-	ID   int64
-	Name string
+	ID     int64
+	Name   string
+	Series string
 }
 
 // UpsertFamily inserts a product family by name if it doesn't exist, or updates its
@@ -116,7 +117,7 @@ func scanProduct(row interface{ Scan(...any) error }) (*Product, error) {
 // name. Free-lines-only familias (QL) are left out: products can't be filed under them.
 func (s *Store) ListFamilies(ctx context.Context) ([]ProductFamily, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, name FROM product_families WHERE free_lines_only = 0 ORDER BY name`)
+		`SELECT id, name, COALESCE(series, '') FROM product_families WHERE free_lines_only = 0 ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("store: list families: %w", err)
 	}
@@ -125,7 +126,7 @@ func (s *Store) ListFamilies(ctx context.Context) ([]ProductFamily, error) {
 	var families []ProductFamily
 	for rows.Next() {
 		var f ProductFamily
-		if err := rows.Scan(&f.ID, &f.Name); err != nil {
+		if err := rows.Scan(&f.ID, &f.Name, &f.Series); err != nil {
 			return nil, fmt.Errorf("store: list families: %w", err)
 		}
 		families = append(families, f)

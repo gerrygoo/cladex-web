@@ -833,7 +833,7 @@ func productFields(action string, values ProductFormValues, fieldErrors map[stri
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "<label>Costo (pesos, sin margen — opcional si el producto tiene materiales) <input type=\"text\" name=\"cost\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "<label>Costo (pesos, sin margen — opcional si el producto tiene materiales; por kg en la serie QG) <input type=\"text\" name=\"cost\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -862,7 +862,7 @@ func productFields(action string, values ProductFormValues, fieldErrors map[stri
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "<label>Peso (kg/m, opcional — solo informativo, no cambia el precio) <input type=\"text\" name=\"kg_per_m\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "<label>Peso (kg/m — obligatorio en la serie QG, donde da el precio por metro; en las demás, solo informativo) <input type=\"text\" name=\"kg_per_m\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

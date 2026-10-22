@@ -125,14 +125,33 @@ En las cotizaciones **QS** (CCS y AC), junto a **Margen** siempre ves el margen 
 de dos maneras (con uno de la lista, solo de lectura): el porcentaje y el **Precio CCS
 30% ($/kg)**, el precio de venta por kilo del cobre que ese margen implica (costo del
 material ÷ (1 − margen); solo si el catálogo tiene el material *CCS 30%*). Con **Otro
-margen**, escribe en cualquiera de los dos y el otro se actualiza al instante. El precio
-no puede ser menor que el costo del material.
+margen**, escribe en cualquiera de los dos y el otro se actualiza al instante. Manda el
+que escribiste:
+
+- Si escribes el **margen**, aplica la regla de arriba (hasta 2 decimales) y el precio por
+  kilo se calcula.
+- Si escribes el **precio por kilo** (hasta 2 decimales, p. ej. `188.50`), ese precio se
+  respeta exacto en las líneas y en el PDF. El margen se calcula con todos sus decimales:
+  en pantalla lo ves redondeado a 2, p. ej. *Otro margen (12.47%)*, pero los precios
+  salen del precio por kilo que escribiste. El precio debe ser mayor que el costo del
+  material; si es igual o menor, no se puede guardar ni emitir.
+- Una revisión arranca con el mismo precio por kilo. Si el costo del material cambió
+  mientras tanto, el precio se queda y el margen se ajusta.
 
 Las líneas de una cotización **QS** muestran también su peso: **Cantidad (m)**, **Kg por
 metro** (los kilos de material por metro del producto, con 4 decimales) y **Kg**
 (cantidad × kg por metro, con 2 decimales). Se calculan solos y se actualizan al cambiar la
 cantidad; no hay que capturar nada. Salen igual en el PDF. Una línea libre no tiene peso
 y deja esas columnas vacías.
+
+Las cotizaciones **QG** (Cable Alumoclad hilo de guarda) también se cotizan por metro, con
+las mismas columnas en la app y en el PDF. Ahí el **Costo** del producto es por kilo y su
+**Peso (kg/m)** es lo que lleva un metro: precio por metro = costo por kg × kg por metro ÷
+(1 − margen). Por ejemplo, ALC-C7#8 a $95.00/kg con 0.3896 kg/m y margen de 10 %: 95 ×
+0.3896 = 37.01 de costo por metro; 37.01 ÷ 0.90 = **$41.12** por metro. 1000 m son 389.60
+kg y $41,124.44 (el total sale del precio sin redondear, igual que en QS). Un producto QG
+sin peso no se puede cotizar: su línea muestra un aviso y la cotización no se guarda ni se
+emite hasta que lo quites ([ver abajo](#problemas-comunes)).
 
 > La lista de márgenes la mantiene un administrador en Configuración del sistema. Si cambia el porcentaje
 > de tu margen, tu borrador toma el valor nuevo; si lo retira, tienes que
@@ -398,6 +417,7 @@ comentarios no se editan ni se borran.
 | *Elige un margen disponible para esta cotización.* | Aparece en las líneas del catálogo mientras la cotización no tiene un margen disponible. | Igual: elige un margen en **Margen**. |
 | Al hacer clic en **Emitir cotización** la página se recarga con un mensaje sobre el margen. | El margen de la cotización no está disponible. | Elige un margen en **Margen** y vuelve a emitir. |
 | *Este producto no tiene datos de precio configurados.* | El producto no tiene costo ni materiales. | [Corrige el producto](productos.md#editar-un-producto) o usa una [línea libre](#agregar-una-línea-libre). |
+| *Este producto no tiene Peso (kg/m) y en esta serie el precio por metro sale de él. Quítalo de la cotización y captura su peso en Productos.* | En una cotización QG, el producto no tiene peso, y sin él no hay precio por metro. | Quita la línea, [captura el peso del producto](productos.md#editar-un-producto) y vuelve a agregarlo. |
 | *Producto no encontrado.* | El producto se eliminó del catálogo después de agregarlo al borrador. | Quita la línea y agrega el producto correcto. |
 | *esta cotización ya no es editable* | La cotización ya fue emitida (p. ej. la emitiste desde otra pestaña). | Ábrela de nuevo. Para cambiarla, usa [Revisar](#revisar-una-cotización-emitida). |
 | Al hacer clic en **Emitir cotización** la página se recarga sin mensaje. | La cotización no tiene líneas. | Agrega al menos una línea. |

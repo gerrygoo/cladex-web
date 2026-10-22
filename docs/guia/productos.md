@@ -49,8 +49,13 @@ convertido a pesos.
   $160.00/kg y margen de 29.55 %: 0.1723 × 160 = 27.57 de costo; 27.57 ÷ 0.7045 =
   **$39.13** por metro.
 
-> El **Peso (kg/m)** del producto es solo informativo: no cambia el precio. Lo que
-> cuenta para el precio es la cantidad de cada material.
+- En la familia de la serie **QG** (Alumoclad), el costo es por kilo y el precio es por
+  metro: ALC-C7#8 a $95.00/kg con **Peso** de 0.3896 kg/m y margen de 10 %: 95 × 0.3896 =
+  37.01 de costo por metro; 37.01 ÷ 0.90 = **$41.12** por metro.
+
+> Fuera de la serie QG, el **Peso (kg/m)** del producto es solo informativo: no cambia el
+> precio. Lo que cuenta para el precio es la cantidad de cada material. En QG el peso es
+> obligatorio, porque de él sale el precio por metro.
 
 ## Dar de alta un producto
 
@@ -63,7 +68,8 @@ convertido a pesos.
    ([¿cómo se usa?](#cómo-se-calcula-el-precio-de-un-producto)). Si el producto se
    cotiza por sus materiales, déjalo vacío y agrégale los
    [materiales](#materiales-de-un-producto) después de guardarlo. Opcional: el
-   **Peso (kg/m)**, solo informativo, p. ej. `0.123`.
+   **Peso (kg/m)**, solo informativo, p. ej. `0.123`. En la familia de la serie **QG**
+   el costo va por kilo y el peso es obligatorio, p. ej. `0.3896`.
 6. Opcional: elige la **Unidad** (p. ej. metro). Aparece junto a la cantidad en las
    cotizaciones.
 7. Haz clic en **Guardar**. Antes de crearlo aparece un cuadro: *"¿Revisaste que todos
@@ -138,5 +144,6 @@ Qué pasa al eliminar:
 | *El SKU es obligatorio.* / *La descripción es obligatoria.* | Llena el campo. |
 | *Selecciona una familia.* | Elige una familia de la lista. |
 | *Costo inválido; usa un número, p. ej. 123.45.* (y el equivalente de Peso) | Escribe solo el número, sin `$` ni comas. |
+| *El peso es obligatorio en la serie QG: el precio por metro sale del costo por kg × el peso. Escríbelo en kg/m, p. ej. 0.3896.* | Escribe el peso en kg por metro, mayor que 0. |
 | *Cantidad inválida; usa un número positivo, p. ej. 0.1723.* | En Materiales, escribe la cantidad como número mayor que 0. |
 | *Este producto ya tiene ese material; elimínalo y vuelve a agregarlo para cambiar la cantidad.* | Elimina la fila del material y agrégalo con la cantidad nueva. |

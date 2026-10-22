@@ -220,6 +220,23 @@
     });
   });
 
+  // Pronóstico's Último comentario shows two lines and scrolls inside its cell (issue
+  // #42). One that overflows becomes a tab stop named after its proyecto, so it also
+  // scrolls from the keyboard, and is marked "more" (a fade) until read to the end.
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("table.forecast-table .comment-body").forEach(function (el) {
+      if (el.scrollHeight <= el.clientHeight + 1) return;
+      el.tabIndex = 0;
+      el.setAttribute("role", "region");
+      el.setAttribute("aria-label", "Último comentario de " + el.closest("tr").querySelector("th").textContent.trim());
+      var mark = function () {
+        el.classList.toggle("more", el.scrollTop + el.clientHeight < el.scrollHeight - 1);
+      };
+      el.addEventListener("scroll", mark, { passive: true });
+      mark();
+    });
+  });
+
   // After a failed submit the server re-renders the form with aria-invalid fields;
   // start the user on the first one.
   document.addEventListener("DOMContentLoaded", function () {

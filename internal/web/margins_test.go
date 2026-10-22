@@ -421,3 +421,118 @@ func TestQuoteOtroMargen(t *testing.T) {
 		t.Error("QL quote offers a quote margin")
 	}
 }
+
+// Otro margen typed as the copper price per kg (issue #38): the margin it implies has
+// more than two decimals, yet the draft saves, recalculates and issues; the exact price
+// prices the lines, the margin shows rounded, and a revision keeps the price.
+func TestQuoteOtroMargenFromCopperPrice(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	ccsProductID, _ := seedCCSProduct(t, a) // CCS 30% at $160/kg
+	ctx := context.Background()
+	estandar := marginOption(t, a, "Estándar")
+
+	draft, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QS")
+	folio := map[string]string{"folio": draft.Folio}
+	form := func(fields url.Values) url.Values {
+		f := costLineForm(ccsProductID, estandar.ID)
+		f.Set("margin_option_id", "custom")
+		f.Set("lines[0][qty]", "10000")
+		for k, v := range fields {
+			f[k] = v
+		}
+		return f
+	}
+
+	// $188.50/kg over a $160 cost is a 15.1194% margin.
+	rec := doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+draft.Folio+"/guardar", folio,
+		form(url.Values{"margin_pct": {"15.12"}, "copper_price": {"188.5"}, "margin_edited": {"copper"}}), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	saved, _ := a.store.QuoteByID(ctx, draft.ID)
+	if saved.CustomMarginMicros == nil || *saved.CustomMarginMicros != 151_194 ||
+		saved.CustomCopperPriceMicros == nil || *saved.CustomCopperPriceMicros != 188_500_000 {
+		t.Fatalf("saved margin = %v, price = %v; want 0.151194 and 188.5", saved.CustomMarginMicros, saved.CustomCopperPriceMicros)
+	}
+	body := builderBody(t, a, q, userID, draft.Folio)
+	for _, want := range []string{`<option value="custom" selected>Otro margen (15.12%)</option>`, `value="15.12"`, `value="188.5"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("reopened builder missing %q", want)
+		}
+	}
+
+	// The page sends back what it shows, with margin_edited empty: adding a line or
+	// issuing keeps the saved price rather than re-reading 15.12 as typed.
+	unchanged := form(url.Values{"margin_pct": {"15.12"}, "copper_price": {"188.5"}})
+	rec = doForm(t, a, userID, q.Recalcular, "POST", "/cotizaciones/"+draft.Folio+"/recalcular", folio, unchanged, true)
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), `class="error"`) {
+		t.Fatalf("Recalcular(unchanged) = %d, with an error: %s", rec.Code, rec.Body.String())
+	}
+	rec = doForm(t, a, userID, q.Emitir, "POST", "/cotizaciones/"+draft.Folio+"/emitir", folio, unchanged, false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	// 0.1723 kg × $160 × 188.50 / 160 = $32.47855 a unit, exactly; the rounded margin
+	// would give $32.478564 and a different total over 10,000 units.
+	lines, _ := a.store.ListQuoteLines(ctx, draft.ID)
+	if len(lines) != 1 || lines[0].UnitPriceMicros != 32_478_550 || lines[0].LineTotal != 32_478_550 {
+		t.Fatalf("issued lines = %+v; want $32.47855 × 10,000 = $324,785.50", lines)
+	}
+	if body := builderBody(t, a, q, userID, draft.Folio); !strings.Contains(body, "<dd>Otro margen (15.12%)</dd>") {
+		t.Errorf("issued page doesn't show Otro margen (15.12%%): %s", body)
+	}
+
+	// The revision starts on the same price and margin.
+	rev, err := a.store.CreateRevision(ctx, draft.ID, userID)
+	if err != nil {
+		t.Fatalf("CreateRevision: %v", err)
+	}
+	if rev.CustomCopperPriceMicros == nil || *rev.CustomCopperPriceMicros != 188_500_000 {
+		t.Errorf("revision copper price = %v, want 188.5", rev.CustomCopperPriceMicros)
+	}
+	body = builderBody(t, a, q, userID, rev.Folio)
+	for _, want := range []string{`<option value="custom" selected>Otro margen (15.12%)</option>`, `value="188.5"`, "324,785.50"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("revision builder missing %q", want)
+		}
+	}
+	revFolio := map[string]string{"folio": rev.Folio}
+
+	// Without JS, a changed price with the percentage untouched is read as the price.
+	rec = doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+rev.Folio+"/guardar", revFolio,
+		form(url.Values{"margin_pct": {"15.12"}, "copper_price": {"200"}}), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar(no-JS price) status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if saved, _ := a.store.QuoteByID(ctx, rev.ID); saved.CustomCopperPriceMicros == nil || *saved.CustomCopperPriceMicros != 200_000_000 || *saved.CustomMarginMicros != 200_000 {
+		t.Errorf("no-JS price change saved margin %v, price %v; want 0.2 and 200", saved.CustomMarginMicros, saved.CustomCopperPriceMicros)
+	}
+
+	// A typed percentage keeps the two-decimal rule and drops the saved price; the price
+	// takes two decimals and must be above cost.
+	for name, c := range map[string]struct {
+		fields url.Values
+		want   string
+	}{
+		"three-decimal margin": {url.Values{"margin_pct": {"12.345"}, "margin_edited": {"pct"}}, "Otro margen inválido"},
+		"three-decimal price":  {url.Values{"copper_price": {"188.555"}, "margin_edited": {"copper"}}, "con hasta 2 decimales"},
+		"price at cost":        {url.Values{"copper_price": {"160"}, "margin_edited": {"copper"}}, "debe ser mayor que su costo"},
+		"price below cost":     {url.Values{"copper_price": {"150"}, "margin_edited": {"copper"}}, "debe ser mayor que su costo"},
+	} {
+		rec := doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+rev.Folio+"/guardar", revFolio, form(c.fields), false)
+		if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), c.want) {
+			t.Errorf("%s: Guardar = %d, want 422 with %q", name, rec.Code, c.want)
+		}
+	}
+	rec = doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+rev.Folio+"/guardar", revFolio,
+		form(url.Values{"margin_pct": {"12.5"}, "copper_price": {"200.00"}, "margin_edited": {"pct"}}), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar(12.5%%) status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if saved, _ := a.store.QuoteByID(ctx, rev.ID); *saved.CustomMarginMicros != 125_000 || saved.CustomCopperPriceMicros != nil {
+		t.Errorf("typed 12.5%% saved margin %v, price %v; want 0.125 and none", *saved.CustomMarginMicros, saved.CustomCopperPriceMicros)
+	}
+}
