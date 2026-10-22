@@ -98,7 +98,7 @@ func (a *Auth) RequireAuth(next http.Handler) http.Handler {
 			}
 		}
 		// Attribute any database write made downstream to this user, for the audit
-		// triggers in migrations/0003_audit_log.sql, and let the access log name them.
+		// triggers in migrations/0004_audit_log.sql, and let the access log name them.
 		ctx = store.WithActor(ctx, store.Actor{UserID: user.ID, Source: store.SourceWeb})
 		if info := requestInfoFrom(ctx); info != nil {
 			info.userID = user.ID

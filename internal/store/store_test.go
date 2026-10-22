@@ -3,8 +3,29 @@ package store
 import (
 	"context"
 	"database/sql"
+	"io/fs"
+	"strings"
 	"testing"
+
+	cladex "github.com/gerrygoo/cladex-web"
 )
+
+// Migrations apply in filename order, so a shared number is legal but leaves their order
+// to the rest of the name. 0004 predates this check and can't be renamed once applied.
+func TestMigrationNumbersAreUnique(t *testing.T) {
+	entries, err := fs.ReadDir(cladex.MigrationsFS, "migrations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]string{}
+	for _, e := range entries {
+		num, _, _ := strings.Cut(e.Name(), "_")
+		if prev, dup := seen[num]; dup && num != "0004" {
+			t.Errorf("%s and %s share number %s", prev, e.Name(), num)
+		}
+		seen[num] = e.Name()
+	}
+}
 
 // Every pooled connection, not just the first, must enforce foreign keys and wait on a
 // locked database rather than failing at once.
