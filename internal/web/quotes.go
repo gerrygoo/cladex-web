@@ -1390,16 +1390,6 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 			CostMicros:          l.CostMicros,
 		}
 	}
-	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, margin.id(), margin.customRow(), storeLines, totals); err != nil {
-		serverError(w, r, err)
-		return
-	}
-
-	if err := q.saveTermsInputs(ctx, quote); err != nil {
-		serverError(w, r, err)
-		return
-	}
-
 	// The month is the viewer's: a quote issued late on the 31st in México is still
 	// that month's, though UTC has moved on.
 	validUntil := endOfMonth(time.Now().In(store.LocationFromContext(ctx)))
@@ -1443,7 +1433,26 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 	}
 	issue.PDFSHA256 = sha256Hex(pdfBytes)
 
-	if err := q.store.IssueQuote(ctx, quote.ID, issue); err != nil {
+	// Lines, terms inputs and the issue itself land in one transaction: nothing is
+	// written until the PDF above has rendered, and a failure leaves the draft untouched.
+	save := store.DraftSave{
+		MarginOptionID: margin.id(),
+		CustomMargin:   margin.customRow(),
+		Lines:          storeLines,
+		Totals:         totals,
+		DeliveryTime:   quote.DeliveryTime,
+		Currency:       quote.Currency,
+		ExtraTerms:     quote.ExtraTerms,
+	}
+	if quote.ValidUntil != nil {
+		save.ValidUntil = *quote.ValidUntil
+	}
+	if err := q.store.SaveAndIssueQuote(ctx, quote.ID, save, issue); err != nil {
+		if errors.Is(err, store.ErrQuoteNotDraft) {
+			// A double-submit: the first click issued it.
+			http.Error(w, "esta cotización ya fue emitida", http.StatusConflict)
+			return
+		}
 		serverError(w, r, err)
 		return
 	}

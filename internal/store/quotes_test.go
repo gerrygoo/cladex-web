@@ -222,6 +222,54 @@ func TestIssueQuote(t *testing.T) {
 	}
 }
 
+// SaveAndIssueQuote writes lines, terms inputs and the issue together, and a quote
+// issued meanwhile (a double-submit) gets none of them.
+func TestSaveAndIssueQuote(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	customerID, userID, flatProductID, _ := seedQuoteFixtures(t, s, ctx)
+
+	q, err := s.CreateDraftQuote(ctx, customerID, userID, "QA")
+	if err != nil {
+		t.Fatalf("CreateDraftQuote: %v", err)
+	}
+	line := func(qty int64) []QuoteLine {
+		return []QuoteLine{{ProductID: &flatProductID, DescriptionSnapshot: "Foco LED", QtyMilli: money.Milli(qty),
+			UnitPriceMicros: money.Micros(100_000_000), LineTotal: money.Centavos(qty / 10), Source: "manual"}}
+	}
+	save := DraftSave{Lines: line(1_000), DeliveryTime: "2 semanas"}
+	if err := s.SaveAndIssueQuote(ctx, q.ID, save, testIssue("aa")); err != nil {
+		t.Fatalf("SaveAndIssueQuote: %v", err)
+	}
+	issued, err := s.QuoteByID(ctx, q.ID)
+	if err != nil {
+		t.Fatalf("QuoteByID: %v", err)
+	}
+	lines, err := s.ListQuoteLines(ctx, q.ID)
+	if err != nil {
+		t.Fatalf("ListQuoteLines: %v", err)
+	}
+	if issued.Status != "emitida" || issued.DeliveryTime != "2 semanas" || len(lines) != 1 {
+		t.Fatalf("after issue: status %q, delivery %q, %d lines", issued.Status, issued.DeliveryTime, len(lines))
+	}
+
+	again := DraftSave{Lines: append(line(5_000), line(7_000)...), DeliveryTime: "otra"}
+	if err := s.SaveAndIssueQuote(ctx, q.ID, again, testIssue("bb")); !errors.Is(err, ErrQuoteNotDraft) {
+		t.Fatalf("second SaveAndIssueQuote = %v, want ErrQuoteNotDraft", err)
+	}
+	after, err := s.QuoteByID(ctx, q.ID)
+	if err != nil {
+		t.Fatalf("QuoteByID: %v", err)
+	}
+	lines, err = s.ListQuoteLines(ctx, q.ID)
+	if err != nil {
+		t.Fatalf("ListQuoteLines: %v", err)
+	}
+	if after.DeliveryTime != "2 semanas" || *after.PDFSHA256 != "aa" || len(lines) != 1 || lines[0].QtyMilli != 1_000 {
+		t.Fatalf("refused issue still wrote: delivery %q, sha %q, lines %+v", after.DeliveryTime, *after.PDFSHA256, lines)
+	}
+}
+
 // testIssue is a minimal valid Issue for tests that only need a quote to be issued.
 func testIssue(sha string) Issue {
 	return Issue{
