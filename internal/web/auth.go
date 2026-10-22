@@ -77,7 +77,7 @@ func (a *Auth) RequireAuth(next http.Handler) http.Handler {
 		hash := hashToken(c.Value)
 		user, err := a.store.SessionUser(r.Context(), hash)
 		if err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 		if user == nil {
@@ -86,7 +86,7 @@ func (a *Auth) RequireAuth(next http.Handler) http.Handler {
 			return
 		}
 		if err := a.store.RenewSession(r.Context(), hash); err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 		ctx := context.WithValue(r.Context(), userContextKey, user)
@@ -152,7 +152,7 @@ func (a *Auth) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 
 	wait, err := a.rateLimitWait(ctx, username, ip)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if wait > 0 {
@@ -164,7 +164,7 @@ func (a *Auth) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 
 	user, err := a.store.UserByUsername(ctx, username)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 
@@ -178,7 +178,7 @@ func (a *Auth) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := a.store.RecordLoginAttempt(ctx, username, ip, valid); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 
@@ -190,11 +190,11 @@ func (a *Auth) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 
 	token, err := randomToken()
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if err := a.store.CreateSession(ctx, user.ID, hashToken(token)); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	a.setSessionCookie(w, token)

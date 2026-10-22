@@ -30,7 +30,7 @@ func (u *Units) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	units, err := u.store.ListUnits(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	successMsg := ""
@@ -61,7 +61,7 @@ func (u *Units) Create(w http.ResponseWriter, r *http.Request) {
 			u.renderListError(w, r, "Ya existe una unidad con este código.")
 			return
 		}
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/unidades?guardado=1", http.StatusSeeOther)
@@ -84,7 +84,7 @@ func (u *Units) SetSAT(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/unidades?guardado=1", http.StatusSeeOther)
@@ -94,7 +94,7 @@ func (u *Units) renderListError(w http.ResponseWriter, r *http.Request, errorMsg
 	ctx := r.Context()
 	units, err := u.store.ListUnits(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	units, pager := paginate(r, units)

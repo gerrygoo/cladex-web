@@ -311,7 +311,7 @@ func (q *Quotes) List(w http.ResponseWriter, r *http.Request) {
 	filters := filterParams(r)
 	quotes, err := q.store.ListQuotes(ctx, query, sortCol, dir, filters)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	quotes, pager := paginate(r, quotes)
@@ -327,7 +327,7 @@ func (q *Quotes) List(w http.ResponseWriter, r *http.Request) {
 	}
 	customers, authors, err := q.store.QuoteFilterChoices(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	user, _ := UserFromContext(ctx)
@@ -366,12 +366,12 @@ func (q *Quotes) NewPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	customers, err := q.store.ListCustomers(ctx, "", "name", "asc", nil)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	series, err := q.store.ListSeries(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	user, _ := UserFromContext(ctx)
@@ -401,14 +401,14 @@ func (q *Quotes) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	series, err := q.store.ListSeries(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	fieldErrors := form.Validate(series)
 	if len(fieldErrors) > 0 {
 		customers, err := q.store.ListCustomers(ctx, "", "name", "asc", nil)
 		if err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 		user, _ := UserFromContext(ctx)
@@ -422,7 +422,7 @@ func (q *Quotes) Create(w http.ResponseWriter, r *http.Request) {
 	user, _ := UserFromContext(ctx)
 	quote, err := q.store.CreateDraftQuote(ctx, customerID, user.ID, form.Prefix)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/cotizaciones/"+quote.Folio, http.StatusSeeOther)
@@ -433,7 +433,7 @@ func (q *Quotes) Create(w http.ResponseWriter, r *http.Request) {
 func (q *Quotes) loadQuoteOrNotFound(w http.ResponseWriter, r *http.Request) *store.Quote {
 	quote, err := q.store.QuoteByFolio(r.Context(), r.PathValue("folio"))
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return nil
 	}
 	if quote == nil {
@@ -901,7 +901,7 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 	}
 	persisted, err := q.store.ListQuoteLines(ctx, quote.ID)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	var lines []views.QuoteLineView
@@ -910,7 +910,7 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 	if quote.Status == "borrador" {
 		margin, err = q.resolveMargin(ctx, quote, nil)
 		if err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 		lines = q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.Prefix == views.KgPricedSeries)
@@ -1016,20 +1016,20 @@ func (q *Quotes) renderBuilder(w http.ResponseWriter, r *http.Request, quote *st
 		var err error
 		picker, err = q.productPicker(ctx, r, quote)
 		if err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 	}
 	comments, err := q.store.ListQuoteComments(ctx, quote.ID)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	comments, pager := paginate(r, comments)
 	commentsLV := views.ListView{Base: "/cotizaciones/" + quote.Folio, Pager: pager, Anchor: "comentarios"}
 	supplier, err := supplierQuoteView(r, q.store, quote, "/cotizaciones/"+quote.Folio, "/cotizaciones/"+quote.Folio+"/proveedor")
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	user, _ := UserFromContext(ctx)
@@ -1066,7 +1066,7 @@ func (q *Quotes) Recalcular(w http.ResponseWriter, r *http.Request) {
 	}
 	margin, err := q.resolveMargin(ctx, quote, r.Form)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	takeTermsInputs(r, quote)
@@ -1092,7 +1092,7 @@ func (q *Quotes) BuscarProductos(w http.ResponseWriter, r *http.Request) {
 	}
 	picker, err := q.productPicker(ctx, r, quote)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	views.ProductSearchResults(picker).Render(ctx, w)
@@ -1117,7 +1117,7 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 	}
 	margin, err := q.resolveMargin(ctx, quote, r.Form)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	takeTermsInputs(r, quote)
@@ -1149,11 +1149,11 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, margin.id(), margin.customRow(), storeLines, totals); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if err := q.saveTermsInputs(ctx, quote); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, fmt.Sprintf("/cotizaciones/%s?guardado=1", quote.Folio), http.StatusSeeOther)
@@ -1288,7 +1288,7 @@ func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
 	}
 	persisted, err := q.store.ListQuoteLines(ctx, quote.ID)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 
@@ -1296,7 +1296,7 @@ func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
 	if quote.Status == "borrador" {
 		margin, err := q.resolveMargin(ctx, quote, nil)
 		if err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 		lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.Prefix == views.KgPricedSeries)
@@ -1313,7 +1313,7 @@ func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
 	doc.Watermark = q.watermark
 	bytes, err := pdf.RenderQuote(ctx, doc)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if quote.PDFSHA256 != nil && sha256Hex(bytes) != *quote.PDFSHA256 {
@@ -1355,7 +1355,7 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 	}
 	margin, err := q.resolveMargin(ctx, quote, r.Form)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	takeTermsInputs(r, quote)
@@ -1391,12 +1391,12 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, margin.id(), margin.customRow(), storeLines, totals); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 
 	if err := q.saveTermsInputs(ctx, quote); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 
@@ -1432,19 +1432,19 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 	frozen.Subtotal, frozen.IVA, frozen.Total = totals.Subtotal, totals.IVA, totals.Total
 	doc, err := issuedQuoteDocument(frozen, storeLines)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	doc.Watermark = q.watermark
 	pdfBytes, err := pdf.RenderQuote(ctx, doc)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	issue.PDFSHA256 = sha256Hex(pdfBytes)
 
 	if err := q.store.IssueQuote(ctx, quote.ID, issue); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/cotizaciones/"+quote.Folio+"?emitida=1", http.StatusSeeOther)
@@ -1471,7 +1471,7 @@ func (q *Quotes) Revisar(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "la cotización ya no se puede revisar: el cliente ya mandó su orden de compra", http.StatusConflict)
 			return
 		}
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/cotizaciones/"+rev.Folio, http.StatusSeeOther)

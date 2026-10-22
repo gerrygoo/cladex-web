@@ -132,7 +132,7 @@ func (cs *Customers) List(w http.ResponseWriter, r *http.Request) {
 	filters := filterParams(r)
 	customers, err := cs.store.ListCustomers(ctx, query, sort, dir, filters)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 
@@ -224,7 +224,7 @@ func (cs *Customers) Create(w http.ResponseWriter, r *http.Request) {
 	if r.FormValue("confirmar") != "1" {
 		similar, err := cs.store.SimilarCustomers(ctx, form.Name, form.RFC)
 		if err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 		if len(similar) > 0 {
@@ -235,7 +235,7 @@ func (cs *Customers) Create(w http.ResponseWriter, r *http.Request) {
 
 	id, err := cs.store.CreateCustomer(ctx, form.toCustomer())
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if rt.Volver != "" {
@@ -272,7 +272,7 @@ func (cs *Customers) EditPage(w http.ResponseWriter, r *http.Request) {
 	}
 	customer, err := cs.store.CustomerByID(ctx, id)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if customer == nil {
@@ -285,7 +285,7 @@ func (cs *Customers) EditPage(w http.ResponseWriter, r *http.Request) {
 	}
 	history, err := cs.history(ctx, id)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	user, _ := UserFromContext(ctx)
@@ -315,7 +315,7 @@ func (cs *Customers) Update(w http.ResponseWriter, r *http.Request) {
 	customer := form.toCustomer()
 	customer.ID = id
 	if err := cs.store.UpdateCustomer(ctx, customer); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, fmt.Sprintf("/clientes/%d?guardado=1", id), http.StatusSeeOther)
@@ -330,7 +330,7 @@ func (cs *Customers) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := cs.store.SoftDeleteCustomer(ctx, id); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/clientes?eliminado=1", http.StatusSeeOther)
@@ -341,7 +341,7 @@ func (cs *Customers) renderFormError(w http.ResponseWriter, r *http.Request, id 
 	ctx := r.Context()
 	history, err := cs.history(ctx, id)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	user, _ := UserFromContext(ctx)

@@ -56,7 +56,7 @@ func (a *Auth) MiCuentaSubmit(w http.ResponseWriter, r *http.Request) {
 		var err error
 		user, err = a.store.UserByID(ctx, authUser.ID)
 		if err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 		if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(form.CurrentPassword)) != nil {
@@ -72,11 +72,11 @@ func (a *Auth) MiCuentaSubmit(w http.ResponseWriter, r *http.Request) {
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(form.NewPassword), 12)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if err := a.store.UpdatePassword(ctx, user.ID, string(hash)); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 

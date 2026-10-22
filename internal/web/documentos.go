@@ -50,7 +50,7 @@ func (d *Documentos) render(w http.ResponseWriter, r *http.Request, values views
 	ctx := r.Context()
 	sections, err := d.store.ListDocumentSections(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	user, _ := UserFromContext(ctx)
@@ -113,7 +113,7 @@ func (d *Documentos) Subir(w http.ResponseWriter, r *http.Request) {
 			d.render(w, r, values, map[string]string{"seccion": "Esa sección ya no existe; elige otra."}, "", http.StatusBadRequest)
 			return
 		}
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/documentos?guardado=subido", http.StatusSeeOther)
@@ -130,7 +130,7 @@ func (d *Documentos) Eliminar(w http.ResponseWriter, r *http.Request) {
 	user, _ := UserFromContext(ctx)
 	ok, err := d.store.RemoveOfficialDocument(ctx, id, user.ID)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if !ok {
@@ -152,7 +152,7 @@ func (d *Documentos) Archivo(w http.ResponseWriter, r *http.Request) {
 	}
 	doc, data, err := d.store.OfficialDocumentData(r.Context(), id)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if doc == nil {

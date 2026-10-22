@@ -26,7 +26,7 @@ func (u *Users) List(w http.ResponseWriter, r *http.Request) {
 	filters := filterParams(r)
 	users, err := u.store.ListUsers(ctx, sort, dir, filters)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	users, pager := paginate(r, users)
@@ -64,7 +64,7 @@ func (u *Users) SetRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := u.store.SetUserRole(ctx, id, role); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/usuarios?guardado=1", http.StatusSeeOther)
@@ -86,7 +86,7 @@ func (u *Users) SetDisabled(disabled bool) http.HandlerFunc {
 			return
 		}
 		if err := u.store.SetUserDisabled(ctx, id, disabled); err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 		http.Redirect(w, r, "/usuarios?guardado=1", http.StatusSeeOther)
@@ -99,7 +99,7 @@ func (u *Users) renderListError(w http.ResponseWriter, r *http.Request, errorMsg
 	filters := filterParams(r)
 	users, err := u.store.ListUsers(ctx, sort, dir, filters)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	users, pager := paginate(r, users)

@@ -21,6 +21,7 @@ type requestInfo struct {
 	id       string
 	userID   int64
 	username string
+	err      error // set by serverError, logged on the request line
 }
 
 var requestInfoKey = &contextKey{"requestInfo"}
@@ -42,6 +43,16 @@ func RequestID(ctx context.Context) string {
 		return info.id
 	}
 	return ""
+}
+
+// serverError answers 500 for an unexpected error. The error goes on the request's
+// access-log line rather than to the client, which only sees the request id in the
+// X-Request-Id header.
+func serverError(w http.ResponseWriter, r *http.Request, err error) {
+	if info := requestInfoFrom(r.Context()); info != nil {
+		info.err = err
+	}
+	http.Error(w, "error interno", http.StatusInternalServerError)
 }
 
 // AccessLog logs one structured line per request and turns a handler panic into a 500
@@ -85,6 +96,9 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 					slog.Int64("duration_ms", time.Since(start).Milliseconds()),
 					slog.Int64("bytes", m.Written),
 					slog.String("ip", clientIP(r)),
+				}
+				if info.err != nil {
+					attrs = append(attrs, slog.String("err", info.err.Error()))
 				}
 				if info.userID != 0 {
 					attrs = append(attrs,

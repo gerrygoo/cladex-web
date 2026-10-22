@@ -55,7 +55,7 @@ func (s *Settings) Emisor(w http.ResponseWriter, r *http.Request) {
 	}
 	user, _ := UserFromContext(ctx)
 	if err := s.store.SetEmisor(ctx, e, user.ID); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/ajustes?emisor=1#emisor", http.StatusSeeOther)
@@ -73,24 +73,24 @@ func (s *Settings) renderWith(w http.ResponseWriter, r *http.Request, successMsg
 	if emisor == nil {
 		e, err := s.store.EmisorSettings(ctx)
 		if err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 		emisor = &e
 	}
 	margins, err := s.store.ListMarginOptions(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	materials, err := s.store.ListMaterials(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	units, err := s.store.ListUnits(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if errorMsg != "" || len(emisorErrs) > 0 {
@@ -155,7 +155,7 @@ func (s *Settings) marginAction(w http.ResponseWriter, r *http.Request, act func
 			s.render(w, r, "", msg)
 			return
 		}
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/ajustes?margen=1", http.StatusSeeOther)
@@ -247,7 +247,7 @@ func (s *Settings) materialAction(w http.ResponseWriter, r *http.Request, act fu
 		case errors.Is(err, store.ErrMaterialNotFound):
 			s.render(w, r, "", "Ese material no existe.")
 		default:
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 		}
 		return
 	}

@@ -142,13 +142,13 @@ func saveSupplierQuote(w http.ResponseWriter, r *http.Request, s *store.Store, q
 	supplier := truncateRunes(r.FormValue("proveedor"), 200)
 	number := truncateRunes(r.FormValue("numero"), 100)
 	if err := s.SetSupplierQuoteInfo(ctx, quoteID, supplier, number, user.ID); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	code, filename, _, err := addSupplierFiles(r, s, quoteID, user.ID)
 	switch {
 	case err != nil:
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 	case code != "":
 		supplierRedirect(w, r, page, "proveedor_error", code, filename)
 	default:
@@ -170,7 +170,7 @@ func (q *Quotes) ProveedorArchivo(w http.ResponseWriter, r *http.Request) {
 	}
 	file, data, err := q.store.SupplierQuoteFileData(r.Context(), quote.ID, id)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if file == nil {
@@ -201,7 +201,7 @@ func (q *Quotes) ProveedorEliminar(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, store.ErrSupplierFileLocked):
 		supplierRedirect(w, r, page, "proveedor_error", "bloqueado", "")
 	case err != nil:
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 	case !found:
 		http.NotFound(w, r)
 	default:
@@ -219,7 +219,7 @@ func (p *Projects) Proveedor(w http.ResponseWriter, r *http.Request) {
 	}
 	quote, err := p.store.QuoteByID(ctx, project.CurrentQuoteID)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if quote == nil || !quote.SeriesFreeLines {
