@@ -8,8 +8,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 	_ "time/tzdata" // the home page shows the build time in Mexico City time; don't depend on the image's zoneinfo
 
@@ -109,7 +111,10 @@ func runServer() {
 	// be sent back by the browser.
 	cookieSecure := os.Getenv("COOKIE_SECURE") != "false"
 
-	ctx := context.Background()
+	// ctx is cancelled on SIGTERM (docker compose stop) or Ctrl-C, which starts a
+	// graceful shutdown below.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	db, err := openStore(ctx)
 	if err != nil {
 		logger.Error("open store", slog.Any("err", err))
@@ -153,10 +158,37 @@ func runServer() {
 
 	mux := web.NewMux(build, staticFS, guide, db, cookieSecure, logger, factsvc.New(db, factCfg, facturacion))
 
-	addr := fmt.Sprintf(":%s", port)
-	logger.Info("listening", slog.String("addr", addr), slog.String("build", buildSHA), slog.String("built", buildTime))
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	// ReadHeaderTimeout stops a client holding a connection open by trickling headers.
+	// ReadTimeout is generous because it covers the body too, and uploads can be large.
+	// There's no WriteTimeout: it would cut off PDF rendering and PAC calls mid-response.
+	srv := &http.Server{
+		Addr:              fmt.Sprintf(":%s", port),
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       5 * time.Minute,
+		IdleTimeout:       2 * time.Minute,
+	}
+
+	serveErr := make(chan error, 1)
+	go func() {
+		logger.Info("listening", slog.String("addr", srv.Addr), slog.String("build", buildSHA), slog.String("built", buildTime))
+		serveErr <- srv.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serveErr:
 		logger.Error("serve", slog.Any("err", err))
+		db.Close()
 		os.Exit(1)
+	case <-ctx.Done():
+	}
+
+	// Let in-flight requests finish before the deferred db.Close checkpoints the WAL.
+	// Docker sends SIGKILL 10s after SIGTERM, so stop waiting before then.
+	logger.Info("shutting down")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Error("shutdown", slog.Any("err", err))
 	}
 }
