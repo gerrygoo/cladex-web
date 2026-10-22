@@ -63,8 +63,8 @@ que fueron revisadas, cada una con su enlace).
 En un proyecto **QL**, antes de **Cotizaciones** está también la **Cotización del
 proveedor**: el proveedor, su número de cotización y los archivos, los mismos que en la
 cotización (ver [Cotización del proveedor en
-QL](cotizaciones.md#cotización-del-proveedor-en-ql)). Aquí solo se consultan, pero puedes
-agregar más archivos con **Subir archivos**.
+QL](cotizaciones.md#cotización-del-proveedor-en-ql)). Aquí también puedes corregir el
+proveedor y el número y agregar más archivos; los archivos no se eliminan desde aquí.
 
 ## Dar seguimiento a un proyecto
 

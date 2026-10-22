@@ -38,8 +38,12 @@ func TestSupplierQuoteChain(t *testing.T) {
 	if err := s.IssueQuote(ctx, q.ID, testIssue("sha1")); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SetSupplierQuoteInfo(ctx, q.ID, "Otro", "", userID); !errors.Is(err, ErrQuoteNotDraft) {
-		t.Fatalf("editing an issued chain = %v, want ErrQuoteNotDraft", err)
+	// The data stays editable after emission, so a forgotten supplier can be filled in.
+	if err := s.SetSupplierQuoteInfo(ctx, q.ID, "CT Internacional", "Q-2", userID); err != nil {
+		t.Fatalf("editing an issued chain = %v", err)
+	}
+	if sq, _ := s.SupplierQuoteOf(ctx, q.ID); sq.Number != "Q-2" {
+		t.Fatalf("number after editing an issued chain = %q, want Q-2", sq.Number)
 	}
 
 	rev, err := s.CreateRevision(ctx, q.ID, userID)
@@ -54,7 +58,7 @@ func TestSupplierQuoteChain(t *testing.T) {
 		t.Fatal(err)
 	}
 	sq, err := s.SupplierQuoteOf(ctx, rev.ID)
-	if err != nil || sq.Supplier != "CT Internacional" || sq.Number != "Q-1" || len(sq.Files) != 3 {
+	if err != nil || sq.Supplier != "CT Internacional" || sq.Number != "Q-2" || len(sq.Files) != 3 {
 		t.Fatalf("revision sees %+v, %v", sq, err)
 	}
 	if sq.Files[0].Removable || !sq.Files[1].Removable {
@@ -87,7 +91,7 @@ func TestSupplierQuoteChain(t *testing.T) {
 
 	var audited int
 	s.db.QueryRowContext(ctx, `SELECT count(*) FROM audit_log WHERE table_name = 'supplier_quotes'`).Scan(&audited)
-	if audited != 1 {
-		t.Errorf("supplier_quotes audit rows = %d, want 1", audited)
+	if audited != 2 {
+		t.Errorf("supplier_quotes audit rows = %d, want 2 (the insert and the edit after emission)", audited)
 	}
 }

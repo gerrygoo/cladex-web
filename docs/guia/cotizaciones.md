@@ -325,12 +325,13 @@ el nombre para abrirlo en otra pestaña, o en **Descargar**. Si un archivo no es
 ni PNG, o pesa más de 10 MB, no se sube ninguno de los que elegiste y te dice cuál fue
 (*"No se subió ningún archivo: «…» no es PDF, JPG ni PNG."*).
 
-Mientras la cotización es borrador puedes **Eliminar** un archivo. Ya emitida, sus
-archivos quedan fijos y el proveedor y el número ya no se cambian, pero puedes seguir
-agregando archivos con **Subir archivos**. Una [revisión](#revisar-una-cotización-emitida)
-ve los mismos archivos y datos, puede cambiar el proveedor y el número y agregar más
-archivos; solo puede eliminar los que se subieron después de la última emisión. El
-[proyecto](proyectos.md#ver-el-detalle-de-un-proyecto) muestra la misma sección.
+El proveedor y el número se pueden corregir en cualquier momento, también después de
+emitir. Mientras la cotización es borrador puedes **Eliminar** un archivo; ya emitida,
+sus archivos quedan fijos, pero puedes seguir agregando más. Una
+[revisión](#revisar-una-cotización-emitida) ve los mismos archivos y datos y puede
+agregar más archivos; solo puede eliminar los que se subieron después de la última
+emisión. El [proyecto](proyectos.md#ver-el-detalle-de-un-proyecto) muestra la misma
+sección.
 
 ## Descargar y enviar el PDF
 

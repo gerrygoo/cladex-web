@@ -26,8 +26,8 @@ func supplierFilePath(v SupplierQuoteView, f store.SupplierQuoteFile) string {
 }
 
 // SupplierQuoteSection lists the chain's supplier data and files, with the controls to
-// add files (always) and, when editable (the page of the chain's current quote, a
-// borrador), to edit the data and remove the files that can still go.
+// edit the data and add files (on every page) and, when editable (the page of the
+// chain's current quote, a borrador), to remove the files that can still go.
 //
 // Its controls belong to the form SupplierQuoteForm renders, through their form
 // attribute, so the section can sit inside the quote builder's own form without
@@ -43,25 +43,16 @@ templ SupplierQuoteSection(v SupplierQuoteView, editable bool) {
 			<button type="submit" form={ supplierFormID } class="visually-hidden" tabindex="-1" aria-hidden="true">Guardar</button>
 			@Flash(v.Message)
 			@FormError(v.Error)
-			if editable {
-				<div class="quote-meta">
-					<label>
-						Proveedor (opcional)
-						<input type="text" name="proveedor" form={ supplierFormID } value={ v.Quote.Supplier } maxlength="200" placeholder="Quién nos mandó la cotización"/>
-					</label>
-					<label>
-						No. de cotización del proveedor (opcional)
-						<input type="text" name="numero" form={ supplierFormID } value={ v.Quote.Number } maxlength="100"/>
-					</label>
-				</div>
-			} else {
-				<dl class="quote-info">
-					<dt>Proveedor</dt>
-					<dd>{ orNone(v.Quote.Supplier) }</dd>
-					<dt>No. de cotización del proveedor</dt>
-					<dd>{ orNone(v.Quote.Number) }</dd>
-				</dl>
-			}
+			<div class="quote-meta">
+				<label>
+					Proveedor (opcional)
+					<input type="text" name="proveedor" form={ supplierFormID } value={ v.Quote.Supplier } maxlength="200" placeholder="Quién nos mandó la cotización"/>
+				</label>
+				<label>
+					No. de cotización del proveedor (opcional)
+					<input type="text" name="numero" form={ supplierFormID } value={ v.Quote.Number } maxlength="100"/>
+				</label>
+			</div>
 			if len(v.Quote.Files) == 0 {
 				<p>Todavía no hay archivos.</p>
 			} else {
@@ -92,13 +83,7 @@ templ SupplierQuoteSection(v SupplierQuoteView, editable bool) {
 				Agregar archivos (PDF, JPG o PNG de hasta 10 MB cada uno)
 				<input type="file" name="archivos" form={ supplierFormID } multiple accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"/>
 			</label>
-			<button type="submit" form={ supplierFormID }>
-				if editable {
-					Guardar cotización del proveedor
-				} else {
-					Subir archivos
-				}
-			</button>
+			<button type="submit" form={ supplierFormID }>Guardar cotización del proveedor</button>
 		</section>
 	}
 }
@@ -109,11 +94,4 @@ templ SupplierQuoteForm(v SupplierQuoteView) {
 	if v.Quote != nil {
 		<form id={ supplierFormID } method="post" action={ templ.URL(v.Action) } enctype="multipart/form-data"></form>
 	}
-}
-
-func orNone(s string) string {
-	if s == "" {
-		return "Sin capturar"
-	}
-	return s
 }

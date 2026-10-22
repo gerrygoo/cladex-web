@@ -121,8 +121,9 @@ func (s *Store) SupplierQuoteOf(ctx context.Context, quoteID int64) (*SupplierQu
 }
 
 // SetSupplierQuoteInfo saves the supplier and the supplier's quote number for quoteID's
-// chain, trimmed; blank clears them. Only while the chain's current quote is a borrador
-// (ErrQuoteNotDraft otherwise).
+// chain, trimmed; blank clears them. Allowed whatever state the chain is in: it's
+// internal data no issued document carries, so a forgotten supplier can be filled in
+// after emission.
 func (s *Store) SetSupplierQuoteInfo(ctx context.Context, quoteID int64, supplier, number string, userID int64) error {
 	root, err := s.QuoteChainRoot(ctx, quoteID)
 	if err != nil {
@@ -133,13 +134,6 @@ func (s *Store) SetSupplierQuoteInfo(ctx context.Context, quoteID int64, supplie
 		return fmt.Errorf("store: set supplier quote of %d: %w", quoteID, err)
 	}
 	defer tx.Rollback()
-	current, _, err := chainState(ctx, tx, root)
-	if err != nil {
-		return fmt.Errorf("store: set supplier quote of %d: %w", quoteID, err)
-	}
-	if current != "borrador" {
-		return ErrQuoteNotDraft
-	}
 	if err := stampActor(ctx, tx); err != nil {
 		return fmt.Errorf("store: set supplier quote of %d: %w", quoteID, err)
 	}

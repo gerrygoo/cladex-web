@@ -37,7 +37,6 @@ var (
 		"tamano":    "No se subió ningún archivo: «%s» pesa más de 10 MB, el máximo por archivo.",
 		"vacio":     "No se subió ningún archivo: «%s» está vacío.",
 		"total":     "No se subió ningún archivo: juntos pesan más de 30 MB. Súbelos en partes.",
-		"ninguno":   "Elige al menos un archivo para subir.",
 		"bloqueado": "Ese archivo ya no se puede eliminar: es parte de una cotización emitida.",
 	}
 )
@@ -116,12 +115,10 @@ func parseSupplierForm(w http.ResponseWriter, r *http.Request, page string) bool
 	return true
 }
 
-// Proveedor handles POST /cotizaciones/{folio}/proveedor: on the chain's current
-// borrador it saves "proveedor" and "numero", and on any quote of the chain it adds the
-// files in "archivos" (PDF, JPG or PNG, 10 MB each). A refused file leaves out all of
-// them, but the supplier's data is still saved.
+// Proveedor handles POST /cotizaciones/{folio}/proveedor: on any quote of the chain it
+// saves "proveedor" and "numero" and adds the files in "archivos" (PDF, JPG or PNG, 10 MB
+// each). A refused file leaves out all of them, but the supplier's data is still saved.
 func (q *Quotes) Proveedor(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	quote := q.loadQuoteOrNotFound(w, r)
 	if quote == nil {
 		return
@@ -134,23 +131,26 @@ func (q *Quotes) Proveedor(w http.ResponseWriter, r *http.Request) {
 	if !parseSupplierForm(w, r, page) {
 		return
 	}
+	saveSupplierQuote(w, r, q.store, quote.ID, page)
+}
+
+// saveSupplierQuote saves the posted supplier data and files onto quoteID's chain and
+// redirects back to page with the outcome.
+func saveSupplierQuote(w http.ResponseWriter, r *http.Request, s *store.Store, quoteID int64, page string) {
+	ctx := r.Context()
 	user, _ := UserFromContext(ctx)
-	if quote.Status == "borrador" {
-		supplier := truncateRunes(r.FormValue("proveedor"), 200)
-		number := truncateRunes(r.FormValue("numero"), 100)
-		if err := q.store.SetSupplierQuoteInfo(ctx, quote.ID, supplier, number, user.ID); err != nil && !errors.Is(err, store.ErrQuoteNotDraft) {
-			http.Error(w, "error interno", http.StatusInternalServerError)
-			return
-		}
+	supplier := truncateRunes(r.FormValue("proveedor"), 200)
+	number := truncateRunes(r.FormValue("numero"), 100)
+	if err := s.SetSupplierQuoteInfo(ctx, quoteID, supplier, number, user.ID); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
 	}
-	code, filename, sent, err := addSupplierFiles(r, q.store, quote.ID, user.ID)
+	code, filename, _, err := addSupplierFiles(r, s, quoteID, user.ID)
 	switch {
 	case err != nil:
 		http.Error(w, "error interno", http.StatusInternalServerError)
 	case code != "":
 		supplierRedirect(w, r, page, "proveedor_error", code, filename)
-	case !sent && quote.Status != "borrador":
-		supplierRedirect(w, r, page, "proveedor_error", "ninguno", "")
 	default:
 		supplierRedirect(w, r, page, "proveedor", "guardado", "")
 	}
@@ -209,9 +209,8 @@ func (q *Quotes) ProveedorEliminar(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Proveedor handles POST /proyectos/{folio}/proveedor: adds files to the cotización del
-// proveedor of a QL proyecto's quotes, as on the quote. The supplier's data is read-only
-// here.
+// Proveedor handles POST /proyectos/{folio}/proveedor: saves the cotización del
+// proveedor of a QL proyecto's quotes, as on the quote.
 func (p *Projects) Proveedor(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := p.loadProjectOrNotFound(w, r)
@@ -231,18 +230,7 @@ func (p *Projects) Proveedor(w http.ResponseWriter, r *http.Request) {
 	if !parseSupplierForm(w, r, page) {
 		return
 	}
-	user, _ := UserFromContext(ctx)
-	code, filename, sent, err := addSupplierFiles(r, p.store, quote.ID, user.ID)
-	switch {
-	case err != nil:
-		http.Error(w, "error interno", http.StatusInternalServerError)
-	case code != "":
-		supplierRedirect(w, r, page, "proveedor_error", code, filename)
-	case !sent:
-		supplierRedirect(w, r, page, "proveedor_error", "ninguno", "")
-	default:
-		supplierRedirect(w, r, page, "proveedor", "guardado", "")
-	}
+	saveSupplierQuote(w, r, p.store, quote.ID, page)
 }
 
 // truncateRunes trims s and cuts it to at most n characters.

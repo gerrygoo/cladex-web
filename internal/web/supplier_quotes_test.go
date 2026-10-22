@@ -192,19 +192,19 @@ func TestSupplierQuote(t *testing.T) {
 		t.Errorf("PDF = %d, or it names the supplier", rec.Code)
 	}
 
-	// Once issued, the file it was based on is locked, but more can be added; the data
-	// is read-only.
+	// Once issued, the file it was based on is locked, but more can be added and the
+	// data can still be edited.
 	if rec = del(folio, pdfID); rec.Code != http.StatusSeeOther || !strings.Contains(rec.Header().Get("Location"), "proveedor_error=bloqueado") {
 		t.Fatalf("delete after issue = %d %q", rec.Code, rec.Header().Get("Location"))
 	}
 	body = page(folio, "")
-	if strings.Contains(body, `name="proveedor"`) || !strings.Contains(body, "Ingram Micro") || !strings.Contains(body, "Subir archivos") {
-		t.Error("issued quote page should show the data read-only and offer to add files")
+	if !strings.Contains(body, `name="proveedor"`) || !strings.Contains(body, "Ingram Micro") || strings.Contains(body, "/proveedor/"+pdfID+"/eliminar") {
+		t.Error("issued quote page should keep the data editable and the issued file locked")
 	}
-	if rec = postSupplier(t, a, ana, q.Proveedor, base+"/proveedor", folio, map[string]string{"proveedor": "Otro"}, testUpload{"anexo.png", testPNG}); rec.Code != http.StatusSeeOther {
+	if rec = postSupplier(t, a, ana, q.Proveedor, base+"/proveedor", folio, map[string]string{"proveedor": "Ingram Micro México", "numero": "COT-7781"}, testUpload{"anexo.png", testPNG}); rec.Code != http.StatusSeeOther {
 		t.Fatalf("upload after issue = %d", rec.Code)
 	}
-	if sq, _ := a.store.SupplierQuoteOf(ctx, ql.ID); len(sq.Files) != 2 || sq.Supplier != "Ingram Micro" {
+	if sq, _ := a.store.SupplierQuoteOf(ctx, ql.ID); len(sq.Files) != 2 || sq.Supplier != "Ingram Micro México" {
 		t.Fatalf("after issue: %+v", sq)
 	}
 
@@ -213,18 +213,21 @@ func TestSupplierQuote(t *testing.T) {
 		return doForm(t, a, ana, p.Page, "GET", "/proyectos/"+folio+query, pv, nil, false).Body.String()
 	}
 	body = projPage("")
-	for _, want := range []string{"Cotización del proveedor", "Ingram Micro", "COT-7781", "cotizacion.pdf", "anexo.png", "Subir archivos", `action="/proyectos/` + folio + `/proveedor"`} {
+	for _, want := range []string{"Cotización del proveedor", "Ingram Micro México", "COT-7781", "cotizacion.pdf", "anexo.png", `name="proveedor"`, `action="/proyectos/` + folio + `/proveedor"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("proyecto page missing %q", want)
 		}
 	}
-	if strings.Contains(body, `name="proveedor"`) || strings.Contains(body, "/proveedor/"+pdfID+"/eliminar") {
-		t.Error("proyecto page lets the data be edited or a file removed")
+	if strings.Contains(body, "/proveedor/"+pdfID+"/eliminar") {
+		t.Error("proyecto page lets a file be removed")
 	}
-	if rec = postSupplier(t, a, ana, p.Proveedor, "/proyectos/"+folio+"/proveedor", folio, nil); rec.Code != http.StatusSeeOther || !strings.Contains(rec.Header().Get("Location"), "proveedor_error=ninguno") {
-		t.Errorf("empty proyecto upload = %d %q", rec.Code, rec.Header().Get("Location"))
+	if rec = postSupplier(t, a, ana, p.Proveedor, "/proyectos/"+folio+"/proveedor", folio, map[string]string{"proveedor": "Ingram Micro México", "numero": "COT-7790"}); rec.Code != http.StatusSeeOther || !strings.Contains(rec.Header().Get("Location"), "proveedor=guardado") {
+		t.Errorf("proyecto data-only save = %d %q", rec.Code, rec.Header().Get("Location"))
 	}
-	if rec = postSupplier(t, a, ana, p.Proveedor, "/proyectos/"+folio+"/proveedor", folio, nil, testUpload{"desde-proyecto.pdf", testPDF}); rec.Code != http.StatusSeeOther {
+	if sq, _ := a.store.SupplierQuoteOf(ctx, ql.ID); sq.Number != "COT-7790" {
+		t.Errorf("number after saving from the proyecto = %q", sq.Number)
+	}
+	if rec = postSupplier(t, a, ana, p.Proveedor, "/proyectos/"+folio+"/proveedor", folio, map[string]string{"proveedor": "Ingram Micro México", "numero": "COT-7790"}, testUpload{"desde-proyecto.pdf", testPDF}); rec.Code != http.StatusSeeOther {
 		t.Fatalf("proyecto upload = %d; body = %s", rec.Code, rec.Body.String())
 	}
 
@@ -234,7 +237,7 @@ func TestSupplierQuote(t *testing.T) {
 		t.Fatal(err)
 	}
 	sq, _ = a.store.SupplierQuoteOf(ctx, rev.ID)
-	if sq.RootQuoteID != ql.ID || sq.Supplier != "Ingram Micro" || len(sq.Files) != 3 {
+	if sq.RootQuoteID != ql.ID || sq.Supplier != "Ingram Micro México" || len(sq.Files) != 3 {
 		t.Fatalf("revision's supplier quote = %+v", sq)
 	}
 	for _, f := range sq.Files {
@@ -243,7 +246,7 @@ func TestSupplierQuote(t *testing.T) {
 		}
 	}
 	body = page(rev.Folio, "")
-	if !strings.Contains(body, "cotizacion.pdf") || !strings.Contains(body, `value="Ingram Micro"`) {
+	if !strings.Contains(body, "cotizacion.pdf") || !strings.Contains(body, `value="Ingram Micro México"`) {
 		t.Error("revision page doesn't show the chain's supplier quote")
 	}
 	revBase := "/cotizaciones/" + rev.Folio
@@ -276,7 +279,7 @@ func TestSupplierQuoteOptional(t *testing.T) {
 		t.Fatalf("status = %q", got.Status)
 	}
 	body := doForm(t, a, ana, q.Builder, "GET", "/cotizaciones/"+ql.Folio, pv, nil, false).Body.String()
-	if !strings.Contains(body, "Todavía no hay archivos.") || !strings.Contains(body, "Sin capturar") {
+	if !strings.Contains(body, "Todavía no hay archivos.") || !strings.Contains(body, `name="proveedor"`) {
 		t.Error("issued quote without a supplier quote should show the empty section")
 	}
 }
