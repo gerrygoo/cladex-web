@@ -1,6 +1,7 @@
 # Órdenes de compra a proveedores
 
-**Designed, nothing shipped, not scheduled.** A product goal noted by the user on
+**Designed, nothing shipped, parked** (issue #21 is labeled requiere-diseño until it's
+resumed). A product goal noted by the user on
 2026-10-06; the first version's scope was decided on 2026-10-22 (see
 [Decisions](#decisions-2026-10-22)).
 
