@@ -317,21 +317,22 @@ func activeFactura(ctx context.Context, tx *sql.Tx, projectID int64) (int64, err
 // CreateFacturaDraft starts the factura of a proyecto in O.C. recibida from its issued
 // quote: its lines (amounts as quoted), the customer's uso de CFDI and email, the purchase
 // order's método de pago (P.P.D. facturas carry forma de pago 99), and SAT codes from each
-// product's unit and the series' familia. A proyecto has one factura at a time; a
+// product's unit and the series' familia. A KgPricedSeries line is quoted per metre
+// whatever the product's catalog unit (kg), so it takes the metro unit. A proyecto has one factura at a time; a
 // cancelled one doesn't count.
 func (s *Store) CreateFacturaDraft(ctx context.Context, projectID, userID int64) (int64, error) {
 	var id int64
 	err := s.inTx(ctx, "create factura draft", func(tx *sql.Tx) error {
-		var status, method, use, email, currency, familyCode string
+		var status, method, use, email, currency, familyCode, prefix string
 		var quoteID int64
 		err := tx.QueryRowContext(ctx, `
 			SELECT p.status, COALESCE(p.payment_method, ''), COALESCE(cu.cfdi_use, ''), COALESCE(cu.email, ''),
-				q.id, COALESCE(q.currency, 'MXN'), COALESCE(f.sat_product_code, '')
+				q.id, COALESCE(q.currency, 'MXN'), COALESCE(f.sat_product_code, ''), q.prefix
 			FROM projects p
 			JOIN customers cu ON cu.id = p.customer_id
 			JOIN quotes q ON q.project_id = p.id AND q.status = 'emitida'
 			LEFT JOIN product_families f ON f.series = q.prefix
-			WHERE p.id = ?`, projectID).Scan(&status, &method, &use, &email, &quoteID, &currency, &familyCode)
+			WHERE p.id = ?`, projectID).Scan(&status, &method, &use, &email, &quoteID, &currency, &familyCode, &prefix)
 		if err == sql.ErrNoRows || err == nil && (status != "oc_recibida" || method == "") {
 			return ErrComprobanteState
 		}
@@ -365,8 +366,8 @@ func (s *Store) CreateFacturaDraft(ctx context.Context, projectID, userID int64)
 				l.unit_price_micros, l.line_total, 0
 			FROM quote_lines l
 			LEFT JOIN products pr ON pr.id = l.product_id
-			LEFT JOIN units un ON un.id = pr.unit_id
-			WHERE l.quote_id = ? ORDER BY l.line_no`, id, familyCode, quoteID); err != nil {
+			LEFT JOIN units un ON un.id = CASE WHEN pr.id IS NOT NULL AND ? THEN (SELECT id FROM units WHERE code = 'm') ELSE pr.unit_id END
+			WHERE l.quote_id = ? ORDER BY l.line_no`, id, familyCode, prefix == KgPricedSeries, quoteID); err != nil {
 			return err
 		}
 		if err := recomputeTotals(ctx, tx, id); err != nil {

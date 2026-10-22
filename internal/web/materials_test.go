@@ -280,8 +280,16 @@ func TestQuoteQGPricesPerMetreFromKg(t *testing.T) {
 		t.Fatalf("CreateFamily: %v", err)
 	}
 	cost, kg := money.Micros(95_000_000), money.Micros(389_600)
+	var kgUnit *int64
+	units, _ := a.store.ListUnits(ctx)
+	for _, u := range units {
+		if u.Code == "kg" {
+			kgUnit = &u.ID
+		}
+	}
+	// Catalogued in kilos, as production has it; quoted (and invoiced) per metre.
 	alcID, err := a.store.CreateProduct(ctx, store.Product{FamilyID: familyID, SKU: "ALC-C7#8",
-		Description: "Cable Alumoclad 7#8 AWG", CostMicros: &cost, KgPerMMicros: &kg})
+		Description: "Cable Alumoclad 7#8 AWG", CostMicros: &cost, KgPerMMicros: &kg, UnitID: kgUnit})
 	if err != nil {
 		t.Fatalf("CreateProduct: %v", err)
 	}
@@ -343,6 +351,21 @@ func TestQuoteQGPricesPerMetreFromKg(t *testing.T) {
 	project, _ := a.store.ProjectByFolio(ctx, issued.ProjectFolio)
 	if project == nil || project.Profit != 4_112_44 {
 		t.Fatalf("proyecto profit = %+v, want $4,112.44", project)
+	}
+	// Its factura takes the metro unit the line was quoted in, not the catalog's kilo.
+	if err := a.store.SetProjectProbability(ctx, project.ID, userID, 90, ""); err != nil {
+		t.Fatal(err)
+	}
+	if rec := postOC(t, a, NewProjects(a.store), userID, project.Folio, map[string]string{"oc_numero": "77", "oc_fecha": "2026-10-07", "forma_pago": "PUE"},
+		"oc.pdf", []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")); rec.Code != http.StatusSeeOther {
+		t.Fatalf("postOC = %d: %s", rec.Code, rec.Body.String())
+	}
+	facturaID, err := a.store.CreateFacturaDraft(ctx, project.ID, userID)
+	if err != nil {
+		t.Fatalf("CreateFacturaDraft: %v", err)
+	}
+	if c, _ := a.store.ComprobanteByID(ctx, facturaID); c == nil || c.Conceptos[0].SATUnitCode != "MTR" || c.Conceptos[0].UnitName != "Metro" {
+		t.Errorf("QG factura concepto = %+v, want MTR Metro", c)
 	}
 
 	other, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QG")

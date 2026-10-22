@@ -8,10 +8,8 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-// KgPricedSeries is the quote series whose products are costed per kg and quoted per
-// metre (issue #37, Alumoclad hilo de guarda): a line's cost per metre is the product's
-// cost × its Peso (kg/m), priced like a CCS material.
-const KgPricedSeries = "QG"
+// KgPricedSeries is store.KgPricedSeries, for the views and handlers.
+const KgPricedSeries = store.KgPricedSeries
 
 // ShowsKg reports whether a quote's lines show their weight: Kg por metro and Kg, next
 // to the quantity in metres (issue #34). CCS and QG quotes do, since both are sold by

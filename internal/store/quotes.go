@@ -13,6 +13,11 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/pricing"
 )
 
+// KgPricedSeries is the quote series whose products are costed per kg and quoted per
+// metre (issue #37, Alumoclad hilo de guarda): a line's cost per metre is the product's
+// cost × its Peso (kg/m), priced like a CCS material, and its factura is in metros.
+const KgPricedSeries = "QG"
+
 // Quote is a quotes row. CustomerName, UserName, and SupersededByFolio are populated by
 // the CRUD read paths (joins, so always the current names), left zero elsewhere.
 // TermsSnapshot, IssuedAt, ValidUntil, CustomerNameSnapshot,
