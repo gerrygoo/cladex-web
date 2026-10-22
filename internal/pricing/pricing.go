@@ -11,6 +11,7 @@ package pricing
 import (
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
 )
@@ -71,6 +72,25 @@ func UnitPrice(p Product, margin *money.Micros) (money.Micros, error) {
 	}
 	complement := 1_000_000 - int64(*margin)
 	return money.Micros(money.RoundHalfUp(int64(cost)*1_000_000, complement)), nil
+}
+
+// UnitPriceAtPrice prices p at the margin that sells a reference cost (e.g. a
+// material's price per kg) for refPrice: cost x refPrice / refCost, which is UnitPrice at
+// margin 1 - refCost/refPrice without rounding that margin to the micro first (issue #38:
+// a typed price per kg drives the lines exactly). refPrice must exceed refCost.
+func UnitPriceAtPrice(p Product, refCost, refPrice money.Micros) (money.Micros, error) {
+	cost, ok := p.Cost()
+	if !ok {
+		return 0, ErrNoCost
+	}
+	if refCost <= 0 || refPrice <= refCost {
+		return 0, fmt.Errorf("pricing: price %v is not above cost %v", refPrice, refCost)
+	}
+	// cost x refPrice can pass int64 for large costs; round half up in big.Int.
+	n := new(big.Int).Mul(big.NewInt(int64(cost)), big.NewInt(int64(refPrice)))
+	n.Mul(n, big.NewInt(2)).Add(n, big.NewInt(int64(refCost)))
+	n.Quo(n, big.NewInt(2*int64(refCost)))
+	return money.Micros(n.Int64()), nil
 }
 
 // PriceFromMargin is what a cost sells for at margin, cost / (1 - margin): the same
