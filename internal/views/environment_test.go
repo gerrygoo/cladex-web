@@ -11,9 +11,6 @@ import (
 
 func TestEnvironmentBanner(t *testing.T) {
 	t.Cleanup(func() { EnvironmentBanner = "" })
-	if page := render(t, Saludo("hola")); strings.Contains(page, "env-banner") {
-		t.Fatal("fragment shows a banner")
-	}
 	if page := render(t, Layout("Inicio", nil)); strings.Contains(page, "env-banner") {
 		t.Error("production shows an environment banner")
 	}

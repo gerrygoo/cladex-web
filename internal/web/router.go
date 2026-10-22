@@ -11,16 +11,9 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/facturacion"
 	"github.com/gerrygoo/cladex-web/internal/facturoporti"
 	"github.com/gerrygoo/cladex-web/internal/guia"
-	"github.com/gerrygoo/cladex-web/internal/pdf"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
-
-const sampleTypst = `
-= Cladex
-
-Hello world — Typst render pipeline is up.
-`
 
 // Build identifies the running binary and instance: the commit it was built from and
 // when (a zero Time means a local dev build), which instance it is (production, staging,
@@ -182,27 +175,12 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("GET /{$}", auth.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dash, err := db.SalesDashboard(r.Context(), today(r))
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 		user, _ := UserFromContext(r.Context())
 		views.Home(build.Time, time.Now(), build.SHA, dash, navUserView(user)).Render(r.Context(), w)
 	})))
-
-	mux.HandleFunc("GET /saludo", func(w http.ResponseWriter, r *http.Request) {
-		mensaje := fmt.Sprintf("Hola — htmx funciona. Hora del servidor: %s", time.Now().Format(time.TimeOnly))
-		views.Saludo(mensaje).Render(r.Context(), w)
-	})
-
-	mux.HandleFunc("GET /sample.pdf", func(w http.ResponseWriter, r *http.Request) {
-		bytes, err := pdf.Render(r.Context(), sampleTypst, time.Now())
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/pdf")
-		w.Write(bytes)
-	})
 
 	// Outermost first: the access log has to see the status the CSRF check produces, and
 	// its panic recovery has to cover everything below it.

@@ -192,7 +192,7 @@ func TestPublicRoutes(t *testing.T) {
 	a := newTestAuth(t)
 	mux := newTestMux(t, a)
 
-	for _, path := range []string{"/healthz", "/login", "/saludo"} {
+	for _, path := range []string{"/healthz", "/login"} {
 		t.Run(path, func(t *testing.T) {
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, httptest.NewRequest("GET", path, nil))
