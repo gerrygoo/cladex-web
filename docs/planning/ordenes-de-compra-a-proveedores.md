@@ -1,7 +1,8 @@
 # Órdenes de compra a proveedores
 
-**Proposed, nothing shipped, not scheduled.** A product goal recorded so it is tracked,
-not a design. Noted by the user on 2026-10-06.
+**Designed, nothing shipped, not scheduled.** A product goal noted by the user on
+2026-10-06; the first version's scope was decided on 2026-10-22 (see
+[Decisions](#decisions-2026-10-22)).
 
 ## The goal
 
@@ -26,9 +27,37 @@ comes in (see [the lifecycle doc](ciclo-de-vida-cotizacion-a-cobro.md#2-etapa-de
   generation used for quotes, and the proyecto as the thing an O.C. belongs to
   ([milestone plan](hitos-proyectos-y-facturas.md), M4).
 
-## Open questions
+## Decisions (2026-10-22)
 
-To answer when this is picked up, none decided:
+Cladex buys mostly from one manufacturer (the CCS wire), plus occasional suppliers for
+the products on QL quotes, so the first version stays small. Each answer below matches
+the open question with the same number.
+
+1. **Suppliers**: a new Proveedores catalog (razón social, RFC, contact, payment terms,
+   currency). Each product gets an optional **default supplier**. Several suppliers per
+   product, each with its own cost, waits until it is needed.
+2. **Scope**: one O.C. per supplier per proyecto. No consolidating across proyectos and
+   no buying for stock in the first version.
+3. **Lines**: at `O.C. recibida`, a button generates draft O.C.s from the proyecto's
+   current quote, grouped by default supplier, priced at cost, all editable. Líneas
+   libres have no catalog product, so they go to a draft whose supplier is picked by
+   hand, filled in from the QL supplier quote attachments (#39).
+4. **Currency**: each O.C. is MXN or USD, with the exchange rate captured by hand when it
+   is issued. Product costs stay MXN and are untouched.
+5. **Lifecycle**: borrador → emitida (folio and frozen PDF, like quotes) → recibida, or
+   cancelada. No partial receipts at first. Receiving does **not** gate `en entrega`; the
+   proyecto only shows a warning while it has O.C.s that are not received.
+6. **Sending**: download the PDF and send it by hand. Emailing it from the app waits for
+   outbound email (#18).
+7. **Who may issue one**: any user, vendedores included, for now. Revisit with the roles
+   backlog.
+8. **Cost feedback**: no automatic product cost updates. The proyecto records what was
+   actually paid, so it can show real margin against the quoted margin (later also in
+   Pronóstico).
+
+## Open questions (as first recorded)
+
+Answered above; kept for the reasoning:
 
 1. **Suppliers**: a new catalog (name, fiscal data, contact, terms)? One supplier per
    product, or several with different costs?
