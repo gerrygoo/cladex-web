@@ -1524,3 +1524,21 @@ dl.facturacion-status {
 dl.facturacion-status dd {
   margin: 0;
 }
+
+/* Duplicar (issue #40): the button sits on its own above the PDF link, and the dialog
+   lets the customer list spill past its edge instead of scrolling inside it. */
+form.duplicate-quote {
+  margin-block: 1rem 0;
+}
+
+p.duplicate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+dialog.confirm.duplicate {
+  overflow: visible;
+  width: min(32rem, calc(100vw - 2rem));
+}

@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -926,9 +927,15 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 		successMsg = "Borrador guardado."
 	case r.URL.Query().Get("emitida") == "1":
 		successMsg = "Cotización emitida."
+	case quote.Status == "borrador" && duplicatedFolio.MatchString(r.URL.Query().Get("duplicada")):
+		successMsg = "Copia de " + r.URL.Query().Get("duplicada") + " creada. Revísala y emítela cuando esté lista."
 	}
 	q.renderBuilder(w, r, quote, lines, totals, margin.picker, successMsg, http.StatusOK, nil)
 }
+
+// duplicatedFolio is what Duplicar's redirect may name as the original: a folio, so the
+// message can't be made to say anything else.
+var duplicatedFolio = regexp.MustCompile(`^Q[A-Z][0-9]{4,}(-R[0-9]+)?$`)
 
 // maxDeliveryTime caps the free-text delivery time, which is printed on the PDF.
 const maxDeliveryTime = 120
@@ -1032,9 +1039,14 @@ func (q *Quotes) renderBuilder(w http.ResponseWriter, r *http.Request, quote *st
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
+	dup, err := q.duplicateForm(ctx, quote)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
 	user, _ := UserFromContext(ctx)
 	w.WriteHeader(status)
-	views.QuoteBuilder(*quote, lines, totals, margin, successMsg, fieldErrs, picker, comments, commentsLV, navUserView(user), supplier).Render(ctx, w)
+	views.QuoteBuilder(*quote, lines, totals, margin, successMsg, fieldErrs, picker, comments, commentsLV, navUserView(user), supplier, dup).Render(ctx, w)
 }
 
 // amountInput tidies a typed amount for parsing: no "$" and no thousands commas, so
@@ -1135,9 +1147,22 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	storeLines := make([]store.QuoteLine, len(lines))
+	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, margin.id(), margin.customRow(), storeLinesFrom(lines), totals); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	if err := q.saveTermsInputs(ctx, quote); err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/cotizaciones/%s?guardado=1", quote.Folio), http.StatusSeeOther)
+}
+
+// storeLinesFrom is the priced lines as Guardar writes them.
+func storeLinesFrom(lines []views.QuoteLineView) []store.QuoteLine {
+	out := make([]store.QuoteLine, len(lines))
 	for i, l := range lines {
-		storeLines[i] = store.QuoteLine{
+		out[i] = store.QuoteLine{
 			ProductID:           l.ProductID,
 			DescriptionSnapshot: l.Description,
 			QtyMilli:            l.QtyMilli,
@@ -1148,15 +1173,7 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 			CostMicros:          l.CostMicros,
 		}
 	}
-	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, margin.id(), margin.customRow(), storeLines, totals); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
-		return
-	}
-	if err := q.saveTermsInputs(ctx, quote); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(w, r, fmt.Sprintf("/cotizaciones/%s?guardado=1", quote.Folio), http.StatusSeeOther)
+	return out
 }
 
 // formatFecha renders an ISO-8601 UTC timestamp (SQLite's strftime default, e.g.
@@ -1475,6 +1492,97 @@ func (q *Quotes) Revisar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/cotizaciones/"+rev.Folio, http.StatusSeeOther)
+}
+
+// DuplicarPage handles GET /cotizaciones/{folio}/duplicar: the page asking for the
+// copy's customer. With JS the same form opens in a dialog on the quote instead.
+func (q *Quotes) DuplicarPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	quote := q.loadQuoteOrNotFound(w, r)
+	if quote == nil {
+		return
+	}
+	dup, err := q.duplicateForm(ctx, quote)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	views.DuplicateQuotePage(dup, navUserView(user)).Render(ctx, w)
+}
+
+// duplicateForm is the Duplicar form for quote, with its customer picked.
+func (q *Quotes) duplicateForm(ctx context.Context, quote *store.Quote) (views.DuplicateQuoteForm, error) {
+	customers, err := q.store.ListCustomers(ctx, "", "name", "asc", nil)
+	if err != nil {
+		return views.DuplicateQuoteForm{}, err
+	}
+	return views.DuplicateQuoteForm{Quote: *quote, Customers: customers}, nil
+}
+
+// Duplicar handles POST /cotizaciones/{folio}/duplicar: copies the quote, in any state,
+// as a new draft for the chosen customer (issue #40; see store.DuplicateQuote) and opens
+// it. The copy is repriced the way the builder would show it: catalog lines from the
+// current costs and its margin, QL lines from their own cost and margin. A copy with a
+// line that can't be priced now (a product retired since) keeps the copied prices, and
+// the builder shows the line's error.
+func (q *Quotes) Duplicar(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	quote := q.loadQuoteOrNotFound(w, r)
+	if quote == nil {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "solicitud inválida", http.StatusBadRequest)
+		return
+	}
+	var customer *store.Customer
+	if id, err := strconv.ParseInt(r.FormValue("customer_id"), 10, 64); err == nil {
+		if customer, err = q.store.CustomerByID(ctx, id); err != nil {
+			http.Error(w, "error interno", http.StatusInternalServerError)
+			return
+		}
+	}
+	if customer == nil {
+		dup, err := q.duplicateForm(ctx, quote)
+		if err != nil {
+			http.Error(w, "error interno", http.StatusInternalServerError)
+			return
+		}
+		dup.Error = "Selecciona un cliente."
+		user, _ := UserFromContext(ctx)
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		views.DuplicateQuotePage(dup, navUserView(user)).Render(ctx, w)
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	dup, err := q.store.DuplicateQuote(ctx, quote.ID, customer.ID, user.ID)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	persisted, err := q.store.ListQuoteLines(ctx, dup.ID)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	margin, err := q.resolveMargin(ctx, dup, nil)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, dup.SeriesFreeLines, dup.SeriesFamily, dup.Prefix == views.KgPricedSeries)
+	priced := !margin.badCustom
+	for _, l := range lines {
+		priced = priced && l.Error == ""
+	}
+	if priced {
+		if err := q.store.ReplaceQuoteLines(ctx, dup.ID, margin.id(), margin.customRow(), storeLinesFrom(lines), computeQuoteTotals(lines)); err != nil {
+			http.Error(w, "error interno", http.StatusInternalServerError)
+			return
+		}
+	}
+	http.Redirect(w, r, "/cotizaciones/"+dup.Folio+"?duplicada="+url.QueryEscape(quote.Folio), http.StatusSeeOther)
 }
 
 // maxCommentLen caps a comment; the textarea carries the same maxlength.

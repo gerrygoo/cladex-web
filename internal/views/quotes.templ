@@ -670,7 +670,7 @@ func validUntilValue(quote store.Quote) string {
 	return *quote.ValidUntil
 }
 
-templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, fieldErrs map[string]string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser, supplier SupplierQuoteView) {
+templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, fieldErrs map[string]string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser, supplier SupplierQuoteView, dup DuplicateQuoteForm) {
 	@Layout("Cotización "+quote.Folio, user) {
 		<script src="/static/margin.js" defer></script>
 		<div class="page-title">
@@ -897,6 +897,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 			}
 		}
 		@SupplierQuoteForm(supplier)
+		@DuplicateQuoteButton(dup)
 		<p>
 			<a href={ templ.URL("/cotizaciones/" + quote.Folio + "/pdf") } target="_blank">Descargar PDF</a> ·
 			<a href="/cotizaciones">Volver a cotizaciones</a>

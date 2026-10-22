@@ -392,6 +392,38 @@ respecto a la versión anterior y cuánto subió o bajó cada uno, por ejemplo *
 nuevas o quitadas que tenían costo. Solo cuentan las líneas libres: el costo de los
 productos de catálogo es el del catálogo.
 
+## Duplicar una cotización
+
+Para mandar la misma cotización a otro cliente (o otra vez al mismo) sin capturar las
+líneas de nuevo. Funciona con cualquier cotización, en borrador, emitida o revisada, y
+de cualquier serie.
+
+1. Abre la cotización y haz clic en **Duplicar**, abajo, junto a **Descargar PDF**.
+   También está en el proyecto, junto a la **Cotización vigente**.
+2. Elige el cliente de la copia. Viene el de la original; escribe para buscar otro por
+   nombre, RFC o contacto.
+3. Haz clic en **Duplicar**. La app crea un borrador nuevo y te lleva a él. Arriba dice
+   *"Copia de QA0023 creada."* Si le das **Cancelar**, no se crea nada.
+4. Edítalo como cualquier borrador y [emítelo](#emitir-la-cotización) cuando esté
+   listo.
+
+Qué se copia y qué no:
+
+- La copia tiene **folio nuevo** de la misma serie (de `QA0023` sale, p. ej., `QA0031`),
+  no `-R1`: es una cotización aparte, no una [revisión](#revisar-una-cotización-emitida).
+  La original no cambia.
+- Se copian las líneas y cantidades, el margen (también **Otro margen**), el tiempo de
+  entrega, la moneda y los términos adicionales.
+- En **QA, QS, QI y QG** los precios se calculan con los **costos actuales** del
+  catálogo y el margen de la copia, no con los de la original.
+- En **QL** se copian el costo y el margen de cada línea, la vigencia y la
+  [cotización del proveedor](#cotización-del-proveedor-en-ql) con sus archivos. Todo se
+  puede editar.
+- No se copian comentarios, seguimiento, probabilidad ni la O.C. La copia no aparece
+  en **Proyectos** hasta que la emites, como cualquier cotización nueva.
+- Tú quedas como responsable de la copia.
+- Si duplicas un borrador, se copia lo último que guardaste.
+
 ## Ver el detalle de una cotización
 
 En el menú **Cotizaciones**, elige **Ver cotizaciones** y haz clic en el folio de

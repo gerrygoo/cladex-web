@@ -1,0 +1,94 @@
+package views
+
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// DuplicateQuoteForm is the Duplicar form (issue #40): the customer of a copy of Quote,
+// the original's preselected. Error is shown when the post named no customer.
+type DuplicateQuoteForm struct {
+	Quote     store.Quote
+	Customers []store.Customer
+	Error     string
+}
+
+func duplicarPath(folio string) string {
+	return "/cotizaciones/" + folio + "/duplicar"
+}
+
+// duplicateFields is the form itself: the customer combobox (the one of Nueva
+// cotización, without "Agregar nuevo cliente") and what the copy takes.
+templ duplicateFields(f DuplicateQuoteForm, id string) {
+	<form method="post" action={ templ.URL(duplicarPath(f.Quote.Folio)) }>
+		<p id={ id + "-texto" }>
+			Se crea una cotización nueva en borrador, con folio nuevo de la serie { f.Quote.Prefix }
+			y las mismas líneas, margen y términos.
+			if f.Quote.SeriesFreeLines {
+				El costo y el margen de cada línea, la vigencia y la cotización del proveedor se copian tal cual.
+			} else {
+				Los precios se calculan con los costos actuales del catálogo.
+			}
+			No se copian comentarios, seguimiento ni la O.C.
+		</p>
+		if f.Quote.Status == "borrador" {
+			<p class="hint">Se copia lo último guardado de { f.Quote.Folio }, sin cambios de la pantalla que no hayas guardado.</p>
+		}
+		<label for={ id + "-cliente" }>Cliente de la copia</label>
+		<select
+			name="customer_id"
+			id={ id + "-cliente" }
+			required
+			data-combobox
+			if f.Error != "" {
+				aria-invalid="true"
+				aria-describedby={ id + "-cliente-error" }
+			}
+		>
+			<option value="">— Selecciona —</option>
+			for _, c := range f.Customers {
+				<option
+					value={ strconv.FormatInt(c.ID, 10) }
+					data-search={ c.Name + " " + c.RFC + " " + c.ContactName }
+					selected?={ c.ID == f.Quote.CustomerID }
+					data-detail={ customerDetail(c) }
+				>{ c.Name }</option>
+			}
+		</select>
+		if f.Error != "" {
+			<p class="error" id={ id + "-cliente-error" }>{ f.Error }</p>
+		}
+		<p class="form-actions duplicate-actions">
+			<button type="submit" class="primary">Duplicar</button>
+			{ children... }
+		</p>
+	</form>
+}
+
+// DuplicateQuoteButton is "Duplicar" on a quote: it opens the form in a dialog, or
+// without JS goes to DuplicateQuotePage.
+templ DuplicateQuoteButton(f DuplicateQuoteForm) {
+	<form method="get" action={ templ.URL(duplicarPath(f.Quote.Folio)) } class="duplicate-quote">
+		<button type="submit" data-confirm-dialog="duplicar">Duplicar</button>
+	</form>
+	<dialog id="duplicar" class="confirm duplicate" aria-labelledby="duplicar-titulo" aria-describedby="duplicar-texto">
+		<p id="duplicar-titulo"><strong>Duplicar { f.Quote.Folio }</strong></p>
+		@duplicateFields(f, "duplicar") {
+			<button type="button" data-close-dialog>Cancelar</button>
+		}
+	</dialog>
+}
+
+// DuplicateQuotePage is the Duplicar form on its own page.
+templ DuplicateQuotePage(f DuplicateQuoteForm, user *NavUser) {
+	@Layout("Duplicar "+f.Quote.Folio, user) {
+		<div class="page-title">
+			<h1 id="duplicar-titulo">Duplicar { f.Quote.Folio }</h1>
+			@HelpLink(HelpCotizacionDuplicar)
+		</div>
+		@duplicateFields(f, "duplicar") {
+			<a href={ templ.URL("/cotizaciones/" + f.Quote.Folio) }>Cancelar</a>
+		}
+	}
+}

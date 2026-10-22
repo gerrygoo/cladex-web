@@ -114,6 +114,8 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /cotizaciones/{folio}/guardar", auth.RequireAuth(http.HandlerFunc(quotes.Guardar)))
 	mux.Handle("POST /cotizaciones/{folio}/emitir", auth.RequireAuth(http.HandlerFunc(quotes.Emitir)))
 	mux.Handle("POST /cotizaciones/{folio}/revisar", auth.RequireAuth(http.HandlerFunc(quotes.Revisar)))
+	mux.Handle("GET /cotizaciones/{folio}/duplicar", auth.RequireAuth(http.HandlerFunc(quotes.DuplicarPage)))
+	mux.Handle("POST /cotizaciones/{folio}/duplicar", auth.RequireAuth(http.HandlerFunc(quotes.Duplicar)))
 	mux.Handle("GET /cotizaciones/{folio}/pdf", auth.RequireAuth(http.HandlerFunc(quotes.PDF)))
 	mux.Handle("POST /cotizaciones/{folio}/proveedor", auth.RequireAuth(http.HandlerFunc(quotes.Proveedor)))
 	mux.Handle("GET /cotizaciones/{folio}/proveedor/{id}", auth.RequireAuth(http.HandlerFunc(quotes.ProveedorArchivo)))

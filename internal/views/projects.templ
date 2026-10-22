@@ -184,6 +184,7 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 				if p.CurrentQuoteStatus == "borrador" {
 					· revisión en borrador, aún sin emitir
 				}
+				· <a href={ templ.URL(duplicarPath(p.CurrentQuoteFolio)) }>Duplicar</a>
 			</dd>
 			<dt>Total</dt>
 			<dd>{ p.Total.String() }</dd>

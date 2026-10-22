@@ -790,6 +790,109 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 	return s.QuoteByID(ctx, newID)
 }
 
+// DuplicateQuote copies any quote, in any state, as an independent new draft for
+// customerID, owned by userID (issue #40): a new folio in the same series, not a
+// revision, and no proyecto until it is issued. It starts from the original's lines,
+// margin (its option, or the default one if that was retired since, and any custom
+// margin), delivery time, currency and extra terms; on a free-lines series also its
+// validity date and its cotización del proveedor (data and files, copied onto the new
+// chain). Status, comments, follow-up and the O.C. stay behind, and the original isn't
+// touched. Lines and totals are copied as they are: the caller reprices them, since the
+// builder prices a draft from the current catalog anyway. Returns nil if there is no
+// such quote.
+func (s *Store) DuplicateQuote(ctx context.Context, originalID, customerID, userID int64) (*Quote, error) {
+	original, err := s.QuoteByID(ctx, originalID)
+	if err != nil {
+		return nil, fmt.Errorf("store: duplicate quote %d: %w", originalID, err)
+	}
+	if original == nil {
+		return nil, nil
+	}
+	lines, err := s.ListQuoteLines(ctx, originalID)
+	if err != nil {
+		return nil, fmt.Errorf("store: duplicate quote %d: %w", originalID, err)
+	}
+	root, err := s.QuoteChainRoot(ctx, originalID)
+	if err != nil {
+		return nil, fmt.Errorf("store: duplicate quote %d: %w", originalID, err)
+	}
+	// A gap in the folio sequence is fine, as in CreateDraftQuote.
+	folio, err := s.NextFolio(ctx, original.Prefix)
+	if err != nil {
+		return nil, fmt.Errorf("store: duplicate quote %d: %w", originalID, err)
+	}
+	var validUntil any
+	if original.SeriesFreeLines && original.ValidUntil != nil {
+		validUntil = *original.ValidUntil
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("store: duplicate quote %d: %w", originalID, err)
+	}
+	defer tx.Rollback()
+	if err := stampActor(ctx, tx); err != nil {
+		return nil, fmt.Errorf("store: duplicate quote %d: %w", originalID, err)
+	}
+	res, err := tx.ExecContext(ctx, `
+		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, margin_option_id, custom_margin_micros, custom_copper_price_micros, delivery_time, currency, extra_terms, valid_until, subtotal, iva, total)
+		VALUES (?, ?, ?, ?, 'borrador',
+			COALESCE((SELECT id FROM margin_options WHERE id = ? AND retired_at IS NULL),
+				(SELECT id FROM margin_options WHERE is_default = 1 AND retired_at IS NULL)),
+			?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?)`,
+		folio, original.Prefix, customerID, userID,
+		original.MarginOptionID, original.CustomMarginMicros, original.CustomCopperPriceMicros,
+		original.DeliveryTime, original.Currency, original.ExtraTerms, validUntil,
+		int64(original.Subtotal), int64(original.IVA), int64(original.Total),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: duplicate quote %d: insert: %w", originalID, err)
+	}
+	newID, err := res.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("store: duplicate quote %d: %w", originalID, err)
+	}
+	for i, l := range lines {
+		var productID, pricingInputs any
+		if l.ProductID != nil {
+			productID = *l.ProductID
+		}
+		if l.PricingInputsJSON != nil {
+			pricingInputs = *l.PricingInputsJSON
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO quote_lines (
+				quote_id, line_no, product_id, description_snapshot, qty_milli,
+				unit_price_micros, line_total, pricing_inputs, source, cost_micros
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			newID, i+1, productID, l.DescriptionSnapshot, int64(l.QtyMilli),
+			int64(l.UnitPriceMicros), int64(l.LineTotal), pricingInputs, l.Source, costArg(l.CostMicros),
+		); err != nil {
+			return nil, fmt.Errorf("store: duplicate quote %d: copy line %d: %w", originalID, i+1, err)
+		}
+	}
+	if original.SeriesFreeLines && root != 0 {
+		// The new draft is its own chain's root. The files keep who uploaded them and when.
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO supplier_quotes (root_quote_id, supplier, number, updated_by)
+			SELECT ?, supplier, number, ? FROM supplier_quotes WHERE root_quote_id = ?`,
+			newID, userID, root); err != nil {
+			return nil, fmt.Errorf("store: duplicate quote %d: copy supplier quote: %w", originalID, err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO supplier_quote_files (root_quote_id, filename, content_type, size, data, uploaded_by, uploaded_at)
+			SELECT ?, filename, content_type, size, data, uploaded_by, uploaded_at
+			FROM supplier_quote_files WHERE root_quote_id = ? AND deleted_at IS NULL ORDER BY id`,
+			newID, root); err != nil {
+			return nil, fmt.Errorf("store: duplicate quote %d: copy supplier files: %w", originalID, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("store: duplicate quote %d: %w", originalID, err)
+	}
+	return s.QuoteByID(ctx, newID)
+}
+
 // QuoteComment is a quote_comments row; UserName is the author's current name (join).
 type QuoteComment struct {
 	ID        int64
