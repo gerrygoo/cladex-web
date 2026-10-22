@@ -9,7 +9,7 @@ templ-generated files in sync with their `.templ` sources.
 
 ## High
 
-- [ ] **H1. Foreign keys are off on most database connections.**
+- [x] **H1. Foreign keys are off on most database connections.** Fixed in `6b28864`. Still to do: run `PRAGMA foreign_key_check` on a copy of production.
   `store.Open` (`internal/store/store.go:29`) runs `PRAGMA foreign_keys = ON; PRAGMA
   journal_mode = WAL;` once through the `sql.DB` pool. `foreign_keys` is per connection, so
   only the connection that ran it enforces them; every other pooled connection has them
@@ -25,13 +25,13 @@ templ-generated files in sync with their `.templ` sources.
     pragma on its own connection. Then run `PRAGMA foreign_key_check` against a copy of
     the production database and clean up any orphans found.
 
-- [ ] **H2. Internal errors are never logged.** `internal/web` has 132
+- [x] **H2. Internal errors are never logged.** Fixed in `4c24e8f`. `internal/web` has 132
   `http.Error(w, "error interno", 500)` call sites that discard `err`. The access log shows
   the 500 but not why. Only `facturas.go` logs its errors.
   - Fix: a `serverError(w, r, err)` helper that logs `err` with the request's
     `request_id` (from `requestInfoFrom`) and writes the 500, used at every site.
 
-- [ ] **H3. HTTP server has no timeouts and no graceful shutdown.**
+- [x] **H3. HTTP server has no timeouts and no graceful shutdown.** Fixed in `b06c468`.
   `cmd/server/main.go:158` uses bare `http.ListenAndServe`: no `ReadHeaderTimeout`
   (slowloris), and on SIGTERM the process dies without running `defer db.Close()`, so
   in-flight writes are cut and the WAL isn't checkpointed before Litestream sees it.
@@ -44,10 +44,14 @@ templ-generated files in sync with their `.templ` sources.
   password spraying across usernames).
   - Fix: use the address the proxy appends (rightmost entry) or a header the proxy sets
     and overwrites, such as `X-Real-IP`.
+  - Blocked on the proxy chain (nginx on the VPS, then FRP's HTTP vhost): which entry is
+    trustworthy depends on whether FRP appends to `X-Forwarded-For` after nginx does. If
+    it does, the rightmost entry is nginx's own address and every client would share one
+    throttle bucket. Check the VPS's nginx site config and FRP before changing it.
 
 ## Medium
 
-- [ ] **M1. Public leftover scaffolding routes.** `GET /saludo` and `GET /sample.pdf`
+- [x] **M1. Public leftover scaffolding routes.** Fixed in `4efe382`. `GET /saludo` and `GET /sample.pdf`
   (`internal/web/router.go:192-205`) are unauthenticated. `/sample.pdf` spawns a `typst`
   process per request and echoes typst's stderr to the client. Delete both, along with
   `sampleTypst`. More generally, nothing bounds the number of concurrent `typst`
@@ -63,43 +67,43 @@ templ-generated files in sync with their `.templ` sources.
   - It reports any store error as "Producto no encontrado." / "Error al cargar el
     producto.", hiding real database failures. Distinguish not-found from errors.
 
-- [ ] **M3. `Emitir` writes in three separate transactions.** `ReplaceQuoteLines`,
+- [x] **M3. `Emitir` writes in three separate transactions.** Fixed in `4eac29c`. `ReplaceQuoteLines`,
   `saveTermsInputs` and `IssueQuote` each commit on their own. `IssueQuote`'s
   `status = 'borrador'` guard keeps it correct, but a double-submit returns a 500 because
   `ErrQuoteNotDraft` isn't mapped to a 409.
 
-- [ ] **M4. Go toolchain has a known vulnerability.** govulncheck reports GO-2026-6809
+- [x] **M4. Go toolchain has a known vulnerability.** Fixed in `b251e80`. govulncheck reports GO-2026-6809
   (`crypto/x509`, reachable) on Go 1.26.9; fixed in 1.26.10. Bump the `go` directive in
   `go.mod` and rebuild the image.
 
 ## Low / hygiene
 
-- [ ] **L1. staticcheck findings.**
+- [x] **L1. staticcheck findings.** Fixed in `136d821`.
   - `internal/views/projects.go:69`: `joinNonEmpty` is unused (U1000).
   - `internal/cli/cli.go:145,155`: `fmt.Errorf(usage)` with a non-constant format
     string (SA1006); use `errors.New(usage)`.
   - `internal/cli/cli.go:27`: error string ends with punctuation (ST1005).
-- [ ] **L2. Duplicated file serving.** `Projects.Archivo` (`internal/web/projects.go:~500`)
+- [x] **L2. Duplicated file serving.** Fixed in `3028629`. `Projects.Archivo` (`internal/web/projects.go:~500`)
   re-implements `serveUploadedFile` (`internal/web/documentos.go:168`) instead of calling
   it.
-- [ ] **L3. Inconsistent route wrapping.** `router.go` mixes the `admin(...)` helper with
+- [x] **L3. Inconsistent route wrapping.** Fixed in `228379a`. `router.go` mixes the `admin(...)` helper with
   hand-nested `auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(...)))`. Use the helper
   throughout (and a matching `authed(...)`).
-- [ ] **L4. Migration numbering and a stale reference.** Two migrations share `0004`
+- [x] **L4. Migration numbering and a stale reference.** Fixed in `cae6bd9`. Two migrations share `0004`
   (`0004_add_customer_postal_code_and_tax_regime.sql`, `0004_audit_log.sql`). Harmless
   (ordering is by full filename) but confusing; don't renumber applied files, just avoid
   it going forward. `RequireAuth`'s comment in `internal/web/auth.go:101` points to
   `migrations/0003_audit_log.sql`; it's `0004_audit_log.sql`.
-- [ ] **L5. No global security headers.** Nothing sets `X-Frame-Options: DENY` or CSP
+- [x] **L5. No global security headers.** Fixed in `376d82b`. Nothing sets `X-Frame-Options: DENY` or CSP
   `frame-ancestors 'none'`, so pages can be framed (clickjacking). Add them in a
   middleware next to the CSRF check.
-- [ ] **L6. Stringly-typed roles and statuses.** `"admin"`, `"borrador"`, `"emitida"`,
+- [x] **L6. Stringly-typed roles and statuses.** Fixed in `ec96816`. `"admin"`, `"borrador"`, `"emitida"`,
   `"revisada"` are repeated as literals across `store`, `web` and `views` (~25 non-test
   sites). Named constants in `store` would catch typos at compile time.
-- [ ] **L7. Mutable package global.** `NewMux` assigns `views.EnvironmentBanner`, a package
+- [x] **L7. Mutable package global.** Fixed in `9deea03`. `NewMux` assigns `views.EnvironmentBanner`, a package
   variable; two muxes in one process (e.g. parallel tests) race on it. Pass it through
   the layout's view model instead.
-- [ ] **L8. CI only runs `vet` and `test`.** Add to `.github/workflows/deploy.yml`:
+- [x] **L8. CI only runs `vet` and `test`.** Fixed in `997b31e`. Add to `.github/workflows/deploy.yml`:
   `staticcheck`, `govulncheck`, and a templ drift check (`templ generate` then
   `git diff --exit-code`).
 
