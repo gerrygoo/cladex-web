@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -341,6 +342,26 @@ func TestQuotesPDF(t *testing.T) {
 	}
 	if !strings.HasPrefix(rec.Body.String(), "%PDF") {
 		t.Fatalf("body doesn't look like a PDF")
+	}
+
+	// Issue #45: the page links to a URL ending in <folio>_<cliente>.pdf, which serves
+	// the same PDF under that file name, so iOS doesn't share it as "Safari.pdf".
+	name := quote.Folio + "_Grupo PEME.pdf"
+	path := "/cotizaciones/" + quote.Folio + "/pdf/" + url.PathEscape(name)
+	page := doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+quote.Folio,
+		map[string]string{"folio": quote.Folio}, nil, false)
+	if want := `href="` + path + `"`; !strings.Contains(page.Body.String(), want) {
+		t.Errorf("quote page lacks the Descargar PDF link %s", want)
+	}
+	for _, p := range []string{path, "/cotizaciones/" + quote.Folio + "/pdf"} {
+		rec = doForm(t, a, userID, q.PDF, "GET", p, map[string]string{"folio": quote.Folio, "name": name}, nil, false)
+		if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Body.String(), "%PDF") {
+			t.Fatalf("GET %s status = %d, want a PDF", p, rec.Code)
+		}
+		disp, params, err := mime.ParseMediaType(rec.Header().Get("Content-Disposition"))
+		if err != nil || disp != "inline" || params["filename"] != name {
+			t.Errorf("GET %s Content-Disposition = %q, want inline; filename=%q", p, rec.Header().Get("Content-Disposition"), name)
+		}
 	}
 }
 

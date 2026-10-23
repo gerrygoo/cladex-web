@@ -337,8 +337,11 @@ sección.
 
 1. Abre la cotización: en el menú **Cotizaciones**, elige **Ver cotizaciones** y haz clic
    en su folio.
-2. Haz clic en **Descargar PDF**. Se abre en otra pestaña; desde ahí guárdalo o
-   imprímelo.
+2. Haz clic en **Descargar PDF**. Se abre en otra pestaña; desde ahí guárdalo,
+   compártelo o imprímelo. El archivo se llama con el folio de la cotización y el
+   nombre del cliente, por ejemplo `QS0011_SONEPAR.pdf` (o `QS0025-R2_José
+   Camposeco.pdf` si es una revisión). En una cotización emitida va el nombre del
+   cliente tal como quedó impreso en ella.
 3. Envíalo al cliente por tu medio habitual (correo, WhatsApp). La app no envía
    correos.
 

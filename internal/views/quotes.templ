@@ -899,7 +899,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 		@SupplierQuoteForm(supplier)
 		@DuplicateQuoteButton(dup)
 		<p>
-			<a href={ templ.URL("/cotizaciones/" + quote.Folio + "/pdf") } target="_blank">Descargar PDF</a> ·
+			<a href={ templ.URL(QuotePDFPath(quote)) } target="_blank">Descargar PDF</a> ·
 			<a href="/cotizaciones">Volver a cotizaciones</a>
 		</p>
 		if quote.Status == "borrador" {

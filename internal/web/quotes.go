@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -1290,10 +1291,12 @@ func issuedQuoteDocument(quote store.Quote, persisted []store.QuoteLine) (pdf.Qu
 	}, nil
 }
 
-// PDF handles GET /cotizaciones/{folio}/pdf. Nothing is stored on disk: an issued or
-// revised quote is re-rendered from its frozen row via issuedQuoteDocument, so its
-// numbers, names and terms never change however settings, the catalog or customer
-// records change afterward (a template or Typst change can still alter the layout;
+// PDF handles GET /cotizaciones/{folio}/pdf/{name} and the older
+// /cotizaciones/{folio}/pdf. {name} is the file name views.QuotePDFPath puts there so
+// iOS shares the PDF under it; it's ignored, the folio decides. Nothing is stored on
+// disk: an issued or revised quote is re-rendered from its frozen row via
+// issuedQuoteDocument, so its numbers, names and terms never change however settings,
+// the catalog or customer records change afterward (a template or Typst change can still alter the layout;
 // that shows up as a hash mismatch, logged here). A draft renders a live preview
 // through the same computeQuoteLines path as the builder and Guardar, so it always
 // matches what's on screen.
@@ -1338,7 +1341,7 @@ func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
 			slog.String("folio", quote.Folio))
 	}
 	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s.pdf"`, quote.Folio))
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": views.QuotePDFName(*quote)}))
 	w.Write(bytes)
 }
 
