@@ -153,6 +153,9 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("GET /documentos/{id}", auth.RequireAuth(http.HandlerFunc(documentos.Archivo)))
 	mux.Handle("POST /documentos", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(documentos.Subir))))
 	mux.Handle("POST /documentos/{id}/eliminar", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(documentos.Eliminar))))
+	mux.Handle("POST /documentos/{id}/editar", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(documentos.Editar))))
+	mux.Handle("POST /documentos/secciones/{id}/editar", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(documentos.RenombrarSeccion))))
+	mux.Handle("POST /documentos/secciones/{id}/eliminar", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(documentos.EliminarSeccion))))
 
 	mux.Handle("GET /usuarios", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(users.List))))
 	mux.Handle("POST /usuarios/{id}/rol", auth.RequireAuth(auth.RequireAdmin(http.HandlerFunc(users.SetRole))))

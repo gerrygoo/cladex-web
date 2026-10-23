@@ -94,6 +94,14 @@ var appRoutes = []route{
 	{"GET", "/familias/1", true},
 	{"POST", "/familias/1", true},
 
+	{"GET", "/documentos", false},
+	{"GET", "/documentos/1", false},
+	{"POST", "/documentos", true},
+	{"POST", "/documentos/1/eliminar", true},
+	{"POST", "/documentos/1/editar", true},
+	{"POST", "/documentos/secciones/1/editar", true},
+	{"POST", "/documentos/secciones/1/eliminar", true},
+
 	{"GET", "/ayuda", false},
 	{"GET", "/ayuda/cotizaciones", false},
 }

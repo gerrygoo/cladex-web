@@ -13,8 +13,42 @@ type DocumentoFormValues struct {
 	NewSection string
 }
 
+// DocumentosPage is what the Documentos oficiales page shows.
+type DocumentosPage struct {
+	Sections []store.DocumentSection
+	Upload   DocumentoFormValues
+	// Errors are field errors, keyed by "titulo", "seccion" and "archivo" for the upload
+	// form and by DocumentField / SectionField for the edit forms.
+	Errors map[string]string
+	// Edit is what was typed in a refused edit form, keyed like Errors.
+	Edit map[string]string
+	// Open is the section shown unfolded: the one an action was just made on.
+	Open    int64
+	Success string
+}
+
+// DocumentField is the Errors/Edit key of a document's edit form field ("titulo" or
+// "seccion").
+func DocumentField(id int64, field string) string {
+	return "documento-" + strconv.FormatInt(id, 10) + "-" + field
+}
+
+// SectionField is the Errors/Edit key of a section's edit form field ("nombre"), or of
+// a message about the section as a whole when field is "".
+func SectionField(id int64, field string) string {
+	key := "seccion-" + strconv.FormatInt(id, 10)
+	if field != "" {
+		key += "-" + field
+	}
+	return key
+}
+
 func documentPath(d store.OfficialDocument) string {
 	return "/documentos/" + strconv.FormatInt(d.ID, 10)
+}
+
+func sectionPath(sec store.DocumentSection) string {
+	return "/documentos/secciones/" + strconv.FormatInt(sec.ID, 10)
 }
 
 // documentKind is the file type as people say it.
@@ -25,48 +59,124 @@ func documentKind(contentType string) string {
 	return "Imagen"
 }
 
-// Documentos is the Documentos oficiales page (issue #32): each section with its
-// documents, which open in a new tab or download; admins also get a remove button per
-// document and the upload form, folded behind "Subir documento" so it doesn't crowd the
-// list (it comes back open when validation sends it back).
-templ Documentos(sections []store.DocumentSection, values DocumentoFormValues, fieldErrors map[string]string, successMsg string, user *NavUser) {
+// editValue is what was typed in a refused edit form's field, or else its saved value.
+func (p DocumentosPage) editValue(key, saved string) string {
+	if v, ok := p.Edit[key]; ok {
+		return v
+	}
+	return saved
+}
+
+func (p DocumentosPage) hasErrors(keys ...string) bool {
+	for _, k := range keys {
+		if p.Errors[k] != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// Documentos is the Documentos oficiales page (issues #32 and #44): each section folded
+// to its name and how many documents it has, so the page doesn't crowd; opening one shows
+// its documents, which open in a new tab or download. The section an action was just made
+// on comes back open. Admins also get, per document, a remove button and an edit form
+// (title and section); per section, a rename form and, while it is empty, a remove
+// button; and the upload form, folded behind "Subir documento" (it comes back open when
+// validation sends it back).
+templ Documentos(p DocumentosPage, user *NavUser) {
 	@Layout("Documentos oficiales", user) {
 		<div class="page-title">
 			<h1>Documentos oficiales</h1>
 			@HelpLink(HelpDocumentos)
 		</div>
-		@Flash(successMsg)
+		@Flash(p.Success)
 		if user != nil && user.IsAdmin {
-			@documentoUpload(sections, values, fieldErrors)
+			@documentoUpload(p.Sections, p.Upload, p.Errors)
 		}
-		for _, sec := range sections {
-			<section aria-labelledby={ "seccion-" + strconv.FormatInt(sec.ID, 10) }>
-				<h2 id={ "seccion-" + strconv.FormatInt(sec.ID, 10) }>{ sec.Name }</h2>
-				if len(sec.Documents) == 0 {
-					<p>Todavía no hay documentos.</p>
-				} else {
-					<ul class="document-list">
-						for _, d := range sec.Documents {
-							<li>
-								<a href={ templ.URL(documentPath(d)) } target="_blank" rel="noopener">{ d.Title }<span class="visually-hidden">{ " (se abre en otra pestaña)" }</span></a>
-								<small>{ " · " + documentKind(d.ContentType) + " · " + fileSizeText(d.Size) + " · " }</small>
-								<a href={ templ.URL(documentPath(d) + "?descargar=1") }>Descargar<span class="visually-hidden">{ " " + d.Title }</span></a>
-								if user != nil && user.IsAdmin {
-									<form method="post" action={ templ.URL(documentPath(d) + "/eliminar") } class="inline-form">
-										<button type="submit" class="danger" data-confirm="¿Eliminar este documento?">Eliminar<span class="visually-hidden">{ " " + d.Title }</span></button>
-									</form>
-								}
-							</li>
-						}
-					</ul>
-				}
-			</section>
+		for _, sec := range p.Sections {
+			@documentoSection(p, sec, user != nil && user.IsAdmin)
 		}
 	}
 }
 
+templ documentoSection(p DocumentosPage, sec store.DocumentSection, admin bool) {
+	<details class="document-section" id={ SectionField(sec.ID, "") } open?={ p.Open == sec.ID }>
+		<summary><h2>{ sec.Name } <span class="document-count">({ strconv.Itoa(len(sec.Documents)) })</span></h2></summary>
+		@FormError(p.Errors[SectionField(sec.ID, "")])
+		if len(sec.Documents) == 0 {
+			<p>Todavía no hay documentos.</p>
+		} else {
+			<ul class="document-list">
+				for _, d := range sec.Documents {
+					<li>
+						<a href={ templ.URL(documentPath(d)) } target="_blank" rel="noopener">{ d.Title }<span class="visually-hidden">{ " (se abre en otra pestaña)" }</span></a>
+						<small>{ " · " + documentKind(d.ContentType) + " · " + fileSizeText(d.Size) + " · " }</small>
+						<a href={ templ.URL(documentPath(d) + "?descargar=1") }>Descargar<span class="visually-hidden">{ " " + d.Title }</span></a>
+						if admin {
+							<form method="post" action={ templ.URL(documentPath(d) + "/eliminar") } class="inline-form">
+								<button type="submit" class="danger" data-confirm="¿Eliminar este documento?">Eliminar<span class="visually-hidden">{ " " + d.Title }</span></button>
+							</form>
+							@documentoEdit(p, d)
+						}
+					</li>
+				}
+			</ul>
+		}
+		if admin {
+			@seccionEdit(p, sec)
+		}
+	</details>
+}
+
+templ documentoEdit(p DocumentosPage, d store.OfficialDocument) {
+	{{ titleKey, sectionKey := DocumentField(d.ID, "titulo"), DocumentField(d.ID, "seccion") }}
+	{{ section := p.editValue(sectionKey, strconv.FormatInt(d.SectionID, 10)) }}
+	<details class="document-edit" open?={ p.hasErrors(titleKey, sectionKey) }>
+		<summary>Editar<span class="visually-hidden">{ " " + d.Title }</span></summary>
+		<form method="post" action={ templ.URL(documentPath(d) + "/editar") }>
+			<label>
+				Título
+				<input type="text" name="titulo" value={ p.editValue(titleKey, d.Title) } maxlength="200" required { errAttrs(p.Errors, titleKey)... }/>
+			</label>
+			@FieldError(p.Errors, titleKey)
+			<label>
+				Sección
+				<select name="seccion" { errAttrs(p.Errors, sectionKey)... }>
+					for _, sec := range p.Sections {
+						<option value={ strconv.FormatInt(sec.ID, 10) } selected?={ section == strconv.FormatInt(sec.ID, 10) }>{ sec.Name }</option>
+					}
+				</select>
+			</label>
+			@FieldError(p.Errors, sectionKey)
+			<button type="submit" class="primary">Guardar<span class="visually-hidden">{ " " + d.Title }</span></button>
+		</form>
+	</details>
+}
+
+templ seccionEdit(p DocumentosPage, sec store.DocumentSection) {
+	{{ nameKey := SectionField(sec.ID, "nombre") }}
+	<details class="document-edit section-edit" open?={ p.hasErrors(nameKey, SectionField(sec.ID, "")) }>
+		<summary>Editar sección<span class="visually-hidden">{ " " + sec.Name }</span></summary>
+		<form method="post" action={ templ.URL(sectionPath(sec) + "/editar") }>
+			<label>
+				Nombre de la sección
+				<input type="text" name="nombre" value={ p.editValue(nameKey, sec.Name) } maxlength="100" required { errAttrs(p.Errors, nameKey)... }/>
+			</label>
+			@FieldError(p.Errors, nameKey)
+			<button type="submit" class="primary">Cambiar nombre</button>
+		</form>
+		if len(sec.Documents) == 0 {
+			<form method="post" action={ templ.URL(sectionPath(sec) + "/eliminar") }>
+				<button type="submit" class="danger" data-confirm={ "¿Eliminar la sección «" + sec.Name + "»?" }>Eliminar sección<span class="visually-hidden">{ " " + sec.Name }</span></button>
+			</form>
+		} else {
+			<p class="hint">Para eliminar la sección, primero mueve sus documentos a otra sección o elimínalos.</p>
+		}
+	</details>
+}
+
 templ documentoUpload(sections []store.DocumentSection, values DocumentoFormValues, fieldErrors map[string]string) {
-	<details class="disclosure" id="subir" open?={ len(fieldErrors) > 0 }>
+	<details class="disclosure" id="subir" open?={ fieldErrors["archivo"] != "" || fieldErrors["titulo"] != "" || fieldErrors["seccion"] != "" }>
 		<summary>Subir documento</summary>
 		<form method="post" action="/documentos" enctype="multipart/form-data">
 			<label>

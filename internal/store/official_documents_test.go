@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 )
 
@@ -22,29 +23,30 @@ func TestOfficialDocuments(t *testing.T) {
 	comerciales := sections[0].ID
 	pdf := NewFile{Filename: "ficha.pdf", ContentType: "application/pdf", Data: []byte("%PDF-1.4")}
 
-	ccsID, err := s.AddOfficialDocument(ctx, comerciales, "", "Ficha técnica Copperclad (CCS)", pdf, userID)
+	ccsID, _, err := s.AddOfficialDocument(ctx, comerciales, "", "Ficha técnica Copperclad (CCS)", pdf, userID)
 	if err != nil {
 		t.Fatalf("AddOfficialDocument: %v", err)
 	}
-	if _, err := s.AddOfficialDocument(ctx, comerciales, "", "ficha técnica Conduccasa (CCA)", pdf, userID); err != nil {
+	if _, _, err := s.AddOfficialDocument(ctx, comerciales, "", "ficha técnica Conduccasa (CCA)", pdf, userID); err != nil {
 		t.Fatalf("AddOfficialDocument: %v", err)
 	}
 	// A new section by name; the same name in another case reuses it.
-	if _, err := s.AddOfficialDocument(ctx, 0, "Presentaciones", "Presentación Copperclad", pdf, userID); err != nil {
+	if _, _, err := s.AddOfficialDocument(ctx, 0, "Presentaciones", "Presentación Copperclad", pdf, userID); err != nil {
 		t.Fatalf("AddOfficialDocument(new section): %v", err)
 	}
-	if _, err := s.AddOfficialDocument(ctx, 0, " presentaciones ", "Presentación Cladex", pdf, userID); err != nil {
+	if _, _, err := s.AddOfficialDocument(ctx, 0, " presentaciones ", "Presentación Cladex", pdf, userID); err != nil {
 		t.Fatalf("AddOfficialDocument(same section): %v", err)
 	}
-	for name, add := range map[string]func() (int64, error){
-		"no title":    func() (int64, error) { return s.AddOfficialDocument(ctx, comerciales, "", " ", pdf, userID) },
-		"no section":  func() (int64, error) { return s.AddOfficialDocument(ctx, 0, "", "X", pdf, userID) },
-		"bad section": func() (int64, error) { return s.AddOfficialDocument(ctx, 999, "", "X", pdf, userID) },
-		"empty file": func() (int64, error) {
-			return s.AddOfficialDocument(ctx, comerciales, "", "X", NewFile{Filename: "x.pdf"}, userID)
+	for name, add := range map[string]func() error{
+		"no title":    func() error { _, _, err := s.AddOfficialDocument(ctx, comerciales, "", " ", pdf, userID); return err },
+		"no section":  func() error { _, _, err := s.AddOfficialDocument(ctx, 0, "", "X", pdf, userID); return err },
+		"bad section": func() error { _, _, err := s.AddOfficialDocument(ctx, 999, "", "X", pdf, userID); return err },
+		"empty file": func() error {
+			_, _, err := s.AddOfficialDocument(ctx, comerciales, "", "X", NewFile{Filename: "x.pdf"}, userID)
+			return err
 		},
 	} {
-		if _, err := add(); !errors.Is(err, ErrBadDocument) {
+		if err := add(); !errors.Is(err, ErrBadDocument) {
 			t.Errorf("%s: err = %v, want ErrBadDocument", name, err)
 		}
 	}
@@ -63,10 +65,10 @@ func TestOfficialDocuments(t *testing.T) {
 		t.Fatalf("OfficialDocumentData = %+v, %q, %v", doc, data, err)
 	}
 
-	if ok, err := s.RemoveOfficialDocument(ctx, ccsID, userID); !ok || err != nil {
-		t.Fatalf("RemoveOfficialDocument = %v, %v", ok, err)
+	if sec, err := s.RemoveOfficialDocument(ctx, ccsID, userID); sec != comerciales || err != nil {
+		t.Fatalf("RemoveOfficialDocument = %v, %v; want section %d", sec, err, comerciales)
 	}
-	if ok, _ := s.RemoveOfficialDocument(ctx, ccsID, userID); ok {
+	if sec, _ := s.RemoveOfficialDocument(ctx, ccsID, userID); sec != 0 {
 		t.Error("removing twice reported a removal")
 	}
 	if doc, _, err := s.OfficialDocumentData(ctx, ccsID); doc != nil || err != nil {
@@ -80,5 +82,123 @@ func TestOfficialDocuments(t *testing.T) {
 	var deletedBy int64
 	if err := s.db.QueryRowContext(ctx, `SELECT deleted_by FROM official_documents WHERE id = ? AND length(data) = 8`, ccsID).Scan(&deletedBy); err != nil || deletedBy != userID {
 		t.Errorf("removed row = %d, %v; want its bytes kept and deleted_by %d", deletedBy, err, userID)
+	}
+}
+
+// Issue #44: renaming sections, renaming and moving documents, removing empty sections,
+// all on the audit trail.
+func TestEditOfficialDocuments(t *testing.T) {
+	s := newTestStore(t)
+	userID, err := s.CreateUser(context.Background(), "rodolfo", "Rodolfo Flores", "hashedpw", "admin")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	ctx := WithActor(context.Background(), Actor{UserID: userID, Source: SourceWeb})
+	key := func(id int64) string { return strconv.FormatInt(id, 10) }
+	sections, _ := s.ListDocumentSections(ctx)
+	comerciales, educacion := sections[0].ID, sections[1].ID
+	pdf := NewFile{Filename: "ficha.pdf", ContentType: "application/pdf", Data: []byte("%PDF-1.4")}
+	docID, inSection, err := s.AddOfficialDocument(ctx, comerciales, "", "Ficha CCS", pdf, userID)
+	if err != nil || inSection != comerciales {
+		t.Fatalf("AddOfficialDocument = %d, %d, %v", docID, inSection, err)
+	}
+
+	// Rename: another section's name in any case is taken; its own name in another case
+	// is fine; blank is refused; a missing section is reported.
+	if err := s.RenameDocumentSection(ctx, educacion, " documentos COMERCIALES "); !errors.Is(err, ErrSectionNameTaken) {
+		t.Errorf("rename to a taken name = %v, want ErrSectionNameTaken", err)
+	}
+	if err := s.RenameDocumentSection(ctx, educacion, "  "); !errors.Is(err, ErrBadDocument) {
+		t.Errorf("rename to blank = %v, want ErrBadDocument", err)
+	}
+	if err := s.RenameDocumentSection(ctx, 999, "X"); !errors.Is(err, ErrNoSection) {
+		t.Errorf("rename a missing section = %v, want ErrNoSection", err)
+	}
+	if err := s.RenameDocumentSection(ctx, educacion, "EDUCACIÓN"); err != nil {
+		t.Errorf("rename to its own name in another case: %v", err)
+	}
+	if err := s.RenameDocumentSection(ctx, educacion, " Capacitación "); err != nil {
+		t.Fatalf("RenameDocumentSection: %v", err)
+	}
+
+	// Edit a document: a blank title or a missing section is refused.
+	if _, err := s.UpdateOfficialDocument(ctx, docID, educacion, " "); !errors.Is(err, ErrBadDocument) {
+		t.Errorf("blank title = %v, want ErrBadDocument", err)
+	}
+	if _, err := s.UpdateOfficialDocument(ctx, docID, 999, "X"); !errors.Is(err, ErrBadDocument) {
+		t.Errorf("missing section = %v, want ErrBadDocument", err)
+	}
+	if ok, err := s.UpdateOfficialDocument(ctx, 999, educacion, "X"); ok || err != nil {
+		t.Errorf("missing document = %v, %v", ok, err)
+	}
+
+	// A section with documents can't be removed; once they're moved out, it can.
+	if err := s.RemoveDocumentSection(ctx, comerciales, userID); !errors.Is(err, ErrSectionNotEmpty) {
+		t.Fatalf("remove a section with documents = %v, want ErrSectionNotEmpty", err)
+	}
+	if ok, err := s.UpdateOfficialDocument(ctx, docID, educacion, " Ficha técnica Copperclad (CCS) "); !ok || err != nil {
+		t.Fatalf("UpdateOfficialDocument = %v, %v", ok, err)
+	}
+	sections, _ = s.ListDocumentSections(ctx)
+	if sections[1].Name != "Capacitación" || len(sections[1].Documents) != 1 || sections[1].Documents[0].Title != "Ficha técnica Copperclad (CCS)" || len(sections[0].Documents) != 0 {
+		t.Fatalf("after rename and move: %+v", sections)
+	}
+	if err := s.RemoveDocumentSection(ctx, comerciales, userID); err != nil {
+		t.Fatalf("RemoveDocumentSection: %v", err)
+	}
+
+	// It's gone from the page and takes nothing new, but the row stays with who removed
+	// it, and its name is free again.
+	if err := s.RemoveDocumentSection(ctx, comerciales, userID); !errors.Is(err, ErrNoSection) {
+		t.Errorf("removing twice = %v, want ErrNoSection", err)
+	}
+	if err := s.RenameDocumentSection(ctx, comerciales, "Otra"); !errors.Is(err, ErrNoSection) {
+		t.Errorf("renaming a removed section = %v, want ErrNoSection", err)
+	}
+	if _, err := s.UpdateOfficialDocument(ctx, docID, comerciales, "X"); !errors.Is(err, ErrBadDocument) {
+		t.Errorf("moving to a removed section = %v, want ErrBadDocument", err)
+	}
+	if _, _, err := s.AddOfficialDocument(ctx, comerciales, "", "X", pdf, userID); !errors.Is(err, ErrBadDocument) {
+		t.Errorf("uploading to a removed section = %v, want ErrBadDocument", err)
+	}
+	sections, _ = s.ListDocumentSections(ctx)
+	if len(sections) != 1 || sections[0].ID != educacion {
+		t.Fatalf("after removal: %+v", sections)
+	}
+	var deletedBy int64
+	if err := s.db.QueryRowContext(ctx, `SELECT deleted_by FROM document_sections WHERE id = ?`, comerciales).Scan(&deletedBy); err != nil || deletedBy != userID {
+		t.Errorf("removed section deleted_by = %d, %v", deletedBy, err)
+	}
+	if err := s.RenameDocumentSection(ctx, educacion, "documentos comerciales"); err != nil {
+		t.Errorf("a removed section's name should be free: %v", err)
+	}
+	// Typing a live section's name while uploading picks it, not the removed one.
+	if _, sec, err := s.AddOfficialDocument(ctx, 0, "Documentos Comerciales", "Y", pdf, userID); err != nil || sec != educacion {
+		t.Errorf("new section by a live name = %d, %v; want %d", sec, err, educacion)
+	}
+
+	// Who did what is on the audit trail.
+	entries, err := s.AuditLog(ctx, AuditFilter{TableName: "official_documents", RowKey: key(docID)})
+	if err != nil || len(entries) != 1 || entries[0].Op != "update" || entries[0].ActorID == nil || *entries[0].ActorID != userID ||
+		entries[0].OldValues["title"] != "Ficha CCS" || entries[0].NewValues["title"] != "Ficha técnica Copperclad (CCS)" ||
+		entries[0].NewValues["section_id"] != float64(educacion) {
+		t.Errorf("document audit = %+v, %v", entries, err)
+	}
+	entries, err = s.AuditLog(ctx, AuditFilter{TableName: "document_sections", RowKey: key(comerciales)})
+	if err != nil || len(entries) != 1 || entries[0].NewValues["deleted_at"] == nil || entries[0].ActorID == nil || *entries[0].ActorID != userID {
+		t.Errorf("section removal audit = %+v, %v", entries, err)
+	}
+	entries, err = s.AuditLog(ctx, AuditFilter{TableName: "document_sections", RowKey: key(educacion)})
+	if err != nil || len(entries) != 3 || entries[0].NewValues["name"] != "documentos comerciales" || entries[2].OldValues["name"] != "Educación" {
+		t.Errorf("section rename audit = %+v, %v", entries, err)
+	}
+	// A section made while uploading is audited too.
+	_, presentaciones, err := s.AddOfficialDocument(ctx, 0, "Presentaciones", "Z", pdf, userID)
+	if err != nil {
+		t.Fatalf("AddOfficialDocument(new section): %v", err)
+	}
+	entries, err = s.AuditLog(ctx, AuditFilter{TableName: "document_sections", RowKey: key(presentaciones)})
+	if err != nil || len(entries) != 1 || entries[0].Op != "insert" || entries[0].ActorID == nil || *entries[0].ActorID != userID {
+		t.Errorf("new section audit = %+v, %v", entries, err)
 	}
 }

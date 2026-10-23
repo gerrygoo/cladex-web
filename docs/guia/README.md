@@ -43,7 +43,7 @@ parte de este manual que la explica.
 | Dar de alta Productos | ✓ | ✓ |
 | Editar y eliminar Productos (con sus materiales y conversiones) | — | ✓ |
 | Ver y descargar Documentos oficiales | ✓ | ✓ |
-| Subir y eliminar Documentos oficiales | — | ✓ |
+| Subir, editar y eliminar Documentos oficiales y sus secciones | — | ✓ |
 | Usuarios, Familias, Unidades, Configuración del sistema | — | ✓ |
 
 Si en el menú **Catálogos** solo ves **Productos** y **Clientes**, tu cuenta es de vendedor.

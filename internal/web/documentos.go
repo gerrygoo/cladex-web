@@ -14,8 +14,8 @@ import (
 )
 
 // Documentos holds the /documentos handlers (issue #32): every user sees and opens the
-// official documents; only admins upload or remove them (the routes wrap those two in
-// RequireAdmin).
+// official documents; only admins upload, edit or remove documents and sections (the
+// routes wrap every POST in RequireAdmin; issue #44 added the editing).
 type Documentos struct {
 	store *store.Store
 }
@@ -34,28 +34,180 @@ var documentFileTypes = map[string]bool{
 	"application/pdf": true, "image/jpeg": true, "image/png": true, "image/webp": true, "image/gif": true,
 }
 
-// List handles GET /documentos.
-func (d *Documentos) List(w http.ResponseWriter, r *http.Request) {
-	successMsg := ""
-	switch r.URL.Query().Get("guardado") {
-	case "subido":
-		successMsg = "Documento subido."
-	case "eliminado":
-		successMsg = "Documento eliminado."
-	}
-	d.render(w, r, views.DocumentoFormValues{}, nil, successMsg, http.StatusOK)
+// documentosSaved are the messages for /documentos?guardado=….
+var documentosSaved = map[string]string{
+	"subido":             "Documento subido.",
+	"eliminado":          "Documento eliminado.",
+	"editado":            "Documento guardado.",
+	"seccion-renombrada": "Sección renombrada.",
+	"seccion-eliminada":  "Sección eliminada.",
 }
 
-func (d *Documentos) render(w http.ResponseWriter, r *http.Request, values views.DocumentoFormValues, fieldErrors map[string]string, successMsg string, status int) {
+// List handles GET /documentos. ?seccion=<id> unfolds that section: the redirects after
+// an action send it, so the admin sees what they just did.
+func (d *Documentos) List(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	open, _ := strconv.ParseInt(q.Get("seccion"), 10, 64)
+	d.render(w, r, views.DocumentosPage{Success: documentosSaved[q.Get("guardado")], Open: open}, http.StatusOK)
+}
+
+func (d *Documentos) render(w http.ResponseWriter, r *http.Request, page views.DocumentosPage, status int) {
 	ctx := r.Context()
 	sections, err := d.store.ListDocumentSections(ctx)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
+	page.Sections = sections
 	user, _ := UserFromContext(ctx)
 	w.WriteHeader(status)
-	views.Documentos(sections, values, fieldErrors, successMsg, navUserView(user)).Render(ctx, w)
+	views.Documentos(page, navUserView(user)).Render(ctx, w)
+}
+
+// documentosAt is where an action on a section sends the browser back to: the page with
+// that section unfolded and scrolled to.
+func documentosAt(saved string, sectionID int64) string {
+	u := "/documentos?guardado=" + saved
+	if sectionID != 0 {
+		id := strconv.FormatInt(sectionID, 10)
+		u += "&seccion=" + id + "#" + views.SectionField(sectionID, "")
+	}
+	return u
+}
+
+// documentSection returns the id of the section the document is in, or 0 when it isn't
+// on the page.
+func (d *Documentos) documentSection(r *http.Request, docID int64) (int64, error) {
+	sections, err := d.store.ListDocumentSections(r.Context())
+	if err != nil {
+		return 0, err
+	}
+	for _, sec := range sections {
+		for _, doc := range sec.Documents {
+			if doc.ID == docID {
+				return sec.ID, nil
+			}
+		}
+	}
+	return 0, nil
+}
+
+// Editar handles POST /documentos/{id}/editar (admins): "titulo" and "seccion", the id
+// of the section to move it to.
+func (d *Documentos) Editar(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	current, err := d.documentSection(r, id)
+	if err != nil {
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	if current == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	titleKey, sectionKey := views.DocumentField(id, "titulo"), views.DocumentField(id, "seccion")
+	title, section := strings.TrimSpace(r.FormValue("titulo")), r.FormValue("seccion")
+	sectionID, _ := strconv.ParseInt(section, 10, 64)
+	errs := map[string]string{}
+	switch {
+	case title == "":
+		errs[titleKey] = "Escribe el título del documento."
+	case utf8.RuneCountInString(title) > 200:
+		errs[titleKey] = "El título no puede pasar de 200 caracteres."
+	}
+	if sectionID == 0 {
+		errs[sectionKey] = "Elige una sección."
+	}
+	if len(errs) == 0 {
+		ok, err := d.store.UpdateOfficialDocument(ctx, id, sectionID, title)
+		switch {
+		case errors.Is(err, store.ErrBadDocument):
+			errs[sectionKey] = "Esa sección ya no existe; elige otra."
+		case err != nil:
+			http.Error(w, "error interno", http.StatusInternalServerError)
+			return
+		case !ok:
+			http.NotFound(w, r)
+			return
+		default:
+			http.Redirect(w, r, documentosAt("editado", sectionID), http.StatusSeeOther)
+			return
+		}
+	}
+	d.render(w, r, views.DocumentosPage{
+		Errors: errs,
+		Edit:   map[string]string{titleKey: title, sectionKey: section},
+		Open:   current,
+	}, http.StatusBadRequest)
+}
+
+// RenombrarSeccion handles POST /documentos/secciones/{id}/editar (admins): "nombre".
+func (d *Documentos) RenombrarSeccion(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	key := views.SectionField(id, "nombre")
+	name := strings.TrimSpace(r.FormValue("nombre"))
+	msg := ""
+	switch {
+	case name == "":
+		msg = "Escribe el nombre de la sección."
+	case utf8.RuneCountInString(name) > 100:
+		msg = "El nombre de la sección no puede pasar de 100 caracteres."
+	default:
+		err := d.store.RenameDocumentSection(r.Context(), id, name)
+		switch {
+		case errors.Is(err, store.ErrSectionNameTaken):
+			msg = "Ya hay una sección con ese nombre; escribe otro."
+		case errors.Is(err, store.ErrNoSection):
+			http.NotFound(w, r)
+			return
+		case err != nil:
+			http.Error(w, "error interno", http.StatusInternalServerError)
+			return
+		default:
+			http.Redirect(w, r, documentosAt("seccion-renombrada", id), http.StatusSeeOther)
+			return
+		}
+	}
+	d.render(w, r, views.DocumentosPage{
+		Errors: map[string]string{key: msg},
+		Edit:   map[string]string{key: name},
+		Open:   id,
+	}, http.StatusBadRequest)
+}
+
+// EliminarSeccion handles POST /documentos/secciones/{id}/eliminar (admins). A section
+// with documents is refused: they are moved or removed first.
+func (d *Documentos) EliminarSeccion(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	err = d.store.RemoveDocumentSection(ctx, id, user.ID)
+	switch {
+	case errors.Is(err, store.ErrSectionNotEmpty):
+		d.render(w, r, views.DocumentosPage{
+			Errors: map[string]string{views.SectionField(id, ""): "No se puede eliminar una sección que tiene documentos. Primero muévelos a otra sección o elimínalos."},
+			Open:   id,
+		}, http.StatusConflict)
+	case errors.Is(err, store.ErrNoSection):
+		http.NotFound(w, r)
+	case err != nil:
+		http.Error(w, "error interno", http.StatusInternalServerError)
+	default:
+		http.Redirect(w, r, documentosAt("seccion-eliminada", 0), http.StatusSeeOther)
+	}
 }
 
 // Subir handles POST /documentos (admins): "archivo" (PDF or image, up to 25 MB), "titulo"
@@ -97,7 +249,7 @@ func (d *Documentos) Subir(w http.ResponseWriter, r *http.Request) {
 		errs["archivo"] = "Elige el archivo: PDF o imagen de hasta 25 MB."
 	}
 	if len(errs) > 0 {
-		d.render(w, r, values, errs, "", http.StatusBadRequest)
+		d.render(w, r, views.DocumentosPage{Upload: values, Errors: errs}, http.StatusBadRequest)
 		return
 	}
 	title := values.Title
@@ -108,15 +260,16 @@ func (d *Documentos) Subir(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	user, _ := UserFromContext(ctx)
-	if _, err := d.store.AddOfficialDocument(ctx, sectionID, values.NewSection, title, *file, user.ID); err != nil {
+	_, inSection, err := d.store.AddOfficialDocument(ctx, sectionID, values.NewSection, title, *file, user.ID)
+	if err != nil {
 		if errors.Is(err, store.ErrBadDocument) {
-			d.render(w, r, values, map[string]string{"seccion": "Esa sección ya no existe; elige otra."}, "", http.StatusBadRequest)
+			d.render(w, r, views.DocumentosPage{Upload: values, Errors: map[string]string{"seccion": "Esa sección ya no existe; elige otra."}}, http.StatusBadRequest)
 			return
 		}
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/documentos?guardado=subido", http.StatusSeeOther)
+	http.Redirect(w, r, documentosAt("subido", inSection), http.StatusSeeOther)
 }
 
 // Eliminar handles POST /documentos/{id}/eliminar (admins).
@@ -128,16 +281,16 @@ func (d *Documentos) Eliminar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, _ := UserFromContext(ctx)
-	ok, err := d.store.RemoveOfficialDocument(ctx, id, user.ID)
+	sectionID, err := d.store.RemoveOfficialDocument(ctx, id, user.ID)
 	if err != nil {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
-	if !ok {
+	if sectionID == 0 {
 		http.NotFound(w, r)
 		return
 	}
-	http.Redirect(w, r, "/documentos?guardado=eliminado", http.StatusSeeOther)
+	http.Redirect(w, r, documentosAt("eliminado", sectionID), http.StatusSeeOther)
 }
 
 // Archivo handles GET /documentos/{id}: opens the document in the browser (so a PDF or
