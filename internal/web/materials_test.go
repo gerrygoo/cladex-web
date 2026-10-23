@@ -383,6 +383,170 @@ func TestQuoteQGPricesPerMetreFromKg(t *testing.T) {
 	}
 }
 
+// QG "Otro margen" typed as a price per kg (issue #43): measured against the products'
+// own cost per kg, a metre sells at exactly that price × its Peso; a typed percentage or
+// a menu option shows the price it implies. Products with different costs per kg have
+// no single price per kg: the field gives way to a hint, and a saved price stops pricing
+// (its margin does) until the odd line is gone.
+func TestQuoteQGOtroMargenPerKg(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
+	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	ctx := context.Background()
+	familyID, err := a.store.CreateFamily(ctx, store.Family{Name: "Alumoclad", Series: "QG",
+		SeriesLabel: "Cable Alumoclad 7#8 AWG hilo de guarda", Terms: "Precios en pesos mexicanos (MXN), no incluyen IVA"})
+	if err != nil {
+		t.Fatalf("CreateFamily: %v", err)
+	}
+	cost, kg := money.Micros(95_000_000), money.Micros(389_600)
+	alcID, err := a.store.CreateProduct(ctx, store.Product{FamilyID: familyID, SKU: "ALC-C7#8",
+		Description: "Cable Alumoclad 7#8 AWG", CostMicros: &cost, KgPerMMicros: &kg})
+	if err != nil {
+		t.Fatalf("CreateProduct: %v", err)
+	}
+	marginID, err := a.store.CreateMarginOption(ctx, "Diez", 100_000, userID)
+	if err != nil {
+		t.Fatalf("CreateMarginOption: %v", err)
+	}
+	draft, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QG")
+	folio := map[string]string{"folio": draft.Folio}
+	form := func(fields url.Values) url.Values {
+		f := costLineForm(alcID, marginID)
+		f.Set("margin_option_id", "custom")
+		f.Set("lines[0][qty]", "1000")
+		for k, v := range fields {
+			f[k] = v
+		}
+		return f
+	}
+	recalc := func(f url.Values) string {
+		t.Helper()
+		rec := doForm(t, a, userID, q.Recalcular, "POST", "/cotizaciones/"+draft.Folio+"/recalcular", folio, f, true)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Recalcular status = %d", rec.Code)
+		}
+		return rec.Body.String()
+	}
+
+	// On a menu option the fields show its margin and the price per kg it implies,
+	// $95 / (1 − 0.10) = $105.56, read-only, under the family's name.
+	body := builderBody(t, a, q, userID, draft.Folio)
+	for _, want := range []string{"Precio Alumoclad ($/kg)", `data-copper-cost="95"`, `name="copper_price"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("empty QG builder missing %q", want)
+		}
+	}
+	rec := doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+draft.Folio+"/guardar", folio, costLineForm(alcID, marginID), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar(option) status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if body := builderBody(t, a, q, userID, draft.Folio); !strings.Contains(body, `value="105.56"`) || !strings.Contains(body, `value="10"`) || !strings.Contains(body, "readonly") {
+		t.Errorf("menu option doesn't show its margin and price per kg read-only: %s", body)
+	}
+
+	// A typed percentage derives the price per kg: 95 / (1 − 0.20) = $118.75; a metre is
+	// 95 × 0.3896 ÷ 0.80 = $46.265.
+	if body := recalc(form(url.Values{"margin_pct": {"20"}, "margin_edited": {"pct"}})); !strings.Contains(body, "$46,265.00") {
+		t.Errorf("20%% didn't price 1,000 m to $46,265.00: %s", body)
+	}
+	rec = doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+draft.Folio+"/guardar", folio,
+		form(url.Values{"margin_pct": {"20"}, "margin_edited": {"pct"}}), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar(20%%) status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if body := builderBody(t, a, q, userID, draft.Folio); !strings.Contains(body, `value="118.75"`) {
+		t.Errorf("20%% doesn't show $118.75/kg: %s", body)
+	}
+
+	// A typed $110.55/kg sells a metre at 110.55 × 0.3896 = $43.07028 exactly, and is
+	// a 14.0660% margin over the $95 cost, shown rounded.
+	typed := url.Values{"margin_pct": {"14.07"}, "copper_price": {"110.55"}, "margin_edited": {"copper"}}
+	if body := recalc(form(typed)); !strings.Contains(body, "$43,070.28") {
+		t.Errorf("$110.55/kg didn't price 1,000 m to $43,070.28: %s", body)
+	}
+	rec = doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+draft.Folio+"/guardar", folio, form(typed), false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar($110.55/kg) status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	saved, _ := a.store.QuoteByID(ctx, draft.ID)
+	if saved.CustomMarginMicros == nil || *saved.CustomMarginMicros != 140_660 ||
+		saved.CustomCopperPriceMicros == nil || *saved.CustomCopperPriceMicros != 110_550_000 {
+		t.Fatalf("saved margin = %v, price = %v; want 0.14066 and 110.55", saved.CustomMarginMicros, saved.CustomCopperPriceMicros)
+	}
+	lines, _ := a.store.ListQuoteLines(ctx, draft.ID)
+	if len(lines) != 1 || lines[0].UnitPriceMicros != 43_070_280 || lines[0].LineTotal != 43_070_28 {
+		t.Fatalf("saved lines = %+v; want $43.07028/m and $43,070.28", lines)
+	}
+	// Reopened, it keeps the typed price.
+	body = builderBody(t, a, q, userID, draft.Folio)
+	for _, want := range []string{`<option value="custom" selected>Otro margen (14.07%)</option>`, `value="14.07"`, `value="110.55"`, "$43,070.28"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("reopened builder missing %q", want)
+		}
+	}
+	// The page sends back what it shows: nothing changes, and the controls aren't swapped.
+	unchanged := form(url.Values{"margin_pct": {"14.07"}, "copper_price": {"110.55"}, "margin_kg_ref": {"95"}})
+	if body := recalc(unchanged); !strings.Contains(body, "$43,070.28") || strings.Contains(body, "hx-swap-oob") || strings.Contains(body, `class="error"`) {
+		t.Errorf("unchanged recalculation changed something: %s", body)
+	}
+	// A price at or below the cost can't price.
+	if body := recalc(form(url.Values{"copper_price": {"95"}, "margin_edited": {"copper"}})); !strings.Contains(body, "El precio de Alumoclad debe ser mayor que su costo (95 por kg)") {
+		t.Errorf("price at cost wasn't refused: %s", body)
+	}
+
+	// A product with another cost per kg: with both on the quote there's no price per
+	// kg. The saved price's margin keeps pricing, and the controls swap in the hint.
+	otherCost := money.Micros(100_000_000)
+	otherID, err := a.store.CreateProduct(ctx, store.Product{FamilyID: familyID, SKU: "ALC-C7#10",
+		Description: "Cable Alumoclad 7#10 AWG", CostMicros: &otherCost, KgPerMMicros: &kg})
+	if err != nil {
+		t.Fatalf("CreateProduct: %v", err)
+	}
+	mixed := form(url.Values{"margin_pct": {"14.07"}, "copper_price": {"110.55"}, "margin_kg_ref": {"95"}})
+	mixed.Set("line_keys", "0,1")
+	mixed.Set("lines[1][kind]", "product")
+	mixed.Set("lines[1][product_id]", strconv.FormatInt(otherID, 10))
+	mixed.Set("lines[1][qty]", "1000")
+	body = recalc(mixed)
+	// 95 × 0.3896 ÷ (1 − 0.14066) = $43.070263 a metre, from the margin, not $43.07028.
+	for _, want := range []string{"hx-swap-oob", mixedKgCostHint, "110.55 por kg", "$43,070.26"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("mixed costs recalculation missing %q: %s", want, body)
+		}
+	}
+	if strings.Contains(body, `name="copper_price"`) || strings.Contains(body, `class="error"`) {
+		t.Errorf("mixed costs still offer the price per kg, or show an error: %s", body)
+	}
+	rec = doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+draft.Folio+"/guardar", folio, mixed, false)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar(mixed) status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	if saved, _ := a.store.QuoteByID(ctx, draft.ID); *saved.CustomMarginMicros != 140_660 || saved.CustomCopperPriceMicros == nil || *saved.CustomCopperPriceMicros != 110_550_000 {
+		t.Errorf("mixed save kept margin %v, price %v; want 0.14066 and 110.55", *saved.CustomMarginMicros, saved.CustomCopperPriceMicros)
+	}
+	body = builderBody(t, a, q, userID, draft.Folio)
+	if !strings.Contains(body, mixedKgCostHint) || strings.Contains(body, `name="copper_price"`) {
+		t.Errorf("reopened mixed builder doesn't show the hint instead of the price: %s", body)
+	}
+
+	// Removing the odd line brings the price back, pricing exactly again.
+	back := form(url.Values{"margin_pct": {"14.07"}, "margin_kg_ref": {""}})
+	body = recalc(back)
+	for _, want := range []string{"hx-swap-oob", `value="110.55"`, "$43,070.28"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("recalculation without the odd line missing %q: %s", want, body)
+		}
+	}
+
+	// A new QG draft with no lines, over a family with mixed costs: only the percentage.
+	empty, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QG")
+	body = builderBody(t, a, q, userID, empty.Folio)
+	if strings.Contains(body, `name="copper_price"`) || !strings.Contains(body, mixedKgCostHint) {
+		t.Errorf("empty QG draft over mixed costs offers the price per kg: %s", body)
+	}
+}
+
 // A QG product needs its Peso, which its price per metre comes from (issue #37); other
 // familias still take it as optional.
 func TestProductQGRequiresWeight(t *testing.T) {

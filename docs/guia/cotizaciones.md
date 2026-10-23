@@ -102,7 +102,7 @@ Cada cotización se calcula con un [[margen]] que eliges de una lista, p. ej.
 El margen aplica a todos los productos del catálogo en la cotización; las
 [líneas libres](#agregar-una-línea-libre) no lo usan. El margen no aparece en el PDF.
 
-### Usar otro margen (QA, QS y QI)
+### Usar otro margen (QA, QS, QI y QG)
 
 Si ninguno de la lista te sirve, por ejemplo para dar un punto de descuento sin bajar
 hasta el siguiente margen, elige **Otro margen** al final de la lista **Margen** y escribe
@@ -137,6 +137,26 @@ que escribiste:
   material; si es igual o menor, no se puede guardar ni emitir.
 - Una revisión arranca con el mismo precio por kilo. Si el costo del material cambió
   mientras tanto, el precio se queda y el margen se ajusta.
+
+En las cotizaciones **QG** (Cable Alumoclad hilo de guarda) funciona igual, pero el
+precio por kilo se mide contra el **costo por kg de los productos** de la cotización, no
+contra un material: el campo se llama **Precio Alumoclad ($/kg)** (con el nombre de la
+familia). Si escribes un precio por kilo, cada metro se vende exacto a ese precio × su
+**Peso (kg/m)**. Por ejemplo, ALC-C7#8 cuesta $95.00/kg y pesa 0.3896 kg/m: a $110.55/kg el
+metro sale en 110.55 × 0.3896 = **$43.07028** y el margen es 14.07 % (1 − 95 ÷ 110.55).
+Si escribes el margen, el precio por kilo es costo ÷ (1 − margen): con 20 %, 95 ÷ 0.80 =
+$118.75.
+
+- El costo por kg es el de los productos que ya están en la cotización. Sin líneas
+  todavía, es el de los productos de la familia.
+- Solo hay precio por kilo si todos esos productos tienen el **mismo costo por kg**. Si
+  no, solo puedes escribir el margen y junto a él ves el aviso *"El precio por kg solo
+  está disponible cuando todos los productos de la cotización tienen el mismo costo por
+  kg."*
+- Si ya tenías un precio por kilo y agregas un producto con otro costo por kg, el campo
+  del precio desaparece y todas las líneas se calculan con el margen que daba ese precio
+  (el aviso te lo recuerda). El precio queda guardado: si quitas ese producto, vuelve el
+  campo y las líneas salen otra vez del precio exacto.
 
 Las líneas de una cotización **QS** muestran también su peso: **Cantidad (m)**, **Kg por
 metro** (los kilos de material por metro del producto, con 4 decimales) y **Kg**

@@ -43,22 +43,53 @@ type MarginPicker struct {
 	NoneChosen bool
 	Error      string
 
-	// AllowCustom is set on catalog series (QA, QS, QI), which can use a margin of their
-	// own; only then is the "Otro margen" option offered. Its percentage field shows
-	// while it is picked, and on CCS quotes always, read-only for a menu option, next to
-	// the copper price.
+	// AllowCustom is set on catalog series (QA, QS, QI, QG), which can use a margin of
+	// their own; only then is the "Otro margen" option offered. Its percentage field
+	// shows while it is picked, and, when the margin can also be typed as a price per kg
+	// (HasKgPrice), always: read-only for a menu option, next to that price.
 	AllowCustom bool
 	// Custom is set when the draft is on a margin of its own ("Otro margen") rather
 	// than a menu option; CustomPct holds the percentage typed (or derived) for it.
-	// When the catalog has the copper material (HasCopper), the same margin is also
-	// offered as that material's sale price per kg: CopperName and CopperCost say what
-	// the price is measured against, and CopperPrice is the price CustomPct implies.
+	// When the quote has a price-per-kg reference (HasKgPrice: the CCS 30% material on
+	// QS, the products' own cost per kg on QG), the same margin is also offered as a sale
+	// price per kg: KgPriceName and KgCost say what the price is measured against, and
+	// KgPrice is the price CustomPct implies. KgPriceHint explains why a QG quote has no
+	// such field.
 	Custom      bool
 	CustomPct   string
-	HasCopper   bool
-	CopperName  string
-	CopperCost  string
-	CopperPrice string
+	HasKgPrice  bool
+	KgPriceName string
+	KgCost      string
+	KgPrice     string
+	KgPriceHint string
+}
+
+// KgPriceRef is what a margin typed as a sale price per kg is measured against: a cost
+// per kg (CostMicros) and what it's the cost of (Name, "" when nothing names it). The
+// margin a price implies is 1 - cost / price.
+type KgPriceRef struct {
+	Name       string
+	CostMicros money.Micros
+}
+
+// KgPriceLabel is the price field's label: "Precio CCS 30% ($/kg)", or "Precio por kg
+// ($/kg)" when the reference has no name.
+func (p MarginPicker) KgPriceLabel() string {
+	if p.KgPriceName == "" {
+		return "Precio por kg ($/kg)"
+	}
+	return "Precio " + p.KgPriceName + " ($/kg)"
+}
+
+// SetKgPriceRef offers the margin as a price per kg measured against ref (nil: not
+// offered).
+func (p *MarginPicker) SetKgPriceRef(ref *KgPriceRef) {
+	if ref == nil {
+		return
+	}
+	p.HasKgPrice = true
+	p.KgPriceName = ref.Name
+	p.KgCost = KgPriceText(ref.CostMicros)
 }
 
 // NewMarginPicker builds the dropdown for a draft whose selected option is selectedID
@@ -83,22 +114,22 @@ func NewMarginPicker(opts []store.MarginOption, selectedID *int64) MarginPicker 
 }
 
 // SetMarginDisplay fills the percentage field with margin, to two decimals, and, when
-// the catalog has the copper material, the price per kg: price when the margin was typed
-// as one, else the price margin implies.
-func (p *MarginPicker) SetMarginDisplay(margin money.Micros, price *money.Micros, copper *store.Material) {
+// the quote has a price-per-kg reference, the price per kg: price when the margin was
+// typed as one, else the price margin implies.
+func (p *MarginPicker) SetMarginDisplay(margin money.Micros, price *money.Micros, ref *KgPriceRef) {
 	p.CustomPct = ShortMarginPercent(margin)
-	if copper == nil {
+	if ref == nil {
 		return
 	}
 	if price != nil {
-		p.CopperPrice = CopperPriceText(*price)
-	} else if price, err := pricing.PriceFromMargin(copper.PriceMicros, margin); err == nil {
-		p.CopperPrice = CopperPriceText(price)
+		p.KgPrice = KgPriceText(*price)
+	} else if price, err := pricing.PriceFromMargin(ref.CostMicros, margin); err == nil {
+		p.KgPrice = KgPriceText(price)
 	}
 }
 
 // CCSFamilyName is the product family whose custom margin can also be typed as the
-// copper price per kg.
+// CCS 30% price per kg.
 const CCSFamilyName = "CCS & AC"
 
 // CustomMarginValue is the margin dropdown's value for "Otro margen".
@@ -117,9 +148,9 @@ func (p MarginPicker) CustomOptionLabel() string {
 	return CustomMarginName
 }
 
-// CopperPriceText renders a sale price per kg for the copper field: whole centavos, no
+// KgPriceText renders a sale price per kg for the price field: whole centavos, no
 // currency formatting, so it round-trips through an <input>.
-func CopperPriceText(m money.Micros) string {
+func KgPriceText(m money.Micros) string {
 	return money.Micros(money.RoundHalfUp(int64(m), 10_000) * 10_000).String()
 }
 

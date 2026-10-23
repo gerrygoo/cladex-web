@@ -53,8 +53,9 @@ type Quote struct {
 	MarginSnapshotMicros *money.Micros
 	// CustomMarginMicros, when set, prices the draft instead of MarginOptionID's value.
 	CustomMarginMicros *money.Micros
-	// CustomCopperPriceMicros is the CCS 30% price per kg the custom margin was typed
-	// as, when it was (issue #38): that price, not the margin, then prices the draft.
+	// CustomCopperPriceMicros is the sale price per kg the custom margin was typed as,
+	// when it was: the CCS 30% price on QS (issue #38), the products' own price per kg on
+	// QG (issue #43). That price, not the margin, then prices the draft.
 	CustomCopperPriceMicros *money.Micros
 	// SeriesFamily is the product familia the quote's series belongs to, "" when the
 	// series has no familia or the familia is free-lines-only: the builder's product
@@ -494,7 +495,8 @@ func (s *Store) ReplaceQuoteLines(ctx context.Context, quoteID int64, marginOpti
 }
 
 // CustomMargin is a draft's margin of its own ("Otro margen"): the fraction it prices
-// with and, when it was typed as the CCS 30% price per kg, that exact price.
+// with and, when it was typed as a price per kg (CCS 30% on QS, the products' own on
+// QG), that exact price.
 type CustomMargin struct {
 	Micros      money.Micros
 	CopperPrice *money.Micros
