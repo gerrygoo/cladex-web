@@ -26,6 +26,14 @@ const KgPricedSeries = "QG"
 // MarginOptionID is the margin a draft is priced with, read live (drafts follow edits to
 // the option); MarginNameSnapshot and MarginSnapshotMicros freeze it at issue. See
 // migrations/0001_init.sql and 0007_margin_options.sql.
+// Quote statuses, as stored in quotes.status: a draft is issued exactly once, and an
+// issued quote is superseded by its revision.
+const (
+	QuoteBorrador = "borrador"
+	QuoteEmitida  = "emitida"
+	QuoteRevisada = "revisada"
+)
+
 type Quote struct {
 	ID                   int64
 	Folio                string
@@ -88,7 +96,7 @@ type Quote struct {
 // and its proyecto is still a prospecto. Once the client's purchase order is in, the
 // quote it answers is locked.
 func (q Quote) Revisable() bool {
-	return q.Status == "emitida" && (q.Stage == "" || q.Stage == "prospecto")
+	return q.Status == QuoteEmitida && (q.Stage == "" || q.Stage == "prospecto")
 }
 
 // QuoteLine is a quote_lines row. ProductID is nil for a free-text ("Cotizador libre")
@@ -440,7 +448,14 @@ func (s *Store) ReplaceQuoteLines(ctx context.Context, quoteID int64, marginOpti
 		return fmt.Errorf("store: replace quote lines for quote %d: %w", quoteID, err)
 	}
 	defer tx.Rollback()
+	if err := replaceQuoteLines(ctx, tx, quoteID, marginOptionID, customMargin, lines, totals); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 
+// replaceQuoteLines is ReplaceQuoteLines inside the caller's transaction.
+func replaceQuoteLines(ctx context.Context, tx *sql.Tx, quoteID int64, marginOptionID *int64, customMargin *CustomMargin, lines []QuoteLine, totals pricing.Totals) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM quote_lines WHERE quote_id = ?`, quoteID); err != nil {
 		return fmt.Errorf("store: replace quote lines for quote %d: delete: %w", quoteID, err)
 	}
@@ -489,8 +504,7 @@ func (s *Store) ReplaceQuoteLines(ctx context.Context, quoteID int64, marginOpti
 	); err != nil {
 		return fmt.Errorf("store: replace quote lines for quote %d: update totals: %w", quoteID, err)
 	}
-
-	return tx.Commit()
+	return nil
 }
 
 // CustomMargin is a draft's margin of its own ("Otro margen"): the fraction it prices
@@ -503,12 +517,13 @@ type CustomMargin struct {
 // SetQuoteTermsInputs saves what a draft's terms and series ask the salesperson for: the
 // delivery time, the currency, and the validity date. Empty values clear the column.
 func (s *Store) SetQuoteTermsInputs(ctx context.Context, quoteID int64, deliveryTime, currency, validUntil, extraTerms string) error {
-	if _, err := s.exec(ctx, `UPDATE quotes SET delivery_time = NULLIF(?, ''), currency = NULLIF(?, ''), valid_until = NULLIF(?, ''), extra_terms = NULLIF(?, '') WHERE id = ?`,
-		deliveryTime, currency, validUntil, extraTerms, quoteID); err != nil {
+	if _, err := s.exec(ctx, setTermsInputsSQL, deliveryTime, currency, validUntil, extraTerms, quoteID); err != nil {
 		return fmt.Errorf("store: set terms inputs on quote %d: %w", quoteID, err)
 	}
 	return nil
 }
+
+const setTermsInputsSQL = `UPDATE quotes SET delivery_time = NULLIF(?, ''), currency = NULLIF(?, ''), valid_until = NULLIF(?, ''), extra_terms = NULLIF(?, '') WHERE id = ?`
 
 // ErrQuoteNotDraft is returned by IssueQuote when the target quote isn't currently
 // 'borrador' — a quote is issued exactly once; see CreateRevision for changing an
@@ -545,11 +560,7 @@ type Issue struct {
 // line costs differ from its original's adds a note saying how to the history (see
 // costChangeNote).
 func (s *Store) IssueQuote(ctx context.Context, quoteID int64, is Issue) error {
-	var validUntilArg any
-	if is.ValidUntil != nil {
-		validUntilArg = *is.ValidUntil
-	}
-	costNote, err := s.revisionCostNote(ctx, quoteID)
+	costNote, err := s.revisionCostNote(ctx, quoteID, nil)
 	if err != nil {
 		return fmt.Errorf("store: issue quote %d: %w", quoteID, err)
 	}
@@ -560,6 +571,64 @@ func (s *Store) IssueQuote(ctx context.Context, quoteID int64, is Issue) error {
 	defer tx.Rollback()
 	if err := stampActor(ctx, tx); err != nil {
 		return fmt.Errorf("store: issue quote %d: %w", quoteID, err)
+	}
+	if err := issueQuote(ctx, tx, quoteID, is, costNote); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: issue quote %d: %w", quoteID, err)
+	}
+	return nil
+}
+
+// DraftSave is a draft's final state as the builder submits it: what ReplaceQuoteLines
+// and SetQuoteTermsInputs would each write.
+type DraftSave struct {
+	MarginOptionID *int64
+	CustomMargin   *CustomMargin
+	Lines          []QuoteLine
+	Totals         pricing.Totals
+	DeliveryTime   string
+	Currency       string
+	ValidUntil     string
+	ExtraTerms     string
+}
+
+// SaveAndIssueQuote saves a draft's lines and terms inputs and issues it, all in one
+// transaction, so a failure part-way leaves the draft as it was rather than saved but
+// not issued. It returns ErrQuoteNotDraft, writing nothing, if the quote has been issued
+// meanwhile.
+func (s *Store) SaveAndIssueQuote(ctx context.Context, quoteID int64, save DraftSave, is Issue) error {
+	costNote, err := s.revisionCostNote(ctx, quoteID, save.Lines)
+	if err != nil {
+		return fmt.Errorf("store: issue quote %d: %w", quoteID, err)
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: issue quote %d: %w", quoteID, err)
+	}
+	defer tx.Rollback()
+	// replaceQuoteLines stamps the actor for the whole transaction.
+	if err := replaceQuoteLines(ctx, tx, quoteID, save.MarginOptionID, save.CustomMargin, save.Lines, save.Totals); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, setTermsInputsSQL, save.DeliveryTime, save.Currency, save.ValidUntil, save.ExtraTerms, quoteID); err != nil {
+		return fmt.Errorf("store: issue quote %d: terms inputs: %w", quoteID, err)
+	}
+	if err := issueQuote(ctx, tx, quoteID, is, costNote); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: issue quote %d: %w", quoteID, err)
+	}
+	return nil
+}
+
+// issueQuote is IssueQuote inside the caller's transaction, which has stamped the actor.
+func issueQuote(ctx context.Context, tx *sql.Tx, quoteID int64, is Issue, costNote string) error {
+	var validUntilArg any
+	if is.ValidUntil != nil {
+		validUntilArg = *is.ValidUntil
 	}
 	// The proyecto is opened first so the quote is written once, with it. If the quote
 	// turns out not to be a draft, the rollback takes the proyecto with it.
@@ -612,15 +681,13 @@ func (s *Store) IssueQuote(ctx context.Context, quoteID int64, is Issue) error {
 			return fmt.Errorf("store: issue quote %d: cost note: %w", quoteID, err)
 		}
 	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: issue quote %d: %w", quoteID, err)
-	}
 	return nil
 }
 
 // revisionCostNote is the cost-change note for issuing quoteID, or "" if it isn't a
-// revision or no cost changed.
-func (s *Store) revisionCostNote(ctx context.Context, quoteID int64) (string, error) {
+// revision or no cost changed. next is the line set being issued; nil means the lines
+// already saved.
+func (s *Store) revisionCostNote(ctx context.Context, quoteID int64, next []QuoteLine) (string, error) {
 	q, err := s.QuoteByID(ctx, quoteID)
 	if err != nil || q == nil || q.SupersedesQuoteID == nil {
 		return "", err
@@ -629,9 +696,10 @@ func (s *Store) revisionCostNote(ctx context.Context, quoteID int64) (string, er
 	if err != nil {
 		return "", err
 	}
-	next, err := s.ListQuoteLines(ctx, quoteID)
-	if err != nil {
-		return "", err
+	if next == nil {
+		if next, err = s.ListQuoteLines(ctx, quoteID); err != nil {
+			return "", err
+		}
 	}
 	return costChangeNote(q.SupersedesFolio, prev, next), nil
 }
@@ -706,7 +774,7 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 	if original == nil {
 		return nil, nil
 	}
-	if original.Status != "emitida" {
+	if original.Status != QuoteEmitida {
 		return nil, ErrQuoteNotIssued
 	}
 	if !original.Revisable() {

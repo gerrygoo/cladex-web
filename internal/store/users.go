@@ -6,6 +6,12 @@ import (
 	"fmt"
 )
 
+// User roles, as stored in users.role (which a CHECK constraint limits to these).
+const (
+	RoleAdmin    = "admin"
+	RoleVendedor = "vendedor"
+)
+
 // User is a full users row, including the password hash — only for auth-path code
 // (login, cladexctl). Everything else should use the trimmed AuthenticatedUser.
 type User struct {

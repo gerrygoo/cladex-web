@@ -181,7 +181,7 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 			<dt>Cotización vigente</dt>
 			<dd>
 				<a href={ templ.URL("/cotizaciones/" + p.CurrentQuoteFolio) }>{ p.CurrentQuoteFolio }</a>
-				if p.CurrentQuoteStatus == "borrador" {
+				if p.CurrentQuoteStatus == store.QuoteBorrador {
 					· revisión en borrador, aún sin emitir
 				}
 				· <a href={ templ.URL(duplicarPath(p.CurrentQuoteFolio)) }>Duplicar</a>
@@ -229,7 +229,7 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 		if p.Status == "prospecto" {
 			// The purchase order is only asked for once the sale is about to close.
 			if p.Probability == store.ReceiveOCProbability {
-				if p.CurrentQuoteStatus != "emitida" {
+				if p.CurrentQuoteStatus != store.QuoteEmitida {
 					<p>Para pasarlo a { store.StageLabels["oc_recibida"] }, primero emite la revisión <a href={ templ.URL("/cotizaciones/" + p.CurrentQuoteFolio) }>{ p.CurrentQuoteFolio }</a>.</p>
 				} else {
 					<h2>Recibir la orden de compra</h2>
@@ -377,7 +377,7 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 								if i > 0 {
 									<br/>
 								}
-								<a href={ templ.URL(projectFilePath(p.Folio, f.ID)) }>{ f.Filename }</a>
+								<a href={ templ.URL(projectFilePath(p.Folio, f.ID) + "?descargar=1") }>{ f.Filename }</a>
 								<small>
 									{ " · " + fileSizeText(f.Size) + " · " + f.UploadedByName + " · " }
 									@Timestamp(f.UploadedAt)

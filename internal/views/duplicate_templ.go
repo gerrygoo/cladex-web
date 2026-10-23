@@ -107,7 +107,7 @@ func duplicateFields(f DuplicateQuoteForm, id string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if f.Quote.Status == "borrador" {
+		if f.Quote.Status == store.QuoteBorrador {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<p class=\"hint\">Se copia lo último guardado de ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

@@ -50,7 +50,7 @@ func (d *Documentos) render(w http.ResponseWriter, r *http.Request, values views
 	ctx := r.Context()
 	sections, err := d.store.ListDocumentSections(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	user, _ := UserFromContext(ctx)
@@ -113,7 +113,7 @@ func (d *Documentos) Subir(w http.ResponseWriter, r *http.Request) {
 			d.render(w, r, values, map[string]string{"seccion": "Esa sección ya no existe; elige otra."}, "", http.StatusBadRequest)
 			return
 		}
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/documentos?guardado=subido", http.StatusSeeOther)
@@ -130,7 +130,7 @@ func (d *Documentos) Eliminar(w http.ResponseWriter, r *http.Request) {
 	user, _ := UserFromContext(ctx)
 	ok, err := d.store.RemoveOfficialDocument(ctx, id, user.ID)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if !ok {
@@ -152,7 +152,7 @@ func (d *Documentos) Archivo(w http.ResponseWriter, r *http.Request) {
 	}
 	doc, data, err := d.store.OfficialDocumentData(r.Context(), id)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if doc == nil {
@@ -161,6 +161,10 @@ func (d *Documentos) Archivo(w http.ResponseWriter, r *http.Request) {
 	}
 	serveUploadedFile(w, r, doc.Filename, doc.ContentType, data)
 }
+
+// uploadCSP sandboxes an uploaded file shown inline, and replaces securityHeaders' policy
+// for it, so it repeats frame-ancestors.
+const uploadCSP = "sandbox; frame-ancestors 'none'"
 
 // serveUploadedFile sends an uploaded file of the given type (detected at upload) inline
 // or, with ?descargar=1, as a download. Inline it is sandboxed and never sniffed, so it
@@ -172,7 +176,7 @@ func serveUploadedFile(w http.ResponseWriter, r *http.Request, filename, content
 	}
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": filename}))
-	w.Header().Set("Content-Security-Policy", "sandbox")
+	w.Header().Set("Content-Security-Policy", uploadCSP)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))

@@ -5,9 +5,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	cladex "github.com/gerrygoo/cladex-web"
+	"github.com/gerrygoo/cladex-web/internal/appenv"
 	"github.com/gerrygoo/cladex-web/internal/guia"
 )
 
@@ -187,13 +189,56 @@ func TestRoutesAdminReachesAdminRoutes(t *testing.T) {
 	}
 }
 
+// The banner belongs to the mux that was built for staging, not to the process: a
+// production mux built alongside it shows none.
+func TestEnvironmentBannerIsPerMux(t *testing.T) {
+	a := newTestAuth(t)
+	staging, err := appenv.Parse("staging")
+	if err != nil {
+		t.Fatal(err)
+	}
+	staticFS, _ := fs.Sub(cladex.StaticFS, "static")
+	guide, err := guia.New(os.DirFS("../../docs/guia"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stagingMux := NewMux(Build{Env: staging}, staticFS, guide, a.store, false, nil, nil)
+	prodMux := newTestMux(t, a)
+
+	page := func(h http.Handler) string {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest("GET", "/login", nil))
+		return rec.Body.String()
+	}
+	if !strings.Contains(page(stagingMux), "env-banner") {
+		t.Error("staging login page has no environment banner")
+	}
+	if strings.Contains(page(prodMux), "env-banner") {
+		t.Error("production login page shows an environment banner")
+	}
+}
+
+// No page may be framed, including the login page and responses RequireAuth redirects.
+func TestPagesRefuseFraming(t *testing.T) {
+	a := newTestAuth(t)
+	mux := newTestMux(t, a)
+
+	for _, path := range []string{"/login", "/cotizaciones"} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest("GET", path, nil))
+		if rec.Header().Get("X-Frame-Options") != "DENY" || rec.Header().Get("Content-Security-Policy") != "frame-ancestors 'none'" {
+			t.Errorf("%s headers = %v, want framing refused", path, rec.Header())
+		}
+	}
+}
+
 // TestPublicRoutes pins the routes that are deliberately outside RequireAuth. /healthz in
 // particular is hit by the NAS deploy check, which has no session.
 func TestPublicRoutes(t *testing.T) {
 	a := newTestAuth(t)
 	mux := newTestMux(t, a)
 
-	for _, path := range []string{"/healthz", "/login", "/saludo"} {
+	for _, path := range []string{"/healthz", "/login"} {
 		t.Run(path, func(t *testing.T) {
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, httptest.NewRequest("GET", path, nil))

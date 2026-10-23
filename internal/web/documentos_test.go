@@ -110,7 +110,7 @@ func TestDocumentosOficiales(t *testing.T) {
 	pv := map[string]string{"id": itoa(doc.ID)}
 	rec := doForm(t, a, vendedor, d.Archivo, "GET", "/documentos/"+itoa(doc.ID), pv, nil, false)
 	if rec.Code != http.StatusOK || rec.Body.String() != string(pdf) || rec.Header().Get("Content-Type") != "application/pdf" ||
-		!strings.HasPrefix(rec.Header().Get("Content-Disposition"), "inline") || rec.Header().Get("Content-Security-Policy") != "sandbox" {
+		!strings.HasPrefix(rec.Header().Get("Content-Disposition"), "inline") || rec.Header().Get("Content-Security-Policy") != uploadCSP {
 		t.Fatalf("Archivo = %d %v", rec.Code, rec.Header())
 	}
 	rec = doForm(t, a, vendedor, d.Archivo, "GET", "/documentos/"+itoa(doc.ID)+"?descargar=1", pv, nil, false)

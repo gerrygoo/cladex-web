@@ -61,7 +61,7 @@ func navUserView(u *store.AuthenticatedUser) *views.NavUser {
 	if u == nil {
 		return nil
 	}
-	return &views.NavUser{Username: u.Username, IsAdmin: u.Role == "admin"}
+	return &views.NavUser{Username: u.Username, IsAdmin: u.Role == store.RoleAdmin}
 }
 
 // RequireAuth redirects to /login unless the request carries a valid, unexpired
@@ -77,7 +77,7 @@ func (a *Auth) RequireAuth(next http.Handler) http.Handler {
 		hash := hashToken(c.Value)
 		user, err := a.store.SessionUser(r.Context(), hash)
 		if err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 		if user == nil {
@@ -86,7 +86,7 @@ func (a *Auth) RequireAuth(next http.Handler) http.Handler {
 			return
 		}
 		if err := a.store.RenewSession(r.Context(), hash); err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 		ctx := context.WithValue(r.Context(), userContextKey, user)
@@ -98,7 +98,7 @@ func (a *Auth) RequireAuth(next http.Handler) http.Handler {
 			}
 		}
 		// Attribute any database write made downstream to this user, for the audit
-		// triggers in migrations/0003_audit_log.sql, and let the access log name them.
+		// triggers in migrations/0004_audit_log.sql, and let the access log name them.
 		ctx = store.WithActor(ctx, store.Actor{UserID: user.ID, Source: store.SourceWeb})
 		if info := requestInfoFrom(ctx); info != nil {
 			info.userID = user.ID
@@ -112,7 +112,7 @@ func (a *Auth) RequireAuth(next http.Handler) http.Handler {
 // actions; the routes behind those actions are gated by RequireAdmin regardless.
 func isAdmin(ctx context.Context) bool {
 	user, ok := UserFromContext(ctx)
-	return ok && user.Role == "admin"
+	return ok && user.Role == store.RoleAdmin
 }
 
 // forbiddenMessage is what a vendedor reads on an admin-only action reached by a URL or
@@ -125,7 +125,7 @@ const forbiddenMessage = "No tienes permiso para hacer esto. Solo un administrad
 func (a *Auth) RequireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, ok := UserFromContext(r.Context())
-		if !ok || user.Role != "admin" {
+		if !ok || user.Role != store.RoleAdmin {
 			http.Error(w, forbiddenMessage, http.StatusForbidden)
 			return
 		}
@@ -152,7 +152,7 @@ func (a *Auth) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 
 	wait, err := a.rateLimitWait(ctx, username, ip)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if wait > 0 {
@@ -164,7 +164,7 @@ func (a *Auth) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 
 	user, err := a.store.UserByUsername(ctx, username)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 
@@ -178,7 +178,7 @@ func (a *Auth) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := a.store.RecordLoginAttempt(ctx, username, ip, valid); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 
@@ -190,11 +190,11 @@ func (a *Auth) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 
 	token, err := randomToken()
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if err := a.store.CreateSession(ctx, user.ID, hashToken(token)); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	a.setSessionCookie(w, token)

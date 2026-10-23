@@ -154,7 +154,7 @@ func (p *Products) List(w http.ResponseWriter, r *http.Request) {
 	filters := filterParams(r)
 	products, err := p.store.ListProducts(ctx, query, sort, dir, filters)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 
@@ -176,12 +176,12 @@ func (p *Products) List(w http.ResponseWriter, r *http.Request) {
 	}
 	families, err := p.store.ListFamilies(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	units, err := p.store.ListUnits(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	var familyOptions, unitOptions []views.FilterOption
@@ -200,12 +200,12 @@ func (p *Products) NewPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	families, err := p.store.ListFamilies(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	units, err := p.store.ListUnits(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	user, _ := UserFromContext(ctx)
@@ -223,14 +223,14 @@ func (p *Products) Create(w http.ResponseWriter, r *http.Request) {
 	form := parseProductForm(r)
 	fieldErrors := form.Validate()
 	if err := p.requireWeight(ctx, form, fieldErrors); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 
 	if fieldErrors["sku"] == "" {
 		existing, err := p.store.ProductBySKU(ctx, form.SKU)
 		if err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 		if existing != nil {
@@ -245,7 +245,7 @@ func (p *Products) Create(w http.ResponseWriter, r *http.Request) {
 
 	id, err := p.store.CreateProduct(ctx, form.toProduct())
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, fmt.Sprintf("/productos/%d?guardado=1", id), http.StatusSeeOther)
@@ -304,7 +304,7 @@ func (p *Products) EditPage(w http.ResponseWriter, r *http.Request) {
 	}
 	product, families, units, sections, err := p.loadEditData(ctx, id)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if product == nil {
@@ -331,8 +331,11 @@ func (p *Products) EditPage(w http.ResponseWriter, r *http.Request) {
 func (p *Products) renderSectionError(w http.ResponseWriter, r *http.Request, id int64, setErr func(*views.ProductEditSections)) {
 	ctx := r.Context()
 	product, families, units, sections, err := p.loadEditData(ctx, id)
-	if err != nil || product == nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+	if err == nil && product == nil {
+		err = fmt.Errorf("product %d vanished", id)
+	}
+	if err != nil {
+		serverError(w, r, err)
 		return
 	}
 	setErr(&sections)
@@ -380,7 +383,7 @@ func (p *Products) AddMaterial(w http.ResponseWriter, r *http.Request) {
 			p.renderMaterialsError(w, r, id, "Este producto ya tiene ese material; elimínalo y vuelve a agregarlo para cambiar la cantidad.")
 			return
 		}
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, fmt.Sprintf("/productos/%d?guardado=1", id), http.StatusSeeOther)
@@ -399,7 +402,7 @@ func (p *Products) DeleteMaterial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := p.store.DeleteProductMaterial(r.Context(), id, mid); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, fmt.Sprintf("/productos/%d?guardado=1", id), http.StatusSeeOther)
@@ -439,7 +442,7 @@ func (p *Products) CreateConversion(w http.ResponseWriter, r *http.Request) {
 			p.renderConversionsError(w, r, id, "Ya existe una conversión entre estas unidades para este producto.")
 			return
 		}
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, fmt.Sprintf("/productos/%d?guardado=1", id), http.StatusSeeOther)
@@ -458,7 +461,7 @@ func (p *Products) DeleteConversion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := p.store.DeleteConversion(r.Context(), cid); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, fmt.Sprintf("/productos/%d?guardado=1", id), http.StatusSeeOther)
@@ -479,14 +482,14 @@ func (p *Products) Update(w http.ResponseWriter, r *http.Request) {
 	form := parseProductForm(r)
 	fieldErrors := form.Validate()
 	if err := p.requireWeight(ctx, form, fieldErrors); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 
 	if fieldErrors["sku"] == "" {
 		existing, err := p.store.ProductBySKU(ctx, form.SKU)
 		if err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 		if existing != nil && existing.ID != id {
@@ -502,7 +505,7 @@ func (p *Products) Update(w http.ResponseWriter, r *http.Request) {
 	product := form.toProduct()
 	product.ID = id
 	if err := p.store.UpdateProduct(ctx, product); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, fmt.Sprintf("/productos/%d?guardado=1", id), http.StatusSeeOther)
@@ -517,7 +520,7 @@ func (p *Products) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := p.store.SoftDeleteProduct(ctx, id); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/productos?eliminado=1", http.StatusSeeOther)
@@ -531,18 +534,18 @@ func (p *Products) renderFormError(w http.ResponseWriter, r *http.Request, title
 	ctx := r.Context()
 	families, err := p.store.ListFamilies(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	units, err := p.store.ListUnits(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	var sections views.ProductEditSections
 	if id != 0 {
 		if sections, err = p.loadEditSections(ctx, id); err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 	}

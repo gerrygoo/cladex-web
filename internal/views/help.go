@@ -1,5 +1,7 @@
 package views
 
+import "github.com/gerrygoo/cladex-web/internal/store"
+
 // HelpTopic is a user-guide URL (/ayuda/<página>#<sección>) that a screen's "?" link
 // opens. Every topic a view uses must be one of these constants and listed in
 // HelpTopics, where a test checks it against the rendered guide — so renaming a guide
@@ -72,9 +74,9 @@ var HelpTopics = map[HelpTopic]bool{
 
 func quoteHelpTopic(status string) HelpTopic {
 	switch status {
-	case "emitida":
+	case store.QuoteEmitida:
 		return HelpCotizacionEmitida
-	case "revisada":
+	case store.QuoteRevisada:
 		return HelpCotizacionRevisada
 	}
 	return HelpCotizacionBorrador

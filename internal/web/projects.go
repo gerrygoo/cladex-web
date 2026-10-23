@@ -3,7 +3,6 @@ package web
 import (
 	"errors"
 	"io"
-	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -40,7 +39,7 @@ func (p *Projects) List(w http.ResponseWriter, r *http.Request) {
 	filters := filterParams(r)
 	projects, err := p.store.ListProjects(ctx, query, sortCol, dir, filters)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	projects, pager := paginate(r, projects)
@@ -52,7 +51,7 @@ func (p *Projects) List(w http.ResponseWriter, r *http.Request) {
 	}
 	customers, owners, err := p.store.ProjectFilterChoices(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	user, _ := UserFromContext(ctx)
@@ -62,7 +61,7 @@ func (p *Projects) List(w http.ResponseWriter, r *http.Request) {
 func (p *Projects) loadProjectOrNotFound(w http.ResponseWriter, r *http.Request) *store.Project {
 	project, err := p.store.ProjectByFolio(r.Context(), r.PathValue("folio"))
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return nil
 	}
 	if project == nil {
@@ -81,24 +80,24 @@ func (p *Projects) Page(w http.ResponseWriter, r *http.Request) {
 	}
 	quotes, err := p.store.ListProjectQuotes(ctx, project.ID)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	files, err := p.store.ListProjectFiles(ctx, project.ID, "oc")
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	comments, err := p.store.ListProjectComments(ctx, project.ID)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	comments, pager := paginate(r, comments)
 	commentsLV := views.ListView{Base: "/proyectos/" + project.Folio, Pager: pager, Anchor: "historial"}
 	facturas, err := p.store.ListComprobantes(ctx, project.ID)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	var current *store.Quote
@@ -109,7 +108,7 @@ func (p *Projects) Page(w http.ResponseWriter, r *http.Request) {
 	}
 	supplier, err := supplierQuoteView(r, p.store, current, "/cotizaciones/"+project.CurrentQuoteFolio, "/proyectos/"+project.Folio+"/proveedor")
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	user, _ := UserFromContext(ctx)
@@ -134,7 +133,7 @@ func (p *Projects) Etapa(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, _ := UserFromContext(ctx)
-	if to != "" && to == store.PrevStage(project.Status) && user.Role != "admin" {
+	if to != "" && to == store.PrevStage(project.Status) && user.Role != store.RoleAdmin {
 		http.Error(w, "solo un administrador puede regresar un proyecto de etapa", http.StatusForbidden)
 		return
 	}
@@ -155,7 +154,7 @@ func (p *Projects) Etapa(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "el proyecto no puede pasar a esa etapa", http.StatusConflict)
 			return
 		}
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/proyectos/"+project.Folio+"#historial", http.StatusSeeOther)
@@ -186,7 +185,7 @@ func (p *Projects) Seguimiento(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "este proyecto ya no se puede marcar como perdido", http.StatusConflict)
 				return
 			}
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 		http.Redirect(w, r, "/proyectos/"+project.Folio, http.StatusSeeOther)
@@ -228,7 +227,7 @@ func (p *Projects) Seguimiento(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "solo a un prospecto se le anota probabilidad y fechas de seguimiento", http.StatusConflict)
 			return
 		}
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/proyectos/"+project.Folio+"#historial", http.StatusSeeOther)
@@ -249,12 +248,12 @@ func (p *Projects) Pronostico(w http.ResponseWriter, r *http.Request) {
 	filters := filterParams(r)
 	projects, err := p.store.ListProspects(ctx, all, sortCol, dir, filters)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	_, owners, err := p.store.ProjectFilterChoices(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	lv := views.ListView{Base: "/pronostico", Sort: sortCol, Dir: dir, Filters: filters}
@@ -281,7 +280,7 @@ func (p *Projects) Comentar(w http.ResponseWriter, r *http.Request) {
 	}
 	user, _ := UserFromContext(ctx)
 	if err := p.store.AddQuoteComment(ctx, project.CurrentQuoteID, user.ID, body); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/proyectos/"+project.Folio+"#historial", http.StatusSeeOther)
@@ -307,7 +306,7 @@ func (p *Projects) Perder(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "este proyecto ya no se puede marcar como perdido", http.StatusConflict)
 			return
 		}
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/proyectos/"+project.Folio, http.StatusSeeOther)
@@ -343,7 +342,7 @@ func (p *Projects) Reabrir(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "este proyecto no está perdido", http.StatusConflict)
 			return
 		}
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/proyectos/"+project.Folio+"#historial", http.StatusSeeOther)
@@ -414,7 +413,7 @@ func (p *Projects) OC(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "la orden de compra solo se captura en un prospecto con su cotización emitida, o se corrige mientras el proyecto está en O.C. recibida", http.StatusConflict)
 			return
 		}
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/proyectos/"+project.Folio+"#oc", http.StatusSeeOther)
@@ -495,19 +494,14 @@ func (p *Projects) Archivo(w http.ResponseWriter, r *http.Request) {
 	}
 	file, data, err := p.store.ProjectFileData(r.Context(), project.ID, id)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if file == nil {
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": file.Filename}))
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Cache-Control", "private, no-store")
-	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-	w.Write(data)
+	serveUploadedFile(w, r, file.Filename, file.ContentType, data)
 }
 
 // documentForm reads a hand-typed fiscal document from a form: "folio" and "fecha" (a
@@ -549,7 +543,7 @@ func (p *Projects) Factura(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "la factura solo se registra en un proyecto en O.C. recibida con su orden de compra capturada", http.StatusConflict)
 			return
 		}
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/proyectos/"+project.Folio+"#pago", http.StatusSeeOther)
@@ -580,7 +574,7 @@ func (p *Projects) Pago(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "el pago completado solo se registra en un proyecto facturado de anticipo que está en Facturado o En entrega", http.StatusConflict)
 			return
 		}
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/proyectos/"+project.Folio+"#pago", http.StatusSeeOther)

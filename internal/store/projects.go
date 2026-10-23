@@ -29,9 +29,9 @@ var ProjectFlow = []string{"prospecto", "oc_recibida", "facturado", "en_entrega"
 
 // StatusLabels are the words users see for each quote status.
 var StatusLabels = map[string]string{
-	"borrador": "Borrador",
-	"emitida":  "Emitida",
-	"revisada": "Revisada",
+	QuoteBorrador: "Borrador",
+	QuoteEmitida:  "Emitida",
+	QuoteRevisada: "Revisada",
 }
 
 // StageLabels are the words users see for each proyecto stage.
@@ -265,7 +265,7 @@ func (s *Store) ReceiveOC(ctx context.Context, projectID, userID int64, oc OC, f
 	if err != nil {
 		return fmt.Errorf("store: receive OC of project %d: %w", projectID, err)
 	}
-	if quoteID == 0 || quoteStatus != "emitida" {
+	if quoteID == 0 || quoteStatus != QuoteEmitida {
 		return ErrBadTransition
 	}
 

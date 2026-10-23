@@ -32,7 +32,7 @@ templ duplicateFields(f DuplicateQuoteForm, id string) {
 			}
 			No se copian comentarios, seguimiento ni la O.C.
 		</p>
-		if f.Quote.Status == "borrador" {
+		if f.Quote.Status == store.QuoteBorrador {
 			<p class="hint">Se copia lo último guardado de { f.Quote.Folio }, sin cambios de la pantalla que no hayas guardado.</p>
 		}
 		<label for={ id + "-cliente" }>Cliente de la copia</label>

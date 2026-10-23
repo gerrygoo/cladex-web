@@ -74,7 +74,7 @@ func chainState(ctx context.Context, q queryer, root int64) (current, lastIssued
 // issued_at is kept in whole seconds, so a file uploaded within the second of an
 // emission counts as part of it.
 func supplierFileRemovable(current, lastIssued, uploadedAt string) bool {
-	return current == "borrador" && wholeSecond(uploadedAt) > wholeSecond(lastIssued)
+	return current == QuoteBorrador && wholeSecond(uploadedAt) > wholeSecond(lastIssued)
 }
 
 func wholeSecond(ts string) string {

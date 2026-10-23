@@ -2,7 +2,6 @@ package views
 
 import (
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
@@ -63,17 +62,6 @@ func fileSizeText(size int64) string {
 		return strconv.FormatInt(max(1, (size+512)>>10), 10) + " KB"
 	}
 	return strconv.FormatFloat(float64(size)/(1<<20), 'f', 1, 64) + " MB"
-}
-
-// joinNonEmpty joins the parts that have something in them.
-func joinNonEmpty(sep string, parts ...string) string {
-	var kept []string
-	for _, p := range parts {
-		if p != "" {
-			kept = append(kept, p)
-		}
-	}
-	return strings.Join(kept, sep)
 }
 
 // Forecast is the Pronóstico page's data: the prospectos shown, whether that is every

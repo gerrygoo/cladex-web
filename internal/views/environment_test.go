@@ -1,6 +1,8 @@
 package views
 
 import (
+	"bytes"
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -10,15 +12,15 @@ import (
 )
 
 func TestEnvironmentBanner(t *testing.T) {
-	t.Cleanup(func() { EnvironmentBanner = "" })
-	if page := render(t, Saludo("hola")); strings.Contains(page, "env-banner") {
-		t.Fatal("fragment shows a banner")
-	}
 	if page := render(t, Layout("Inicio", nil)); strings.Contains(page, "env-banner") {
 		t.Error("production shows an environment banner")
 	}
-	EnvironmentBanner = "Ambiente de pruebas"
-	assertContains(t, render(t, Layout("Inicio", nil)), `<p class="env-banner" role="note">Ambiente de pruebas</p>`)
+	var buf bytes.Buffer
+	ctx := WithEnvironmentBanner(context.Background(), "Ambiente de pruebas")
+	if err := Layout("Inicio", nil).Render(ctx, &buf); err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, buf.String(), `<p class="env-banner" role="note">Ambiente de pruebas</p>`)
 }
 
 func TestAjustesFacturacion(t *testing.T) {

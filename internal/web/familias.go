@@ -38,7 +38,7 @@ func (f *Familias) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	families, err := f.store.ListAllFamilies(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	successMsg := ""
@@ -89,14 +89,14 @@ func (f *Familias) Create(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, store.ErrDuplicateSeries):
 			errs["series"] = "Ya existe una familia con esta serie."
 		default:
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 	}
 
 	families, err := f.store.ListAllFamilies(ctx)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	user, _ := UserFromContext(ctx)
@@ -111,7 +111,7 @@ func (f *Familias) loadFamilyOrNotFound(w http.ResponseWriter, r *http.Request) 
 	if err == nil {
 		families, lerr := f.store.ListAllFamilies(r.Context())
 		if lerr != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return store.Family{}, false
 		}
 		for _, fam := range families {
@@ -153,7 +153,7 @@ func (f *Familias) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := f.store.SetFamilySATCode(r.Context(), fam.ID, satCode); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if err := f.store.UpdateFamilyTerms(r.Context(), fam.ID, label, terms); err != nil {
@@ -161,7 +161,7 @@ func (f *Familias) Update(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/familias?guardado=editada", http.StatusSeeOther)

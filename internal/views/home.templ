@@ -72,10 +72,6 @@ templ Home(built, now time.Time, buildSHA string, d *store.Dashboard, user *NavU
 	}
 }
 
-templ Saludo(mensaje string) {
-	<p>{ mensaje }</p>
-}
-
 // folioList is a count that opens the list of its proyectos, biggest first: folio
 // (leading to its page), client and amount before IVA. Zero is just "0", with nothing to open. It is a native <details>, so it works
 // without JS.

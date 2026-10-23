@@ -7,6 +7,7 @@ package cli
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"flag"
 	"fmt"
 	"math/big"
@@ -24,7 +25,7 @@ const bcryptCost = 12
 // Run dispatches a "user <add|passwd|disable|rename> ..." command line.
 func Run(ctx context.Context, s *store.Store, args []string) error {
 	if len(args) < 2 || args[0] != "user" {
-		return fmt.Errorf("uso: cladex user <add|passwd|disable|rename> ...")
+		return errors.New("uso: cladex user <add|passwd|disable|rename> <argumentos>")
 	}
 	switch args[1] {
 	case "add":
@@ -51,7 +52,7 @@ func userAdd(ctx context.Context, s *store.Store, args []string) error {
 
 	fs := flag.NewFlagSet("user add", flag.ContinueOnError)
 	name := fs.String("name", "", "nombre completo")
-	role := fs.String("role", "vendedor", "admin o vendedor")
+	role := fs.String("role", store.RoleVendedor, "admin o vendedor")
 	if err := fs.Parse(rest); err != nil {
 		return err
 	}
@@ -61,7 +62,7 @@ func userAdd(ctx context.Context, s *store.Store, args []string) error {
 	if *name == "" {
 		return fmt.Errorf("--name es obligatorio")
 	}
-	if *role != "admin" && *role != "vendedor" {
+	if *role != store.RoleAdmin && *role != store.RoleVendedor {
 		return fmt.Errorf("--role debe ser admin o vendedor")
 	}
 
@@ -142,7 +143,7 @@ func userDisable(ctx context.Context, s *store.Store, args []string) error {
 func userRename(ctx context.Context, s *store.Store, args []string) error {
 	const usage = `uso: cladex user rename <username> --name "Nombre Completo"`
 	if len(args) < 1 {
-		return fmt.Errorf(usage)
+		return errors.New(usage)
 	}
 	username, rest := args[0], args[1:]
 
@@ -152,7 +153,7 @@ func userRename(ctx context.Context, s *store.Store, args []string) error {
 		return err
 	}
 	if fs.NArg() != 0 || strings.TrimSpace(*name) == "" {
-		return fmt.Errorf(usage)
+		return errors.New(usage)
 	}
 
 	found, err := s.RenameUser(ctx, username, strings.TrimSpace(*name))

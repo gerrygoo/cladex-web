@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -142,6 +143,24 @@ func TestAccessLogRecoversPanic(t *testing.T) {
 
 // Static assets and the deploy healthcheck are the two high-frequency paths; at Info
 // they would drown everything else out.
+func TestAccessLogRecordsServerError(t *testing.T) {
+	logger, buf := captureLogs(slog.LevelInfo)
+	h := AccessLog(logger)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		serverError(w, r, errors.New("database is locked"))
+	}))
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/cotizaciones", nil))
+
+	if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "locked") {
+		t.Fatalf("response = %d %q, want a 500 that doesn't leak the error", rec.Code, rec.Body.String())
+	}
+	records := decodeRecords(t, buf)
+	if len(records) != 1 || records[0]["err"] != "database is locked" || records[0]["level"] != "ERROR" {
+		t.Fatalf("records = %v, want one ERROR request line carrying the error", records)
+	}
+}
+
 func TestAccessLogFiltersNoiseByLevel(t *testing.T) {
 	for _, path := range []string{"/static/app.css", "/healthz"} {
 		logger, buf := captureLogs(slog.LevelInfo)

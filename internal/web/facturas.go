@@ -2,6 +2,7 @@ package web
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -37,7 +38,7 @@ func (f *Facturas) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	list, err := f.store.ListComprobantes(ctx, 0)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	user, _ := UserFromContext(ctx)
@@ -52,7 +53,7 @@ func (f *Facturas) load(w http.ResponseWriter, r *http.Request) *store.Comproban
 	}
 	c, err := f.store.ComprobanteByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return nil
 	}
 	if c == nil {
@@ -81,13 +82,13 @@ func (f *Facturas) render(w http.ResponseWriter, r *http.Request, c *store.Compr
 	var err error
 	if c.RelatedID != 0 {
 		if v.Related, err = f.store.ComprobanteByID(ctx, c.RelatedID); err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 	}
 	siblings, err := f.store.ListComprobantes(ctx, c.ProjectID)
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	for i := range siblings {
@@ -103,7 +104,7 @@ func (f *Facturas) render(w http.ResponseWriter, r *http.Request, c *store.Compr
 	}
 	if c.Status == store.CompBorrador {
 		if v.Problems, err = f.svc.Problems(ctx, c, v.Related); err != nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+			serverError(w, r, err)
 			return
 		}
 	}
@@ -111,7 +112,7 @@ func (f *Facturas) render(w http.ResponseWriter, r *http.Request, c *store.Compr
 		v.WrongEnv = true
 	}
 	if v.Events, err = f.store.ListComprobanteEvents(ctx, c.ID); err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	user, _ := UserFromContext(ctx)
@@ -124,7 +125,7 @@ func (f *Facturas) Crear(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project, err := f.store.ProjectByFolio(ctx, r.PathValue("folio"))
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	if project == nil {
@@ -138,7 +139,7 @@ func (f *Facturas) Crear(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/facturas/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
@@ -306,8 +307,11 @@ func (f *Facturas) afterCancel(w http.ResponseWriter, r *http.Request, id int64,
 		http.Redirect(w, r, facturaURL(id, "pendiente"), http.StatusSeeOther)
 	default:
 		c, err := f.store.ComprobanteByID(r.Context(), id)
-		if err != nil || c == nil {
-			http.Error(w, "error interno", http.StatusInternalServerError)
+		if err == nil && c == nil {
+			err = fmt.Errorf("comprobante %d vanished", id)
+		}
+		if err != nil {
+			serverError(w, r, err)
 			return
 		}
 		msg := "No se canceló: " + o.Message
@@ -419,8 +423,11 @@ func (f *Facturas) stateError(w http.ResponseWriter, r *http.Request, id int64, 
 		return
 	}
 	c, lerr := f.store.ComprobanteByID(r.Context(), id)
-	if lerr != nil || c == nil {
-		http.Error(w, "error interno", http.StatusInternalServerError)
+	if lerr == nil && c == nil {
+		lerr = fmt.Errorf("comprobante %d vanished", id)
+	}
+	if lerr != nil {
+		serverError(w, r, lerr)
 		return
 	}
 	f.render(w, r, c, "", msg, http.StatusConflict)
