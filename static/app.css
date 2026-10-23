@@ -1495,6 +1495,52 @@ ul.document-list form.inline-form > button[type="submit"] {
   margin-top: 0;
 }
 
+/* Each section folds to its heading and document count (issue #44); the summary is the
+   whole heading row, so a tap anywhere on it opens the section. */
+details.document-section {
+  border-bottom: 1px solid var(--rule);
+}
+
+details.document-section > summary {
+  cursor: pointer;
+  padding: 0.75rem 0;
+}
+
+details.document-section > summary > h2 {
+  display: inline;
+  margin: 0;
+}
+
+details.document-section > summary .document-count {
+  color: var(--text-muted);
+  font-weight: normal;
+}
+
+details.document-section[open] > summary {
+  margin-bottom: 0.25rem;
+}
+
+/* Admins' edit forms: a small toggle under the document or section, opening the form
+   below it. */
+details.document-edit {
+  margin-top: 0.4rem;
+}
+
+details.document-edit > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+details.document-edit > form {
+  max-width: 32rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+details.section-edit {
+  margin-bottom: 1rem;
+}
+
 /* Cotización del proveedor (issue #39): the same list, whose remove buttons belong to
    the section's form instead of a form of their own. */
 ul.document-list button.inline-button {

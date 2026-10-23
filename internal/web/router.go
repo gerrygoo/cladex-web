@@ -148,6 +148,9 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("GET /documentos/{id}", authed(documentos.Archivo))
 	mux.Handle("POST /documentos", admin(documentos.Subir))
 	mux.Handle("POST /documentos/{id}/eliminar", admin(documentos.Eliminar))
+	mux.Handle("POST /documentos/{id}/editar", admin(documentos.Editar))
+	mux.Handle("POST /documentos/secciones/{id}/editar", admin(documentos.RenombrarSeccion))
+	mux.Handle("POST /documentos/secciones/{id}/eliminar", admin(documentos.EliminarSeccion))
 
 	mux.Handle("GET /usuarios", admin(users.List))
 	mux.Handle("POST /usuarios/{id}/rol", admin(users.SetRole))
