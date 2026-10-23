@@ -93,13 +93,13 @@ templ Documentos(p DocumentosPage, user *NavUser) {
 		if user != nil && user.IsAdmin {
 			@documentoUpload(p.Sections, p.Upload, p.Errors)
 		}
-		for _, sec := range p.Sections {
-			@documentoSection(p, sec, user != nil && user.IsAdmin)
+		for i, sec := range p.Sections {
+			@documentoSection(p, sec, i, user != nil && user.IsAdmin)
 		}
 	}
 }
 
-templ documentoSection(p DocumentosPage, sec store.DocumentSection, admin bool) {
+templ documentoSection(p DocumentosPage, sec store.DocumentSection, i int, admin bool) {
 	<details class="document-section" id={ SectionField(sec.ID, "") } open?={ p.Open == sec.ID }>
 		<summary><h2>{ sec.Name } <span class="document-count">({ strconv.Itoa(len(sec.Documents)) })</span></h2></summary>
 		@FormError(p.Errors[SectionField(sec.ID, "")])
@@ -123,7 +123,7 @@ templ documentoSection(p DocumentosPage, sec store.DocumentSection, admin bool) 
 			</ul>
 		}
 		if admin {
-			@seccionEdit(p, sec)
+			@seccionEdit(p, sec, i)
 		}
 	</details>
 }
@@ -153,7 +153,9 @@ templ documentoEdit(p DocumentosPage, d store.OfficialDocument) {
 	</details>
 }
 
-templ seccionEdit(p DocumentosPage, sec store.DocumentSection) {
+// seccionEdit is a section's admin controls: rename, move up or down the page (the
+// first section has no "Subir", the last no "Bajar"), and remove while empty.
+templ seccionEdit(p DocumentosPage, sec store.DocumentSection, i int) {
 	{{ nameKey := SectionField(sec.ID, "nombre") }}
 	<details class="document-edit section-edit" open?={ p.hasErrors(nameKey, SectionField(sec.ID, "")) }>
 		<summary>Editar sección<span class="visually-hidden">{ " " + sec.Name }</span></summary>
@@ -165,6 +167,17 @@ templ seccionEdit(p DocumentosPage, sec store.DocumentSection) {
 			@FieldError(p.Errors, nameKey)
 			<button type="submit" class="primary">Cambiar nombre</button>
 		</form>
+		if len(p.Sections) > 1 {
+			<form method="post" action={ templ.URL(sectionPath(sec) + "/mover") } class="section-move">
+				<span>Orden en la página:</span>
+				if i > 0 {
+					<button type="submit" name="hacia" value="arriba">Subir<span class="visually-hidden">{ " " + sec.Name }</span></button>
+				}
+				if i < len(p.Sections)-1 {
+					<button type="submit" name="hacia" value="abajo">Bajar<span class="visually-hidden">{ " " + sec.Name }</span></button>
+				}
+			</form>
+		}
 		if len(sec.Documents) == 0 {
 			<form method="post" action={ templ.URL(sectionPath(sec) + "/eliminar") }>
 				<button type="submit" class="danger" data-confirm={ "¿Eliminar la sección «" + sec.Name + "»?" }>Eliminar sección<span class="visually-hidden">{ " " + sec.Name }</span></button>

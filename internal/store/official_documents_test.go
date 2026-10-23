@@ -3,8 +3,12 @@ package store
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
+
+	"github.com/gerrygoo/cladex-web"
 )
 
 func TestOfficialDocuments(t *testing.T) {
@@ -15,12 +19,12 @@ func TestOfficialDocuments(t *testing.T) {
 		t.Fatalf("CreateUser: %v", err)
 	}
 
-	// The two starting sections are there, empty.
+	// The two starting sections are there, empty, Educación first (migrations/0028).
 	sections, err := s.ListDocumentSections(ctx)
-	if err != nil || len(sections) != 2 || sections[0].Name != "Documentos comerciales" || sections[1].Name != "Educación" || len(sections[0].Documents) != 0 {
+	if err != nil || len(sections) != 2 || sections[0].Name != "Educación" || sections[1].Name != "Documentos comerciales" || len(sections[0].Documents) != 0 {
 		t.Fatalf("ListDocumentSections = %+v, %v", sections, err)
 	}
-	comerciales := sections[0].ID
+	comerciales := sections[1].ID
 	pdf := NewFile{Filename: "ficha.pdf", ContentType: "application/pdf", Data: []byte("%PDF-1.4")}
 
 	ccsID, _, err := s.AddOfficialDocument(ctx, comerciales, "", "Ficha técnica Copperclad (CCS)", pdf, userID)
@@ -56,7 +60,7 @@ func TestOfficialDocuments(t *testing.T) {
 		t.Fatalf("ListDocumentSections = %+v, %v", sections, err)
 	}
 	// By title, ignoring case: Conduccasa before Copperclad.
-	if docs := sections[0].Documents; len(docs) != 2 || docs[0].Title != "ficha técnica Conduccasa (CCA)" || docs[1].UploadedByName != "Rodolfo Flores" {
+	if docs := sections[1].Documents; len(docs) != 2 || docs[0].Title != "ficha técnica Conduccasa (CCA)" || docs[1].UploadedByName != "Rodolfo Flores" {
 		t.Errorf("Documentos comerciales = %+v", docs)
 	}
 
@@ -75,8 +79,8 @@ func TestOfficialDocuments(t *testing.T) {
 		t.Errorf("removed document still served: %+v, %v", doc, err)
 	}
 	sections, _ = s.ListDocumentSections(ctx)
-	if len(sections[0].Documents) != 1 {
-		t.Errorf("removed document still listed: %+v", sections[0].Documents)
+	if len(sections[1].Documents) != 1 {
+		t.Errorf("removed document still listed: %+v", sections[1].Documents)
 	}
 	// The bytes stay, with who removed it.
 	var deletedBy int64
@@ -96,7 +100,7 @@ func TestEditOfficialDocuments(t *testing.T) {
 	ctx := WithActor(context.Background(), Actor{UserID: userID, Source: SourceWeb})
 	key := func(id int64) string { return strconv.FormatInt(id, 10) }
 	sections, _ := s.ListDocumentSections(ctx)
-	comerciales, educacion := sections[0].ID, sections[1].ID
+	comerciales, educacion := sections[1].ID, sections[0].ID
 	pdf := NewFile{Filename: "ficha.pdf", ContentType: "application/pdf", Data: []byte("%PDF-1.4")}
 	docID, inSection, err := s.AddOfficialDocument(ctx, comerciales, "", "Ficha CCS", pdf, userID)
 	if err != nil || inSection != comerciales {
@@ -140,7 +144,7 @@ func TestEditOfficialDocuments(t *testing.T) {
 		t.Fatalf("UpdateOfficialDocument = %v, %v", ok, err)
 	}
 	sections, _ = s.ListDocumentSections(ctx)
-	if sections[1].Name != "Capacitación" || len(sections[1].Documents) != 1 || sections[1].Documents[0].Title != "Ficha técnica Copperclad (CCS)" || len(sections[0].Documents) != 0 {
+	if sections[0].Name != "Capacitación" || len(sections[0].Documents) != 1 || sections[0].Documents[0].Title != "Ficha técnica Copperclad (CCS)" || len(sections[1].Documents) != 0 {
 		t.Fatalf("after rename and move: %+v", sections)
 	}
 	if err := s.RemoveDocumentSection(ctx, comerciales, userID); err != nil {
@@ -200,5 +204,130 @@ func TestEditOfficialDocuments(t *testing.T) {
 	entries, err = s.AuditLog(ctx, AuditFilter{TableName: "document_sections", RowKey: key(presentaciones)})
 	if err != nil || len(entries) != 1 || entries[0].Op != "insert" || entries[0].ActorID == nil || *entries[0].ActorID != userID {
 		t.Errorf("new section audit = %+v, %v", entries, err)
+	}
+}
+
+// Issue #44: 0028 puts the sections in the order Emilio asked for, matching the names as
+// typed loosely, and leaves any other after them in creation order, without audit rows.
+func TestMigration0028OrdersSections(t *testing.T) {
+	ctx := context.Background()
+	dsn := filepath.Join(t.TempDir(), "up.db")
+	old, err := Open(ctx, dsn, migrationsBefore(t, "0028"))
+	if err != nil {
+		t.Fatalf("open at 0027: %v", err)
+	}
+	// 1 and 2 come from 0023; Emilio renamed 1 and added the rest.
+	for _, q := range []string{
+		`UPDATE document_sections SET name = 'Rodolfo - Documentos comerciales' WHERE id = 1`,
+		`INSERT INTO document_sections (id, name) VALUES
+			(3, 'Presentaciones'), (4, 'Documentos comerciales – otros'), (5, 'Gerardo -Documentos Comerciales'),
+			(6, 'DOCUMENTOS CLADEX'), (7, 'Logos')`,
+	} {
+		if _, err := old.db.ExecContext(ctx, q); err != nil {
+			t.Fatalf("seed %q: %v", q, err)
+		}
+	}
+	var auditBefore int
+	if err := old.db.QueryRowContext(ctx, `SELECT count(*) FROM audit_log`).Scan(&auditBefore); err != nil {
+		t.Fatalf("audit count: %v", err)
+	}
+	old.Close()
+
+	s, err := Open(ctx, dsn, cladex.MigrationsFS)
+	if err != nil {
+		t.Fatalf("open at 0028: %v", err)
+	}
+	defer s.Close()
+	sections, err := s.ListDocumentSections(ctx)
+	if err != nil {
+		t.Fatalf("ListDocumentSections: %v", err)
+	}
+	var names []string
+	for _, sec := range sections {
+		names = append(names, sec.Name)
+	}
+	want := "DOCUMENTOS CLADEX|Educación|Rodolfo - Documentos comerciales|Gerardo -Documentos Comerciales|Documentos comerciales – otros|Presentaciones|Logos"
+	if got := strings.Join(names, "|"); got != want {
+		t.Errorf("order = %s\nwant    %s", got, want)
+	}
+	var auditAfter int
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM audit_log`).Scan(&auditAfter); err != nil || auditAfter != auditBefore {
+		t.Errorf("audit_log rows = %d, were %d (%v)", auditAfter, auditBefore, err)
+	}
+}
+
+// Issue #44: admins move a section up or down; a new section goes last; moving is on the
+// audit trail.
+func TestMoveDocumentSection(t *testing.T) {
+	s := newTestStore(t)
+	userID, err := s.CreateUser(context.Background(), "rodolfo", "Rodolfo Flores", "hashedpw", "admin")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	ctx := WithActor(context.Background(), Actor{UserID: userID, Source: SourceWeb})
+	pdf := NewFile{Filename: "ficha.pdf", ContentType: "application/pdf", Data: []byte("%PDF-1.4")}
+	if _, _, err := s.AddOfficialDocument(ctx, 0, "Logos", "Isotipo", pdf, userID); err != nil {
+		t.Fatalf("AddOfficialDocument: %v", err)
+	}
+	order := func() (string, []int64) {
+		sections, err := s.ListDocumentSections(ctx)
+		if err != nil {
+			t.Fatalf("ListDocumentSections: %v", err)
+		}
+		var names []string
+		var ids []int64
+		for _, sec := range sections {
+			names, ids = append(names, sec.Name), append(ids, sec.ID)
+		}
+		return strings.Join(names, "|"), ids
+	}
+	got, ids := order()
+	if got != "Educación|Documentos comerciales|Logos" {
+		t.Fatalf("order = %s, want the new section last", got)
+	}
+	educacion, comerciales, logos := ids[0], ids[1], ids[2]
+
+	for _, c := range []struct {
+		id   int64
+		by   int
+		want string
+	}{
+		{logos, -1, "Educación|Logos|Documentos comerciales"},
+		{logos, -1, "Logos|Educación|Documentos comerciales"},
+		{logos, -1, "Logos|Educación|Documentos comerciales"},      // already first
+		{comerciales, 1, "Logos|Educación|Documentos comerciales"}, // already last
+		{logos, 1, "Educación|Logos|Documentos comerciales"},
+	} {
+		if err := s.MoveDocumentSection(ctx, c.id, c.by); err != nil {
+			t.Fatalf("MoveDocumentSection(%d, %d): %v", c.id, c.by, err)
+		}
+		if got, _ := order(); got != c.want {
+			t.Errorf("after moving %d by %d: %s, want %s", c.id, c.by, got, c.want)
+		}
+	}
+	if err := s.MoveDocumentSection(ctx, 999, 1); !errors.Is(err, ErrNoSection) {
+		t.Errorf("moving a missing section = %v, want ErrNoSection", err)
+	}
+	// A removed section doesn't count as a neighbour.
+	if err := s.RemoveDocumentSection(ctx, educacion, userID); err != nil {
+		t.Fatalf("RemoveDocumentSection: %v", err)
+	}
+	if err := s.MoveDocumentSection(ctx, logos, -1); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := order(); got != "Logos|Documentos comerciales" {
+		t.Errorf("after removing Educación: %s", got)
+	}
+	if err := s.MoveDocumentSection(ctx, comerciales, -1); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := order(); got != "Documentos comerciales|Logos" {
+		t.Errorf("moving past a removed section: %s", got)
+	}
+
+	entries, err := s.AuditLog(ctx, AuditFilter{TableName: "document_sections", RowKey: strconv.FormatInt(comerciales, 10)})
+	if err != nil || len(entries) == 0 || entries[0].Op != "update" || entries[0].ActorID == nil || *entries[0].ActorID != userID ||
+		entries[0].NewValues["position"] == entries[0].OldValues["position"] {
+		t.Errorf("move audit = %+v, %v", entries, err)
 	}
 }

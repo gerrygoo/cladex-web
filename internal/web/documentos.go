@@ -41,6 +41,7 @@ var documentosSaved = map[string]string{
 	"editado":            "Documento guardado.",
 	"seccion-renombrada": "Sección renombrada.",
 	"seccion-eliminada":  "Sección eliminada.",
+	"seccion-movida":     "Orden de las secciones guardado.",
 }
 
 // List handles GET /documentos. ?seccion=<id> unfolds that section: the redirects after
@@ -182,6 +183,35 @@ func (d *Documentos) RenombrarSeccion(w http.ResponseWriter, r *http.Request) {
 		Edit:   map[string]string{key: name},
 		Open:   id,
 	}, http.StatusBadRequest)
+}
+
+// MoverSeccion handles POST /documentos/secciones/{id}/mover (admins): "hacia" is
+// "arriba" or "abajo", one place.
+func (d *Documentos) MoverSeccion(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	by := 0
+	switch r.FormValue("hacia") {
+	case "arriba":
+		by = -1
+	case "abajo":
+		by = 1
+	default:
+		http.Error(w, "dirección inválida", http.StatusBadRequest)
+		return
+	}
+	err = d.store.MoveDocumentSection(r.Context(), id, by)
+	switch {
+	case errors.Is(err, store.ErrNoSection):
+		http.NotFound(w, r)
+	case err != nil:
+		serverError(w, r, err)
+	default:
+		http.Redirect(w, r, documentosAt("seccion-movida", id), http.StatusSeeOther)
+	}
 }
 
 // EliminarSeccion handles POST /documentos/secciones/{id}/eliminar (admins). A section

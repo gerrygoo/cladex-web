@@ -48,7 +48,7 @@ func TestDocumentosOficiales(t *testing.T) {
 	if err != nil || len(sections) != 2 {
 		t.Fatalf("ListDocumentSections = %+v, %v", sections, err)
 	}
-	comerciales := sections[0].ID
+	comerciales := sections[1].ID
 	pdf := []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")
 	page := func(userID int64) string {
 		return doForm(t, a, userID, d.List, "GET", "/documentos", nil, nil, false).Body.String()
@@ -98,7 +98,7 @@ func TestDocumentosOficiales(t *testing.T) {
 	if len(sections) != 3 || sections[2].Name != "Logos" || len(sections[2].Documents) != 1 || sections[2].Documents[0].Title != "isotipo cladex" {
 		t.Fatalf("sections = %+v", sections)
 	}
-	doc := sections[0].Documents[0]
+	doc := sections[1].Documents[0]
 	body = page(vendedor)
 	for _, want := range []string{"Ficha técnica Copperclad (CCS)", "/documentos/" + itoa(doc.ID) + "?descargar=1", "PDF · 1 KB", "isotipo cladex"} {
 		if !strings.Contains(body, want) {
@@ -148,7 +148,7 @@ func TestDocumentosEditar(t *testing.T) {
 	vendedor := createTestUser(t, a, "emilio", "vendedor", "hunter2")
 	ctx := context.Background()
 	sections, _ := a.store.ListDocumentSections(ctx)
-	comerciales, educacion := sections[0].ID, sections[1].ID
+	comerciales, educacion := sections[1].ID, sections[0].ID
 	pdf := []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")
 	for _, title := range []string{"Ficha CCS", "Ficha CCA"} {
 		if rec := postDocumento(t, a, d, admin, map[string]string{"titulo": title, "seccion": itoa(comerciales)}, "ficha.pdf", pdf); rec.Code != http.StatusSeeOther {
@@ -156,7 +156,7 @@ func TestDocumentosEditar(t *testing.T) {
 		}
 	}
 	sections, _ = a.store.ListDocumentSections(ctx)
-	ccs := sections[0].Documents[1] // by title: CCA, CCS
+	ccs := sections[1].Documents[1] // by title: CCA, CCS
 	page := func(userID int64, path string) string {
 		return doForm(t, a, userID, d.List, "GET", path, nil, nil, false).Body.String()
 	}
@@ -213,7 +213,7 @@ func TestDocumentosEditar(t *testing.T) {
 			t.Errorf("vendedor %s = %d, want 403", name, rec.Code)
 		}
 	}
-	if sections, _ := a.store.ListDocumentSections(ctx); len(sections) != 2 || sections[0].Name != "Documentos comerciales" || len(sections[0].Documents) != 2 {
+	if sections, _ := a.store.ListDocumentSections(ctx); len(sections) != 2 || sections[1].Name != "Documentos comerciales" || len(sections[1].Documents) != 2 {
 		t.Fatalf("a vendedor changed something: %+v", sections)
 	}
 
@@ -256,12 +256,12 @@ func TestDocumentosEditar(t *testing.T) {
 		t.Errorf("edit a missing document = %d, want 404", rec.Code)
 	}
 	sections, _ = a.store.ListDocumentSections(ctx)
-	if sections[1].Name != "Capacitación" || len(sections[1].Documents) != 1 || sections[1].Documents[0].Title != "Ficha técnica Copperclad (CCS)" {
+	if sections[0].Name != "Capacitación" || len(sections[0].Documents) != 1 || sections[0].Documents[0].Title != "Ficha técnica Copperclad (CCS)" {
 		t.Fatalf("after edit: %+v", sections)
 	}
 
 	// Once its last document is moved out, the section can be removed.
-	cca := sections[0].Documents[0]
+	cca := sections[1].Documents[0]
 	rec = post(admin, d.Editar, "/documentos/"+itoa(cca.ID)+"/editar", map[string]string{"id": itoa(cca.ID)}, url.Values{"titulo": {cca.Title}, "seccion": {itoa(educacion)}})
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("move = %d: %s", rec.Code, rec.Body.String())
@@ -276,5 +276,64 @@ func TestDocumentosEditar(t *testing.T) {
 	}
 	if rec := post(admin, d.EliminarSeccion, "/documentos/secciones/"+itoa(comerciales)+"/eliminar", comercialesPV, nil); rec.Code != http.StatusNotFound {
 		t.Errorf("removing twice = %d, want 404", rec.Code)
+	}
+}
+
+// Issue #44: admins move a section up or down the page from "Editar sección"; the first
+// has no "Subir" and the last no "Bajar".
+func TestDocumentosMoverSeccion(t *testing.T) {
+	a := newTestAuth(t)
+	d := NewDocumentos(a.store)
+	admin := createTestUser(t, a, "gerry", "admin", "hunter2")
+	vendedor := createTestUser(t, a, "emilio", "vendedor", "hunter2")
+	ctx := context.Background()
+	sections, _ := a.store.ListDocumentSections(ctx)
+	first, second := sections[0], sections[1]
+	post := func(userID int64, id int64, hacia string) *httptest.ResponseRecorder {
+		return doForm(t, a, userID, a.RequireAdmin(http.HandlerFunc(d.MoverSeccion)).ServeHTTP, "POST", "/documentos/secciones/"+itoa(id)+"/mover",
+			map[string]string{"id": itoa(id)}, url.Values{"hacia": {hacia}}, false)
+	}
+	moveForm := func(id int64) string { return `action="/documentos/secciones/` + itoa(id) + `/mover"` }
+
+	body := doForm(t, a, admin, d.List, "GET", "/documentos", nil, nil, false).Body.String()
+	for _, want := range []string{
+		moveForm(first.ID), moveForm(second.ID),
+		`value="abajo">Bajar<span class="visually-hidden"> ` + first.Name + `</span>`,
+		`value="arriba">Subir<span class="visually-hidden"> ` + second.Name + `</span>`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("admin page missing %q", want)
+		}
+	}
+	for _, unwanted := range []string{
+		`value="arriba">Subir<span class="visually-hidden"> ` + first.Name + `</span>`,
+		`value="abajo">Bajar<span class="visually-hidden"> ` + second.Name + `</span>`,
+	} {
+		if strings.Contains(body, unwanted) {
+			t.Errorf("admin page has %q", unwanted)
+		}
+	}
+	if body := doForm(t, a, vendedor, d.List, "GET", "/documentos", nil, nil, false).Body.String(); strings.Contains(body, "/mover") {
+		t.Error("a vendedor sees the move buttons")
+	}
+
+	if rec := post(vendedor, second.ID, "arriba"); rec.Code != http.StatusForbidden {
+		t.Errorf("vendedor move = %d, want 403", rec.Code)
+	}
+	if rec := post(admin, second.ID, "a un lado"); rec.Code != http.StatusBadRequest {
+		t.Errorf("bad direction = %d, want 400", rec.Code)
+	}
+	if rec := post(admin, 999, "arriba"); rec.Code != http.StatusNotFound {
+		t.Errorf("missing section = %d, want 404", rec.Code)
+	}
+	if sections, _ := a.store.ListDocumentSections(ctx); sections[0].ID != first.ID {
+		t.Fatalf("refused moves changed the order: %+v", sections)
+	}
+	rec := post(admin, second.ID, "arriba")
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/documentos?guardado=seccion-movida&seccion="+itoa(second.ID)+"#seccion-"+itoa(second.ID) {
+		t.Errorf("move = %d %q", rec.Code, rec.Header().Get("Location"))
+	}
+	if sections, _ := a.store.ListDocumentSections(ctx); sections[0].ID != second.ID || sections[1].ID != first.ID {
+		t.Errorf("after moving up: %+v", sections)
 	}
 }

@@ -46,13 +46,17 @@ Haz clic en **Eliminar** junto al documento y confirma. Verás *"Documento elimi
 Deja de verse para todos; si fue un error, el archivo se puede recuperar a mano desde
 la base de datos.
 
-## Renombrar o eliminar una sección
+## Renombrar, ordenar o eliminar una sección
 
 Abre la sección y haz clic en **Editar sección**, al final de sus documentos.
 
 - **Renombrar:** escribe el nuevo **Nombre de la sección** y haz clic en **Cambiar
   nombre**. No puede llamarse igual que otra sección (sin importar mayúsculas y
   minúsculas); si ya existe, la app te avisa.
+- **Ordenar:** en **Orden en la página**, haz clic en **Subir** o **Bajar** para mover la
+  sección un lugar. Verás *"Orden de las secciones guardado."* y la sección abierta en su
+  nuevo lugar. La primera sección no tiene **Subir** ni la última **Bajar**. Una sección
+  nueva aparece al final.
 - **Eliminar:** solo se puede eliminar una sección vacía. Si tiene documentos, primero
   muévelos a otra sección (con **Editar** en cada documento) o elimínalos; entonces
   aparece el botón **Eliminar sección**. Haz clic y confirma. Verás *"Sección

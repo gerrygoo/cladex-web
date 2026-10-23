@@ -1541,6 +1541,17 @@ details.section-edit {
   margin-bottom: 1rem;
 }
 
+details.document-edit > form.section-move {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+form.section-move > button {
+  margin: 0;
+}
+
 /* Cotización del proveedor (issue #39): the same list, whose remove buttons belong to
    the section's form instead of a form of their own. */
 ul.document-list button.inline-button {

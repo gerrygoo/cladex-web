@@ -31,11 +31,11 @@ type OfficialDocument struct {
 // ErrBadDocument is returned when a document lacks its section, title or bytes.
 var ErrBadDocument = errors.New("store: document needs a section, a title and a file")
 
-// ListDocumentSections returns every section not removed in the order they were
-// created, each with its documents (not removed) by title, ignoring case. An empty
-// section is still listed.
+// ListDocumentSections returns every section not removed in the page's order (see
+// MoveDocumentSection), each with its documents (not removed) by title, ignoring case.
+// An empty section is still listed.
 func (s *Store) ListDocumentSections(ctx context.Context) ([]DocumentSection, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name FROM document_sections WHERE deleted_at IS NULL ORDER BY id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name FROM document_sections WHERE deleted_at IS NULL ORDER BY position, id`)
 	if err != nil {
 		return nil, fmt.Errorf("store: document sections: %w", err)
 	}
@@ -96,7 +96,8 @@ func (s *Store) AddOfficialDocument(ctx context.Context, sectionID int64, newSec
 	}
 	if newSection != "" {
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO document_sections (name) VALUES (?)
+			INSERT INTO document_sections (name, position)
+			VALUES (?, (SELECT coalesce(max(position), 0) + 1 FROM document_sections))
 			ON CONFLICT (name) WHERE deleted_at IS NULL DO NOTHING`, newSection); err != nil {
 			return 0, 0, fmt.Errorf("store: add official document: section: %w", err)
 		}
@@ -196,6 +197,61 @@ func (s *Store) RemoveDocumentSection(ctx context.Context, id, userID int64) err
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("store: remove document section %d: %w", id, err)
+	}
+	return nil
+}
+
+// MoveDocumentSection moves a section one place up the page (by < 0) or down (by > 0),
+// swapping it with its neighbour; at the top or bottom already it changes nothing. The
+// sections are then numbered 1, 2, … in order, writing only the ones that changed.
+func (s *Store) MoveDocumentSection(ctx context.Context, id int64, by int) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: move document section %d: %w", id, err)
+	}
+	defer tx.Rollback()
+	if err := stampActor(ctx, tx); err != nil {
+		return err
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM document_sections WHERE deleted_at IS NULL ORDER BY position, id`)
+	if err != nil {
+		return fmt.Errorf("store: move document section %d: %w", id, err)
+	}
+	var ids []int64
+	at := -1
+	for rows.Next() {
+		var secID int64
+		if err := rows.Scan(&secID); err != nil {
+			rows.Close()
+			return fmt.Errorf("store: move document section %d: %w", id, err)
+		}
+		if secID == id {
+			at = len(ids)
+		}
+		ids = append(ids, secID)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("store: move document section %d: %w", id, err)
+	}
+	if at < 0 {
+		return ErrNoSection
+	}
+	to := at
+	switch {
+	case by < 0 && at > 0:
+		to = at - 1
+	case by > 0 && at < len(ids)-1:
+		to = at + 1
+	}
+	ids[at], ids[to] = ids[to], ids[at]
+	for i, secID := range ids {
+		if _, err := tx.ExecContext(ctx, `UPDATE document_sections SET position = ? WHERE id = ? AND position != ?`, i+1, secID, i+1); err != nil {
+			return fmt.Errorf("store: move document section %d: %w", id, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: move document section %d: %w", id, err)
 	}
 	return nil
 }

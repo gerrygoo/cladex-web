@@ -104,6 +104,7 @@ var appRoutes = []route{
 	{"POST", "/documentos/1/editar", true},
 	{"POST", "/documentos/secciones/1/editar", true},
 	{"POST", "/documentos/secciones/1/eliminar", true},
+	{"POST", "/documentos/secciones/1/mover", true},
 
 	{"GET", "/ayuda", false},
 	{"GET", "/ayuda/cotizaciones", false},
