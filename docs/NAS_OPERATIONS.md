@@ -60,10 +60,12 @@ found, so don't rediscover this the hard way again.
   volumes, or file ownership breaks.
 - **Ports already taken on this box**: 8080 (FRP), 8081, 8096, 8191, 8282, 5055, 7878,
   8989. Cladex itself runs on **8090**.
-- The deployed image is **distroless — no shell.** `docker compose exec cladex sh` (or
-  any `exec ... sh`) fails outright. Exec the app binary directly:
+- The deployed image is **distroless — no shell.** `docker compose exec cladex-blue sh`
+  (or any `exec ... sh`) fails outright. Run the app binary directly, through the `cladex`
+  service, which exists only for this (`profiles: ["cli"]`, so `up` never starts it) and
+  works whichever slot is live:
   ```bash
-  docker compose exec cladex /cladex user add rodolfo --name "Rodolfo Flores" --role vendedor
+  docker compose run --rm cladex user add rodolfo --name "Rodolfo Flores" --role vendedor
   ```
   This also constrains what the image can ship: only `/cladex` is in the final layer
   (see `Dockerfile`), so `cmd/server/main.go` dispatches `user add/passwd/disable`
@@ -75,9 +77,41 @@ found, so don't rediscover this the hard way again.
 
 GitHub Actions builds and pushes `ghcr.io/gerrygoo/cladex-web:latest` (public registry,
 no auth needed to pull) on every push to `main`. The NAS can't be pushed to directly —
-it's behind NAT — so a cron entry on the NAS pulls every 5 minutes and restarts if the
-image changed. End to end: push to `main` → Actions build (~a couple minutes) → next
-NAS cron tick (≤5 min) → live. No manual deploy step in the normal case.
+it's behind NAT — so a cron entry on the NAS runs `deploy.sh` every 5 minutes:
+
+```
+*/5 * * * * /volume1/docker/cladex/deploy.sh >> /volume1/docker/cladex/deploy.log 2>&1
+```
+
+End to end: push to `main` → Actions build (~a couple minutes) → next NAS cron tick
+(≤5 min) → live. No manual deploy step in the normal case.
+
+**Deploys don't interrupt service (blue/green, since 2026-10-23).** Production is two
+slots of the same service, `cladex-blue` on :8092 and `cladex-green` on :8093, behind
+`cladex-proxy`, a small nginx (`nginx.conf`) that owns :8090, where FRP and LAN users
+connect. Normally only one slot runs. When the image changed, `deploy.sh` starts it in
+the idle slot, waits until that slot's own `/healthz` answers (startup runs pending
+migrations before it listens), then stops the old slot, which drains its in-flight
+requests. nginx retries any refused connection on the other slot, so no request
+fails. If the new slot isn't healthy within 60 s, `deploy.sh` removes it and logs its
+last lines to `deploy.log`; the old build keeps serving, and the next tick tries again.
+Staging and Litestream are simply recreated in place.
+
+- `deploy.sh active` prints the live slot; `deploy.sh restart` rolls production without a
+  new image (after a compose or secrets change).
+- **Never `docker compose up -d` the slots by hand**: it recreates both at once, which is
+  exactly the outage this avoids. (If it happens, the next `deploy.sh` stops the extra.)
+- **Migrations must work with the previous release's code**, because for a few seconds
+  the old slot serves against the new schema (and a rolled-back image would too). Add
+  tables and columns, with defaults or nullable, in one deploy; drop or rename only in a
+  later one, once no running code reads them. A migration also holds SQLite's write lock
+  while it runs, and the old slot's writers wait at most `busy_timeout` (5 s) — split a
+  long data backfill rather than run it as one statement.
+- Nothing in the app may be per-process: sessions, login throttling and (planned) jobs
+  live in SQLite precisely so that two slots can serve side by side.
+- Logs are per slot: `docker compose logs cladex-blue cladex-green`.
+- `deploy.sh`, `nginx.conf` and `compose.yaml` live in the repo but reach the NAS only by
+  hand (see Litestream below for the copy command); the cron pulls only images.
 
 **Installing or changing the NAS's own crontab needs `sudo`**, which prompts for a
 password a non-interactive SSH session can't answer — this is a hard wall for an agent
@@ -96,8 +130,8 @@ compose change is a manual push, one time:
 
 ```bash
 ssh cladex-nas 'mkdir -p /volume1/docker/cladex/backups'
-scp -O compose.yaml litestream.yml cladex-nas:/volume1/docker/cladex/   # -O, see above
-ssh cladex-nas 'cd /volume1/docker/cladex && docker compose up -d'
+scp -O compose.yaml litestream.yml nginx.conf deploy.sh cladex-nas:/volume1/docker/cladex/   # -O, see above
+ssh cladex-nas '/volume1/docker/cladex/deploy.sh restart'
 ```
 
 Verify it caught:
@@ -110,7 +144,7 @@ ssh cladex-nas 'ls -R /volume1/docker/cladex/backups/litestream/cladex | head'
 Restore (the app must be stopped, and the target must not already exist):
 
 ```bash
-ssh cladex-nas 'cd /volume1/docker/cladex && docker compose stop cladex'
+ssh cladex-nas 'cd /volume1/docker/cladex && docker compose stop cladex-blue cladex-green'
 # Latest:
 ssh cladex-nas 'cd /volume1/docker/cladex && docker compose run --rm litestream \
     restore -config /etc/litestream.yml -o /data/cladex-recovered.db /data/cladex.db'
@@ -121,7 +155,8 @@ ssh cladex-nas 'cd /volume1/docker/cladex && docker compose run --rm litestream 
 ```
 
 Restoring to `cladex-recovered.db` rather than over `cladex.db` is deliberate — inspect
-it before swapping anything into place.
+it before swapping anything into place. Then `deploy.sh` (or the next cron tick) starts a
+slot again.
 
 Two caveats worth knowing before relying on this. Litestream v0.5 **dropped age
 encryption**, so the replica is plaintext; that's acceptable while it stays on the NAS
@@ -171,8 +206,8 @@ read-only at `/run/secrets`:
 - The app checks them at startup: the key opens with the password, matches the
   certificate, and the certificate is in date. A missing or bad file leaves facturación
   off without stopping the app; the reason is in the `facturacion` startup log line and in
-  **Configuración del sistema → Facturación**. After changing a file, restart the
-  container (`docker compose restart cladex`).
+  **Configuración del sistema → Facturación**. After changing a file, roll production
+  onto it (`/volume1/docker/cladex/deploy.sh restart`, no downtime).
 
 ## Staging
 
@@ -226,7 +261,10 @@ port 22 from the LAN (SSH turned off in UGOS), while `:8090` answered.
 | See resource usage | `ssh cladex-nas docker stats --no-stream` |
 | Tail app logs | `ssh cladex-nas docker compose -f /volume1/docker/cladex/compose.yaml logs -f` |
 | Copy a file to the NAS | `scp -O <file> cladex-nas:/volume1/docker/cladex/<dest>` |
-| Provision a user | `ssh cladex-nas docker compose exec cladex /cladex user add <username> --name "..." --role vendedor` |
-| Force a redeploy now (don't wait for cron) | `ssh cladex-nas 'cd /volume1/docker/cladex && docker compose pull && docker compose up -d'` |
+| Provision a user | `ssh cladex-nas 'cd /volume1/docker/cladex && docker compose run --rm cladex user add <username> --name "..." --role vendedor'` |
+| Force a deploy now (don't wait for cron) | `ssh cladex-nas /volume1/docker/cladex/deploy.sh` |
+| Restart production without downtime | `ssh cladex-nas /volume1/docker/cladex/deploy.sh restart` |
+| Which slot is live | `ssh cladex-nas /volume1/docker/cladex/deploy.sh active` |
+| Deploy history | `ssh cladex-nas grep -E "rolling\|healthy\|live:\|not healthy" /volume1/docker/cladex/deploy.log` |
 | Check replication is live | `ssh cladex-nas 'docker logs cladex-litestream --tail 20'` |
-| Push a compose change (not automatic) | `scp -O compose.yaml litestream.yml cladex-nas:/volume1/docker/cladex/ && ssh cladex-nas 'cd /volume1/docker/cladex && docker compose up -d'` |
+| Push a compose/proxy/deploy change (not automatic) | `scp -O compose.yaml litestream.yml nginx.conf deploy.sh cladex-nas:/volume1/docker/cladex/ && ssh cladex-nas /volume1/docker/cladex/deploy.sh restart` |

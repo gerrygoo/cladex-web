@@ -134,7 +134,7 @@ administra el servidor sigue el procedimiento de
 [NAS_OPERATIONS.md](../NAS_OPERATIONS.md). Por ejemplo, para dar de alta un vendedor:
 
 ```bash
-ssh cladex-nas docker compose exec cladex /cladex user add <usuario> --name "Nombre Completo" --role vendedor
+ssh cladex-nas 'cd /volume1/docker/cladex && docker compose run --rm cladex user add <usuario> --name "Nombre Completo" --role vendedor'
 ```
 
 Para restablecer una contraseña se usa `user passwd <usuario>` de la misma forma; esto
@@ -144,7 +144,7 @@ Para cambiar el nombre con que aparece un usuario (y con que sale como vendedor 
 cotizaciones que emita de ahí en adelante):
 
 ```bash
-ssh cladex-nas docker compose exec cladex /cladex user rename <usuario> --name "Nombre Apellido"
+ssh cladex-nas 'cd /volume1/docker/cladex && docker compose run --rm cladex user rename <usuario> --name "Nombre Apellido"'
 ```
 
 Las cotizaciones ya emitidas conservan el nombre con que se emitieron.

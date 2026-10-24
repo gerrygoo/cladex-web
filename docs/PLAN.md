@@ -87,9 +87,9 @@ This is the single most expensive thing to retrofit, which is why it precedes th
 **Provisioning is out-of-band.** No signup, no public password reset, no email dependency.
 
 ```
-docker compose exec cladex /cladex user add rodolfo --name "Rodolfo Flores" --role vendedor
-docker compose exec cladex /cladex user passwd rodolfo
-docker compose exec cladex /cladex user disable emilio
+docker compose run --rm cladex user add rodolfo --name "Rodolfo Flores" --role vendedor
+docker compose run --rm cladex user passwd rodolfo
+docker compose run --rm cladex user disable emilio
 ```
 
 `user add` generates a random initial password and prints it once. The distroless image has
@@ -196,7 +196,7 @@ instead of a dropped connection. The one dependency is `github.com/felixge/https
 (MIT, no transitive deps) for capturing the status code and byte count — the naive
 `ResponseWriter` wrapper everyone writes by hand silently breaks `http.Flusher` and
 `http.Hijacker`. Retention is the `json-file` driver's `max-size`/`max-file` in
-`compose.yaml`, and `docker logs cladex` is the query interface. A shipper (Loki,
+`compose.yaml`, and `docker compose logs cladex-blue cladex-green` is the query interface. A shipper (Loki,
 Vector, OpenTelemetry) is rejected on the same grounds as Chromium in M0: it would cost
 more memory on the shared 8 GB box than the app it watches.
 

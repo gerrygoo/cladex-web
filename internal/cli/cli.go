@@ -1,7 +1,7 @@
 // Package cli implements cladex's admin subcommands (user add/passwd/disable/rename),
 // dispatched both from a standalone cladexctl binary (local dev) and from the same
 // binary as the server, since the deployed image ships only /cladex and the
-// provisioning workflow is `docker compose exec cladex /cladex user add ...`.
+// provisioning workflow is `docker compose run --rm cladex user add ...`.
 package cli
 
 import (

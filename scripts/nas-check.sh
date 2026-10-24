@@ -50,6 +50,7 @@ if ! timeout 4 bash -c "echo > /dev/tcp/$NAS_HOST/22" 2>/dev/null; then
 fi
 remote=$(timeout 40 ssh -o BatchMode=yes -o ConnectTimeout=8 cladex-nas '
 	cd /volume1/docker/cladex || exit 3
+	echo "--slot";      ./deploy.sh active
 	echo "--ps";        docker compose ps --format "{{.Name}}|{{.State}}|{{.Status}}|{{.Image}}"
 	echo "--image";     docker image inspect ghcr.io/gerrygoo/cladex-web:latest --format "{{.Created}}" 2>/dev/null
 	echo "--litestream"; docker logs cladex-litestream --since 30m 2>&1 | tail -5
@@ -63,6 +64,8 @@ while IFS='|' read -r name state st image; do
 	[ -z "$name" ] && continue
 	[ "$state" = "running" ] && ok "$name: $st" || warn "$name is $state ($st)"
 done <<<"$(section ps)"
+slot=$(section slot)
+[ -n "$slot" ] && ok "live slot: $slot" || warn "no production slot is running (deploy.sh active is empty)"
 echo "  image built: $(section image)"
 lit=$(section litestream)
 if grep -qiE "error|fail" <<<"$lit"; then warn "litestream logged errors in the last 30 min:"; echo "$lit" | sed 's/^/      /'; else ok "litestream: no errors in the last 30 min"; fi

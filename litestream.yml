@@ -8,7 +8,7 @@
 # lost disk would cost a day of quotes is what this closes.
 #
 # Restore (the DB must not be running, and cladex.db must not already exist):
-#   docker compose stop cladex
+#   docker compose stop cladex-blue cladex-green
 #   docker compose run --rm litestream restore -config /etc/litestream.yml /data/cladex.db
 #   docker compose run --rm litestream restore -config /etc/litestream.yml \
 #       -timestamp 2026-08-19T14:30:00Z -o /data/cladex-recovered.db /data/cladex.db

@@ -34,9 +34,9 @@ var (
 )
 
 // newLogger builds the process logger. Output goes to stdout, which is where the
-// container runtime collects it: `docker logs cladex`, with rotation configured by the
-// json-file driver options in compose.yaml. No log shipper, no agent — at this scale
-// that stack would cost more memory than the app.
+// container runtime collects it: `docker compose logs cladex-blue cladex-green`, with
+// rotation configured by the json-file driver options in compose.yaml. No log shipper,
+// no agent — at this scale that stack would cost more memory than the app.
 //
 // LOG_FORMAT=text gives human-readable lines for local dev; the default is JSON so the
 // deployed logs stay greppable with jq. LOG_LEVEL=debug surfaces static-asset and
@@ -72,7 +72,7 @@ func openStore(ctx context.Context) (*store.Store, error) {
 }
 
 // main dispatches to the admin CLI when invoked as `cladex user ...` — the deployed
-// image ships a single binary (docker compose exec cladex /cladex user add ...), so
+// image ships a single binary (docker compose run --rm cladex user add ...), so
 // user provisioning has to live behind the same entrypoint as the HTTP server.
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "user" {
@@ -84,7 +84,7 @@ func main() {
 
 func runCLI() {
 	// Writes made here are audited as coming from the CLI: there is no session user
-	// behind `docker compose exec cladex /cladex user ...`.
+	// behind `docker compose run --rm cladex user ...`.
 	ctx := store.WithActor(context.Background(), store.Actor{Source: store.SourceCLI})
 	db, err := openStore(ctx)
 	if err != nil {

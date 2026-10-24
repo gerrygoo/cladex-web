@@ -22,9 +22,9 @@ It checks, cheapest first:
    (`https://cotizador.cladex.com.mx/healthz`, through the VPS/FRP). Production should run
    `main` within ~15 min of the deploy run finishing (Actions build → NAS cron pulls every
    5 min).
-2. **Over SSH** (`ssh cladex-nas`), only if port 22 answers: container state, image build
-   time, Litestream errors in the last 30 min, age of the newest nightly backup tarball,
-   disk use of `/volume1`, memory/CPU per container.
+2. **Over SSH** (`ssh cladex-nas`), only if port 22 answers: the live blue/green slot,
+   container state, image build time, Litestream errors in the last 30 min, age of the
+   newest nightly backup tarball, disk use of `/volume1`, memory/CPU per container.
 
 Exit status: `0` all good, `1` something needs attention (⚠), `2` something couldn't be
 checked (✗).

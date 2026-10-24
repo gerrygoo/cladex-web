@@ -1,39 +1,83 @@
+# Production runs blue/green (docs/NAS_OPERATIONS.md#deploy-pipeline): two slots of the
+# same service on their own ports, behind a local nginx that owns :8090, where FRP and
+# LAN users connect. deploy.sh starts the new image in the idle slot, waits for its
+# /healthz, then stops the old one; nginx retries a refused connection on the other
+# slot, so nobody sees the swap. Normally only one slot runs. Never `docker compose up -d`
+# the slots by hand — that recreates both at once, which is the outage this avoids; run
+# deploy.sh (or `deploy.sh restart` to roll without a new image).
+x-cladex: &cladex
+  image: ghcr.io/gerrygoo/cladex-web:latest
+  network_mode: host
+  user: "1000:10"
+  restart: unless-stopped
+  volumes:
+    - ./data:/data
+    # Facturoporti token and Cladex's CSD, one file each (see internal/facturoporti and
+    # docs/NAS_OPERATIONS.md#secrets). Outside data/ and backups/, so neither Litestream
+    # nor the nightly tarball carries them; a missing file just leaves facturación off.
+    - ./secrets:/run/secrets:ro
+  # The access log goes to stdout, so `docker compose logs cladex-blue cladex-green` is
+  # the query interface. Rotation is the whole retention policy — a shipper (Loki,
+  # Vector) would cost more memory on this box than the app does.
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+x-cladex-env: &cladex-env
+  DB_PATH: "/data/cladex.db"
+  # Only an instance that says it is production may stamp real CFDIs (internal/appenv).
+  APP_ENV: "production"
+  # json (default) keeps the access log greppable with jq; LOG_LEVEL=debug adds
+  # static-asset and healthcheck requests.
+  LOG_FORMAT: "json"
+  LOG_LEVEL: "info"
+
 services:
-  cladex:
-    image: ghcr.io/gerrygoo/cladex-web:latest
-    container_name: cladex
+  cladex-blue:
+    <<: *cladex
+    container_name: cladex-blue
+    environment:
+      <<: *cladex-env
+      PORT: "8092"
+
+  cladex-green:
+    <<: *cladex
+    container_name: cladex-green
+    environment:
+      <<: *cladex-env
+      PORT: "8093"
+
+  # Owns :8090 and spreads requests over whichever slots are up; see nginx.conf.
+  cladex-proxy:
+    image: nginx:1.30.5-alpine
+    container_name: cladex-proxy
     network_mode: host
-    user: "1000:10"
     restart: unless-stopped
     volumes:
-      - ./data:/data
-      # Facturoporti token and Cladex's CSD, one file each (see internal/facturoporti and
-      # docs/NAS_OPERATIONS.md#secrets). Outside data/ and backups/, so neither Litestream
-      # nor the nightly tarball carries them; a missing file just leaves facturación off.
-      - ./secrets:/run/secrets:ro
-    environment:
-      PORT: "8090"
-      DB_PATH: "/data/cladex.db"
-      # Only an instance that says it is production may stamp real CFDIs (internal/appenv).
-      APP_ENV: "production"
-      # json (default) keeps the access log greppable with jq; LOG_LEVEL=debug adds
-      # static-asset and healthcheck requests.
-      LOG_FORMAT: "json"
-      LOG_LEVEL: "info"
-    # The access log goes to stdout, so `docker logs cladex` is the query interface.
-    # Rotation is the whole retention policy — a shipper (Loki, Vector) would cost more
-    # memory on this box than the app does.
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
     logging:
       driver: json-file
       options:
         max-size: "10m"
-        max-file: "5"
+        max-file: "3"
+
+  # The admin CLI against the production database, whichever slot is live:
+  #   docker compose run --rm cladex user add rodolfo --name "Rodolfo Flores" --role vendedor
+  # The profile keeps `up` from ever starting it as a server.
+  cladex:
+    <<: *cladex
+    profiles: ["cli"]
+    restart: "no"
+    environment:
+      <<: *cladex-env
 
   # Staging (docs/NAS_OPERATIONS.md#staging): the same image on its own port, database
-  # and secrets, LAN-only. It lives in this project so the deploy cron's
-  # `docker compose pull && docker compose up -d` updates it with production. Its database
-  # is a copy of production's made by scripts/staging-refresh.sh; Litestream and the
-  # nightly backup leave it out. APP_ENV=staging shows a banner, watermarks PDFs and keeps
+  # and secrets, LAN-only. It lives in this project so the deploy cron's deploy.sh updates
+  # it with production — recreated in place, not blue/green: a blip is fine here. Its
+  # database is a copy of production's made by scripts/staging-refresh.sh; Litestream and
+  # the nightly backup leave it out. APP_ENV=staging shows a banner, watermarks PDFs and keeps
   # facturación on Facturoporti's sandbox whatever secrets it is given.
   cladex-staging:
     image: ghcr.io/gerrygoo/cladex-web:latest
@@ -59,8 +103,8 @@ services:
         max-file: "3"
 
   # Continuous point-in-time replication of the SQLite file; see litestream.yml.
-  # Reads the same ./data mount as cladex and writes WAL frames to ./backups, which the
-  # NAS cloud sync already carries offsite.
+  # Reads the same ./data mount as the slots and writes WAL frames to ./backups, which
+  # the NAS cloud sync already carries offsite.
   litestream:
     image: litestream/litestream:0.5.16
     container_name: cladex-litestream
@@ -71,8 +115,6 @@ services:
       - ./data:/data
       - ./backups:/backups
       - ./litestream.yml:/etc/litestream.yml:ro
-    depends_on:
-      - cladex
     logging:
       driver: json-file
       options:
