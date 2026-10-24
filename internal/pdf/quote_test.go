@@ -95,9 +95,9 @@ func TestRenderQuoteIsDeterministic(t *testing.T) {
 	}
 }
 
-// TestQuoteLetterhead pins the two logo blocks (issue #16): the default is the Cladex
-// logo alone, and the copperclad letterhead embeds copperclad's logo instead, and still
-// compiles.
+// TestQuoteLetterhead pins the logo blocks (issues #16, #47, #48): the default is the
+// Cladex logo alone, and each familia letterhead embeds its own logo instead of the
+// Cladex one, and still compiles.
 func TestQuoteLetterhead(t *testing.T) {
 	doc := sampleDoc()
 	cladex := buildQuoteTypst(doc)
@@ -106,25 +106,36 @@ func TestQuoteLetterhead(t *testing.T) {
 		t.Error("default letterhead isn't the Cladex logo alone")
 	}
 
-	doc.Letterhead = LetterheadCopperclad
-	withCCA := buildQuoteTypst(doc)
-	for _, want := range []string{
-		"#let copperclad = bytes((" + pngBytesLiteral(coppercladLogoPNG) + "))",
-		"#let letterhead = image(copperclad, width: 4.5cm)",
+	for _, c := range []struct {
+		letterhead Letterhead
+		name       string
+		png        []byte
+		width      string
+	}{
+		{LetterheadCopperclad, "copperclad", coppercladLogoPNG, "4.5cm"},
+		{LetterheadConduCCAsa, "conduccasa", conduCCAsaLogoPNG, "3.8cm"},
+		{LetterheadAlumoclad, "alumoclad", alumocladLogoPNG, "5cm"},
 	} {
-		if !strings.Contains(withCCA, want) {
-			t.Errorf("copperclad letterhead is missing %.60q", want)
+		doc.Letterhead = c.letterhead
+		src := buildQuoteTypst(doc)
+		for _, want := range []string{
+			"#let " + c.name + " = bytes((" + pngBytesLiteral(c.png) + "))",
+			"#let letterhead = image(" + c.name + ", width: " + c.width + ")",
+		} {
+			if !strings.Contains(src, want) {
+				t.Errorf("%s letterhead is missing %.60q", c.name, want)
+			}
 		}
-	}
-	if strings.Contains(withCCA, "#let logo = ") {
-		t.Error("copperclad letterhead still embeds the Cladex logo")
-	}
-	out, err := RenderQuote(context.Background(), doc)
-	if err != nil {
-		t.Fatalf("RenderQuote(copperclad): %v", err)
-	}
-	if !strings.HasPrefix(string(out), "%PDF") {
-		t.Fatal("copperclad output doesn't look like a PDF")
+		if strings.Contains(src, "#let logo = ") {
+			t.Errorf("%s letterhead still embeds the Cladex logo", c.name)
+		}
+		out, err := RenderQuote(context.Background(), doc)
+		if err != nil {
+			t.Fatalf("RenderQuote(%s): %v", c.name, err)
+		}
+		if !strings.HasPrefix(string(out), "%PDF") {
+			t.Fatalf("%s output doesn't look like a PDF", c.name)
+		}
 	}
 }
 

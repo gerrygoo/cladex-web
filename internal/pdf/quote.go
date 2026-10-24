@@ -14,6 +14,12 @@ var cladexLogoPNG []byte
 //go:embed assets/copperclad.png
 var coppercladLogoPNG []byte
 
+//go:embed assets/conduccasa.png
+var conduCCAsaLogoPNG []byte
+
+//go:embed assets/alumoclad.png
+var alumocladLogoPNG []byte
+
 // Letterhead picks the logo block in the PDF's top-left corner. The zero value is the
 // Cladex logo, so a document that doesn't set one renders as it always did.
 type Letterhead int
@@ -21,6 +27,8 @@ type Letterhead int
 const (
 	LetterheadCladex     Letterhead = iota // the Cladex logo
 	LetterheadCopperclad                   // the copperclad logo, a little larger (issue #16)
+	LetterheadConduCCAsa                   // the ConduCCAsa logo (issue #47)
+	LetterheadAlumoclad                    // the Alumoclad logo (issue #48)
 )
 
 // QuoteLineDoc is one priced line as it should appear on the rendered PDF — already
@@ -226,6 +234,12 @@ func writeLetterhead(b *strings.Builder, l Letterhead) {
 	case LetterheadCopperclad:
 		fmt.Fprintf(b, "#let copperclad = bytes((%s))\n", pngBytesLiteral(coppercladLogoPNG))
 		b.WriteString("#let letterhead = image(copperclad, width: 4.5cm)\n")
+	case LetterheadConduCCAsa:
+		fmt.Fprintf(b, "#let conduccasa = bytes((%s))\n", pngBytesLiteral(conduCCAsaLogoPNG))
+		b.WriteString("#let letterhead = image(conduccasa, width: 3.8cm)\n")
+	case LetterheadAlumoclad:
+		fmt.Fprintf(b, "#let alumoclad = bytes((%s))\n", pngBytesLiteral(alumocladLogoPNG))
+		b.WriteString("#let letterhead = image(alumoclad, width: 5cm)\n")
 	default:
 		fmt.Fprintf(b, "#let logo = bytes((%s))\n", pngBytesLiteral(cladexLogoPNG))
 		b.WriteString("#let letterhead = image(logo, width: 3.2cm)\n")

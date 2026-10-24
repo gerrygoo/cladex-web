@@ -365,19 +365,24 @@ func TestQuotesPDF(t *testing.T) {
 	}
 }
 
-// TestQuotePDFLetterheadByFamilia pins issue #16: quotes in the CCA (QA) and CCS & AC
-// (QS) series print the copperclad logo, every other series (QI,
-// QL) the Cladex logo, on the draft preview and on the issued PDF alike.
+// TestQuotePDFLetterheadByFamilia pins issues #16, #47 and #48: quotes in the CCA (QA)
+// series print the ConduCCAsa logo, CCS & AC (QS) the copperclad logo, Alumoclad (QG)
+// its own, every other series (QI, QL) the Cladex logo, on the draft preview and on the
+// issued PDF alike.
 func TestQuotePDFLetterheadByFamilia(t *testing.T) {
 	a := newTestAuth(t)
 	ctx := context.Background()
 	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
 	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	if _, err := a.store.CreateFamily(ctx, store.Family{Name: "Alumoclad", Series: "QG", SeriesLabel: "Cable Alumoclad", Terms: "Término"}); err != nil {
+		t.Fatalf("CreateFamily(Alumoclad): %v", err)
+	}
 
 	issuedAt, names, terms := "2026-08-02T15:04:05Z", "Nombre", "Término"
 	for prefix, want := range map[string]pdf.Letterhead{
-		"QA": pdf.LetterheadCopperclad,
+		"QA": pdf.LetterheadConduCCAsa,
 		"QS": pdf.LetterheadCopperclad,
+		"QG": pdf.LetterheadAlumoclad,
 		"QI": pdf.LetterheadCladex,
 		"QL": pdf.LetterheadCladex,
 	} {

@@ -365,9 +365,11 @@ sección.
 3. Envíalo al cliente por tu medio habitual (correo, WhatsApp). La app no envía
    correos.
 
-> **Logo del PDF.** Las cotizaciones de las series **QA — Cable CCA** y **QS — Cable
-> CCS & AC** llevan arriba a la izquierda el logo de *copperclad*. Las de las demás series (**QI**, **QL** y las que agregue un
-> administrador) llevan el logo de CLADEX.
+> **Logo del PDF.** Arriba a la izquierda, las cotizaciones de la serie **QA — Cable CCA**
+> llevan el logo de *ConduCCAsa*; las de **QS — Cable CCS & AC**, el de *copperclad*; y
+> las de **QG — Cable Alumoclad**, el de *Alumoclad*. Las de las demás series (**QI**,
+> **QL** y las que agregue un administrador) llevan el logo de CLADEX. La dirección es la
+> misma en todas.
 
 ## Revisar una cotización emitida
 
