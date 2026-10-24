@@ -188,6 +188,16 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 			</dd>
 			<dt>Total</dt>
 			<dd>{ p.Total.String() }</dd>
+			// What the current quote costs and earns before IVA (issue #46), as in the
+			// pronóstico; a revision in draft has no margin frozen yet, so it earns nothing.
+			if p.CurrentQuoteStatus != store.QuoteBorrador {
+				<dt>Costo sin IVA</dt>
+				<dd>{ p.Cost().String() }</dd>
+				<dt>Utilidad</dt>
+				<dd>{ p.Profit.String() }</dd>
+				<dt>Margen</dt>
+				<dd>{ ProjectMargin(p) }</dd>
+			}
 		</dl>
 		if p.Status == "perdido" {
 			<h2>Proyecto perdido</h2>

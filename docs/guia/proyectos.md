@@ -54,6 +54,10 @@ Debajo del folio y del cliente verás este resumen:
 - **Cotización vigente**: la más reciente del proyecto, con enlace. Si dice *"revisión
   en borrador, aún sin emitir"*, alguien la está revisando.
 - **Total**: el de la cotización vigente.
+- **Costo sin IVA**, **Utilidad** (precio sin IVA menos costo) y **Margen** (utilidad
+  entre precio): los de la cotización vigente, igual que en el
+  [pronóstico](#revisar-el-pronóstico). No aparecen mientras la vigente es una revisión en
+  borrador.
 
 Más abajo están **Seguimiento y comentarios** (el formulario y, justo debajo, el
 historial), los botones para moverlo de etapa, **Orden de compra del cliente** y

@@ -16,6 +16,7 @@ import (
 
 	"github.com/gerrygoo/cladex-web"
 	"github.com/gerrygoo/cladex-web/internal/store"
+	"github.com/gerrygoo/cladex-web/internal/views"
 )
 
 // testOCForm is a complete purchase order form, without a file. Receiving the order on a
@@ -997,5 +998,44 @@ func TestProjectsPUEIsPaidWhenInvoiced(t *testing.T) {
 	}
 	if strings.Contains(body, "Registrar pago completado") {
 		t.Error("a P.U.E. proyecto, already paid, offers recording a payment")
+	}
+}
+
+// Issue #46: the proyecto page shows its current quote's cost, profit and margin before
+// IVA, the same figures as the pronóstico, and leaves them out while a revision is in
+// draft (no margin frozen yet).
+func TestProjectsPageShowsProfit(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	p := NewProjects(a.store)
+	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
+	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, ana)
+	ctx := context.Background()
+
+	folio := issueTestQuote(t, a, q, ana, customerID, costProductID)
+	project, err := a.store.ProjectByFolio(ctx, folio)
+	if err != nil || project == nil || project.Profit <= 0 {
+		t.Fatalf("ProjectByFolio = %+v, %v; want a profit", project, err)
+	}
+	pv := map[string]string{"folio": folio}
+	body := doForm(t, a, ana, p.Page, "GET", "/proyectos/"+folio, pv, nil, false).Body.String()
+	for _, want := range []string{
+		"<dt>Costo sin IVA</dt><dd>" + project.Cost().String() + "</dd>",
+		"<dt>Utilidad</dt><dd>" + project.Profit.String() + "</dd>",
+		"<dt>Margen</dt><dd>" + views.ProjectMargin(*project) + "</dd>",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("proyecto page missing %q", want)
+		}
+	}
+
+	original, _ := a.store.QuoteByFolio(ctx, folio)
+	if _, err := a.store.CreateRevision(ctx, original.ID, ana); err != nil {
+		t.Fatalf("CreateRevision: %v", err)
+	}
+	body = doForm(t, a, ana, p.Page, "GET", "/proyectos/"+folio, pv, nil, false).Body.String()
+	if strings.Contains(body, "<dt>Utilidad</dt>") {
+		t.Error("a proyecto whose current quote is a draft shows a profit")
 	}
 }
