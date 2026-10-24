@@ -1293,4 +1293,5 @@ default; a revision keeps the currency but must have its vigencia typed again.
 **Migration note:** 0013 rebuilds `quotes` with foreign keys off, (and `folio_sequences`) to drop the prefix CHECKs, unlike 0012's park-and-defer
 approach. A migration whose first line is
 `-- cladex:foreign-keys-off` gets that from the runner, which runs
-`PRAGMA foreign_key_check` before committing.
+`PRAGMA foreign_key_check` before committing. (Since blue/green deploys, a rebuild like
+this also needs `-- cladex:exclusive`; see NAS_OPERATIONS.md#deploy-pipeline.)

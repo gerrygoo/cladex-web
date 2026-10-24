@@ -101,12 +101,27 @@ Staging and Litestream are simply recreated in place.
   new image (after a compose or secrets change).
 - **Never `docker compose up -d` the slots by hand**: it recreates both at once, which is
   exactly the outage this avoids. (If it happens, the next `deploy.sh` stops the extra.)
-- **Migrations must work with the previous release's code**, because for a few seconds
-  the old slot serves against the new schema (and a rolled-back image would too). Add
-  tables and columns, with defaults or nullable, in one deploy; drop or rename only in a
-  later one, once no running code reads them. A migration also holds SQLite's write lock
-  while it runs, and the old slot's writers wait at most `busy_timeout` (5 s) — split a
-  long data backfill rather than run it as one statement.
+- **Migrations and the old slot.** While the new slot migrates, the old one keeps
+  serving. Each migration file is one transaction, so the old slot never sees a
+  half-applied file, but once it commits the old code runs against the new schema. So a
+  migration is one of two kinds:
+  - **Compatible** (the default): adds tables, nullable or defaulted columns, indexes,
+    rows. Rolls with no pause. Its writers' lock makes the old slot's writes wait, at most
+    `busy_timeout` (5 s), so split a long backfill rather than run it as one statement.
+  - **Exclusive**: drops or renames a table or column, rebuilds a table, or changes
+    values the old code reads (a status renamed). It starts with `-- cladex:exclusive`
+    among its leading `-- cladex:` lines. `deploy.sh` asks the new image first
+    (`cladex migrate pending-exclusive`, read-only), and for one of these it stops the old
+    slot before starting the new one; meanwhile nginx answers every request with a 503
+    "Estamos actualizando Cladex" page that reloads itself (a form submitted then is
+    lost). The pause lasts the migration plus startup. If the new build fails and none of
+    the exclusive migrations got applied, the old slot serves again; if one did, neither
+    build can serve the schema, so the page stays up until a fix is pushed.
+  `TestBreakingMigrationsAreExclusive` fails CI for a drop or rename without the marker;
+  changed values it can't see are the author's to mark. Often the better move is to
+  split: add now, drop in a later release once no running code uses it, and no pause.
+- Rolling back to an image older than 2026-10-24 (no `migrate` subcommand) makes
+  `deploy.sh` refuse ("can't tell whether the new image's migrations are exclusive").
 - Nothing in the app may be per-process: sessions, login throttling and (planned) jobs
   live in SQLite precisely so that two slots can serve side by side.
 - Logs are per slot: `docker compose logs cladex-blue cladex-green`.

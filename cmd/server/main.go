@@ -79,7 +79,34 @@ func main() {
 		runCLI()
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		runMigrateCLI(os.Args[2:])
+		return
+	}
 	runServer()
+}
+
+// runMigrateCLI answers deploy.sh's question to a new image before it rolls production
+// onto it: `cladex migrate pending-exclusive` lists, one per line, this build's
+// migrations that the database hasn't applied and that are marked -- cladex:exclusive,
+// without migrating anything. Exit 0: none, roll blue/green as usual; 3: some, so pause
+// production for them; 1: couldn't tell.
+func runMigrateCLI(args []string) {
+	if len(args) != 1 || args[0] != "pending-exclusive" {
+		fmt.Fprintln(os.Stderr, "usage: cladex migrate pending-exclusive")
+		os.Exit(1)
+	}
+	names, err := store.PendingExclusive(context.Background(), dbPath(), cladex.MigrationsFS)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+	for _, name := range names {
+		fmt.Println(name)
+	}
+	if len(names) > 0 {
+		os.Exit(3)
+	}
 }
 
 func runCLI() {
