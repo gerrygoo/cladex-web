@@ -251,8 +251,8 @@ The first milestone of #20. Manual actions only, no job system. Admin-only (deci
 
 ## Later, not scheduled
 
-- **Background jobs** ([#19](https://github.com/gerrygoo/cladex-web/issues/19)), once
-  M6–M7 have shown what retries and timeouts really need.
+- **Background jobs** ([#19](https://github.com/gerrygoo/cladex-web/issues/19)) and notifications ([#18](https://github.com/gerrygoo/cladex-web/issues/18)): designed
+  together in [their own doc](notificaciones-y-trabajos.md) (2026-10-23).
 - **Roles** (sysadmin / admin / ventas) and who may stamp and cancel. M6 ships
   admin-only as a stopgap.
 - **Órdenes de compra a proveedores**: a separate product goal, tracked in
