@@ -1,6 +1,6 @@
 # Notificaciones y trabajos en segundo plano
 
-**Proposed (2026-10-23), nothing built.** One design for
+**Design approved (Gerry, 2026-10-23), nothing built yet.** One design for
 [#19](https://github.com/gerrygoo/cladex-web/issues/19) (background jobs) and
 [#18](https://github.com/gerrygoo/cladex-web/issues/18) (outbound notifications), because
 the second is the first real consumer of the first. A notification is a row written in the
@@ -59,8 +59,11 @@ by the handlers in their own tables.
   skip straight to `fallido`.
 - **Shutdown**: on SIGTERM the runner stops claiming, and the job in flight gets the 8 s
   the HTTP server already gets. Anything longer falls to the lease.
-- **Pruning**: `hecho` and `cancelado` rows older than 90 days are deleted by a daily job
-  of its own. Litestream and the backups cover the rest.
+- **No pruning** (Gerry, 2026-10-23): job rows are kept, so the record of every run stays,
+  including why a job did nothing (`result`). At tens of jobs a month the table takes years
+  to matter. Backups don't stand in for this: Litestream and the backup tarball keep 14
+  days, so a deleted row is gone for good. If the table ever needs trimming, that's a new
+  decision, and it should keep the rows whose `result` explains a skip.
 
 **Idempotency conventions.**
 
@@ -92,7 +95,9 @@ content (subject and body for email; template name and parameters for WhatsApp),
 references (never the bytes: a factura's XML and PDF are rendered at send time, as
 downloads are), `status`, `provider`, `provider_message_id`, `error`, `job_id`,
 `created_at`, `sent_at`. Each attempt is appended to `notification_events`, in the
-spirit of `comprobante_events`.
+spirit of `comprobante_events`. Notifications and their events are never deleted. `job_id`
+is a plain reference without a foreign key, so the notification's own record never depends
+on the job row still being there.
 
 ```mermaid
 stateDiagram-v2
@@ -221,7 +226,7 @@ Questions for Emilio (they don't block the runner or the channels):
 
 | # | Slice | Done when |
 |---|---|---|
-| N1 | Runner (#19): `jobs`, worker, leases, backoff, pruning, Trabajos dashboard. | A job enqueued before a restart runs after it; a failing job retries on schedule and shows its error. |
+| N1 | Runner (#19): `jobs`, worker, leases, backoff, Trabajos dashboard. | A job enqueued before a restart runs after it; a failing job retries on schedule and shows its error. |
 | N2 | Notifications + email (#18): `notifications`, events, Resend and SMTP senders, fake, staging allowlist, user email/WhatsApp fields, Notificaciones dashboard with "Enviar prueba". | A test email from production arrives through Resend and its outcome is recorded; a send failure shows and can be retried. |
 | N3 | Aviso de seguimiento by email. | A seguimiento with no action fires at 09:00 on its day; one with action, or a changed date, doesn't, and says why. |
 | N4 | WhatsApp for the team: sender, templates, webhooks. | A vendedor with WhatsApp on gets the seguimiento reminder there, and its delivery shows in the dashboard. |

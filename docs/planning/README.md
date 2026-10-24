@@ -35,4 +35,4 @@ documentation of shipped behavior.
 | [Hitos: proyectos y facturas](hitos-proyectos-y-facturas.md) | Implementation order for the two docs above: M4 proyectos, M5–M8 facturación, the decisions behind it and the questions still open for Emilio |
 | [Facturas: timbrado digital y envío](facturas-timbrado-y-envio.md) | CFDI stamping through an external PAC and delivery to recipients: states before/after each step, cancellation, tracking model, dependencies |
 | [Órdenes de compra a proveedores](ordenes-de-compra-a-proveedores.md) | Designed 2026-10-22, parked: tracking and generating Cladex's own O.C. to suppliers for what a proyecto needs |
-| [Notificaciones y trabajos en segundo plano](notificaciones-y-trabajos.md) | Proposed 2026-10-23: the SQLite job runner (#19) and WhatsApp + email notifications (#18), first used for the seguimiento reminder |
+| [Notificaciones y trabajos en segundo plano](notificaciones-y-trabajos.md) | Designed 2026-10-23, not started: the SQLite job runner (#19) and WhatsApp + email notifications (#18), first used for the seguimiento reminder |
