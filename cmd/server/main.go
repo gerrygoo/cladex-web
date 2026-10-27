@@ -21,6 +21,7 @@ import (
 	factsvc "github.com/gerrygoo/cladex-web/internal/facturacion"
 	"github.com/gerrygoo/cladex-web/internal/facturoporti"
 	"github.com/gerrygoo/cladex-web/internal/guia"
+	"github.com/gerrygoo/cladex-web/internal/jobs"
 	"github.com/gerrygoo/cladex-web/internal/satcat"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/web"
@@ -184,7 +185,17 @@ func runServer() {
 		build.Time = t
 	}
 
-	mux := web.NewMux(build, staticFS, guide, db, cookieSecure, logger, factsvc.New(db, factCfg, facturacion))
+	// The background job runner lives in this process, its queue in the same database
+	// (internal/jobs). It stops claiming jobs on SIGTERM, with ctx.
+	runner := jobs.New(db, logger)
+	runner.Register(jobs.KindPrueba, jobs.Prueba)
+	runnerDone := make(chan struct{})
+	go func() {
+		defer close(runnerDone)
+		runner.Run(ctx)
+	}()
+
+	mux := web.NewMux(build, staticFS, guide, db, cookieSecure, logger, factsvc.New(db, factCfg, facturacion), runner)
 	// Read the SAT catalogs (~0.2 s) now rather than on the first product form search.
 	go satcat.Count()
 
@@ -213,12 +224,18 @@ func runServer() {
 	case <-ctx.Done():
 	}
 
-	// Let in-flight requests finish before the deferred db.Close checkpoints the WAL.
-	// Docker sends SIGKILL 10s after SIGTERM, so stop waiting before then.
+	// Let in-flight requests and the job in flight finish before the deferred db.Close
+	// checkpoints the WAL. Docker sends SIGKILL 10s after SIGTERM, so stop waiting before
+	// then; a job cut off is run again once its lease runs out.
 	logger.Info("shutting down")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Error("shutdown", slog.Any("err", err))
+	}
+	select {
+	case <-runnerDone:
+	case <-shutdownCtx.Done():
+		logger.Warn("shutdown: a job was still running")
 	}
 }

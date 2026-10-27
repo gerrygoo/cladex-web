@@ -11,6 +11,7 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/facturacion"
 	"github.com/gerrygoo/cladex-web/internal/facturoporti"
 	"github.com/gerrygoo/cladex-web/internal/guia"
+	"github.com/gerrygoo/cladex-web/internal/jobs"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
@@ -33,13 +34,17 @@ type Build struct {
 // user guide served under /ayuda.
 //
 // fact is facturación (internal/facturacion); nil builds one that is off, as when the
-// Facturoporti secrets aren't installed.
-func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, cookieSecure bool, logger *slog.Logger, fact *facturacion.Service) http.Handler {
+// Facturoporti secrets aren't installed. runner is the background job runner the server
+// runs; nil builds one that nothing runs, so queued jobs just wait, as in the handler tests.
+func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, cookieSecure bool, logger *slog.Logger, fact *facturacion.Service, runner *jobs.Runner) http.Handler {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
 	if fact == nil {
 		fact = facturacion.New(db, nil, build.Facturacion)
+	}
+	if runner == nil {
+		runner = jobs.New(db, logger)
 	}
 	mux := http.NewServeMux()
 	auth := NewAuth(db, cookieSecure)
@@ -61,6 +66,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	tipos := NewTipos(db)
 	documentos := NewDocumentos(db)
 	help := NewHelp(guide)
+	trabajos := NewTrabajos(db, runner)
 
 	static, err := newStaticHandler(staticFS)
 	if err != nil {
@@ -203,6 +209,9 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /ajustes/ordenes-de-compra", admin(settings.POBilling))
 	mux.Handle("POST /ajustes/materiales", admin(settings.CreateMaterial))
 	mux.Handle("POST /ajustes/materiales/{id}", admin(settings.UpdateMaterial))
+	mux.Handle("GET /ajustes/trabajos", admin(trabajos.Page))
+	mux.Handle("POST /ajustes/trabajos/prueba", admin(trabajos.Prueba))
+	mux.Handle("POST /ajustes/trabajos/{id}/reintentar", admin(trabajos.Reintentar))
 
 	mux.Handle("GET /unidades", admin(units.List))
 	mux.Handle("POST /unidades", admin(units.Create))

@@ -117,6 +117,26 @@ cambies aquí sale en los borradores y en las órdenes que se confirmen después
 confirmadas no cambian. Si falta alguno de estos datos, una orden de compra no se puede
 confirmar.
 
+## Trabajos en segundo plano
+
+Algunas tareas la app las hace por su cuenta, sin que nadie esté en la página: por
+ejemplo, enviar un aviso el día que vence un seguimiento. Cada una es un **trabajo**. Para
+verlos, en **Configuración del sistema** haz clic en *ver los trabajos y sus errores*.
+
+- **En cola y fallidos**: los que esperan su hora (*Pendiente*), el que se está haciendo
+  (*En curso*) y los que no se pudieron hacer (*Fallido*), con el **Último error**.
+- **Terminados recientemente**: los últimos 50 (*Hecho* o *Cancelado*), con el
+  **Resultado**; si un trabajo no hizo nada, ahí dice por qué.
+
+Si un trabajo falla, la app lo reintenta sola: al minuto, a los 5 minutos, a la media hora,
+a las 2 horas. Después de 5 intentos queda como *Fallido* y ya no se reintenta solo.
+**Reintentar ahora** lo vuelve a poner en la cola de inmediato (en uno fallido, con 5
+intentos nuevos). Corrige antes lo que dice el error, si es algo que se arregla en la app.
+
+Para comprobar que los trabajos se están ejecutando, haz clic en **Encolar trabajo de
+prueba** y recarga la página: en unos segundos aparece en **Terminados recientemente** con
+*El trabajo de prueba se ejecutó.*
+
 ## Ambiente de pruebas
 
 Hay una copia de la app para probar sin tocar los datos reales, en

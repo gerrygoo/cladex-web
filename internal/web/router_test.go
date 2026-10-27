@@ -110,6 +110,9 @@ var appRoutes = []route{
 	{"POST", "/ajustes/materiales", true},
 	{"POST", "/ajustes/materiales/1", true},
 	{"POST", "/ajustes/ordenes-de-compra", true},
+	{"GET", "/ajustes/trabajos", true},
+	{"POST", "/ajustes/trabajos/prueba", true},
+	{"POST", "/ajustes/trabajos/1/reintentar", true},
 
 	{"GET", "/unidades", true},
 	{"POST", "/unidades", true},
@@ -147,7 +150,7 @@ func newTestMux(t *testing.T, a *Auth) http.Handler {
 	if err != nil {
 		t.Fatalf("guia.New: %v", err)
 	}
-	return NewMux(Build{SHA: "testsha"}, staticFS, guide, a.store, false, nil, nil)
+	return NewMux(Build{SHA: "testsha"}, staticFS, guide, a.store, false, nil, nil, nil)
 }
 
 // TestRoutesRequireAuth walks every application route signed out. Every one of them must
@@ -238,7 +241,7 @@ func TestEnvironmentBannerIsPerMux(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stagingMux := NewMux(Build{Env: staging}, staticFS, guide, a.store, false, nil, nil)
+	stagingMux := NewMux(Build{Env: staging}, staticFS, guide, a.store, false, nil, nil, nil)
 	prodMux := newTestMux(t, a)
 
 	page := func(h http.Handler) string {

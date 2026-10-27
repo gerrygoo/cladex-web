@@ -1,0 +1,120 @@
+package views
+
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/jobs"
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// jobKindLabels name each job kind for admins; a kind missing here shows as stored.
+var jobKindLabels = map[string]string{
+	jobs.KindPrueba: "Prueba",
+}
+
+func jobKindLabel(kind string) string {
+	if l, ok := jobKindLabels[kind]; ok {
+		return l
+	}
+	return kind
+}
+
+func jobAttempts(j store.Job) string {
+	return strconv.Itoa(j.Attempts) + " de " + strconv.Itoa(j.MaxAttempts)
+}
+
+// Trabajos is the admin page of the background job queue: what is waiting, running or
+// failed, then what finished most recently.
+templ Trabajos(o store.JobsOverview, successMsg, errorMsg string, user *NavUser) {
+	@Layout("Trabajos en segundo plano", user) {
+		<div class="page-title">
+			<h1>Trabajos en segundo plano</h1>
+			@HelpLink(HelpTrabajos)
+		</div>
+		<p><a href="/ajustes">← Configuración del sistema</a></p>
+		@Flash(successMsg)
+		@FormError(errorMsg)
+		<p>Tareas que la aplicación hace por su cuenta, como enviar avisos. Un trabajo que falla se reintenta solo, cada vez más espaciado; después de 5 intentos queda como fallido.</p>
+		<h2>En cola y fallidos</h2>
+		<div class="table-scroll">
+			<table>
+				<thead>
+					<tr>
+						<th>#</th>
+						<th>Tipo</th>
+						<th>Estado</th>
+						<th>Programado para</th>
+						<th>Intentos</th>
+						<th>Último error</th>
+						<th><span class="visually-hidden">Acciones</span></th>
+					</tr>
+				</thead>
+				<tbody>
+					if len(o.Open) == 0 {
+						<tr>
+							<td colspan="7">No hay trabajos pendientes ni fallidos.</td>
+						</tr>
+					}
+					for _, j := range o.Open {
+						<tr>
+							<td>{ strconv.FormatInt(j.ID, 10) }</td>
+							<td>{ jobKindLabel(j.Kind) }</td>
+							<td>{ store.JobStatusLabels[j.Status] }</td>
+							<td>
+								@Timestamp(j.RunAt)
+							</td>
+							<td>{ jobAttempts(j) }</td>
+							<td>{ j.LastError }</td>
+							<td class="actions">
+								if j.Status != store.JobEnCurso {
+									<form method="post" action={ templ.URL("/ajustes/trabajos/" + strconv.FormatInt(j.ID, 10) + "/reintentar") }>
+										<button type="submit">Reintentar ahora<span class="visually-hidden">{ " el trabajo " + strconv.FormatInt(j.ID, 10) }</span></button>
+									</form>
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		<h2>Terminados recientemente</h2>
+		<div class="table-scroll">
+			<table>
+				<thead>
+					<tr>
+						<th>#</th>
+						<th>Tipo</th>
+						<th>Estado</th>
+						<th>Terminó</th>
+						<th>Intentos</th>
+						<th>Resultado</th>
+					</tr>
+				</thead>
+				<tbody>
+					if len(o.Recent) == 0 {
+						<tr>
+							<td colspan="6">Todavía no ha terminado ningún trabajo.</td>
+						</tr>
+					}
+					for _, j := range o.Recent {
+						<tr>
+							<td>{ strconv.FormatInt(j.ID, 10) }</td>
+							<td>{ jobKindLabel(j.Kind) }</td>
+							<td>{ store.JobStatusLabels[j.Status] }</td>
+							<td>
+								@Timestamp(j.FinishedAt)
+							</td>
+							<td>{ jobAttempts(j) }</td>
+							<td>{ j.Result }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		<h2>Probar</h2>
+		<p>Pone en la cola un trabajo que no hace nada, para comprobar que los trabajos se están ejecutando.</p>
+		<form method="post" action="/ajustes/trabajos/prueba">
+			<button type="submit">Encolar trabajo de prueba</button>
+		</form>
+	}
+}

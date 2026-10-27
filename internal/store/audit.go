@@ -14,6 +14,8 @@ import (
 const (
 	SourceWeb = "web"
 	SourceCLI = "cli"
+	// SourceJob is a write made by a background job (internal/jobs).
+	SourceJob = "job"
 )
 
 // Actor identifies who is performing a write, for the audit triggers in

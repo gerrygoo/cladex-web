@@ -1,6 +1,6 @@
 # Notificaciones y trabajos en segundo plano
 
-**Design approved (Gerry, 2026-10-23), nothing built yet.** One design for
+**Design approved (Gerry, 2026-10-23). N1 (the runner) built 2026-10-26; N2–N6 not started.** One design for
 [#19](https://github.com/gerrygoo/cladex-web/issues/19) (background jobs) and
 [#18](https://github.com/gerrygoo/cladex-web/issues/18) (outbound notifications), because
 the second is the first real consumer of the first. A notification is a row written in the
