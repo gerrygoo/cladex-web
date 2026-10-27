@@ -1353,16 +1353,21 @@ func draftQuoteDocument(quote store.Quote, lines []views.QuoteLineView, totals p
 		IVA:          totals.IVA.String(),
 		Total:        totals.Total.String(),
 		Terms:        store.RenderTerms(quote.SeriesTerms, termsInputs(quote)),
-		Letterhead:   letterheadFor(quote.SeriesFamily),
+		Letterhead:   letterheadFor(quote.Prefix, quote.SeriesFamily),
+		HideAddress:  hidesAddress(quote.Prefix),
 		ShowKg:       views.ShowsKg(quote),
 	}
 }
 
 // letterheadFor picks the PDF's logo block by the familia that owns the quote's series:
 // CCA prints the ConduCCAsa logo (issue #47), CCS & AC the copperclad logo (issue #16),
-// Alumoclad its own (issue #48), every other one the Cladex logo. A series never changes familia and a familia is never
+// Alumoclad its own (issue #48), every other one the Cladex logo, 20% larger for the QL
+// and QI series (issue #51). A series never changes familia and a familia is never
 // renamed, so this is as fixed for an issued quote as its frozen row.
-func letterheadFor(familia string) pdf.Letterhead {
+func letterheadFor(prefix, familia string) pdf.Letterhead {
+	if hidesAddress(prefix) {
+		return pdf.LetterheadCladexLarge
+	}
 	switch familia {
 	case "CCA":
 		return pdf.LetterheadConduCCAsa
@@ -1372,6 +1377,12 @@ func letterheadFor(familia string) pdf.Letterhead {
 		return pdf.LetterheadAlumoclad
 	}
 	return pdf.LetterheadCladex
+}
+
+// hidesAddress is whether the PDF of a quote in series prefix leaves the Cladex address
+// off its letterhead: the QL and QI series (issue #51).
+func hidesAddress(prefix string) bool {
+	return prefix == "QL" || prefix == "QI"
 }
 
 // issuedQuoteDocument assembles an issued or revised quote's PDF purely from what
@@ -1404,7 +1415,8 @@ func issuedQuoteDocument(quote store.Quote, persisted []store.QuoteLine) (pdf.Qu
 		IVA:          quote.IVA.String(),
 		Total:        quote.Total.String(),
 		Terms:        store.SplitTerms(*quote.TermsSnapshot),
-		Letterhead:   letterheadFor(quote.SeriesFamily),
+		Letterhead:   letterheadFor(quote.Prefix, quote.SeriesFamily),
+		HideAddress:  hidesAddress(quote.Prefix),
 		ShowKg:       views.ShowsKg(quote),
 		Created:      issuedAt,
 	}, nil
@@ -1639,6 +1651,10 @@ func (q *Quotes) DuplicarPage(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
+	// Coming back from "Agregar nuevo cliente": the customer just added is selected.
+	if id, err := strconv.ParseInt(r.URL.Query().Get("cliente"), 10, 64); err == nil {
+		dup.Selected = id
+	}
 	user, _ := UserFromContext(ctx)
 	views.DuplicateQuotePage(dup, navUserView(user)).Render(ctx, w)
 }
@@ -1666,6 +1682,12 @@ func (q *Quotes) Duplicar(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "solicitud inválida", http.StatusBadRequest)
+		return
+	}
+	// "Agregar nuevo cliente" without JS: off to the form, which comes back here with
+	// the customer selected (issue #50).
+	if r.FormValue("customer_id") == views.NewCustomerValue {
+		http.Redirect(w, r, "/clientes/nuevo?"+url.Values{"volver": {"duplicar"}, "folio": {quote.Folio}}.Encode(), http.StatusSeeOther)
 		return
 	}
 	var customer *store.Customer

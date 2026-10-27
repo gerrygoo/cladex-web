@@ -29,6 +29,7 @@ const (
 	LetterheadCopperclad                   // the copperclad logo, a little larger (issue #16)
 	LetterheadConduCCAsa                   // the ConduCCAsa logo (issue #47)
 	LetterheadAlumoclad                    // the Alumoclad logo (issue #48)
+	LetterheadCladexLarge                  // the Cladex logo 20% larger (issue #51)
 )
 
 // QuoteLineDoc is one priced line as it should appear on the rendered PDF — already
@@ -62,6 +63,8 @@ type QuoteDocument struct {
 	Terms    []string
 	// Letterhead is the logo block the PDF opens with; the caller picks it by familia.
 	Letterhead Letterhead
+	// HideAddress leaves the Cladex address off the letterhead (QL and QI, issue #51).
+	HideAddress bool
 	// Watermark, when set, is printed large and faint across every page, so a PDF from a
 	// test instance can't pass for a real quote. Empty in production, which keeps its
 	// bytes as they were.
@@ -133,6 +136,9 @@ func buildQuoteTypst(doc QuoteDocument) string {
 	if doc.ShowKg {
 		layout = strings.Replace(layout, quoteTable, kgQuoteTable, 1)
 	}
+	if doc.HideAddress {
+		layout = strings.Replace(layout, quoteAddress, "[]", 1)
+	}
 	b.WriteString(currencyLabels(doc.Currency, layout))
 
 	return b.String()
@@ -171,6 +177,16 @@ const kgQuoteTable = `#table(
   ),
   ..lines.enumerate().map(((i, l)) => (str(i + 1), l.at(0), l.at(1), l.at(2), l.at(3), l.at(4), l.at(5))).flatten()
 )`
+
+// quoteAddress is the Cladex address block in quoteLayout's header grid.
+const quoteAddress = `align(right)[
+    #text(size: 8pt)[
+      Camino Real de Carretas 356 \
+      Milenio III \
+      76060 Querétaro, QUE \
+      México
+    ]
+  ]`
 
 const quoteLayout = `
 #grid(
@@ -240,6 +256,9 @@ func writeLetterhead(b *strings.Builder, l Letterhead) {
 	case LetterheadAlumoclad:
 		fmt.Fprintf(b, "#let alumoclad = bytes((%s))\n", pngBytesLiteral(alumocladLogoPNG))
 		b.WriteString("#let letterhead = image(alumoclad, width: 5cm)\n")
+	case LetterheadCladexLarge:
+		fmt.Fprintf(b, "#let logo = bytes((%s))\n", pngBytesLiteral(cladexLogoPNG))
+		b.WriteString("#let letterhead = image(logo, width: 3.84cm)\n")
 	default:
 		fmt.Fprintf(b, "#let logo = bytes((%s))\n", pngBytesLiteral(cladexLogoPNG))
 		b.WriteString("#let letterhead = image(logo, width: 3.2cm)\n")

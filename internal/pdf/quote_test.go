@@ -192,3 +192,24 @@ func TestQuoteTypstWatermark(t *testing.T) {
 		t.Fatalf("RenderQuote with a watermark: %v", err)
 	}
 }
+
+// TestQuoteLargeLogoWithoutAddress pins issue #51: the QL and QI letterhead is the Cladex
+// logo 20% wider (3.2cm to 3.84cm) and the address is gone, while every other document
+// keeps the address.
+func TestQuoteLargeLogoWithoutAddress(t *testing.T) {
+	doc := sampleDoc()
+	if !strings.Contains(buildQuoteTypst(doc), "Camino Real de Carretas 356") {
+		t.Error("the default letterhead lost the address")
+	}
+	doc.Letterhead, doc.HideAddress = LetterheadCladexLarge, true
+	src := buildQuoteTypst(doc)
+	if !strings.Contains(src, "#let letterhead = image(logo, width: 3.84cm)") {
+		t.Error("the large letterhead isn't the Cladex logo at 3.84cm")
+	}
+	if strings.Contains(src, "Camino Real") || strings.Contains(src, "Querétaro") {
+		t.Error("HideAddress left the address on the PDF")
+	}
+	if _, err := RenderQuote(context.Background(), doc); err != nil {
+		t.Fatalf("RenderQuote: %v", err)
+	}
+}

@@ -367,7 +367,7 @@ func TestQuotesPDF(t *testing.T) {
 
 // TestQuotePDFLetterheadByFamilia pins issues #16, #47 and #48: quotes in the CCA (QA)
 // series print the ConduCCAsa logo, CCS & AC (QS) the copperclad logo, Alumoclad (QG)
-// its own, every other series (QI, QL) the Cladex logo, on the draft preview and on the
+// its own, QI and QL the Cladex logo 20% larger without the address (issue #51), on the draft preview and on the
 // issued PDF alike.
 func TestQuotePDFLetterheadByFamilia(t *testing.T) {
 	a := newTestAuth(t)
@@ -383,8 +383,8 @@ func TestQuotePDFLetterheadByFamilia(t *testing.T) {
 		"QA": pdf.LetterheadConduCCAsa,
 		"QS": pdf.LetterheadCopperclad,
 		"QG": pdf.LetterheadAlumoclad,
-		"QI": pdf.LetterheadCladex,
-		"QL": pdf.LetterheadCladex,
+		"QI": pdf.LetterheadCladexLarge,
+		"QL": pdf.LetterheadCladexLarge,
 	} {
 		quote, err := a.store.CreateDraftQuote(ctx, customerID, userID, prefix)
 		if err != nil {
