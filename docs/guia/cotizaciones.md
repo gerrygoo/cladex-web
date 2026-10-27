@@ -426,7 +426,8 @@ de cualquier serie.
 1. Abre la cotización y haz clic en **Duplicar**, abajo, junto a **Descargar PDF**.
    También está en el proyecto, junto a la **Cotización vigente**.
 2. Elige el cliente de la copia. Viene el de la original; escribe para buscar otro por
-   nombre, RFC o contacto.
+   nombre, RFC o contacto. ¿No está? Elige **➕ Agregar nuevo cliente**, la primera opción
+   de la lista: llenas sus datos, y al guardarlo regresas a Duplicar con ese cliente elegido.
 3. Haz clic en **Duplicar**. La app crea un borrador nuevo y te lleva a él. Arriba dice
    *"Copia de QA0023 creada."* Si le das **Cancelar**, no se crea nada.
 4. Edítalo como cualquier borrador y [emítelo](#emitir-la-cotización) cuando esté

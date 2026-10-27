@@ -61,8 +61,22 @@ func TestDuplicarCatalogQuote(t *testing.T) {
 		}
 	}
 
+	// "Agregar nuevo cliente" is first in the list and leads to the new-customer form
+	// and back (issue #50).
+	if !strings.Contains(page, "➕ Agregar nuevo cliente") || !strings.Contains(page, `data-new-customer-href="/clientes/nuevo?volver=duplicar&amp;folio=`+quote.Folio+`"`) {
+		t.Error("the Duplicar dialog doesn't offer Agregar nuevo cliente")
+	}
+	rec := doForm(t, a, otherID, q.Duplicar, "POST", "/cotizaciones/"+quote.Folio+"/duplicar", pv(quote.Folio), url.Values{"customer_id": {"nuevo"}}, false)
+	if want := "/clientes/nuevo?folio=" + quote.Folio + "&volver=duplicar"; rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != want {
+		t.Errorf("Agregar nuevo cliente = %d, Location %q, want %q", rec.Code, rec.Header().Get("Location"), want)
+	}
+	back := returnTo{Volver: "duplicar", Folio: quote.Folio}
+	if got, want := back.quotePath(7), "/cotizaciones/"+quote.Folio+"/duplicar?cliente=7"; got != want {
+		t.Errorf("return path = %q, want %q", got, want)
+	}
+
 	// No customer: nothing is created.
-	rec := doForm(t, a, otherID, q.Duplicar, "POST", "/cotizaciones/"+quote.Folio+"/duplicar", pv(quote.Folio), url.Values{"customer_id": {""}}, false)
+	rec = doForm(t, a, otherID, q.Duplicar, "POST", "/cotizaciones/"+quote.Folio+"/duplicar", pv(quote.Folio), url.Values{"customer_id": {""}}, false)
 	if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), "Selecciona un cliente.") {
 		t.Fatalf("Duplicar without a customer = %d", rec.Code)
 	}

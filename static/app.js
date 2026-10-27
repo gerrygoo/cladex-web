@@ -120,6 +120,10 @@
     };
     var choose = function (o) {
       if (o.value === "nuevo") {
+        if (select.dataset.newCustomerHref) {
+          location.href = select.dataset.newCustomerHref;
+          return;
+        }
         var serie = select.form.querySelector("[name=prefix]:checked");
         location.href = "/clientes/nuevo?volver=cotizacion" + (serie ? "&serie=" + encodeURIComponent(serie.value) : "");
         return;

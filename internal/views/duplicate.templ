@@ -1,17 +1,29 @@
 package views
 
 import (
+	"net/url"
 	"strconv"
 
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
 // DuplicateQuoteForm is the Duplicar form (issue #40): the customer of a copy of Quote,
-// the original's preselected. Error is shown when the post named no customer.
+// the original's preselected, or the one just added. Error is shown when the post named no customer.
 type DuplicateQuoteForm struct {
 	Quote     store.Quote
 	Customers []store.Customer
-	Error     string
+	// Selected is the customer to preselect: the one just added from "Agregar nuevo
+	// cliente" (issue #50); 0 keeps the original's.
+	Selected int64
+	Error    string
+}
+
+// selectedID is the customer preselected in the list.
+func (f DuplicateQuoteForm) selectedID() int64 {
+	if f.Selected != 0 {
+		return f.Selected
+	}
+	return f.Quote.CustomerID
 }
 
 func duplicarPath(folio string) string {
@@ -19,7 +31,7 @@ func duplicarPath(folio string) string {
 }
 
 // duplicateFields is the form itself: the customer combobox (the one of Nueva
-// cotización, without "Agregar nuevo cliente") and what the copy takes.
+// cotización, "Agregar nuevo cliente" included, issue #50) and what the copy takes.
 templ duplicateFields(f DuplicateQuoteForm, id string) {
 	<form method="post" action={ templ.URL(duplicarPath(f.Quote.Folio)) }>
 		<p id={ id + "-texto" }>
@@ -41,17 +53,19 @@ templ duplicateFields(f DuplicateQuoteForm, id string) {
 			id={ id + "-cliente" }
 			required
 			data-combobox
+			data-new-customer-href={ "/clientes/nuevo?volver=duplicar&folio=" + url.QueryEscape(f.Quote.Folio) }
 			if f.Error != "" {
 				aria-invalid="true"
 				aria-describedby={ id + "-cliente-error" }
 			}
 		>
 			<option value="">— Selecciona —</option>
+			<option value={ NewCustomerValue } data-keep>➕ Agregar nuevo cliente</option>
 			for _, c := range f.Customers {
 				<option
 					value={ strconv.FormatInt(c.ID, 10) }
 					data-search={ c.Name + " " + c.RFC + " " + c.ContactName }
-					selected?={ c.ID == f.Quote.CustomerID }
+					selected?={ c.ID == f.selectedID() }
 					data-detail={ customerDetail(c) }
 				>{ c.Name }</option>
 			}

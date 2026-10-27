@@ -103,6 +103,7 @@ type CustomerFormValues struct {
 	// CancelHref is where Cancelar goes then ("" for the catalog).
 	Volver     string
 	Serie      string
+	Folio      string
 	CancelHref string
 }
 
@@ -168,6 +169,7 @@ templ CustomerForm(title string, action string, values CustomerFormValues, field
 			if values.Volver != "" {
 				<input type="hidden" name="volver" value={ values.Volver }/>
 				<input type="hidden" name="serie" value={ values.Serie }/>
+				<input type="hidden" name="folio" value={ values.Folio }/>
 			}
 			if len(similar) > 0 {
 				<div class="notice warning" id="posible-duplicado" role="alert" tabindex="-1">
