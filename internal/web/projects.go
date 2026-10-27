@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"io"
 	"mime/multipart"
@@ -112,7 +113,12 @@ func (p *Projects) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, _ := UserFromContext(ctx)
-	views.ProjectPage(*project, today(r), quotes, files, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user), supplier).Render(ctx, w)
+	panel, err := p.adminPanel(ctx, user, project, facturas)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	views.ProjectPage(*project, today(r), quotes, files, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user), supplier, panel).Render(ctx, w)
 }
 
 // Etapa handles POST /proyectos/{folio}/etapa: moves the proyecto one stage along the
@@ -578,4 +584,77 @@ func (p *Projects) Pago(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/proyectos/"+project.Folio+"#pago", http.StatusSeeOther)
+}
+
+// adminPanel is the Administración section of a proyecto's page: nil for anyone but an
+// admin. Deleting is blocked while the proyecto has a comprobante that may have been
+// stamped, since a CFDI is a legal document.
+func (p *Projects) adminPanel(ctx context.Context, user *store.AuthenticatedUser, project *store.Project, facturas []store.Comprobante) (*views.AdminPanel, error) {
+	if user == nil || user.Role != store.RoleAdmin {
+		return nil, nil
+	}
+	users, err := p.store.ActiveUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	panel := &views.AdminPanel{
+		Base:    "/proyectos/" + project.Folio,
+		OwnerID: project.UserID,
+		Users:   users,
+		What:    "proyecto",
+		DeleteWarning: "Borra el proyecto con todas sus cotizaciones y revisiones, su historial, " +
+			"la orden de compra y las facturas sin timbrar. No se puede deshacer.",
+	}
+	for _, f := range facturas {
+		if !f.Editable() {
+			panel.BlockedReason = "No se puede eliminar: tiene una factura timbrada (o en proceso de timbrarse), que es un documento fiscal."
+		}
+	}
+	return panel, nil
+}
+
+// Reasignar handles POST /proyectos/{folio}/reasignar (admin): hands the proyecto and
+// all its quotes to another enabled user, who becomes the one following it up.
+func (p *Projects) Reasignar(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	project := p.loadProjectOrNotFound(w, r)
+	if project == nil {
+		return
+	}
+	newID, err := strconv.ParseInt(r.FormValue("user_id"), 10, 64)
+	if err != nil {
+		http.Error(w, "elige un vendedor de la lista", http.StatusBadRequest)
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	if newID != project.UserID {
+		if err := p.store.ReassignProject(ctx, project.ID, user.ID, newID); err != nil {
+			if errors.Is(err, store.ErrBadOwner) {
+				http.Error(w, "elige un vendedor de la lista", http.StatusBadRequest)
+				return
+			}
+			serverError(w, r, err)
+			return
+		}
+	}
+	http.Redirect(w, r, "/proyectos/"+project.Folio, http.StatusSeeOther)
+}
+
+// Eliminar handles POST /proyectos/{folio}/eliminar (admin): deletes the proyecto and
+// everything under it, unless it has a stamped comprobante.
+func (p *Projects) Eliminar(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	project := p.loadProjectOrNotFound(w, r)
+	if project == nil {
+		return
+	}
+	if err := p.store.DeleteProject(ctx, project.ID); err != nil {
+		if errors.Is(err, store.ErrHasStampedInvoice) {
+			http.Error(w, "este proyecto tiene una factura timbrada y no se puede eliminar", http.StatusConflict)
+			return
+		}
+		serverError(w, r, err)
+		return
+	}
+	http.Redirect(w, r, "/proyectos", http.StatusSeeOther)
 }

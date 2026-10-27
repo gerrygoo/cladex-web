@@ -303,6 +303,29 @@ prospecto, también elige con qué **Probabilidad de cierre** vuelve (Inicial a 
 trae la que tenía); uno que se perdió con la O.C. recibida vuelve a O.C. recibida. Queda
 un comentario *"Se reabrió como …"* y el motivo original se conserva en el historial.
 
+## Reasignar o eliminar un proyecto
+
+Solo un administrador. Al final de la página del proyecto está la sección
+**Administración**.
+
+:::admin
+**Reasignar.** Elige el **Vendedor responsable** y haz clic en **Reasignar**. El proyecto
+y todas sus cotizaciones pasan a ese vendedor, que es quien le da seguimiento y quien
+lo ve como suyo. En el historial queda *"Se reasignó de … a …"*. Las cotizaciones ya
+emitidas conservan en su PDF el nombre del vendedor que las emitió.
+
+**Eliminar.** Sirve, por ejemplo, para limpiar cotizaciones de prueba. Haz clic en
+**Eliminar proyecto** y confirma. Se borra el proyecto con todas sus cotizaciones y
+revisiones, su historial, la orden de compra y sus facturas sin timbrar. **No se puede
+deshacer**, y los folios borrados no se vuelven a usar.
+
+Un proyecto con una factura timbrada (o en proceso de timbrarse) no se puede eliminar:
+es un documento fiscal. En su lugar la página explica por qué.
+
+Un borrador que nunca se emitió no tiene proyecto: se reasigna o se elimina desde su
+propia página de [cotización](cotizaciones.md#reasignar-o-eliminar-un-borrador).
+:::
+
 ## Comentar un proyecto
 
 El historial, en **Seguimiento y comentarios**, junta los comentarios de todas las

@@ -475,6 +475,16 @@ cotización, en **Comentarios**, se leen los de esa cotización (los más nuevos
 quién los escribió y cuándo) y un enlace lleva al proyecto para agregar uno nuevo. Los
 comentarios no se editan ni se borran.
 
+## Reasignar o eliminar un borrador
+
+:::admin
+Solo un administrador, y solo en un borrador que nunca se emitió (todavía no tiene
+proyecto). Al final de su página, en **Administración**, elige el **Vendedor responsable**
+y haz clic en **Reasignar**, o haz clic en **Eliminar borrador** y confirma; se borra con
+sus partidas y comentarios y no se puede deshacer. Una cotización ya emitida se reasigna
+o se elimina desde su [proyecto](proyectos.md#reasignar-o-eliminar-un-proyecto).
+:::
+
 ## Buscar una cotización
 
 1. En el menú **Cotizaciones**, elige **Ver cotizaciones**.

@@ -747,7 +747,7 @@ templ MarginControls(quote store.Quote, margin MarginPicker, oob bool) {
 	</div>
 }
 
-templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, fieldErrs map[string]string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser, supplier SupplierQuoteView, dup DuplicateQuoteForm) {
+templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, fieldErrs map[string]string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser, supplier SupplierQuoteView, dup DuplicateQuoteForm, adminPanel *AdminPanel) {
 	@Layout("Cotización "+quote.Folio, user) {
 		<script src="/static/margin.js" defer></script>
 		<div class="page-title">
@@ -923,6 +923,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 		if quote.Status == store.QuoteBorrador {
 			<p class="hint pdf-note" data-unsaved-note>El PDF muestra lo último guardado, sin los cambios de la pantalla.</p>
 		}
+		@AdminPanelSection(adminPanel)
 		@QuoteComments(quote.ProjectFolio, comments, commentsLV)
 	}
 }

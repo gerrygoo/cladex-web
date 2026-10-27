@@ -1153,8 +1153,23 @@ func (q *Quotes) renderBuilder(w http.ResponseWriter, r *http.Request, quote *st
 		return
 	}
 	user, _ := UserFromContext(ctx)
+	var panel *views.AdminPanel
+	if user != nil && user.Role == store.RoleAdmin && quote.Status == store.QuoteBorrador && quote.ProjectID == nil {
+		users, err := q.store.ActiveUsers(ctx)
+		if err != nil {
+			serverError(w, r, err)
+			return
+		}
+		panel = &views.AdminPanel{
+			Base:          "/cotizaciones/" + quote.Folio,
+			OwnerID:       quote.UserID,
+			Users:         users,
+			What:          "borrador",
+			DeleteWarning: "Borra el borrador con sus partidas y comentarios. No se puede deshacer.",
+		}
+	}
 	w.WriteHeader(status)
-	views.QuoteBuilder(*quote, lines, totals, margin, successMsg, fieldErrs, picker, comments, commentsLV, navUserView(user), supplier, dup).Render(ctx, w)
+	views.QuoteBuilder(*quote, lines, totals, margin, successMsg, fieldErrs, picker, comments, commentsLV, navUserView(user), supplier, dup, panel).Render(ctx, w)
 }
 
 // amountInput tidies a typed amount for parsing: no "$" and no thousands commas, so
@@ -1741,3 +1756,51 @@ func (q *Quotes) Duplicar(w http.ResponseWriter, r *http.Request) {
 
 // maxCommentLen caps a comment; the textarea carries the same maxlength.
 const maxCommentLen = 2000
+
+// Reasignar handles POST /cotizaciones/{folio}/reasignar (admin): hands a first draft
+// to another enabled user. Quotes of a proyecto are reassigned with the proyecto.
+func (q *Quotes) Reasignar(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	quote := q.loadQuoteOrNotFound(w, r)
+	if quote == nil {
+		return
+	}
+	newID, err := strconv.ParseInt(r.FormValue("user_id"), 10, 64)
+	if err != nil {
+		http.Error(w, "elige un vendedor de la lista", http.StatusBadRequest)
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	if newID != quote.UserID {
+		if err := q.store.ReassignDraftQuote(ctx, quote.ID, user.ID, newID); err != nil {
+			switch {
+			case errors.Is(err, store.ErrBadOwner):
+				http.Error(w, "elige un vendedor de la lista", http.StatusBadRequest)
+			case errors.Is(err, store.ErrNotDeletable):
+				http.Error(w, "esta cotización pertenece a un proyecto: reasigna el proyecto", http.StatusConflict)
+			default:
+				serverError(w, r, err)
+			}
+			return
+		}
+	}
+	http.Redirect(w, r, "/cotizaciones/"+quote.Folio, http.StatusSeeOther)
+}
+
+// Eliminar handles POST /cotizaciones/{folio}/eliminar (admin): deletes a first draft
+// that never became a proyecto. Anything issued is deleted through its proyecto.
+func (q *Quotes) Eliminar(w http.ResponseWriter, r *http.Request) {
+	quote := q.loadQuoteOrNotFound(w, r)
+	if quote == nil {
+		return
+	}
+	if err := q.store.DeleteDraftQuote(r.Context(), quote.ID); err != nil {
+		if errors.Is(err, store.ErrNotDeletable) {
+			http.Error(w, "solo se puede eliminar un borrador sin proyecto; las demás se eliminan desde su proyecto", http.StatusConflict)
+			return
+		}
+		serverError(w, r, err)
+		return
+	}
+	http.Redirect(w, r, "/cotizaciones", http.StatusSeeOther)
+}

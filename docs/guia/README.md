@@ -40,6 +40,7 @@ parte de este manual que la explica.
 | Cotizaciones | ✓ | ✓ |
 | Dar de alta y editar Clientes | ✓ | ✓ |
 | Eliminar Clientes | — | ✓ |
+| Eliminar y reasignar Proyectos y borradores de cotización | — | ✓ |
 | Dar de alta Productos | ✓ | ✓ |
 | Editar y eliminar Productos (con sus materiales y conversiones) | — | ✓ |
 | Ver y descargar Documentos oficiales | ✓ | ✓ |

@@ -1,0 +1,47 @@
+package views
+
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// AdminPanel is what an admin sees at the bottom of a proyecto or a first draft: who
+// owns it (and a way to hand it to someone else) and a way to delete it. Base is the
+// record's path ("/proyectos/QA0105"); the actions are Base+"/reasignar" and
+// Base+"/eliminar". BlockedReason, when set, replaces the delete button.
+type AdminPanel struct {
+	Base          string
+	OwnerID       int64
+	Users         []store.User
+	What          string // "proyecto" or "cotización", for the wording
+	DeleteWarning string // what deleting takes with it
+	BlockedReason string
+}
+
+templ AdminPanelSection(a *AdminPanel) {
+	if a != nil {
+		<section class="admin-panel" aria-labelledby="admin-panel-title">
+			<h2 id="admin-panel-title">Administración</h2>
+			<form method="post" action={ templ.URL(a.Base + "/reasignar") } class="stage-form">
+				<label>
+					Vendedor responsable
+					<select name="user_id" required>
+						for _, u := range a.Users {
+							<option value={ strconv.FormatInt(u.ID, 10) } selected?={ u.ID == a.OwnerID }>{ u.Name }</option>
+						}
+					</select>
+				</label>
+				<button type="submit">Reasignar</button>
+			</form>
+			if a.BlockedReason != "" {
+				<p class="hint">{ a.BlockedReason }</p>
+			} else {
+				<form method="post" action={ templ.URL(a.Base + "/eliminar") } class="stage-form">
+					<p class="hint">{ a.DeleteWarning }</p>
+					<button type="submit" class="danger" data-confirm={ "¿Eliminar este " + a.What + " para siempre?" }>Eliminar { a.What }</button>
+				</form>
+			}
+		</section>
+	}
+}

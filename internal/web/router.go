@@ -112,6 +112,8 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /cotizaciones/{folio}/duplicar", authed(quotes.Duplicar))
 	mux.Handle("GET /cotizaciones/{folio}/pdf", authed(quotes.PDF))
 	mux.Handle("GET /cotizaciones/{folio}/pdf/{name}", authed(quotes.PDF))
+	mux.Handle("POST /cotizaciones/{folio}/reasignar", admin(quotes.Reasignar))
+	mux.Handle("POST /cotizaciones/{folio}/eliminar", admin(quotes.Eliminar))
 	mux.Handle("POST /cotizaciones/{folio}/proveedor", authed(quotes.Proveedor))
 	mux.Handle("GET /cotizaciones/{folio}/proveedor/{id}", authed(quotes.ProveedorArchivo))
 	mux.Handle("POST /cotizaciones/{folio}/proveedor/{id}/eliminar", authed(quotes.ProveedorEliminar))
@@ -127,6 +129,8 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /proyectos/{folio}/pago", authed(projects.Pago))
 	mux.Handle("GET /proyectos/{folio}/archivos/{id}", authed(projects.Archivo))
 	mux.Handle("POST /proyectos/{folio}/proveedor", authed(projects.Proveedor))
+	mux.Handle("POST /proyectos/{folio}/reasignar", admin(projects.Reasignar))
+	mux.Handle("POST /proyectos/{folio}/eliminar", admin(projects.Eliminar))
 	mux.Handle("POST /proyectos/{folio}/perder", authed(projects.Perder))
 	mux.Handle("POST /proyectos/{folio}/reabrir", authed(projects.Reabrir))
 
