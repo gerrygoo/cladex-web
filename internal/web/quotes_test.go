@@ -374,9 +374,7 @@ func TestQuotePDFLetterheadByFamilia(t *testing.T) {
 	ctx := context.Background()
 	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
 	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
-	if _, err := a.store.CreateFamily(ctx, store.Family{Name: "Alumoclad", Series: "QG", SeriesLabel: "Cable Alumoclad", Terms: "Término"}); err != nil {
-		t.Fatalf("CreateFamily(Alumoclad): %v", err)
-	}
+	createQGFamily(t, a, "Cable Alumoclad", "Término")
 
 	issuedAt, names, terms := "2026-08-02T15:04:05Z", "Nombre", "Término"
 	for prefix, want := range map[string]pdf.Letterhead{

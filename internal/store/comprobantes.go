@@ -317,22 +317,24 @@ func activeFactura(ctx context.Context, tx *sql.Tx, projectID int64) (int64, err
 // CreateFacturaDraft starts the factura of a proyecto in O.C. recibida from its issued
 // quote: its lines (amounts as quoted), the customer's uso de CFDI and email, the purchase
 // order's método de pago (P.P.D. facturas carry forma de pago 99), and SAT codes from each
-// product's unit and the series' familia. A KgPricedSeries line is quoted per metre
+// product's unit and the quote type's familia. A kg-priced type's line is quoted per metre
 // whatever the product's catalog unit (kg), so it takes the metro unit. A proyecto has one factura at a time; a
 // cancelled one doesn't count.
 func (s *Store) CreateFacturaDraft(ctx context.Context, projectID, userID int64) (int64, error) {
 	var id int64
 	err := s.inTx(ctx, "create factura draft", func(tx *sql.Tx) error {
-		var status, method, use, email, currency, familyCode, prefix string
+		var status, method, use, email, currency, familyCode string
 		var quoteID int64
+		var kgPriced bool
 		err := tx.QueryRowContext(ctx, `
 			SELECT p.status, COALESCE(p.payment_method, ''), COALESCE(cu.cfdi_use, ''), COALESCE(cu.email, ''),
-				q.id, COALESCE(q.currency, 'MXN'), COALESCE(f.sat_product_code, ''), q.prefix
+				q.id, COALESCE(q.currency, 'MXN'), COALESCE(f.sat_product_code, ''), t.kg_priced
 			FROM projects p
 			JOIN customers cu ON cu.id = p.customer_id
 			JOIN quotes q ON q.project_id = p.id AND q.status = 'emitida'
-			LEFT JOIN product_families f ON f.series = q.prefix
-			WHERE p.id = ?`, projectID).Scan(&status, &method, &use, &email, &quoteID, &currency, &familyCode, &prefix)
+			JOIN quote_types t ON t.id = q.quote_type_id
+			LEFT JOIN product_families f ON f.id = t.family_id
+			WHERE p.id = ?`, projectID).Scan(&status, &method, &use, &email, &quoteID, &currency, &familyCode, &kgPriced)
 		if err == sql.ErrNoRows || err == nil && (status != "oc_recibida" || method == "") {
 			return ErrComprobanteState
 		}
@@ -367,7 +369,7 @@ func (s *Store) CreateFacturaDraft(ctx context.Context, projectID, userID int64)
 			FROM quote_lines l
 			LEFT JOIN products pr ON pr.id = l.product_id
 			LEFT JOIN units un ON un.id = CASE WHEN pr.id IS NOT NULL AND ? THEN (SELECT id FROM units WHERE code = 'm') ELSE pr.unit_id END
-			WHERE l.quote_id = ? ORDER BY l.line_no`, id, familyCode, prefix == KgPricedSeries, quoteID); err != nil {
+			WHERE l.quote_id = ? ORDER BY l.line_no`, id, familyCode, kgPriced, quoteID); err != nil {
 			return err
 		}
 		if err := recomputeTotals(ctx, tx, id); err != nil {
@@ -581,9 +583,9 @@ func (s *Store) Validate(ctx context.Context, id, userID int64, serie string, sa
 		if folio == 0 {
 			curSerie = serie
 			if err := tx.QueryRowContext(ctx, `
-				INSERT INTO folio_sequences (prefix, next_number) VALUES (?, 2)
-				ON CONFLICT (prefix) DO UPDATE SET next_number = next_number + 1
-				RETURNING next_number - 1`, "cfdi:"+serie).Scan(&folio); err != nil {
+				INSERT INTO cfdi_folio_sequences (serie, next_number) VALUES (?, 2)
+				ON CONFLICT (serie) DO UPDATE SET next_number = next_number + 1
+				RETURNING next_number - 1`, serie).Scan(&folio); err != nil {
 				return err
 			}
 			if _, err := tx.ExecContext(ctx, `UPDATE comprobantes SET serie = ?, folio = ? WHERE id = ?`, curSerie, folio, id); err != nil {

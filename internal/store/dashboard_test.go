@@ -21,7 +21,7 @@ func insertProject(t *testing.T, s *Store, folio string, customerID, userID int6
 	}
 	projectID, _ := res.LastInsertId()
 	res, err = s.db.ExecContext(ctx,
-		`INSERT INTO quotes (folio, prefix, customer_id, user_id, status, subtotal, total, project_id) VALUES (?, ?, ?, ?, 'emitida', ?, ?, ?)`,
+		`INSERT INTO quotes (folio, prefix, quote_type_id, folio_number, customer_id, user_id, status, subtotal, total, project_id) VALUES (?1, ?2, (SELECT id FROM quote_types WHERE prefix = ?2), CAST(substr(?1, 3, 4) AS INTEGER), ?3, ?4, 'emitida', ?5, ?6, ?7)`,
 		folio, folio[:2], customerID, userID, total, total*116/100, projectID)
 	if err != nil {
 		t.Fatalf("insert quote %s: %v", folio, err)

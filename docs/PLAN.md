@@ -1295,3 +1295,12 @@ approach. A migration whose first line is
 `-- cladex:foreign-keys-off` gets that from the runner, which runs
 `PRAGMA foreign_key_check` before committing. (Since blue/green deploys, a rebuild like
 this also needs `-- cladex:exclusive`; see NAS_OPERATIONS.md#deploy-pipeline.)
+
+**Superseded in part by tipos de cotización (issue #53, migration 0029).** The series
+moved off `product_families` into `quote_types`, and the prefix stopped being a key:
+quotes point at their type by `quote_type_id` and carry `folio_number`; the counter is
+`quote_types.next_number` (CFDI counters went to `cfdi_folio_sequences`); and every
+behavior that compared a prefix or a familia name is a flag on the type. Design and
+slices: [docs/planning/tipos-de-cotizacion.md](planning/tipos-de-cotizacion.md). Slice
+T1 (schema and reads, nothing visible) is built; `/familias` still creates a familia and
+its type together until T2.

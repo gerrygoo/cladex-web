@@ -67,7 +67,7 @@ func (q *Quotes) kgPriceRef(ctx context.Context, quote *store.Quote, inputs []qu
 	switch {
 	case quote.SeriesFreeLines:
 		return nil, "", nil
-	case quote.SeriesFamily == views.CCSFamilyName:
+	case quote.CopperPriceMargin:
 		materials, err := q.store.ListMaterials(ctx)
 		if err != nil {
 			return nil, "", err
@@ -78,7 +78,7 @@ func (q *Quotes) kgPriceRef(ctx context.Context, quote *store.Quote, inputs []qu
 			}
 		}
 		return nil, "", nil
-	case quote.Prefix != views.KgPricedSeries:
+	case !quote.KgPriced:
 		return nil, "", nil
 	}
 	inFamily := func(p *store.Product) bool {
@@ -1022,7 +1022,7 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 			serverError(w, r, err)
 			return
 		}
-		lines = q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.Prefix == views.KgPricedSeries)
+		lines = q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.KgPriced)
 		totals = computeQuoteTotals(lines)
 	} else {
 		lines = frozenQuoteLines(persisted)
@@ -1206,7 +1206,7 @@ func (q *Quotes) Recalcular(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	takeTermsInputs(r, quote)
-	lines := q.computeQuoteLines(ctx, inputs, margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.Prefix == views.KgPricedSeries)
+	lines := q.computeQuoteLines(ctx, inputs, margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.KgPriced)
 	totals := computeQuoteTotals(lines)
 
 	if r.Header.Get("HX-Request") == "true" {
@@ -1264,7 +1264,7 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	takeTermsInputs(r, quote)
-	lines := q.computeQuoteLines(ctx, inputs, margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.Prefix == views.KgPricedSeries)
+	lines := q.computeQuoteLines(ctx, inputs, margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.KgPriced)
 	totals := computeQuoteTotals(lines)
 
 	if margin.badCustom {
@@ -1368,36 +1368,22 @@ func draftQuoteDocument(quote store.Quote, lines []views.QuoteLineView, totals p
 		IVA:          totals.IVA.String(),
 		Total:        totals.Total.String(),
 		Terms:        store.RenderTerms(quote.SeriesTerms, termsInputs(quote)),
-		Letterhead:   letterheadFor(quote.Prefix, quote.SeriesFamily),
-		HideAddress:  hidesAddress(quote.Prefix),
+		Letterhead:   letterheads[quote.Letterhead],
+		HideAddress:  quote.HideAddress,
 		ShowKg:       views.ShowsKg(quote),
 	}
 }
 
-// letterheadFor picks the PDF's logo block by the familia that owns the quote's series:
-// CCA prints the ConduCCAsa logo (issue #47), CCS & AC the copperclad logo (issue #16),
-// Alumoclad its own (issue #48), every other one the Cladex logo, 20% larger for the QL
-// and QI series (issue #51). A series never changes familia and a familia is never
-// renamed, so this is as fixed for an issued quote as its frozen row.
-func letterheadFor(prefix, familia string) pdf.Letterhead {
-	if hidesAddress(prefix) {
-		return pdf.LetterheadCladexLarge
-	}
-	switch familia {
-	case "CCA":
-		return pdf.LetterheadConduCCAsa
-	case "CCS & AC":
-		return pdf.LetterheadCopperclad
-	case "Alumoclad":
-		return pdf.LetterheadAlumoclad
-	}
-	return pdf.LetterheadCladex
-}
-
-// hidesAddress is whether the PDF of a quote in series prefix leaves the Cladex address
-// off its letterhead: the QL and QI series (issue #51).
-func hidesAddress(prefix string) bool {
-	return prefix == "QL" || prefix == "QI"
+// letterheads maps a quote type's letterhead (quote_types.letterhead) to the PDF's logo
+// block: ConduCCAsa for CCA (issue #47), copperclad for CCS & AC (issue #16), Alumoclad
+// (issue #48), and the Cladex logo, 20% larger for QL and QI (issue #51). The CHECK on
+// the column keeps it to these; anything else would print the plain Cladex one.
+var letterheads = map[string]pdf.Letterhead{
+	"cladex":       pdf.LetterheadCladex,
+	"cladex_large": pdf.LetterheadCladexLarge,
+	"conduccasa":   pdf.LetterheadConduCCAsa,
+	"copperclad":   pdf.LetterheadCopperclad,
+	"alumoclad":    pdf.LetterheadAlumoclad,
 }
 
 // issuedQuoteDocument assembles an issued or revised quote's PDF purely from what
@@ -1430,8 +1416,8 @@ func issuedQuoteDocument(quote store.Quote, persisted []store.QuoteLine) (pdf.Qu
 		IVA:          quote.IVA.String(),
 		Total:        quote.Total.String(),
 		Terms:        store.SplitTerms(*quote.TermsSnapshot),
-		Letterhead:   letterheadFor(quote.Prefix, quote.SeriesFamily),
-		HideAddress:  hidesAddress(quote.Prefix),
+		Letterhead:   letterheads[quote.Letterhead],
+		HideAddress:  quote.HideAddress,
 		ShowKg:       views.ShowsKg(quote),
 		Created:      issuedAt,
 	}, nil
@@ -1465,7 +1451,7 @@ func (q *Quotes) PDF(w http.ResponseWriter, r *http.Request) {
 			serverError(w, r, err)
 			return
 		}
-		lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.Prefix == views.KgPricedSeries)
+		lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.KgPriced)
 		doc = draftQuoteDocument(*quote, lines, computeQuoteTotals(lines))
 	} else {
 		doc, err = issuedQuoteDocument(*quote, persisted)
@@ -1526,7 +1512,7 @@ func (q *Quotes) Emitir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	takeTermsInputs(r, quote)
-	lines := q.computeQuoteLines(ctx, inputs, margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.Prefix == views.KgPricedSeries)
+	lines := q.computeQuoteLines(ctx, inputs, margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.KgPriced)
 	totals := computeQuoteTotals(lines)
 
 	if missing := missingTermsInputs(quote, time.Now()); len(missing) > 0 {
@@ -1740,7 +1726,7 @@ func (q *Quotes) Duplicar(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, dup.SeriesFreeLines, dup.SeriesFamily, dup.Prefix == views.KgPricedSeries)
+	lines := q.computeQuoteLines(ctx, inputsFromPersisted(persisted), margin, dup.SeriesFreeLines, dup.SeriesFamily, dup.KgPriced)
 	priced := !margin.badCustom
 	for _, l := range lines {
 		priced = priced && l.Error == ""

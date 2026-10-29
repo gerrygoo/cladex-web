@@ -274,11 +274,7 @@ func TestQuoteQGPricesPerMetreFromKg(t *testing.T) {
 	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
 	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
 	ctx := context.Background()
-	familyID, err := a.store.CreateFamily(ctx, store.Family{Name: "Alumoclad", Series: "QG",
-		SeriesLabel: "Cable Alumoclad 7#8 AWG hilo de guarda", Terms: "Precios en pesos mexicanos (MXN), no incluyen IVA"})
-	if err != nil {
-		t.Fatalf("CreateFamily: %v", err)
-	}
+	familyID := createQGFamily(t, a, "Cable Alumoclad 7#8 AWG hilo de guarda", "Precios en pesos mexicanos (MXN), no incluyen IVA")
 	cost, kg := money.Micros(95_000_000), money.Micros(389_600)
 	var kgUnit *int64
 	units, _ := a.store.ListUnits(ctx)
@@ -394,11 +390,7 @@ func TestQuoteQGOtroMargenPerKg(t *testing.T) {
 	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
 	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
 	ctx := context.Background()
-	familyID, err := a.store.CreateFamily(ctx, store.Family{Name: "Alumoclad", Series: "QG",
-		SeriesLabel: "Cable Alumoclad 7#8 AWG hilo de guarda", Terms: "Precios en pesos mexicanos (MXN), no incluyen IVA"})
-	if err != nil {
-		t.Fatalf("CreateFamily: %v", err)
-	}
+	familyID := createQGFamily(t, a, "Cable Alumoclad 7#8 AWG hilo de guarda", "Precios en pesos mexicanos (MXN), no incluyen IVA")
 	cost, kg := money.Micros(95_000_000), money.Micros(389_600)
 	alcID, err := a.store.CreateProduct(ctx, store.Product{FamilyID: familyID, SKU: "ALC-C7#8",
 		Description: "Cable Alumoclad 7#8 AWG", CostMicros: &cost, KgPerMMicros: &kg})
@@ -553,11 +545,7 @@ func TestProductQGRequiresWeight(t *testing.T) {
 	a := newTestAuth(t)
 	p := newTestProducts(t, a)
 	userID := createTestUser(t, a, "vendedor1", "vendedor", "hunter2")
-	ctx := context.Background()
-	qgID, err := a.store.CreateFamily(ctx, store.Family{Name: "Alumoclad", Series: "QG", SeriesLabel: "Alumoclad", Terms: "Precios en MXN"})
-	if err != nil {
-		t.Fatalf("CreateFamily: %v", err)
-	}
+	qgID := createQGFamily(t, a, "Alumoclad", "Precios en MXN")
 	otherID := seedFamily(t, a, "CCA")
 	form := func(family int64, sku, kg string) url.Values {
 		return url.Values{"family_id": {itoa(family)}, "sku": {sku}, "description": {"Cable"}, "cost": {"95"}, "kg_per_m": {kg}}
@@ -576,4 +564,24 @@ func TestProductQGRequiresWeight(t *testing.T) {
 	if rec := doForm(t, a, userID, p.Create, "POST", "/productos/nuevo", nil, form(otherID, "CCA-1", ""), false); rec.Code != http.StatusSeeOther {
 		t.Errorf("CCA product without a Peso: status %d; body = %s", rec.Code, rec.Body.String())
 	}
+}
+
+// createQGFamily creates the Alumoclad familia with its QG quote type set up as
+// production's is (migrations/0029_quote_types.sql): costed per kg, with its own
+// letterhead. Behavior comes from those flags, never from the name or the prefix.
+func createQGFamily(t *testing.T, a *Auth, label, terms string) int64 {
+	t.Helper()
+	ctx := context.Background()
+	familyID, err := a.store.CreateFamily(ctx, store.Family{Name: "Alumoclad", Series: "QG", SeriesLabel: label, Terms: terms})
+	if err != nil {
+		t.Fatalf("CreateFamily: %v", err)
+	}
+	typeID, err := a.store.QuoteTypeIDByPrefix(ctx, "QG")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.store.SetQuoteTypeBehavior(ctx, typeID, store.QuoteTypeBehavior{KgPriced: true, Letterhead: "alumoclad"}); err != nil {
+		t.Fatal(err)
+	}
+	return familyID
 }

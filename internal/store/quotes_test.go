@@ -17,21 +17,28 @@ import (
 
 func TestNextFolio(t *testing.T) {
 	s := newTestStore(t)
-	ctx := context.Background()
 
-	if f, err := s.NextFolio(ctx, "QA"); err != nil || f != "QA0001" {
-		t.Fatalf("NextFolio(QA) #1 = %q, %v; want QA0001, nil", f, err)
+	for i, want := range []string{"QA0001", "QA0002", "QS0001", "QA0003"} {
+		prefix := want[:2]
+		if got := nextFolioText(t, s, prefix); got != want {
+			t.Fatalf("NextFolio(%s) #%d = %q, want %q", prefix, i+1, got, want)
+		}
 	}
-	if f, err := s.NextFolio(ctx, "QA"); err != nil || f != "QA0002" {
-		t.Fatalf("NextFolio(QA) #2 = %q, %v; want QA0002, nil", f, err)
+}
+
+// nextFolioText is NextFolio for the quote type whose prefix is prefix, as printed.
+func nextFolioText(t *testing.T, s *Store, prefix string) string {
+	t.Helper()
+	ctx := context.Background()
+	id, err := s.QuoteTypeIDByPrefix(ctx, prefix)
+	if err != nil {
+		t.Fatalf("QuoteTypeIDByPrefix(%s): %v", prefix, err)
 	}
-	// A different prefix has its own independent counter.
-	if f, err := s.NextFolio(ctx, "QS"); err != nil || f != "QS0001" {
-		t.Fatalf("NextFolio(QS) #1 = %q, %v; want QS0001, nil", f, err)
+	p, n, err := s.NextFolio(ctx, id)
+	if err != nil {
+		t.Fatalf("NextFolio(%s): %v", prefix, err)
 	}
-	if f, err := s.NextFolio(ctx, "QA"); err != nil || f != "QA0003" {
-		t.Fatalf("NextFolio(QA) #3 = %q, %v; want QA0003, nil", f, err)
-	}
+	return FolioText(p, n)
 }
 
 // seedQuoteFixtures creates one customer, one user, and two products (a flat-priced one

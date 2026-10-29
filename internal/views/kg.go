@@ -8,14 +8,11 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-// KgPricedSeries is store.KgPricedSeries, for the views and handlers.
-const KgPricedSeries = store.KgPricedSeries
-
 // ShowsKg reports whether a quote's lines show their weight: Kg por metro and Kg, next
-// to the quantity in metres (issue #34). CCS and QG quotes do, since both are sold by
-// weight; the series never changes familia, so an issued quote keeps its columns.
+// to the quantity in metres (issue #34). The quote types priced by weight do: the
+// kg-priced one (QG) and the one whose margin follows the copper price (CCS, QS).
 func ShowsKg(quote store.Quote) bool {
-	return quote.SeriesFamily == CCSFamilyName || quote.Prefix == KgPricedSeries
+	return quote.CopperPriceMargin || quote.KgPriced
 }
 
 // KgPerUnitText is a line's kg per metre with 4 decimals, empty without one.

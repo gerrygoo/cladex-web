@@ -51,12 +51,24 @@ func (s *Store) DeleteProject(ctx context.Context, projectID int64) error {
 		{"quote lines", `DELETE FROM quote_lines WHERE quote_id IN (SELECT id FROM quotes WHERE project_id = ?1)`},
 		{"supplier quote files", `DELETE FROM supplier_quote_files WHERE root_quote_id IN (SELECT id FROM quotes WHERE project_id = ?1)`},
 		{"supplier quotes", `DELETE FROM supplier_quotes WHERE root_quote_id IN (SELECT id FROM quotes WHERE project_id = ?1)`},
-		{"revision links", `UPDATE quotes SET supersedes_quote_id = NULL WHERE project_id = ?1`},
-		{"quotes", `DELETE FROM quotes WHERE project_id = ?1`},
 	}
 	for _, st := range steps {
 		if _, err := tx.ExecContext(ctx, st.query, projectID); err != nil {
 			return fmt.Errorf("store: delete project %d: %s: %w", projectID, st.what, err)
+		}
+	}
+	// Each revision points at the one it revises, so the chain goes newest first: every
+	// round deletes the quotes no other quote points at. Unlinking them first instead
+	// would turn each revision into a first quote sharing its folio number.
+	for {
+		res, err := tx.ExecContext(ctx, `
+			DELETE FROM quotes WHERE project_id = ?1 AND id NOT IN
+				(SELECT supersedes_quote_id FROM quotes WHERE project_id = ?1 AND supersedes_quote_id IS NOT NULL)`, projectID)
+		if err != nil {
+			return fmt.Errorf("store: delete project %d: quotes: %w", projectID, err)
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			break
 		}
 	}
 	res, err := tx.ExecContext(ctx, `DELETE FROM projects WHERE id = ?`, projectID)

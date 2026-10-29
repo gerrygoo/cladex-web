@@ -159,13 +159,15 @@ func TestFamilySeriesMigrationKeepsQuotes(t *testing.T) {
 	if err != nil || len(lines) != 1 {
 		t.Fatalf("lines after migration = %d, %v", len(lines), err)
 	}
-	if next, err := s.NextFolio(ctx, "QA"); err != nil || next != "QA0002" {
-		t.Fatalf("NextFolio(QA) = %q, %v; counters must survive", next, err)
+	// The seeded counter (2) was behind the seeded QA0002; migration 0029 moves every
+	// counter past the highest folio its type has used, so it can't hand QA0002 out again.
+	if next := nextFolioText(t, s, "QA"); next != "QA0003" {
+		t.Fatalf("NextFolio(QA) = %q; counters must survive and never repeat a folio", next)
 	}
 
 	// The CHECK is gone, and enforcement is back on for later connections.
-	if _, err := s.db.ExecContext(ctx, `INSERT INTO quotes (folio, prefix, customer_id, user_id, status)
-		VALUES ('QL0001', 'QL', 1, 1, 'borrador')`); err != nil {
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO quotes (folio, prefix, quote_type_id, folio_number, customer_id, user_id, status)
+		VALUES ('QL0001', 'QL', (SELECT id FROM quote_types WHERE prefix = 'QL'), 1, 1, 1, 'borrador')`); err != nil {
 		t.Fatalf("insert QL quote: %v", err)
 	}
 	if _, err := s.db.ExecContext(ctx, `INSERT INTO quote_lines (quote_id, line_no, description_snapshot, qty_milli, unit_price_micros, line_total)
@@ -217,7 +219,7 @@ func TestQLTermsMigration(t *testing.T) {
 	ctx := context.Background()
 	qlTerms := func(s *Store) string {
 		var terms string
-		if err := s.db.QueryRowContext(ctx, `SELECT terms FROM product_families WHERE name = 'QL'`).Scan(&terms); err != nil {
+		if err := s.db.QueryRowContext(ctx, `SELECT terms FROM quote_types WHERE prefix = 'QL'`).Scan(&terms); err != nil {
 			t.Fatal(err)
 		}
 		return terms

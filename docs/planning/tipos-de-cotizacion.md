@@ -1,6 +1,6 @@
 # Tipos de cotización: separating the quote series from the catalog familia
 
-**Design approved (Gerry, 2026-10-28), nothing built yet.** Driven by
+**Design approved (Gerry, 2026-10-28). T1 built (migration 0029); T2 and T3 not started.** Driven by
 [#53](https://github.com/gerrygoo/cladex-web/issues/53): Emilio wants series prefixes longer
 than two letters (`QCCA`, `QCCS`) and to rename the existing ones. Today that can't be done
 safely, because the prefix text is used as a key.
@@ -123,7 +123,32 @@ is a second namespace sharing a table keyed by text. After quote counters move o
 3. **T3, #53 proper.** Emilio renames `QA`→`QCCA` etc. from that page; nothing to build
    beyond T2, just verify with him.
 
-## 6. Open questions
+## 6. As built in T1 (2026-10-28)
+
+Rehearsed on a copy of production taken that day (5 types, 15 quotes): every quote kept
+its folio and found its type, and the old and new code rendered the same letterhead,
+address, kg columns, terms and familia for each one. Differences from §2–§4:
+
+- **The familia link is `quote_types.family_id`**, not `product_families.default_quote_type_id`:
+  each type names the familia it quotes. It drives the builder's product search, the
+  "producto de otra familia" check and the factura's SAT code. No identity depends on it.
+- **`product_families.free_lines_only` stays** (meaning: holds no catalog products, so
+  the product form leaves it out). The QL familia also keeps its SAT code, which QL
+  facturas use. Whether QL should stop being a familia is for T2.
+- **New quotes still pick their type by its current prefix** (`CreateDraftQuote` resolves
+  it to an id); the new-quote form switches to type ids with T2's page.
+- **`SetQuoteTypeBehavior`** sets a type's flags; T2's page will use it. A familia created
+  at `/familias` gets a plain type (no flags, Cladex letterhead), so its behavior no
+  longer depends on what it happens to be named.
+- **Flags are read live, issued quotes included.** Issued quotes' PDFs take the letterhead
+  and kg columns from the type, as they used to from the prefix and familia name. That
+  was safe while those never changed; once T2 makes the flags editable, either freeze
+  them onto the quote at issue (like `terms_snapshot`) or accept that re-rendering an old
+  PDF follows the type. To decide in T2.
+- `DeleteProject` (#52) now deletes a revision chain newest first; unlinking revisions
+  first would have made them collide on `(quote_type_id, folio_number)`.
+
+## 7. Open questions
 
 - Does Emilio want the type's **name** (*Cable CCA*) shown anywhere besides the
   new-quote picker and the quote page?

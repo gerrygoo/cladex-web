@@ -84,8 +84,8 @@ func (p *Products) requireWeight(ctx context.Context, f ProductForm, errs map[st
 		return err
 	}
 	for _, fam := range families {
-		if strconv.FormatInt(fam.ID, 10) == f.FamilyID && fam.Series == views.KgPricedSeries {
-			errs["kg_per_m"] = "El peso es obligatorio en la serie " + views.KgPricedSeries + ": el precio por metro sale del costo por kg × el peso. Escríbelo en kg/m, p. ej. 0.3896."
+		if strconv.FormatInt(fam.ID, 10) == f.FamilyID && fam.KgPriced {
+			errs["kg_per_m"] = "El peso es obligatorio en la serie " + fam.Series + ": el precio por metro sale del costo por kg × el peso. Escríbelo en kg/m, p. ej. 0.3896."
 		}
 	}
 	return nil

@@ -128,10 +128,6 @@ func (p *MarginPicker) SetMarginDisplay(margin money.Micros, price *money.Micros
 	}
 }
 
-// CCSFamilyName is the product family whose custom margin can also be typed as the
-// CCS 30% price per kg.
-const CCSFamilyName = "CCS & AC"
-
 // CustomMarginValue is the margin dropdown's value for "Otro margen".
 const CustomMarginValue = "custom"
 

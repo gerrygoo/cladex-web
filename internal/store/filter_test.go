@@ -38,7 +38,7 @@ func TestListQuotesColumnFilters(t *testing.T) {
 	}
 	for _, r := range rows {
 		if _, err := s.db.ExecContext(ctx,
-			`INSERT INTO quotes (folio, prefix, customer_id, user_id, status, total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO quotes (folio, prefix, quote_type_id, folio_number, customer_id, user_id, status, total, created_at) VALUES (?1, ?2, (SELECT id FROM quote_types WHERE prefix = ?2), CAST(substr(?1, 3, 4) AS INTEGER), ?3, ?4, ?5, ?6, ?7)`,
 			r.folio, r.prefix, customerID, r.user, r.status, r.total, r.created); err != nil {
 			t.Fatalf("insert %s: %v", r.folio, err)
 		}
@@ -82,7 +82,7 @@ func TestListQuotesDateFilterUsesViewerZone(t *testing.T) {
 	customerID, _ := s.CreateCustomer(context.Background(), Customer{Name: "Grupo PEME"})
 	ana, _ := s.CreateUser(context.Background(), "ana", "Ana", "hash", "vendedor")
 	// 03:00 UTC on the 28th is 21:00 on the 27th in Mexico City (UTC-6).
-	if _, err := s.db.Exec(`INSERT INTO quotes (folio, prefix, customer_id, user_id, status, created_at) VALUES ('QA0001', 'QA', ?, ?, 'emitida', '2026-09-28T03:00:00.000Z')`, customerID, ana); err != nil {
+	if _, err := s.db.Exec(`INSERT INTO quotes (folio, prefix, quote_type_id, folio_number, customer_id, user_id, status, created_at) VALUES ('QA0001', 'QA', (SELECT id FROM quote_types WHERE prefix = 'QA'), CAST(substr('QA0001', 3, 4) AS INTEGER), ?, ?, 'emitida', '2026-09-28T03:00:00.000Z')`, customerID, ana); err != nil {
 		t.Fatal(err)
 	}
 	mexico := time.FixedZone("UTC-6", -6*3600)
@@ -136,7 +136,7 @@ func TestQuoteFilterChoices(t *testing.T) {
 	ana, _ := s.CreateUser(ctx, "ana", "Ana", "hash", "vendedor")
 	for i, c := range []int64{zeta, acme, acme} {
 		if _, err := s.db.ExecContext(ctx,
-			`INSERT INTO quotes (folio, prefix, customer_id, user_id, status) VALUES (?, 'QA', ?, ?, 'borrador')`,
+			`INSERT INTO quotes (folio, prefix, quote_type_id, folio_number, customer_id, user_id, status) VALUES (?1, 'QA', (SELECT id FROM quote_types WHERE prefix = 'QA'), CAST(substr(?1, 3, 4) AS INTEGER), ?2, ?3, 'borrador')`,
 			fmt.Sprintf("QA%04d", i+1), c, ana); err != nil {
 			t.Fatal(err)
 		}
@@ -153,7 +153,7 @@ func TestQuoteFilterChoices(t *testing.T) {
 	for i := 0; i <= MaxFilterChoices; i++ {
 		id, _ := s.CreateCustomer(ctx, Customer{Name: fmt.Sprintf("Cliente %03d", i)})
 		if _, err := s.db.ExecContext(ctx,
-			`INSERT INTO quotes (folio, prefix, customer_id, user_id, status) VALUES (?, 'QS', ?, ?, 'borrador')`,
+			`INSERT INTO quotes (folio, prefix, quote_type_id, folio_number, customer_id, user_id, status) VALUES (?1, 'QS', (SELECT id FROM quote_types WHERE prefix = 'QS'), CAST(substr(?1, 3, 4) AS INTEGER), ?2, ?3, 'borrador')`,
 			fmt.Sprintf("QS%04d", i+1), id, ana); err != nil {
 			t.Fatal(err)
 		}

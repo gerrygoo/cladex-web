@@ -13,11 +13,6 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/pricing"
 )
 
-// KgPricedSeries is the quote series whose products are costed per kg and quoted per
-// metre (issue #37, Alumoclad hilo de guarda): a line's cost per metre is the product's
-// cost × its Peso (kg/m), priced like a CCS material, and its factura is in metros.
-const KgPricedSeries = "QG"
-
 // Quote is a quotes row. CustomerName, UserName, and SupersededByFolio are populated by
 // the CRUD read paths (joins, so always the current names), left zero elsewhere.
 // TermsSnapshot, IssuedAt, ValidUntil, CustomerNameSnapshot,
@@ -35,9 +30,13 @@ const (
 )
 
 type Quote struct {
-	ID                   int64
-	Folio                string
+	ID    int64
+	Folio string
+	// Prefix is the prefix folio was printed with, a snapshot never joined on; the
+	// quote's type is QuoteTypeID. FolioNumber is folio's number, shared by revisions.
 	Prefix               string
+	QuoteTypeID          int64
+	FolioNumber          int64
 	CustomerID           int64
 	CustomerName         string
 	UserID               int64
@@ -80,6 +79,15 @@ type Quote struct {
 	// types (held in ValidUntil while the quote is a draft).
 	Currency        string
 	SeriesFreeLines bool
+	// The quote type's behavior flags (migrations/0029_quote_types.sql). KgPriced: its
+	// products are costed per kg and quoted per metre (issue #37), priced like a CCS
+	// material, and its factura is in metros. CopperPriceMargin: "Otro margen" can be
+	// typed as the CCS 30% price per kg (issue #38). HideAddress and Letterhead shape
+	// the PDF's letterhead (issues #16, #47, #48, #51).
+	KgPriced          bool
+	CopperPriceMargin bool
+	HideAddress       bool
+	Letterhead        string
 	// ExtraTerms are a QL draft's own terms, one per line (issue #27), which RenderTerms
 	// adds after the series' payment term; issuing folds them into TermsSnapshot.
 	ExtraTerms string
@@ -127,21 +135,42 @@ func costArg(c *money.Micros) any {
 	return int64(*c)
 }
 
-// NextFolio hands out the next folio number for prefix (QA/QS/QI) as
-// "<prefix><4-digit zero-padded number>" (e.g. "QA0001"), via folio_sequences
-// (migrations/0005_add_folio_sequences.sql). The upsert-and-RETURNING is one atomic
-// statement, so concurrent callers can never receive the same folio.
-func (s *Store) NextFolio(ctx context.Context, prefix string) (string, error) {
-	var n int64
-	err := s.db.QueryRowContext(ctx, `
-		INSERT INTO folio_sequences (prefix, next_number) VALUES (?, 2)
-		ON CONFLICT (prefix) DO UPDATE SET next_number = next_number + 1
-		RETURNING next_number - 1`, prefix,
-	).Scan(&n)
+// NextFolio hands out the next folio of a quote type: the type's prefix as it is now and
+// the folio's number, which FolioText joins into the folio. The counter is the type's own (migrations/0029_quote_types.sql), so it carries on
+// across a prefix rename. The UPDATE-and-RETURNING is one atomic statement, so
+// concurrent callers can never receive the same number.
+func (s *Store) NextFolio(ctx context.Context, quoteTypeID int64) (prefix string, number int64, err error) {
+	err = s.db.QueryRowContext(ctx, `
+		UPDATE quote_types SET next_number = next_number + 1 WHERE id = ?
+		RETURNING prefix, next_number - 1`, quoteTypeID,
+	).Scan(&prefix, &number)
 	if err != nil {
-		return "", fmt.Errorf("store: next folio for %q: %w", prefix, err)
+		return "", 0, fmt.Errorf("store: next folio for quote type %d: %w", quoteTypeID, err)
 	}
-	return fmt.Sprintf("%s%04d", prefix, n), nil
+	return prefix, number, nil
+}
+
+// FolioText is a folio as printed: the prefix and the number zero-padded to four
+// digits ("QA0001").
+func FolioText(prefix string, number int64) string {
+	return fmt.Sprintf("%s%04d", prefix, number)
+}
+
+// ErrUnknownQuoteType means no quote type has the prefix a new quote asked for.
+var ErrUnknownQuoteType = errors.New("store: no quote type has that prefix")
+
+// QuoteTypeIDByPrefix returns the id of the quote type whose current prefix is prefix,
+// or ErrUnknownQuoteType.
+func (s *Store) QuoteTypeIDByPrefix(ctx context.Context, prefix string) (int64, error) {
+	var id int64
+	err := s.db.QueryRowContext(ctx, `SELECT id FROM quote_types WHERE prefix = ?`, prefix).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrUnknownQuoteType
+	}
+	if err != nil {
+		return 0, fmt.Errorf("store: quote type %q: %w", prefix, err)
+	}
+	return id, nil
 }
 
 // CreateDraftQuote assigns a folio and inserts a new draft quote (status 'borrador',
@@ -150,15 +179,20 @@ func (s *Store) NextFolio(ctx context.Context, prefix string) (string, error) {
 // after a folio was already handed out) is acceptable; a duplicate folio is not, and
 // NextFolio alone already rules that out.
 func (s *Store) CreateDraftQuote(ctx context.Context, customerID, userID int64, prefix string) (*Quote, error) {
-	folio, err := s.NextFolio(ctx, prefix)
+	typeID, err := s.QuoteTypeIDByPrefix(ctx, prefix)
 	if err != nil {
 		return nil, fmt.Errorf("store: create draft quote: %w", err)
 	}
+	prefix, number, err := s.NextFolio(ctx, typeID)
+	if err != nil {
+		return nil, fmt.Errorf("store: create draft quote: %w", err)
+	}
+	folio := FolioText(prefix, number)
 	res, err := s.exec(ctx, `
-		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, margin_option_id)
-		VALUES (?, ?, ?, ?, 'borrador',
+		INSERT INTO quotes (folio, prefix, quote_type_id, folio_number, customer_id, user_id, status, margin_option_id)
+		VALUES (?, ?, ?, ?, ?, ?, 'borrador',
 			(SELECT id FROM margin_options WHERE is_default = 1 AND retired_at IS NULL))`,
-		folio, prefix, customerID, userID,
+		folio, prefix, typeID, number, customerID, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: create draft quote: %w", err)
@@ -171,15 +205,16 @@ func (s *Store) CreateDraftQuote(ctx context.Context, customerID, userID int64, 
 }
 
 const quoteSelectCols = `
-	q.id, q.folio, q.prefix, q.customer_id, c.name, q.user_id, u.name, q.status,
+	q.id, q.folio, q.prefix, q.quote_type_id, q.folio_number, q.customer_id, c.name, q.user_id, u.name, q.status,
 	q.subtotal, q.iva, q.total, q.terms_snapshot, q.created_at,
 	q.issued_at, q.valid_until, q.supersedes_quote_id, q.customer_name_snapshot,
 	q.vendedor_snapshot, q.pdf_sha256, q.margin_option_id, q.margin_name_snapshot,
 	q.margin_snapshot_micros, q.custom_margin_micros, q.custom_copper_price_micros,
 	(SELECT o.folio FROM quotes o WHERE o.id = q.supersedes_quote_id),
 	(SELECT r.folio FROM quotes r WHERE r.supersedes_quote_id = q.id),
-	CASE WHEN f.free_lines_only = 0 THEN f.name END, COALESCE(f.terms, ''), COALESCE(q.delivery_time, ''),
-	COALESCE(q.currency, ''), COALESCE(f.free_lines_only, 0),
+	CASE WHEN t.free_lines_only = 0 THEN f.name END, t.terms, COALESCE(q.delivery_time, ''),
+	COALESCE(q.currency, ''), t.free_lines_only,
+	t.kg_priced, t.copper_price_margin, t.hide_address, t.letterhead,
 	q.project_id, COALESCE(p.folio, ''), COALESCE(p.status, ''), COALESCE(p.probability, 0),
 	COALESCE(q.extra_terms, '')`
 
@@ -187,7 +222,8 @@ const quoteFrom = `
 	FROM quotes q
 	JOIN customers c ON c.id = q.customer_id
 	JOIN users u ON u.id = q.user_id
-	LEFT JOIN product_families f ON f.series = q.prefix
+	JOIN quote_types t ON t.id = q.quote_type_id
+	LEFT JOIN product_families f ON f.id = t.family_id
 	LEFT JOIN projects p ON p.id = q.project_id`
 
 func scanQuote(row interface{ Scan(...any) error }) (*Quote, error) {
@@ -196,12 +232,13 @@ func scanQuote(row interface{ Scan(...any) error }) (*Quote, error) {
 	var supersedesFolio, supersededByFolio, seriesFamily sql.NullString
 	var supersedesQuoteID, marginOptionID, marginSnapshotMicros, customMarginMicros, customCopperPrice, projectID sql.NullInt64
 	var marginNameSnapshot sql.NullString
-	err := row.Scan(&q.ID, &q.Folio, &q.Prefix, &q.CustomerID, &q.CustomerName, &q.UserID, &q.UserName,
+	err := row.Scan(&q.ID, &q.Folio, &q.Prefix, &q.QuoteTypeID, &q.FolioNumber, &q.CustomerID, &q.CustomerName, &q.UserID, &q.UserName,
 		&q.Status, &q.Subtotal, &q.IVA, &q.Total, &termsSnapshot, &q.CreatedAt,
 		&issuedAt, &validUntil, &supersedesQuoteID, &customerNameSnapshot, &vendedorSnapshot, &pdfSHA256,
 		&marginOptionID, &marginNameSnapshot, &marginSnapshotMicros, &customMarginMicros, &customCopperPrice,
 		&supersedesFolio, &supersededByFolio, &seriesFamily, &q.SeriesTerms, &q.DeliveryTime,
 		&q.Currency, &q.SeriesFreeLines,
+		&q.KgPriced, &q.CopperPriceMargin, &q.HideAddress, &q.Letterhead,
 		&projectID, &q.ProjectFolio, &q.Stage, &q.Probability, &q.ExtraTerms)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -289,8 +326,8 @@ var quoteSortColumns = []sortColumn{
 }
 
 // quoteDefaultOrder is the list's order when no sort column is chosen: newest first,
-// with the QI (alumbrado) family after all the others.
-const quoteDefaultOrder = `ORDER BY (q.prefix = 'QI') ASC, q.created_at DESC, q.id DESC`
+// with the types marked sort_last (QI, alumbrado) after all the others.
+const quoteDefaultOrder = `ORDER BY t.sort_last ASC, q.created_at DESC, q.id DESC`
 
 // quoteFilterColumns are the per-column filters ListQuotes accepts.
 var quoteFilterColumns = []filterColumn{
@@ -812,9 +849,9 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 		return nil, ErrQuoteNotIssued
 	}
 	res, err = tx.ExecContext(ctx, `
-		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, supersedes_quote_id, margin_option_id, custom_margin_micros, custom_copper_price_micros, delivery_time, currency, project_id, extra_terms)
-		VALUES (?, ?, ?, ?, 'borrador', ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''))`,
-		newFolio, original.Prefix, original.CustomerID, userID, originalID,
+		INSERT INTO quotes (folio, prefix, quote_type_id, folio_number, customer_id, user_id, status, supersedes_quote_id, margin_option_id, custom_margin_micros, custom_copper_price_micros, delivery_time, currency, project_id, extra_terms)
+		VALUES (?, ?, ?, ?, ?, ?, 'borrador', ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''))`,
+		newFolio, original.Prefix, original.QuoteTypeID, original.FolioNumber, original.CustomerID, userID, originalID,
 		original.MarginOptionID, original.CustomMarginMicros, original.CustomCopperPriceMicros, original.DeliveryTime, original.Currency,
 		original.ProjectID, original.ExtraTerms,
 	)
@@ -887,10 +924,11 @@ func (s *Store) DuplicateQuote(ctx context.Context, originalID, customerID, user
 		return nil, fmt.Errorf("store: duplicate quote %d: %w", originalID, err)
 	}
 	// A gap in the folio sequence is fine, as in CreateDraftQuote.
-	folio, err := s.NextFolio(ctx, original.Prefix)
+	prefix, number, err := s.NextFolio(ctx, original.QuoteTypeID)
 	if err != nil {
 		return nil, fmt.Errorf("store: duplicate quote %d: %w", originalID, err)
 	}
+	folio := FolioText(prefix, number)
 	var validUntil any
 	if original.SeriesFreeLines && original.ValidUntil != nil {
 		validUntil = *original.ValidUntil
@@ -905,12 +943,12 @@ func (s *Store) DuplicateQuote(ctx context.Context, originalID, customerID, user
 		return nil, fmt.Errorf("store: duplicate quote %d: %w", originalID, err)
 	}
 	res, err := tx.ExecContext(ctx, `
-		INSERT INTO quotes (folio, prefix, customer_id, user_id, status, margin_option_id, custom_margin_micros, custom_copper_price_micros, delivery_time, currency, extra_terms, valid_until, subtotal, iva, total)
-		VALUES (?, ?, ?, ?, 'borrador',
+		INSERT INTO quotes (folio, prefix, quote_type_id, folio_number, customer_id, user_id, status, margin_option_id, custom_margin_micros, custom_copper_price_micros, delivery_time, currency, extra_terms, valid_until, subtotal, iva, total)
+		VALUES (?, ?, ?, ?, ?, ?, 'borrador',
 			COALESCE((SELECT id FROM margin_options WHERE id = ? AND retired_at IS NULL),
 				(SELECT id FROM margin_options WHERE is_default = 1 AND retired_at IS NULL)),
 			?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?)`,
-		folio, original.Prefix, customerID, userID,
+		folio, prefix, original.QuoteTypeID, number, customerID, userID,
 		original.MarginOptionID, original.CustomMarginMicros, original.CustomCopperPriceMicros,
 		original.DeliveryTime, original.Currency, original.ExtraTerms, validUntil,
 		int64(original.Subtotal), int64(original.IVA), int64(original.Total),
