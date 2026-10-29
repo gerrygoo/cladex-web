@@ -6,31 +6,22 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-// FamiliaFormValues is the create form's state, kept when validation sends it back.
-type FamiliaFormValues struct {
-	Name          string
-	Series        string
-	SeriesLabel   string
-	Terms         string
-	FreeLinesOnly bool
-}
-
-templ FamiliasList(families []store.Family, values FamiliaFormValues, fieldErrors map[string]string, successMsg string, user *NavUser) {
+templ FamiliasList(families []store.Family, name string, fieldErrors map[string]string, successMsg string, user *NavUser) {
 	@Layout("Familias", user) {
 		<div class="page-title">
 			<h1>Familias</h1>
 			@HelpLink(HelpFamilias)
 		</div>
 		@Flash(successMsg)
+		<p>Una familia es una línea de producto del catálogo. La serie de folio, los términos y cómo se ve el PDF son de cada <a href="/tipos-de-cotizacion">tipo de cotización</a>.</p>
 		<div class="table-scroll">
 			<table>
 				<thead>
 					<tr>
 						<th>Familia</th>
-						<th>Serie</th>
-						<th>Descripción de la serie</th>
 						<th>Productos</th>
 						<th>Clave SAT</th>
+						<th>Tipos de cotización</th>
 						<th><span class="visually-hidden">Acciones</span></th>
 					</tr>
 				</thead>
@@ -38,8 +29,6 @@ templ FamiliasList(families []store.Family, values FamiliaFormValues, fieldError
 					for _, f := range families {
 						<tr>
 							<td>{ f.Name }</td>
-							<td>{ f.Series }</td>
-							<td>{ f.SeriesLabel }</td>
 							<td>
 								if f.FreeLinesOnly {
 									Solo líneas libres
@@ -48,68 +37,40 @@ templ FamiliasList(families []store.Family, values FamiliaFormValues, fieldError
 								}
 							</td>
 							<td>{ f.SATProductCode }</td>
-							<td><a href={ templ.URL("/familias/" + strconv.FormatInt(f.ID, 10)) }>Editar términos<span class="visually-hidden">{ " de " + f.Name }</span></a></td>
+							<td>{ f.QuoteTypes }</td>
+							<td><a href={ templ.URL("/familias/" + strconv.FormatInt(f.ID, 10)) }>Editar<span class="visually-hidden">{ " " + f.Name }</span></a></td>
 						</tr>
 					}
 				</tbody>
 			</table>
 		</div>
 		<h2>Nueva familia</h2>
-		<p>Al crear una familia se crea también su serie de folio (p. ej. QF0001).</p>
 		<form method="post" action="/familias">
 			<label>
 				Nombre
-				<input type="text" name="name" value={ values.Name } required { errAttrs(fieldErrors, "name")... }/>
+				<input type="text" name="name" value={ name } required { errAttrs(fieldErrors, "name")... }/>
 			</label>
 			@FieldError(fieldErrors, "name")
-			<label>
-				Serie (dos letras, empieza con Q)
-				<input type="text" name="series" value={ values.Series } maxlength="2" pattern="[Qq][A-Za-z]" placeholder="p. ej. QF" required { errAttrs(fieldErrors, "series")... }/>
-			</label>
-			@FieldError(fieldErrors, "series")
-			<label>
-				Descripción de la serie (opcional)
-				<input type="text" name="series_label" value={ values.SeriesLabel } placeholder="p. ej. Cobijas ignífugas"/>
-			</label>
-			<p>Escribe <code>{ store.DeliveryTimeToken }</code> donde va el tiempo de entrega, p. ej. <em>Tiempo de entrega: { store.DeliveryTimeToken }</em>. Cada cotización de esta serie pedirá ese dato y no se podrá emitir sin él.</p>
-			<p>Escribe <code>{ store.CurrencyToken }</code> donde va la moneda (MXN o USD), p. ej. <em>Precios en { store.CurrencyToken }, no incluyen IVA</em>. Cada cotización pedirá elegirla.</p>
-			<label>
-				Términos y condiciones del PDF (uno por línea)
-				<textarea name="terms" rows="6">{ values.Terms }</textarea>
-			</label>
-			<label>
-				<input type="checkbox" name="free_lines_only" value="1" checked?={ values.FreeLinesOnly }/>
-				Sin productos de catálogo: solo se cotiza con líneas libres
-			</label>
 			<button type="submit" class="primary">Crear familia</button>
 		</form>
+		<p class="hint">Para cotizar sus productos con una serie propia, después crea un <a href="/tipos-de-cotizacion">tipo de cotización</a> de esta familia.</p>
 	}
 }
 
-templ FamiliaEdit(f store.Family, seriesLabel string, terms string, user *NavUser) {
+templ FamiliaEdit(f store.Family, fieldErrors map[string]string, user *NavUser) {
 	@Layout("Editar "+f.Name, user) {
 		<div class="page-title">
 			<h1>Editar familia { f.Name }</h1>
 			@HelpLink(HelpFamilias)
 		</div>
-		<p>Serie <strong>{ f.Series }</strong>. El nombre y la serie no se pueden cambiar.</p>
-		<p>Los cambios se usan en los borradores y en las cotizaciones que se emitan de ahora en adelante; las ya emitidas conservan los términos con que salieron.</p>
+		<p>El nombre de una familia no se puede cambiar.</p>
 		<form method="post" action={ templ.URL("/familias/" + strconv.FormatInt(f.ID, 10)) }>
 			<label>
-				Descripción de la serie (opcional)
-				<input type="text" name="series_label" value={ seriesLabel }/>
-			</label>
-			<label>
 				Clave de producto SAT para facturar (8 dígitos, opcional)
-				<input type="text" name="sat_product_code" value={ f.SATProductCode } inputmode="numeric" maxlength="8" pattern="[0-9]{8}" placeholder="p. ej. 26121600"/>
+				<input type="text" name="sat_product_code" value={ f.SATProductCode } inputmode="numeric" maxlength="8" pattern="[0-9]{8}" placeholder="p. ej. 26121600" { errAttrs(fieldErrors, "sat_product_code")... }/>
 			</label>
-			<p class="hint">La usan de inicio las partidas de las facturas de esta serie; en cada factura se puede cambiar. Confírmala con el contador.</p>
-			<p>Escribe <code>{ store.DeliveryTimeToken }</code> donde va el tiempo de entrega, p. ej. <em>Tiempo de entrega: { store.DeliveryTimeToken }</em>. Cada cotización de esta serie pedirá ese dato y no se podrá emitir sin él.</p>
-			<p>Escribe <code>{ store.CurrencyToken }</code> donde va la moneda (MXN o USD), p. ej. <em>Precios en { store.CurrencyToken }, no incluyen IVA</em>. Cada cotización pedirá elegirla.</p>
-			<label>
-				Términos y condiciones del PDF (uno por línea)
-				<textarea name="terms" rows="10">{ terms }</textarea>
-			</label>
+			@FieldError(fieldErrors, "sat_product_code")
+			<p class="hint">La usan de inicio las partidas de las facturas de esta familia; en cada factura se puede cambiar. Confírmala con el contador.</p>
 			<button type="submit" class="primary">Guardar</button>
 			<a href="/familias">Cancelar</a>
 		</form>

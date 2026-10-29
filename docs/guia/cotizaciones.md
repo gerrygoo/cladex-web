@@ -26,17 +26,18 @@ El flujo completo, de principio a fin:
 
    ¿No está? Elige **➕ Agregar nuevo cliente**, la primera opción de la lista. Se abre
    el formulario de [Nuevo cliente](clientes.md#dar-de-alta-un-cliente); al guardarlo
-   regresas aquí con el cliente ya elegido (y la serie, si ya la habías elegido). Con
+   regresas aquí con el cliente ya elegido (y el tipo, si ya lo habías elegido). Con
    **Cancelar** regresas sin crear nada.
-3. En **Serie de folio**, elige una:
+3. En **Tipo de cotización**, elige uno. Cada tipo tiene su serie de folio:
    - **QA — Cable CCA**
    - **QS — Cable CCS & AC**
    - **QI — Alumbrado**
    - **QL — Líneas libres**: para cotizar solo líneas libres (productos que no están en
      el catálogo y no tienen SKU).
 
-   Un administrador puede agregar más series (ver [Familias](administracion.md#familias));
-   la lista siempre muestra las que existen.
+   Un administrador puede agregar tipos o cambiar su serie (ver
+   [Tipos de cotización](administracion.md#tipos-de-cotización)); la lista siempre
+   muestra los que existen.
 4. Haz clic en **Crear cotización**.
 
 Llegas a la página de la cotización (p. ej. *"Cotización QS0007"*) con
@@ -500,7 +501,7 @@ o se elimina desde su [proyecto](proyectos.md#reasignar-o-eliminar-un-proyecto).
 | Mensaje | Qué significa | Qué hacer |
 |---|---|---|
 | *Selecciona un cliente.* | No elegiste cliente al crear la cotización. | Elige uno. Si no aparece, [dalo de alta](clientes.md#dar-de-alta-un-cliente). |
-| *Selecciona una serie de folio.* | No elegiste QA, QS o QI. | Elige una ([¿cuál?](#crear-una-cotización)). |
+| *Selecciona un tipo de cotización.* | No elegiste QA, QS, QI o QL. | Elige uno ([¿cuál?](#crear-una-cotización)). |
 | *Cantidad inválida.* | La cantidad está vacía, es cero o negativa, o no es un número. | Escribe un número mayor que 0. |
 | *Descripción obligatoria.* | Una línea libre no tiene descripción. | Escríbela, o quita la línea. |
 | *Precio inválido.* | Una línea libre tiene el precio vacío o con letras o signos. | Escribe solo el número, p. ej. `123.45`. |

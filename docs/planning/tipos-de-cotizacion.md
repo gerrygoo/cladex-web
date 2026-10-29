@@ -1,6 +1,6 @@
 # Tipos de cotización: separating the quote series from the catalog familia
 
-**Design approved (Gerry, 2026-10-28). T1 built (migration 0029); T2 and T3 not started.** Driven by
+**Design approved (Gerry, 2026-10-28). T1 and T2 built (migrations 0029, 0030); T3 is Emilio trying it.** Driven by
 [#53](https://github.com/gerrygoo/cladex-web/issues/53): Emilio wants series prefixes longer
 than two letters (`QCCA`, `QCCS`) and to rename the existing ones. Today that can't be done
 safely, because the prefix text is used as a key.
@@ -140,15 +140,32 @@ address, kg columns, terms and familia for each one. Differences from §2–§4:
 - **`SetQuoteTypeBehavior`** sets a type's flags; T2's page will use it. A familia created
   at `/familias` gets a plain type (no flags, Cladex letterhead), so its behavior no
   longer depends on what it happens to be named.
-- **Flags are read live, issued quotes included.** Issued quotes' PDFs take the letterhead
-  and kg columns from the type, as they used to from the prefix and familia name. That
-  was safe while those never changed; once T2 makes the flags editable, either freeze
-  them onto the quote at issue (like `terms_snapshot`) or accept that re-rendering an old
-  PDF follows the type. To decide in T2.
+- **Flags were read live in T1, issued quotes included**, which was safe while nothing
+  could change them. T2 freezes them at issue (below).
 - `DeleteProject` (#52) now deletes a revision chain newest first; unlinking revisions
   first would have made them collide on `(quote_type_id, folio_number)`.
 
-## 7. Open questions
+## 7. As built in T2 (2026-10-29)
+
+- **`/tipos-de-cotizacion`** (Catálogos → Tipos de cotización, admin only): list with each
+  type's next folio, create, edit. Prefix rules as in §2, with one refinement: a type may
+  go back to a prefix *it* used, since its counter only moves forward; it may never take
+  one another type has or issued folios with. "Solo líneas libres" is chosen at creation
+  only. Types aren't deleted.
+- **`/familias` is catalog only**: name and SAT code. A familia can be quoted by several
+  types (`quote_types.family_id` isn't unique); the product form asks for a Peso when any
+  of them is kg-priced, and that error now names the familia, not a series.
+- **Issued quotes freeze their behavior** (migration 0030: `letterhead_snapshot`,
+  `hide_address_snapshot`, `kg_priced_snapshot`, `copper_price_margin_snapshot`), the same
+  way they freeze their terms, because their PDF is regenerated and checked against the
+  SHA-256 taken at issue. Drafts follow their type. Backfilled for the 11 issued quotes in
+  production, outside the audit log (the backfill isn't an edit). Not exclusive.
+- **The new-quote form picks a type by id** (`tipo`), including the round trip through
+  "Agregar nuevo cliente"; the prefix no longer identifies anything in a form or URL.
+  `CreateDraftQuote(prefix)` stays only as a convenience for tests and the CLI.
+- Rehearsed on a copy of production: the old and new code render all 15 quotes alike.
+
+## 8. Open questions
 
 - Does Emilio want the type's **name** (*Cable CCA*) shown anywhere besides the
   new-quote picker and the quote page?

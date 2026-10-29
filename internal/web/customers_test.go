@@ -257,20 +257,21 @@ func TestNewCustomerFromQuoteAndDuplicates(t *testing.T) {
 	peme, _ := a.store.CreateCustomer(ctx, store.Customer{Name: "Grupo PEME", RFC: "PEM-010101-ABC"})
 
 	// The list has the search and the fixed first entry, and comes back preselected.
-	page := doForm(t, a, userID, q.NewPage, "GET", "/cotizaciones/nueva?cliente="+itoa(peme)+"&serie=QA", nil, nil, false).Body.String()
+	qa := typeIDOf(t, a, "QA")
+	page := doForm(t, a, userID, q.NewPage, "GET", "/cotizaciones/nueva?cliente="+itoa(peme)+"&tipo="+qa, nil, nil, false).Body.String()
 	for _, want := range []string{"data-combobox", `<option value="nuevo" data-keep>➕ Agregar nuevo cliente</option>`,
-		`value="` + itoa(peme) + `" data-search="Grupo PEME PEM-010101-ABC " selected`, `value="QA" checked`} {
+		`value="` + itoa(peme) + `" data-search="Grupo PEME PEM-010101-ABC " selected`, `value="` + qa + `" checked`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("Nueva cotización missing %q", want)
 		}
 	}
 	// Without JS, "Agregar nuevo cliente" goes to the form through the server.
-	rec := doForm(t, a, userID, q.Create, "POST", "/cotizaciones/nueva", nil, url.Values{"customer_id": {"nuevo"}, "prefix": {"QA"}}, false)
-	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/clientes/nuevo?serie=QA&volver=cotizacion" {
+	rec := doForm(t, a, userID, q.Create, "POST", "/cotizaciones/nueva", nil, url.Values{"customer_id": {"nuevo"}, "tipo": {qa}}, false)
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/clientes/nuevo?tipo="+qa+"&volver=cotizacion" {
 		t.Fatalf("Create(nuevo) = %d, Location %q", rec.Code, rec.Header().Get("Location"))
 	}
-	form := doForm(t, a, userID, cs.NewPage, "GET", "/clientes/nuevo?volver=cotizacion&serie=QA", nil, nil, false).Body.String()
-	for _, want := range []string{`name="volver" value="cotizacion"`, `name="serie" value="QA"`, `href="/cotizaciones/nueva?serie=QA">Cancelar`} {
+	form := doForm(t, a, userID, cs.NewPage, "GET", "/clientes/nuevo?volver=cotizacion&tipo="+qa, nil, nil, false).Body.String()
+	for _, want := range []string{`name="volver" value="cotizacion"`, `name="tipo" value="` + qa + `"`, `href="/cotizaciones/nueva?tipo=` + qa + `">Cancelar`} {
 		if !strings.Contains(form, want) {
 			t.Errorf("new-customer form from a quote missing %q", want)
 		}
@@ -284,14 +285,14 @@ func TestNewCustomerFromQuoteAndDuplicates(t *testing.T) {
 		return len(all)
 	}
 	// A name like an existing one: warned, nothing created.
-	fromQuote := url.Values{"name": {"Sonepar S.A. de C.V."}, "volver": {"cotizacion"}, "serie": {"QA"}}
+	fromQuote := url.Values{"name": {"Sonepar S.A. de C.V."}, "volver": {"cotizacion"}, "tipo": {qa}}
 	rec = create(fromQuote)
 	body := rec.Body.String()
 	if rec.Code != http.StatusUnprocessableEntity || count() != 2 {
 		t.Fatalf("Create(duplicate) = %d with %d customers, want 422 and none created", rec.Code, count())
 	}
 	for _, want := range []string{"Este cliente podría estar duplicado", "SONEPAR — RFC: (sin RFC) — Contacto: Alfonso Felix",
-		`href="/cotizaciones/nueva?cliente=` + itoa(sonepar) + `&amp;serie=QA"`, `name="confirmar" value="1"`, "Regresar a editar", `value="Sonepar S.A. de C.V."`} {
+		`href="/cotizaciones/nueva?cliente=` + itoa(sonepar) + `&amp;tipo=` + qa + `"`, `name="confirmar" value="1"`, "Regresar a editar", `value="Sonepar S.A. de C.V."`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("duplicate warning missing %q", want)
 		}
@@ -300,7 +301,7 @@ func TestNewCustomerFromQuoteAndDuplicates(t *testing.T) {
 	fromQuote.Set("confirmar", "1")
 	rec = create(fromQuote)
 	if rec.Code != http.StatusSeeOther || count() != 3 || !strings.HasPrefix(rec.Header().Get("Location"), "/cotizaciones/nueva?cliente=") ||
-		!strings.HasSuffix(rec.Header().Get("Location"), "&serie=QA") {
+		!strings.HasSuffix(rec.Header().Get("Location"), "&tipo="+qa) {
 		t.Fatalf("Create(confirmed) = %d, Location %q, %d customers", rec.Code, rec.Header().Get("Location"), count())
 	}
 

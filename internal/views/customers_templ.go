@@ -343,10 +343,10 @@ type CustomerFormValues struct {
 	Notes       string
 	LegalName   string
 	CFDIUse     string
-	// Volver and Serie carry a trip from Nueva cotización (issue #29) through the form;
+	// Volver and Tipo carry a trip from Nueva cotización (issue #29) through the form;
 	// CancelHref is where Cancelar goes then ("" for the catalog).
 	Volver     string
-	Serie      string
+	Tipo       string
 	Folio      string
 	CancelHref string
 }
@@ -498,14 +498,14 @@ func CustomerForm(title string, action string, values CustomerFormValues, fieldE
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "\"> <input type=\"hidden\" name=\"serie\" value=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "\"> <input type=\"hidden\" name=\"tipo\" value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var20 string
-				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue(values.Serie)
+				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue(values.Tipo)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/customers.templ`, Line: 171, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/customers.templ`, Line: 171, Col: 56}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var20)
 				if templ_7745c5c3_Err != nil {

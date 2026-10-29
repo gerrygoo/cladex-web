@@ -79,7 +79,8 @@ type Quote struct {
 	// types (held in ValidUntil while the quote is a draft).
 	Currency        string
 	SeriesFreeLines bool
-	// The quote type's behavior flags (migrations/0029_quote_types.sql). KgPriced: its
+	// The quote type's behavior flags (migrations/0029_quote_types.sql), as the type has
+	// them now on a draft and as they were at issue on an issued quote (0030). KgPriced: its
 	// products are costed per kg and quoted per metre (issue #37), priced like a CCS
 	// material, and its factura is in metros. CopperPriceMargin: "Otro margen" can be
 	// typed as the CCS 30% price per kg (issue #38). HideAddress and Letterhead shape
@@ -156,25 +157,9 @@ func FolioText(prefix string, number int64) string {
 	return fmt.Sprintf("%s%04d", prefix, number)
 }
 
-// ErrUnknownQuoteType means no quote type has the prefix a new quote asked for.
-var ErrUnknownQuoteType = errors.New("store: no quote type has that prefix")
-
-// QuoteTypeIDByPrefix returns the id of the quote type whose current prefix is prefix,
-// or ErrUnknownQuoteType.
-func (s *Store) QuoteTypeIDByPrefix(ctx context.Context, prefix string) (int64, error) {
-	var id int64
-	err := s.db.QueryRowContext(ctx, `SELECT id FROM quote_types WHERE prefix = ?`, prefix).Scan(&id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, ErrUnknownQuoteType
-	}
-	if err != nil {
-		return 0, fmt.Errorf("store: quote type %q: %w", prefix, err)
-	}
-	return id, nil
-}
-
 // CreateDraftQuote assigns a folio and inserts a new draft quote (status 'borrador',
-// no lines yet), on the default margin option. Folio assignment and the quote insert are two statements, not one
+// no lines yet) of the quote type whose current prefix is prefix, on the default margin
+// option. Folio assignment and the quote insert are two statements, not one
 // transaction: per docs/PLAN.md, a gap in the folio sequence (from a failed insert
 // after a folio was already handed out) is acceptable; a duplicate folio is not, and
 // NextFolio alone already rules that out.
@@ -183,6 +168,11 @@ func (s *Store) CreateDraftQuote(ctx context.Context, customerID, userID int64, 
 	if err != nil {
 		return nil, fmt.Errorf("store: create draft quote: %w", err)
 	}
+	return s.CreateDraftQuoteOfType(ctx, customerID, userID, typeID)
+}
+
+// CreateDraftQuoteOfType is CreateDraftQuote for the quote type with id typeID.
+func (s *Store) CreateDraftQuoteOfType(ctx context.Context, customerID, userID, typeID int64) (*Quote, error) {
 	prefix, number, err := s.NextFolio(ctx, typeID)
 	if err != nil {
 		return nil, fmt.Errorf("store: create draft quote: %w", err)
@@ -214,7 +204,8 @@ const quoteSelectCols = `
 	(SELECT r.folio FROM quotes r WHERE r.supersedes_quote_id = q.id),
 	CASE WHEN t.free_lines_only = 0 THEN f.name END, t.terms, COALESCE(q.delivery_time, ''),
 	COALESCE(q.currency, ''), t.free_lines_only,
-	t.kg_priced, t.copper_price_margin, t.hide_address, t.letterhead,
+	COALESCE(q.kg_priced_snapshot, t.kg_priced), COALESCE(q.copper_price_margin_snapshot, t.copper_price_margin),
+	COALESCE(q.hide_address_snapshot, t.hide_address), COALESCE(q.letterhead_snapshot, t.letterhead),
 	q.project_id, COALESCE(p.folio, ''), COALESCE(p.status, ''), COALESCE(p.probability, 0),
 	COALESCE(q.extra_terms, '')`
 
@@ -697,7 +688,11 @@ func issueQuote(ctx context.Context, tx *sql.Tx, quoteID int64, is Issue, costNo
 			margin_name_snapshot = ?,
 			margin_snapshot_micros = ?,
 			pdf_sha256 = ?,
-			project_id = COALESCE(project_id, ?)
+			project_id = COALESCE(project_id, ?),
+			letterhead_snapshot = (SELECT letterhead FROM quote_types t WHERE t.id = quotes.quote_type_id),
+			hide_address_snapshot = (SELECT hide_address FROM quote_types t WHERE t.id = quotes.quote_type_id),
+			kg_priced_snapshot = (SELECT kg_priced FROM quote_types t WHERE t.id = quotes.quote_type_id),
+			copper_price_margin_snapshot = (SELECT copper_price_margin FROM quote_types t WHERE t.id = quotes.quote_type_id)
 		WHERE id = ? AND status = 'borrador'`,
 		is.IssuedAt, is.TermsSnapshot, validUntilArg,
 		is.CustomerNameSnapshot, is.VendedorSnapshot, is.MarginName, int64(is.MarginMicros),

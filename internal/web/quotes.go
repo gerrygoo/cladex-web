@@ -433,28 +433,29 @@ func (q *Quotes) List(w http.ResponseWriter, r *http.Request) {
 // QuoteNewForm is the /cotizaciones/nueva form.
 type QuoteNewForm struct {
 	CustomerID string
-	Prefix     string
+	Tipo       string // a quote type's id
 }
 
 func parseQuoteNewForm(r *http.Request) QuoteNewForm {
 	return QuoteNewForm{
 		CustomerID: strings.TrimSpace(r.FormValue("customer_id")),
-		Prefix:     strings.TrimSpace(r.FormValue("prefix")),
+		Tipo:       strings.TrimSpace(r.FormValue("tipo")),
 	}
 }
 
-// Validate checks the form; series are the prefixes a quote can start in. Per the
-// user's decision, the series is a free choice at quote-creation time — a folio series
-// label, not a restriction on which products a quote can contain.
-func (f QuoteNewForm) Validate(series []store.Series) map[string]string {
+// Validate checks the form against the quote types a quote can start in, returning the
+// chosen one's id. Per the user's decision the type is a free choice at quote-creation
+// time, not a restriction on which products a quote can contain.
+func (f QuoteNewForm) Validate(types []store.QuoteType) (int64, map[string]string) {
 	errs := map[string]string{}
 	if id, err := strconv.ParseInt(f.CustomerID, 10, 64); f.CustomerID == "" || err != nil || id <= 0 {
 		errs["customer_id"] = "Selecciona un cliente."
 	}
-	if !slices.ContainsFunc(series, func(sr store.Series) bool { return sr.Prefix == f.Prefix }) {
-		errs["prefix"] = "Selecciona una serie de folio."
+	typeID, _ := strconv.ParseInt(f.Tipo, 10, 64)
+	if !slices.ContainsFunc(types, func(t store.QuoteType) bool { return t.ID == typeID }) {
+		errs["tipo"] = "Selecciona un tipo de cotización."
 	}
-	return errs
+	return typeID, errs
 }
 
 // NewPage renders the empty "nueva cotización" form.
@@ -465,15 +466,15 @@ func (q *Quotes) NewPage(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	series, err := q.store.ListSeries(ctx)
+	types, err := q.store.ListQuoteTypes(ctx)
 	if err != nil {
 		serverError(w, r, err)
 		return
 	}
 	user, _ := UserFromContext(ctx)
-	// Coming back from creating (or picking) a customer: it and the series are selected.
-	values := views.QuoteNewFormValues{CustomerID: r.URL.Query().Get("cliente"), Prefix: r.URL.Query().Get("serie")}
-	views.QuoteNewForm(customers, series, values, nil, navUserView(user)).Render(ctx, w)
+	// Coming back from creating (or picking) a customer: it and the type are selected.
+	values := views.QuoteNewFormValues{CustomerID: r.URL.Query().Get("cliente"), Tipo: r.URL.Query().Get("tipo")}
+	views.QuoteNewForm(customers, types, values, nil, navUserView(user)).Render(ctx, w)
 }
 
 // Create handles POST /cotizaciones/nueva: assigns a folio and redirects into the
@@ -486,21 +487,21 @@ func (q *Quotes) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	form := parseQuoteNewForm(r)
 	// "Agregar nuevo cliente" without JS: off to the form, which comes back with the
-	// customer and this series selected (issue #29).
+	// customer and this type selected (issue #29).
 	if form.CustomerID == views.NewCustomerValue {
 		v := url.Values{"volver": {"cotizacion"}}
-		if form.Prefix != "" {
-			v.Set("serie", form.Prefix)
+		if form.Tipo != "" {
+			v.Set("tipo", form.Tipo)
 		}
 		http.Redirect(w, r, "/clientes/nuevo?"+v.Encode(), http.StatusSeeOther)
 		return
 	}
-	series, err := q.store.ListSeries(ctx)
+	types, err := q.store.ListQuoteTypes(ctx)
 	if err != nil {
 		serverError(w, r, err)
 		return
 	}
-	fieldErrors := form.Validate(series)
+	typeID, fieldErrors := form.Validate(types)
 	if len(fieldErrors) > 0 {
 		customers, err := q.store.ListCustomers(ctx, "", "name", "asc", nil)
 		if err != nil {
@@ -509,14 +510,14 @@ func (q *Quotes) Create(w http.ResponseWriter, r *http.Request) {
 		}
 		user, _ := UserFromContext(ctx)
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		values := views.QuoteNewFormValues{CustomerID: form.CustomerID, Prefix: form.Prefix}
-		views.QuoteNewForm(customers, series, values, fieldErrors, navUserView(user)).Render(ctx, w)
+		values := views.QuoteNewFormValues{CustomerID: form.CustomerID, Tipo: form.Tipo}
+		views.QuoteNewForm(customers, types, values, fieldErrors, navUserView(user)).Render(ctx, w)
 		return
 	}
 
 	customerID, _ := strconv.ParseInt(form.CustomerID, 10, 64)
 	user, _ := UserFromContext(ctx)
-	quote, err := q.store.CreateDraftQuote(ctx, customerID, user.ID, form.Prefix)
+	quote, err := q.store.CreateDraftQuoteOfType(ctx, customerID, user.ID, typeID)
 	if err != nil {
 		serverError(w, r, err)
 		return

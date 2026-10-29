@@ -1302,5 +1302,5 @@ quotes point at their type by `quote_type_id` and carry `folio_number`; the coun
 `quote_types.next_number` (CFDI counters went to `cfdi_folio_sequences`); and every
 behavior that compared a prefix or a familia name is a flag on the type. Design and
 slices: [docs/planning/tipos-de-cotizacion.md](planning/tipos-de-cotizacion.md). Slice
-T1 (schema and reads, nothing visible) is built; `/familias` still creates a familia and
-its type together until T2.
+T1 (schema and reads) and T2 (the `/tipos-de-cotizacion` admin page, `/familias` reduced
+to the catalog, behavior frozen on issued quotes by migration 0030) are built.

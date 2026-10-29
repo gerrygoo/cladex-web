@@ -328,7 +328,7 @@ func (s *Store) CreateFacturaDraft(ctx context.Context, projectID, userID int64)
 		var kgPriced bool
 		err := tx.QueryRowContext(ctx, `
 			SELECT p.status, COALESCE(p.payment_method, ''), COALESCE(cu.cfdi_use, ''), COALESCE(cu.email, ''),
-				q.id, COALESCE(q.currency, 'MXN'), COALESCE(f.sat_product_code, ''), t.kg_priced
+				q.id, COALESCE(q.currency, 'MXN'), COALESCE(f.sat_product_code, ''), COALESCE(q.kg_priced_snapshot, t.kg_priced)
 			FROM projects p
 			JOIN customers cu ON cu.id = p.customer_id
 			JOIN quotes q ON q.project_id = p.id AND q.status = 'emitida'

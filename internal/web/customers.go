@@ -157,17 +157,17 @@ func (cs *Customers) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // returnTo is where the new-customer form came from (issue #29): "cotizacion" when it was
-// opened from Nueva cotización's "Agregar nuevo cliente", with the series already picked
+// opened from Nueva cotización's "Agregar nuevo cliente", with the quote type (its id) already picked
 // there, or "duplicar" when it was opened from Duplicar cotización (issue #50), with the
 // folio being copied; saving or cancelling goes back to it. Zero means the catalog.
 type returnTo struct {
-	Volver, Serie, Folio string
+	Volver, Tipo, Folio string
 }
 
 func parseReturnTo(r *http.Request) returnTo {
 	switch r.FormValue("volver") {
 	case "cotizacion":
-		return returnTo{Volver: "cotizacion", Serie: strings.TrimSpace(r.FormValue("serie"))}
+		return returnTo{Volver: "cotizacion", Tipo: strings.TrimSpace(r.FormValue("tipo"))}
 	case "duplicar":
 		if folio := strings.TrimSpace(r.FormValue("folio")); folio != "" {
 			return returnTo{Volver: "duplicar", Folio: folio}
@@ -176,7 +176,7 @@ func parseReturnTo(r *http.Request) returnTo {
 	return returnTo{}
 }
 
-// quotePath is where the trip ends: Nueva cotización with the series selected, or
+// quotePath is where the trip ends: Nueva cotización with the quote type selected, or
 // Duplicar cotización, with customerID (0: none) picked.
 func (rt returnTo) quotePath(customerID int64) string {
 	if rt.Volver == "duplicar" {
@@ -190,8 +190,8 @@ func (rt returnTo) quotePath(customerID int64) string {
 	if customerID != 0 {
 		v.Set("cliente", strconv.FormatInt(customerID, 10))
 	}
-	if rt.Serie != "" {
-		v.Set("serie", rt.Serie)
+	if rt.Tipo != "" {
+		v.Set("tipo", rt.Tipo)
 	}
 	if len(v) == 0 {
 		return "/cotizaciones/nueva"
@@ -201,7 +201,7 @@ func (rt returnTo) quotePath(customerID int64) string {
 
 // newValues puts the return trip on the form's values.
 func (rt returnTo) newValues(v views.CustomerFormValues) views.CustomerFormValues {
-	v.Volver, v.Serie, v.Folio = rt.Volver, rt.Serie, rt.Folio
+	v.Volver, v.Tipo, v.Folio = rt.Volver, rt.Tipo, rt.Folio
 	if rt.Volver == "duplicar" {
 		v.CancelHref = "/cotizaciones/" + url.PathEscape(rt.Folio)
 	} else if rt.Volver != "" {

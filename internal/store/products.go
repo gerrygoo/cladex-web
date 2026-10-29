@@ -32,12 +32,11 @@ type Product struct {
 }
 
 // ProductFamily is a product_families row, for populating the product form's family
-// selector. Series is the prefix of the quote type that quotes it, "" when it has none,
-// and KgPriced whether that type costs its products per kg.
+// selector. KgPriced is whether a quote type quoting it costs its products per kg, so
+// they need a Peso.
 type ProductFamily struct {
 	ID       int64
 	Name     string
-	Series   string
 	KgPriced bool
 }
 
@@ -119,9 +118,9 @@ func scanProduct(row interface{ Scan(...any) error }) (*Product, error) {
 // name. Free-lines-only familias (QL) are left out: products can't be filed under them.
 func (s *Store) ListFamilies(ctx context.Context) ([]ProductFamily, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT f.id, f.name, COALESCE(t.prefix, ''), COALESCE(t.kg_priced, 0)
-		FROM product_families f LEFT JOIN quote_types t ON t.family_id = f.id
-		WHERE f.free_lines_only = 0 ORDER BY f.name`)
+		`SELECT f.id, f.name,
+			EXISTS (SELECT 1 FROM quote_types t WHERE t.family_id = f.id AND t.kg_priced = 1)
+		FROM product_families f WHERE f.free_lines_only = 0 ORDER BY f.name`)
 	if err != nil {
 		return nil, fmt.Errorf("store: list families: %w", err)
 	}
@@ -130,7 +129,7 @@ func (s *Store) ListFamilies(ctx context.Context) ([]ProductFamily, error) {
 	var families []ProductFamily
 	for rows.Next() {
 		var f ProductFamily
-		if err := rows.Scan(&f.ID, &f.Name, &f.Series, &f.KgPriced); err != nil {
+		if err := rows.Scan(&f.ID, &f.Name, &f.KgPriced); err != nil {
 			return nil, fmt.Errorf("store: list families: %w", err)
 		}
 		families = append(families, f)

@@ -124,8 +124,8 @@
           location.href = select.dataset.newCustomerHref;
           return;
         }
-        var serie = select.form.querySelector("[name=prefix]:checked");
-        location.href = "/clientes/nuevo?volver=cotizacion" + (serie ? "&serie=" + encodeURIComponent(serie.value) : "");
+        var tipo = select.form.querySelector("[name=tipo]:checked");
+        location.href = "/clientes/nuevo?volver=cotizacion" + (tipo ? "&tipo=" + encodeURIComponent(tipo.value) : "");
         return;
       }
       select.value = o.value;

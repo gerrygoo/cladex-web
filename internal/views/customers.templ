@@ -99,10 +99,10 @@ type CustomerFormValues struct {
 	Notes       string
 	LegalName   string
 	CFDIUse     string
-	// Volver and Serie carry a trip from Nueva cotización (issue #29) through the form;
+	// Volver and Tipo carry a trip from Nueva cotización (issue #29) through the form;
 	// CancelHref is where Cancelar goes then ("" for the catalog).
 	Volver     string
-	Serie      string
+	Tipo      string
 	Folio      string
 	CancelHref string
 }
@@ -168,7 +168,7 @@ templ CustomerForm(title string, action string, values CustomerFormValues, field
 		<form method="post" action={ templ.URL(action) }>
 			if values.Volver != "" {
 				<input type="hidden" name="volver" value={ values.Volver }/>
-				<input type="hidden" name="serie" value={ values.Serie }/>
+				<input type="hidden" name="tipo" value={ values.Tipo }/>
 				<input type="hidden" name="folio" value={ values.Folio }/>
 			}
 			if len(similar) > 0 {

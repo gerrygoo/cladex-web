@@ -144,6 +144,6 @@ Qué pasa al eliminar:
 | *El SKU es obligatorio.* / *La descripción es obligatoria.* | Llena el campo. |
 | *Selecciona una familia.* | Elige una familia de la lista. |
 | *Costo inválido; usa un número, p. ej. 123.45.* (y el equivalente de Peso) | Escribe solo el número, sin `$` ni comas. |
-| *El peso es obligatorio en la serie QG: el precio por metro sale del costo por kg × el peso. Escríbelo en kg/m, p. ej. 0.3896.* | Escribe el peso en kg por metro, mayor que 0. |
+| *El peso es obligatorio en la familia Alumoclad: el precio por metro sale del costo por kg × el peso. Escríbelo en kg/m, p. ej. 0.3896.* | Escribe el peso en kg por metro, mayor que 0. |
 | *Cantidad inválida; usa un número positivo, p. ej. 0.1723.* | En Materiales, escribe la cantidad como número mayor que 0. |
 | *Este producto ya tiene ese material; elimínalo y vuelve a agregarlo para cambiar la cantidad.* | Elimina la fila del material y agrégalo con la cantidad nueva. |

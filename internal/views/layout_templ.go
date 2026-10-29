@@ -82,7 +82,7 @@ func Layout(title string, user *NavUser) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if user.IsAdmin {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<li><a href=\"/usuarios\">Usuarios</a></li><li><a href=\"/familias\">Familias</a></li><li><a href=\"/unidades\">Unidades</a></li><li><a href=\"/ajustes\">Configuración del sistema</a></li>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<li><a href=\"/usuarios\">Usuarios</a></li><li><a href=\"/familias\">Familias</a></li><li><a href=\"/tipos-de-cotizacion\">Tipos de cotización</a></li><li><a href=\"/unidades\">Unidades</a></li><li><a href=\"/ajustes\">Configuración del sistema</a></li>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -104,7 +104,7 @@ func Layout(title string, user *NavUser) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(user.Username)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layout.templ`, Line: 80, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layout.templ`, Line: 81, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {

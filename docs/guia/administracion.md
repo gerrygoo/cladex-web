@@ -1,8 +1,8 @@
 # Administración
 
 Solo para cuentas con rol **Administrador**. Estas opciones están en el menú **Catálogos**,
-debajo de Productos y Clientes: **Usuarios**, **Familias**, **Unidades** y
-**Configuración del sistema**.
+debajo de Productos y Clientes: **Usuarios**, **Familias**, **Tipos de cotización**,
+**Unidades** y **Configuración del sistema**.
 
 En **Configuración del sistema** están los dos datos de los que salen los precios, además del costo de
 cada producto: los [márgenes](#márgenes) y los [materiales](#materiales). Ver
@@ -166,51 +166,99 @@ Las unidades no se pueden editar ni eliminar desde la app.
 
 ## Familias
 
-Una [[familia]] es una línea de producto (CCA, CCS & AC, ABASTILUM…) y cada una lleva
-su propia [[serie]] de folio (QA, QS, QI…) con sus *Términos y condiciones* del PDF.
-**QL** es una familia especial que no tiene productos: solo sirve para cotizar
+Una [[familia]] es una línea de producto del catálogo (CCA, CCS & AC, ABASTILUM…): cada
+producto pertenece a una. La serie de folio, los términos y cómo se ve el PDF no son de
+la familia sino de cada [tipo de cotización](#tipos-de-cotización). **QL** es una
+familia especial sin productos: la usa el tipo QL, que solo cotiza
 [líneas libres](cotizaciones.md#agregar-una-línea-libre).
 
 ### Crear una familia
 
-1. En el menú **Catálogos**, elige **Familias**. Arriba ves la lista actual.
-2. En **Nueva familia**, escribe el **Nombre**.
-3. En **Serie**, escribe dos letras que empiecen con Q (p. ej. `QF`). Cada familia
-   tiene una serie distinta. Es el prefijo de sus folios (`QF0001`).
-4. Opcional: la **Descripción de la serie** es el texto que aparece junto al prefijo al
-   elegir la serie en una cotización nueva (p. ej. *QF — Cobijas ignífugas*).
-5. En **Términos y condiciones**, escribe un término por línea; se imprimen en el PDF.
-   Si quieres que cada cotización de la serie pida un tiempo de entrega, escribe
-   `{tiempo_de_entrega}` donde debe ir, p. ej. `Tiempo de entrega: {tiempo_de_entrega}`.
-   El vendedor tendrá que escribirlo antes de [emitir](cotizaciones.md#tiempo-de-entrega).
-   Igual con `{moneda}`: el vendedor elige MXN o USD y el texto pasa a *pesos mexicanos
-   (MXN)* o *dólares americanos (USD)*, p. ej. `Precios en {moneda}, no incluyen IVA`.
-6. Marca *"Sin productos de catálogo"* solo si la familia es para líneas libres, como QL:
-   no aparecerá al dar de alta productos.
-7. Haz clic en **Crear familia**.
+1. En el menú **Catálogos**, elige **Familias**. Arriba ves la lista actual, con los
+   tipos de cotización de cada una.
+2. En **Nueva familia**, escribe el **Nombre** y haz clic en **Crear familia**.
+3. Para cotizar sus productos con una serie propia, crea después un
+   [tipo de cotización](#crear-un-tipo-de-cotización) de esa familia.
 
-La serie nueva aparece de inmediato en **Nueva cotización**.
+### Clave SAT de una familia
 
-### Cambiar los términos de una familia
+En **Familias**, haz clic en **Editar** en la fila de la familia, escribe la **Clave de
+producto SAT** (8 dígitos, p. ej. `26121600`) y haz clic en **Guardar**. Las partidas de
+las facturas de esa familia empiezan con esa clave; en cada factura se puede cambiar.
+Confírmala con el contador.
 
-1. En **Familias**, haz clic en **Editar términos** en la fila de la familia.
-2. Cambia la descripción o los términos y haz clic en **Guardar**.
-
-Los cambios se ven en los borradores y en las cotizaciones que se emitan de ahora en
-adelante. Las cotizaciones ya emitidas conservan los términos con que se emitieron.
-
-> Los términos de **QL** incluyen la moneda (`{moneda}`) y el tiempo de entrega
-> (`{tiempo_de_entrega}`), así que sus cotizaciones los piden. Si los editas, conserva
-> esas líneas para que se sigan pidiendo. Las series sin productos (como QL) además piden
-> una [vigencia](cotizaciones.md#moneda-y-vigencia-en-ql) escrita a mano.
-
-El nombre y la serie de una familia no se pueden cambiar ni eliminar desde la app.
+El nombre de una familia no se puede cambiar, y las familias no se eliminan desde la app.
 
 Mensajes de error:
 
 | Mensaje | Qué hacer |
 |---|---|
 | *El nombre es obligatorio.* | Escribe el nombre de la familia. |
-| *La serie son dos letras y empieza con Q, p. ej. QF.* | Escribe algo como `QF`. |
 | *Ya existe una familia con este nombre.* | Usa otro nombre. |
-| *Ya existe una familia con esta serie.* | Elige otra serie. |
+| *La clave SAT son 8 dígitos, p. ej. 26121600.* | Escribe solo los 8 dígitos. |
+
+## Tipos de cotización
+
+Un [[tipo de cotización]] es una clase de cotización: su [[serie]] de folio (QA, QS,
+QI…), su numeración, sus *Términos y condiciones* y cómo se ve su PDF. Al
+[crear una cotización](cotizaciones.md#crear-una-cotización) se elige su tipo. Están
+en el menú **Catálogos**, **Tipos de cotización**; la lista muestra el siguiente folio
+de cada uno.
+
+### Crear un tipo de cotización
+
+1. En **Tipos de cotización**, ve a **Nuevo tipo de cotización**.
+2. En **Serie**, escribe una Q seguida de 1 a 5 letras (p. ej. `QCCA`). Es el prefijo de
+   sus folios (`QCCA0001`).
+3. Opcional: el **Nombre** aparece junto a la serie al elegir el tipo (p. ej.
+   *QCCA — Cable CCA*).
+4. En **Familia de sus productos**, elige la familia que cotiza. El buscador de productos
+   de sus cotizaciones la muestra, y sus facturas toman su clave SAT.
+5. En **Términos y condiciones**, escribe un término por línea; se imprimen en el PDF.
+   Si quieres que cada cotización pida un tiempo de entrega, escribe
+   `{tiempo_de_entrega}` donde debe ir, p. ej. `Tiempo de entrega: {tiempo_de_entrega}`.
+   El vendedor tendrá que escribirlo antes de [emitir](cotizaciones.md#tiempo-de-entrega).
+   Igual con `{moneda}`: el vendedor elige MXN o USD y el texto pasa a *pesos mexicanos
+   (MXN)* o *dólares americanos (USD)*, p. ej. `Precios en {moneda}, no incluyen IVA`.
+6. Elige el **Membrete del PDF** y marca lo que aplique:
+   - *Solo líneas libres*: sin productos de catálogo, como QL. No se puede cambiar
+     después.
+   - *Precio por kg*: el costo de sus productos es por kilo y se cotizan por metro, como
+     QG. Sus productos piden el peso (kg/m).
+   - *"Otro margen" como precio por kg del cobre*, como QS.
+   - *PDF sin la dirección de Cladex*.
+   - *Al final de la lista de cotizaciones*.
+7. Haz clic en **Crear tipo**. Aparece de inmediato en **Nueva cotización**.
+
+### Cambiar un tipo de cotización
+
+1. En **Tipos de cotización**, haz clic en **Editar** en su fila. Arriba dice cuál será
+   su siguiente folio.
+2. Cambia lo que necesites y haz clic en **Guardar**.
+
+Puedes cambiar su **serie**, p. ej. de `QA` a `QCCA`:
+
+- Las cotizaciones que ya tienen folio lo **conservan** (`QA0105` sigue siendo `QA0105`).
+- La numeración **continúa** con la serie nueva: si la siguiente iba a ser `QA0106`,
+  será `QCCA0106`.
+- Una serie que ya tiene o usó **otro** tipo no se puede usar, para que nunca haya dos
+  cotizaciones con el mismo folio.
+
+Los cambios de términos, membrete y lo demás se ven en los borradores y en las
+cotizaciones que se emitan de ahora en adelante. Las ya emitidas conservan los términos y
+el PDF con que se emitieron.
+
+> Los términos de **QL** incluyen la moneda (`{moneda}`) y el tiempo de entrega
+> (`{tiempo_de_entrega}`), así que sus cotizaciones los piden. Si los editas, conserva
+> esas líneas para que se sigan pidiendo. Los tipos de solo líneas libres (como QL) además
+> piden una [vigencia](cotizaciones.md#moneda-y-vigencia-en-ql) escrita a mano.
+
+Los tipos de cotización no se eliminan desde la app.
+
+Mensajes de error:
+
+| Mensaje | Qué hacer |
+|---|---|
+| *La serie es una Q seguida de 1 a 5 letras, p. ej. QCCA.* | Escribe algo como `QCCA`, sin números ni espacios. |
+| *Esa serie ya la tiene o la usó otro tipo de cotización; elige otra.* | Elige otra serie. |
+

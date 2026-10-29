@@ -551,7 +551,7 @@ func TestProductQGRequiresWeight(t *testing.T) {
 		return url.Values{"family_id": {itoa(family)}, "sku": {sku}, "description": {"Cable"}, "cost": {"95"}, "kg_per_m": {kg}}
 	}
 	// Quoted verbatim in docs/guia/productos.md's Problemas comunes.
-	const msg = "El peso es obligatorio en la serie QG: el precio por metro sale del costo por kg × el peso. Escríbelo en kg/m, p. ej. 0.3896."
+	const msg = "El peso es obligatorio en la familia Alumoclad: el precio por metro sale del costo por kg × el peso. Escríbelo en kg/m, p. ej. 0.3896."
 	for _, kg := range []string{"", "0"} {
 		rec := doForm(t, a, userID, p.Create, "POST", "/productos/nuevo", nil, form(qgID, "ALC-1", kg), false)
 		if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), msg) {
@@ -572,16 +572,13 @@ func TestProductQGRequiresWeight(t *testing.T) {
 func createQGFamily(t *testing.T, a *Auth, label, terms string) int64 {
 	t.Helper()
 	ctx := context.Background()
-	familyID, err := a.store.CreateFamily(ctx, store.Family{Name: "Alumoclad", Series: "QG", SeriesLabel: label, Terms: terms})
+	familyID, err := a.store.CreateFamily(ctx, "Alumoclad")
 	if err != nil {
 		t.Fatalf("CreateFamily: %v", err)
 	}
-	typeID, err := a.store.QuoteTypeIDByPrefix(ctx, "QG")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := a.store.SetQuoteTypeBehavior(ctx, typeID, store.QuoteTypeBehavior{KgPriced: true, Letterhead: "alumoclad"}); err != nil {
-		t.Fatal(err)
+	if _, err := a.store.CreateQuoteType(ctx, store.QuoteType{Prefix: "QG", Name: label, Terms: terms, FamilyID: &familyID,
+		QuoteTypeBehavior: store.QuoteTypeBehavior{KgPriced: true, Letterhead: "alumoclad"}}); err != nil {
+		t.Fatalf("CreateQuoteType: %v", err)
 	}
 	return familyID
 }

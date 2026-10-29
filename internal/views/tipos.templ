@@ -1,0 +1,170 @@
+package views
+
+import (
+	"strconv"
+	"strings"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// tipoPath is a quote type's edit page.
+func tipoPath(id int64) string {
+	return "/tipos-de-cotizacion/" + strconv.FormatInt(id, 10)
+}
+
+// tipoBehaviorText is the list's one-line summary of what a type does differently.
+func tipoBehaviorText(t store.QuoteType) string {
+	var parts []string
+	if t.FreeLinesOnly {
+		parts = append(parts, "solo líneas libres")
+	}
+	if t.KgPriced {
+		parts = append(parts, "precio por kg")
+	}
+	if t.CopperPriceMargin {
+		parts = append(parts, "margen como precio del cobre")
+	}
+	if t.HideAddress {
+		parts = append(parts, "PDF sin dirección")
+	}
+	if t.SortLast {
+		parts = append(parts, "al final de la lista")
+	}
+	return strings.Join(parts, ", ")
+}
+
+func letterheadLabel(v string) string {
+	for _, l := range store.Letterheads {
+		if l.Value == v {
+			return l.Label
+		}
+	}
+	return v
+}
+
+templ TiposList(types []store.QuoteType, families []store.Family, values store.QuoteType, fieldErrors map[string]string, successMsg string, user *NavUser) {
+	@Layout("Tipos de cotización", user) {
+		<div class="page-title">
+			<h1>Tipos de cotización</h1>
+			@HelpLink(HelpTipos)
+		</div>
+		@Flash(successMsg)
+		<p>Cada tipo tiene su serie de folio, sus términos y condiciones y cómo se ve su PDF. Al crear una cotización se elige su tipo.</p>
+		<div class="table-scroll">
+			<table>
+				<thead>
+					<tr>
+						<th>Serie</th>
+						<th>Nombre</th>
+						<th>Familia</th>
+						<th>Siguiente folio</th>
+						<th>Membrete</th>
+						<th>Además</th>
+						<th><span class="visually-hidden">Acciones</span></th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, t := range types {
+						<tr>
+							<td>{ t.Prefix }</td>
+							<td>{ t.Name }</td>
+							<td>{ t.FamilyName }</td>
+							<td>{ t.NextFolioText() }</td>
+							<td>{ letterheadLabel(t.Letterhead) }</td>
+							<td>{ tipoBehaviorText(t) }</td>
+							<td><a href={ templ.URL(tipoPath(t.ID)) }>Editar<span class="visually-hidden">{ " " + t.Prefix }</span></a></td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		<h2>Nuevo tipo de cotización</h2>
+		<form method="post" action="/tipos-de-cotizacion">
+			@tipoFields(values, families, fieldErrors, true)
+			<button type="submit" class="primary">Crear tipo</button>
+		</form>
+	}
+}
+
+templ TipoEdit(saved store.QuoteType, values store.QuoteType, families []store.Family, fieldErrors map[string]string, user *NavUser) {
+	@Layout("Editar "+saved.Prefix, user) {
+		<div class="page-title">
+			<h1>Editar tipo { saved.Prefix }</h1>
+			@HelpLink(HelpTipos)
+		</div>
+		<p>La siguiente cotización de este tipo será la <strong>{ saved.NextFolioText() }</strong>. Si cambias la serie, las cotizaciones que ya tienen folio lo conservan y la numeración sigue con la serie nueva.</p>
+		<p>Los cambios se usan en los borradores y en las cotizaciones que se emitan de ahora en adelante; las ya emitidas conservan los términos y el PDF con que salieron.</p>
+		<form method="post" action={ templ.URL(tipoPath(saved.ID)) }>
+			@tipoFields(values, families, fieldErrors, false)
+			<button type="submit" class="primary">Guardar</button>
+			<a href="/tipos-de-cotizacion">Cancelar</a>
+		</form>
+	}
+}
+
+// tipoFields is the type form shared by create and edit. "Solo líneas libres" is only
+// chosen at creation: the type's drafts are built one way or the other.
+templ tipoFields(t store.QuoteType, families []store.Family, fieldErrors map[string]string, creating bool) {
+	<label>
+		Serie (Q y de 1 a 5 letras)
+		<input type="text" name="prefix" value={ t.Prefix } maxlength="6" pattern="[Qq][A-Za-z]{1,5}" placeholder="p. ej. QCCA" autocapitalize="characters" required { errAttrs(fieldErrors, "prefix")... }/>
+	</label>
+	@FieldError(fieldErrors, "prefix")
+	<label>
+		Nombre (opcional)
+		<input type="text" name="name" value={ t.Name } placeholder="p. ej. Cable CCA"/>
+	</label>
+	<p class="hint">Aparece junto a la serie al elegir el tipo en una cotización nueva (p. ej. <em>QCCA — Cable CCA</em>).</p>
+	<label>
+		Familia de sus productos
+		<select name="family_id">
+			<option value="">Ninguna</option>
+			for _, f := range families {
+				<option value={ strconv.FormatInt(f.ID, 10) } selected?={ t.FamilyID != nil && *t.FamilyID == f.ID }>{ f.Name }</option>
+			}
+		</select>
+	</label>
+	<p class="hint">El buscador de productos de sus cotizaciones muestra esta familia, y sus facturas toman su clave SAT.</p>
+	<p>Escribe <code>{ store.DeliveryTimeToken }</code> donde va el tiempo de entrega, p. ej. <em>Tiempo de entrega: { store.DeliveryTimeToken }</em>. Cada cotización de este tipo pedirá ese dato y no se podrá emitir sin él.</p>
+	<p>Escribe <code>{ store.CurrencyToken }</code> donde va la moneda (MXN o USD), p. ej. <em>Precios en { store.CurrencyToken }, no incluyen IVA</em>. Cada cotización pedirá elegirla.</p>
+	<label>
+		Términos y condiciones del PDF (uno por línea)
+		<textarea name="terms" rows="8">{ t.Terms }</textarea>
+	</label>
+	<label>
+		Membrete del PDF
+		<select name="letterhead" { errAttrs(fieldErrors, "letterhead")... }>
+			for _, l := range store.Letterheads {
+				<option value={ l.Value } selected?={ l.Value == t.Letterhead }>{ l.Label }</option>
+			}
+		</select>
+	</label>
+	@FieldError(fieldErrors, "letterhead")
+	<fieldset>
+		<legend>Además</legend>
+		if creating {
+			<label>
+				<input type="checkbox" name="free_lines_only" value="1" checked?={ t.FreeLinesOnly }/>
+				Solo líneas libres: sin productos de catálogo, como QL (no se puede cambiar después)
+			</label>
+		} else if t.FreeLinesOnly {
+			<p>Este tipo es de solo líneas libres.</p>
+		}
+		<label>
+			<input type="checkbox" name="kg_priced" value="1" checked?={ t.KgPriced }/>
+			Precio por kg: el costo de sus productos es por kilo y se cotizan por metro, como QG
+		</label>
+		<label>
+			<input type="checkbox" name="copper_price_margin" value="1" checked?={ t.CopperPriceMargin }/>
+			"Otro margen" se puede escribir como precio por kg del cobre, como QS
+		</label>
+		<label>
+			<input type="checkbox" name="hide_address" value="1" checked?={ t.HideAddress }/>
+			PDF sin la dirección de Cladex
+		</label>
+		<label>
+			<input type="checkbox" name="sort_last" value="1" checked?={ t.SortLast }/>
+			Al final de la lista de cotizaciones
+		</label>
+	</fieldset>
+}

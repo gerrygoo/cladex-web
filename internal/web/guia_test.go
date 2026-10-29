@@ -291,12 +291,12 @@ func TestGuiaCotizacionNuevaMessages(t *testing.T) {
 	userID := createTestUser(t, a, "rodolfo", "vendedor", "hunter2")
 
 	rec := doForm(t, a, userID, q.Create, "POST", "/cotizaciones/nueva", nil,
-		url.Values{"customer_id": {""}, "prefix": {""}}, false)
+		url.Values{"customer_id": {""}, "tipo": {""}}, false)
 
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d, want 422", rec.Code)
 	}
-	for _, want := range []string{"Selecciona un cliente.", "Selecciona una serie de folio."} {
+	for _, want := range []string{"Selecciona un cliente.", "Selecciona un tipo de cotización."} {
 		if !strings.Contains(rec.Body.String(), want) {
 			t.Errorf("body missing %q: %s", want, rec.Body.String())
 		}

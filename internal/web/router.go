@@ -55,6 +55,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	settings.facturacion = build.Facturacion
 	units := NewUnits(db)
 	familias := NewFamilias(db)
+	tipos := NewTipos(db)
 	documentos := NewDocumentos(db)
 	help := NewHelp(guide)
 
@@ -180,6 +181,10 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /familias", admin(familias.Create))
 	mux.Handle("GET /familias/{id}", admin(familias.EditPage))
 	mux.Handle("POST /familias/{id}", admin(familias.Update))
+	mux.Handle("GET /tipos-de-cotizacion", admin(tipos.List))
+	mux.Handle("POST /tipos-de-cotizacion", admin(tipos.Create))
+	mux.Handle("GET /tipos-de-cotizacion/{id}", admin(tipos.EditPage))
+	mux.Handle("POST /tipos-de-cotizacion/{id}", admin(tipos.Update))
 
 	mux.Handle("GET /ayuda", authed(help.Page))
 	mux.Handle("GET /ayuda/{pagina}", authed(help.Page))

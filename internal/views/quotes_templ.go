@@ -328,10 +328,10 @@ const NewCustomerValue = "nuevo"
 // QuoteNewFormValues is the view-model for QuoteNewForm.
 type QuoteNewFormValues struct {
 	CustomerID string
-	Prefix     string
+	Tipo       string // the chosen quote type's id
 }
 
-func QuoteNewForm(customers []store.Customer, series []store.Series, values QuoteNewFormValues, fieldErrors map[string]string, user *NavUser) templ.Component {
+func QuoteNewForm(customers []store.Customer, types []store.QuoteType, values QuoteNewFormValues, fieldErrors map[string]string, user *NavUser) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -490,23 +490,23 @@ func QuoteNewForm(customers []store.Customer, series []store.Series, values Quot
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, errAttrs(fieldErrors, "prefix"))
+			templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, errAttrs(fieldErrors, "tipo"))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "><legend>Serie de folio</legend> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "><legend>Tipo de cotización</legend> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			for _, sr := range series {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<label><input type=\"radio\" name=\"prefix\" value=\"")
+			for _, t := range types {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<label><input type=\"radio\" name=\"tipo\" value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var19 string
-				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(sr.Prefix)
+				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(strconv.FormatInt(t.ID, 10))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 155, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 155, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 				if templ_7745c5c3_Err != nil {
@@ -516,7 +516,7 @@ func QuoteNewForm(customers []store.Customer, series []store.Series, values Quot
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				if sr.Prefix == values.Prefix {
+				if strconv.FormatInt(t.ID, 10) == values.Tipo {
 					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, " checked")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -527,9 +527,9 @@ func QuoteNewForm(customers []store.Customer, series []store.Series, values Quot
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var20 string
-				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(sr.PickerLabel())
+				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(t.PickerLabel())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 156, Col: 24}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/quotes.templ`, Line: 156, Col: 23}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 				if templ_7745c5c3_Err != nil {
@@ -540,7 +540,7 @@ func QuoteNewForm(customers []store.Customer, series []store.Series, values Quot
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = FieldError(fieldErrors, "prefix").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = FieldError(fieldErrors, "tipo").Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

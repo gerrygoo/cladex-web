@@ -120,10 +120,10 @@ const NewCustomerValue = "nuevo"
 // QuoteNewFormValues is the view-model for QuoteNewForm.
 type QuoteNewFormValues struct {
 	CustomerID string
-	Prefix     string
+	Tipo       string // the chosen quote type's id
 }
 
-templ QuoteNewForm(customers []store.Customer, series []store.Series, values QuoteNewFormValues, fieldErrors map[string]string, user *NavUser) {
+templ QuoteNewForm(customers []store.Customer, types []store.QuoteType, values QuoteNewFormValues, fieldErrors map[string]string, user *NavUser) {
 	@Layout("Nueva cotización", user) {
 		<div class="page-title">
 			<h1>Nueva cotización</h1>
@@ -148,15 +148,15 @@ templ QuoteNewForm(customers []store.Customer, series []store.Series, values Quo
 				}
 			</select>
 			@FieldError(fieldErrors, "customer_id")
-			<fieldset role="radiogroup" { errAttrs(fieldErrors, "prefix")... }>
-				<legend>Serie de folio</legend>
-				for _, sr := range series {
+			<fieldset role="radiogroup" { errAttrs(fieldErrors, "tipo")... }>
+				<legend>Tipo de cotización</legend>
+				for _, t := range types {
 					<label>
-						<input type="radio" name="prefix" value={ sr.Prefix } checked?={ sr.Prefix == values.Prefix }/>
-						{ sr.PickerLabel() }
+						<input type="radio" name="tipo" value={ strconv.FormatInt(t.ID, 10) } checked?={ strconv.FormatInt(t.ID, 10) == values.Tipo }/>
+						{ t.PickerLabel() }
 					</label>
 				}
-				@FieldError(fieldErrors, "prefix")
+				@FieldError(fieldErrors, "tipo")
 			</fieldset>
 			<button type="submit" class="primary">Crear cotización</button>
 			<a href="/cotizaciones">Cancelar</a>

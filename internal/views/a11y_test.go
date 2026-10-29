@@ -120,7 +120,7 @@ func TestNavGroupsTablesAndLeavesLogoutToMiCuenta(t *testing.T) {
 	admin := render(t, CustomersList(nil, ListView{Base: "/clientes"}, "", &NavUser{Username: "ana", IsAdmin: true}))
 	assertContains(t, admin,
 		`<details class="nav-menu"><summary>Cotizaciones</summary><ul><li><a href="/cotizaciones/nueva">Nueva cotización</a></li><li><a href="/cotizaciones">Ver cotizaciones</a></li></ul></details>`,
-		`<details class="nav-menu"><summary>Catálogos</summary><ul><li><a href="/productos">Productos</a></li><li><a href="/clientes">Clientes</a></li><li><a href="/usuarios">Usuarios</a></li><li><a href="/familias">Familias</a></li><li><a href="/unidades">Unidades</a></li><li><a href="/ajustes">Configuración del sistema</a></li></ul></details>`)
+		`<details class="nav-menu"><summary>Catálogos</summary><ul><li><a href="/productos">Productos</a></li><li><a href="/clientes">Clientes</a></li><li><a href="/usuarios">Usuarios</a></li><li><a href="/familias">Familias</a></li><li><a href="/tipos-de-cotizacion">Tipos de cotización</a></li><li><a href="/unidades">Unidades</a></li><li><a href="/ajustes">Configuración del sistema</a></li></ul></details>`)
 	if strings.Contains(admin, `action="/logout"`) {
 		t.Error("the nav bar should not carry the logout form")
 	}

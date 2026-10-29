@@ -13,10 +13,9 @@ import (
 )
 
 // Familias holds the dependencies for the admin-only /familias handlers: list and
-// create the product familias, each of which also starts a quote series (its folio
-// prefix and its "Términos y condiciones" block), and edit a familia's terms. Familias
-// are never deleted or renamed here: products and quotes reference them, and a series
-// prefix is printed in every folio it has issued.
+// create the product familias (catalog categories) and set a familia's SAT code. How a
+// quote is numbered and printed lives on its quote type (/tipos-de-cotizacion).
+// Familias are never deleted or renamed here: products reference them.
 type Familias struct {
 	store *store.Store
 }
@@ -31,16 +30,7 @@ var satProductPattern = regexp.MustCompile(`^[0-9]{8}$`)
 // satUnitPattern is a SAT c_ClaveUnidad: two or three capitals or digits.
 var satUnitPattern = regexp.MustCompile(`^[A-Z0-9]{2,3}$`)
 
-// seriesPattern is what a series prefix looks like: Q and one more letter, like QA.
-var seriesPattern = regexp.MustCompile(`^Q[A-Z]$`)
-
 func (f *Familias) List(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	families, err := f.store.ListAllFamilies(ctx)
-	if err != nil {
-		serverError(w, r, err)
-		return
-	}
 	successMsg := ""
 	switch r.URL.Query().Get("guardado") {
 	case "creada":
@@ -48,60 +38,40 @@ func (f *Familias) List(w http.ResponseWriter, r *http.Request) {
 	case "editada":
 		successMsg = "Familia guardada."
 	}
-	user, _ := UserFromContext(ctx)
-	views.FamiliasList(families, views.FamiliaFormValues{}, nil, successMsg, navUserView(user)).Render(ctx, w)
+	f.renderList(w, r, "", nil, successMsg, http.StatusOK)
 }
 
-func (f *Familias) Create(w http.ResponseWriter, r *http.Request) {
+func (f *Familias) renderList(w http.ResponseWriter, r *http.Request, name string, errs map[string]string, successMsg string, status int) {
 	ctx := r.Context()
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "solicitud inválida", http.StatusBadRequest)
-		return
-	}
-	values := views.FamiliaFormValues{
-		Name:          strings.TrimSpace(r.FormValue("name")),
-		Series:        strings.ToUpper(strings.TrimSpace(r.FormValue("series"))),
-		SeriesLabel:   strings.TrimSpace(r.FormValue("series_label")),
-		Terms:         r.FormValue("terms"),
-		FreeLinesOnly: r.FormValue("free_lines_only") != "",
-	}
-	errs := map[string]string{}
-	if values.Name == "" {
-		errs["name"] = "El nombre es obligatorio."
-	}
-	if !seriesPattern.MatchString(values.Series) {
-		errs["series"] = "La serie son dos letras y empieza con Q, p. ej. QF."
-	}
-	if len(errs) == 0 {
-		_, err := f.store.CreateFamily(ctx, store.Family{
-			Name:          values.Name,
-			Series:        values.Series,
-			SeriesLabel:   values.SeriesLabel,
-			Terms:         strings.Join(store.SplitTerms(values.Terms), "\n"),
-			FreeLinesOnly: values.FreeLinesOnly,
-		})
-		switch {
-		case err == nil:
-			http.Redirect(w, r, "/familias?guardado=creada", http.StatusSeeOther)
-			return
-		case errors.Is(err, store.ErrDuplicateFamilyName):
-			errs["name"] = "Ya existe una familia con este nombre."
-		case errors.Is(err, store.ErrDuplicateSeries):
-			errs["series"] = "Ya existe una familia con esta serie."
-		default:
-			serverError(w, r, err)
-			return
-		}
-	}
-
 	families, err := f.store.ListAllFamilies(ctx)
 	if err != nil {
 		serverError(w, r, err)
 		return
 	}
 	user, _ := UserFromContext(ctx)
-	w.WriteHeader(http.StatusUnprocessableEntity)
-	views.FamiliasList(families, values, errs, "", navUserView(user)).Render(ctx, w)
+	w.WriteHeader(status)
+	views.FamiliasList(families, name, errs, successMsg, navUserView(user)).Render(ctx, w)
+}
+
+func (f *Familias) Create(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimSpace(r.FormValue("name"))
+	errs := map[string]string{}
+	if name == "" {
+		errs["name"] = "El nombre es obligatorio."
+	} else {
+		_, err := f.store.CreateFamily(r.Context(), name)
+		switch {
+		case err == nil:
+			http.Redirect(w, r, "/familias?guardado=creada", http.StatusSeeOther)
+			return
+		case errors.Is(err, store.ErrDuplicateFamilyName):
+			errs["name"] = "Ya existe una familia con este nombre."
+		default:
+			serverError(w, r, err)
+			return
+		}
+	}
+	f.renderList(w, r, name, errs, "", http.StatusUnprocessableEntity)
 }
 
 // loadFamilyOrNotFound finds the familia named by the {id} path value, writing a 404 and
@@ -111,7 +81,7 @@ func (f *Familias) loadFamilyOrNotFound(w http.ResponseWriter, r *http.Request) 
 	if err == nil {
 		families, lerr := f.store.ListAllFamilies(r.Context())
 		if lerr != nil {
-			serverError(w, r, err)
+			serverError(w, r, lerr)
 			return store.Family{}, false
 		}
 		for _, fam := range families {
@@ -130,7 +100,7 @@ func (f *Familias) EditPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, _ := UserFromContext(r.Context())
-	views.FamiliaEdit(fam, fam.SeriesLabel, fam.Terms, navUserView(user)).Render(r.Context(), w)
+	views.FamiliaEdit(fam, nil, navUserView(user)).Render(r.Context(), w)
 }
 
 func (f *Familias) Update(w http.ResponseWriter, r *http.Request) {
@@ -138,25 +108,15 @@ func (f *Familias) Update(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "solicitud inválida", http.StatusBadRequest)
-		return
-	}
-	label := strings.TrimSpace(r.FormValue("series_label"))
-	terms := strings.Join(store.SplitTerms(r.FormValue("terms")), "\n")
 	satCode := strings.TrimSpace(r.FormValue("sat_product_code"))
 	if satCode != "" && !satProductPattern.MatchString(satCode) {
 		user, _ := UserFromContext(r.Context())
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		fam.SATProductCode = satCode
-		views.FamiliaEdit(fam, label, terms, navUserView(user)).Render(r.Context(), w)
+		views.FamiliaEdit(fam, map[string]string{"sat_product_code": "La clave SAT son 8 dígitos, p. ej. 26121600."}, navUserView(user)).Render(r.Context(), w)
 		return
 	}
 	if err := f.store.SetFamilySATCode(r.Context(), fam.ID, satCode); err != nil {
-		serverError(w, r, err)
-		return
-	}
-	if err := f.store.UpdateFamilyTerms(r.Context(), fam.ID, label, terms); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.NotFound(w, r)
 			return

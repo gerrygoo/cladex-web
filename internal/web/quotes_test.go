@@ -120,7 +120,7 @@ func TestQuotesCreateBuildAndSave(t *testing.T) {
 	// Create — plain POST + redirect, no htmx (JS-disabled path).
 	rec := doForm(t, a, userID, q.Create, "POST", "/cotizaciones/nueva", nil, url.Values{
 		"customer_id": {strconv.FormatInt(customerID, 10)},
-		"prefix":      {"QA"},
+		"tipo":        {typeIDOf(t, a, "QA")},
 	}, false)
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("Create status = %d, want 303; body = %s", rec.Code, rec.Body.String())
@@ -1008,7 +1008,7 @@ func TestQuotesLibreSeries(t *testing.T) {
 	}
 
 	rec = doForm(t, a, userID, q.Create, "POST", "/cotizaciones/nueva", nil, url.Values{
-		"customer_id": {strconv.FormatInt(customerID, 10)}, "prefix": {"QZ"},
+		"customer_id": {strconv.FormatInt(customerID, 10)}, "tipo": {"999"},
 	}, false)
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("Create with an unknown series = %d, want 422", rec.Code)
@@ -1016,7 +1016,7 @@ func TestQuotesLibreSeries(t *testing.T) {
 
 	builder := func(prefix string) string {
 		rec := doForm(t, a, userID, q.Create, "POST", "/cotizaciones/nueva", nil, url.Values{
-			"customer_id": {strconv.FormatInt(customerID, 10)}, "prefix": {prefix},
+			"customer_id": {strconv.FormatInt(customerID, 10)}, "tipo": {typeIDOf(t, a, prefix)},
 		}, false)
 		if rec.Code != http.StatusSeeOther {
 			t.Fatalf("Create(%s) = %d, want 303; body = %s", prefix, rec.Code, rec.Body.String())

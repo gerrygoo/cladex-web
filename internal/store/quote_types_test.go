@@ -100,7 +100,9 @@ func TestRenamingAPrefixKeepsEverything(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.db.ExecContext(ctx, `UPDATE quote_types SET prefix = 'QCCA' WHERE prefix = 'QA'`); err != nil {
+	qa, _ := s.QuoteTypeByID(ctx, old.QuoteTypeID)
+	qa.Prefix = "QCCA"
+	if err := s.UpdateQuoteType(ctx, *qa); err != nil {
 		t.Fatal(err)
 	}
 
@@ -125,7 +127,51 @@ func TestRenamingAPrefixKeepsEverything(t *testing.T) {
 	if _, err := s.CreateDraftQuote(ctx, customerID, userID, "QA"); !errors.Is(err, ErrUnknownQuoteType) {
 		t.Errorf("a quote in the retired QA = %v, want ErrUnknownQuoteType", err)
 	}
-	if _, err := s.CreateFamily(ctx, Family{Name: "Otra", Series: "QA"}); !errors.Is(err, ErrDuplicateSeries) {
-		t.Errorf("a new familia taking the retired QA = %v, want ErrDuplicateSeries", err)
+	if _, err := s.CreateQuoteType(ctx, QuoteType{Prefix: "QA"}); !errors.Is(err, ErrDuplicateSeries) {
+		t.Errorf("a new type taking the retired QA = %v, want ErrDuplicateSeries", err)
 	}
+	qs, _ := s.QuoteTypeByID(ctx, mustTypeID(t, s, "QS"))
+	qs.Prefix = "QA"
+	if err := s.UpdateQuoteType(ctx, *qs); !errors.Is(err, ErrDuplicateSeries) {
+		t.Errorf("QS taking QA's retired prefix = %v, want ErrDuplicateSeries", err)
+	}
+	// Going back is fine: QA's old folios are its own and its counter only moves on.
+	qa.Prefix = "QA"
+	if err := s.UpdateQuoteType(ctx, *qa); err != nil {
+		t.Errorf("QCCA back to QA = %v", err)
+	}
+	if got, want := nextFolioText(t, s, "QA"), FolioText("QA", dup.FolioNumber+1); got != want {
+		t.Errorf("QA after going back = %s, want %s", got, want)
+	}
+}
+
+// TestIssuedQuotesKeepTheirTypesBehavior: a quote issued under one letterhead keeps
+// printing it after the type changes (migration 0030), while a draft follows the type.
+func TestIssuedQuotesKeepTheirTypesBehavior(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	customerID, userID, _, _ := seedQuoteFixtures(t, s, ctx)
+	issued, _ := s.CreateDraftQuote(ctx, customerID, userID, "QS")
+	if err := s.IssueQuote(ctx, issued.ID, testIssue("sha")); err != nil {
+		t.Fatal(err)
+	}
+	draft, _ := s.CreateDraftQuote(ctx, customerID, userID, "QS")
+	if err := s.SetQuoteTypeBehavior(ctx, issued.QuoteTypeID, QuoteTypeBehavior{HideAddress: true, Letterhead: "cladex"}); err != nil {
+		t.Fatal(err)
+	}
+	if q, _ := s.QuoteByID(ctx, issued.ID); q.Letterhead != "copperclad" || !q.CopperPriceMargin || q.HideAddress {
+		t.Errorf("issued QS after the type changed = %+v; want it as issued", q)
+	}
+	if q, _ := s.QuoteByID(ctx, draft.ID); q.Letterhead != "cladex" || q.CopperPriceMargin || !q.HideAddress {
+		t.Errorf("draft QS after the type changed = %+v; want the type's new behavior", q)
+	}
+}
+
+func mustTypeID(t *testing.T, s *Store, prefix string) int64 {
+	t.Helper()
+	id, err := s.QuoteTypeIDByPrefix(context.Background(), prefix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
 }

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"io/fs"
 	"path/filepath"
@@ -12,85 +13,98 @@ import (
 	cladex "github.com/gerrygoo/cladex-web"
 )
 
-func TestSeededSeries(t *testing.T) {
+func TestSeededQuoteTypes(t *testing.T) {
 	s := newTestStore(t)
-	series, err := s.ListSeries(context.Background())
+	types, err := s.ListQuoteTypes(context.Background())
 	if err != nil {
-		t.Fatalf("ListSeries: %v", err)
+		t.Fatalf("ListQuoteTypes: %v", err)
 	}
 	var got []string
-	for _, sr := range series {
-		got = append(got, sr.PickerLabel())
+	for _, qt := range types {
+		got = append(got, qt.PickerLabel())
 	}
 	want := "QA — Cable CCA|QS — Cable CCS & AC|QI — Alumbrado|QL — Líneas libres"
 	if strings.Join(got, "|") != want {
-		t.Fatalf("series = %v; want %s", got, want)
+		t.Fatalf("types = %v; want %s", got, want)
 	}
-	if !series[3].FreeLinesOnly || series[0].FreeLinesOnly {
-		t.Fatalf("only QL is free-lines-only: %+v", series)
+	if !types[3].FreeLinesOnly || types[0].FreeLinesOnly {
+		t.Fatalf("only QL is free-lines-only: %+v", types)
 	}
 }
 
-func TestCreateFamilyStartsAQuoteSeries(t *testing.T) {
+func TestCreateAndUpdateQuoteType(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 
-	id, err := s.CreateFamily(ctx, Family{Name: "Fire Blanket", Series: "QF", SeriesLabel: "Cobijas", Terms: "Precios en MXN"})
+	famID, err := s.CreateFamily(ctx, "Fire Blanket")
 	if err != nil {
 		t.Fatalf("CreateFamily: %v", err)
 	}
-	if ok, err := s.SeriesExists(ctx, "QF"); err != nil || !ok {
-		t.Fatalf("SeriesExists(QF) = %v, %v", ok, err)
+	if _, err := s.CreateFamily(ctx, "fire blanket"); !errors.Is(err, ErrDuplicateFamilyName) {
+		t.Fatalf("duplicate familia name err = %v", err)
 	}
-	if ok, _ := s.SeriesExists(ctx, "QZ"); ok {
-		t.Fatal("SeriesExists(QZ) = true for a series nobody owns")
+	typeID, err := s.CreateQuoteType(ctx, QuoteType{Prefix: "QF", Name: "Cobijas", Terms: "Precios en MXN", FamilyID: &famID})
+	if err != nil {
+		t.Fatalf("CreateQuoteType: %v", err)
 	}
 
-	// The whole point: a quote in the new series numbers itself and carries the familia.
+	// The whole point: a quote of the new type numbers itself and carries the familia.
 	userID, _ := s.CreateUser(ctx, "ana", "Ana", "pw", "admin")
 	custID, _ := s.CreateCustomer(ctx, Customer{Name: "ACME"})
-	q, err := s.CreateDraftQuote(ctx, custID, userID, "QF")
+	q, err := s.CreateDraftQuoteOfType(ctx, custID, userID, typeID)
 	if err != nil {
-		t.Fatalf("CreateDraftQuote(QF): %v", err)
+		t.Fatalf("CreateDraftQuoteOfType: %v", err)
 	}
-	if q.Folio != "QF0001" || q.SeriesFamily != "Fire Blanket" || q.SeriesTerms != "Precios en MXN" {
+	if q.Folio != "QF0001" || q.SeriesFamily != "Fire Blanket" || q.SeriesTerms != "Precios en MXN" || q.Letterhead != "cladex" {
 		t.Fatalf("quote = %+v", q)
 	}
 
-	if _, err := s.CreateFamily(ctx, Family{Name: "fire blanket", Series: "QG"}); !errors.Is(err, ErrDuplicateFamilyName) {
-		t.Fatalf("duplicate name err = %v", err)
+	for prefix, want := range map[string]error{
+		"QF": ErrDuplicateSeries, "QA": ErrDuplicateSeries, "Q": ErrBadPrefix, "QABCDE1": ErrBadPrefix,
+		"QABCDEF": ErrBadPrefix, "qx": ErrBadPrefix, "AQ": ErrBadPrefix, "QCCSA": nil,
+	} {
+		if _, err := s.CreateQuoteType(ctx, QuoteType{Prefix: prefix}); !errors.Is(err, want) {
+			t.Errorf("CreateQuoteType(%s) = %v, want %v", prefix, err, want)
+		}
 	}
-	if _, err := s.CreateFamily(ctx, Family{Name: "Otra", Series: "QF"}); !errors.Is(err, ErrDuplicateSeries) {
-		t.Fatalf("duplicate series err = %v", err)
+	if _, err := s.CreateQuoteType(ctx, QuoteType{Prefix: "QH", QuoteTypeBehavior: QuoteTypeBehavior{Letterhead: "otro"}}); !errors.Is(err, ErrBadLetterhead) {
+		t.Errorf("unknown letterhead = %v, want ErrBadLetterhead", err)
 	}
 
-	if err := s.UpdateFamilyTerms(ctx, id, "Cobijas ignífugas", "Uno\n\n  Dos  "); err != nil {
-		t.Fatalf("UpdateFamilyTerms: %v", err)
+	qt, _ := s.QuoteTypeByID(ctx, typeID)
+	qt.Name, qt.Terms, qt.Letterhead, qt.KgPriced = "Cobijas ignífugas", "Uno\nDos", "alumoclad", true
+	qt.FreeLinesOnly = true // ignored: fixed once the type exists
+	if err := s.UpdateQuoteType(ctx, *qt); err != nil {
+		t.Fatalf("UpdateQuoteType: %v", err)
 	}
 	q, _ = s.QuoteByID(ctx, q.ID)
-	if got := strings.Join(SplitTerms(q.SeriesTerms), "|"); got != "Uno|Dos" {
-		t.Fatalf("terms after update = %q", got)
+	if q.SeriesTerms != "Uno\nDos" || q.Letterhead != "alumoclad" || !q.KgPriced || q.SeriesFreeLines {
+		t.Fatalf("a draft follows its type's terms and behavior, but never becomes free-lines: %+v", q)
 	}
-	if err := s.UpdateFamilyTerms(ctx, 9999, "", ""); err == nil {
-		t.Fatal("UpdateFamilyTerms on a missing familia should fail")
+	missing := *qt
+	missing.ID, missing.Prefix = 9999, "QY"
+	if err := s.UpdateQuoteType(ctx, missing); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("UpdateQuoteType on a missing type = %v", err)
 	}
 }
 
 func TestFreeLinesOnlyFamilyIsNotAProductFamily(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
-	if _, err := s.CreateFamily(ctx, Family{Name: "Servicios", Series: "QV", FreeLinesOnly: true}); err != nil {
+	if _, err := s.CreateFamily(ctx, "Servicios"); err != nil {
 		t.Fatal(err)
 	}
 	families, _ := s.ListFamilies(ctx)
+	var names []string
 	for _, f := range families {
-		if f.Name == "Servicios" || f.Name == "QL" {
-			t.Fatalf("ListFamilies includes free-lines-only familia %q", f.Name)
-		}
+		names = append(names, f.Name)
+	}
+	if got := strings.Join(names, "|"); got != "ABASTILUM|CCA|CCS & AC|Servicios" {
+		t.Fatalf("ListFamilies = %s; QL, which holds no products, must be left out", got)
 	}
 	all, _ := s.ListAllFamilies(ctx)
-	if len(all) != 5 {
-		t.Fatalf("ListAllFamilies = %d familias; want 5", len(all))
+	if len(all) != 5 || all[0].QuoteTypes == "" {
+		t.Fatalf("ListAllFamilies = %+v; want 5 familias, each seeded one with its type", all)
 	}
 }
 

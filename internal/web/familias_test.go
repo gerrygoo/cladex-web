@@ -21,90 +21,60 @@ func TestFamiliasListShowsSeededFamilias(t *testing.T) {
 		t.Fatalf("status = %d", rec.Code)
 	}
 	body := rec.Body.String()
-	for _, want := range []string{"CCA", "CCS &amp; AC", "ABASTILUM", "QL", "Solo líneas libres", "De catálogo"} {
+	for _, want := range []string{"CCA", "CCS &amp; AC", "ABASTILUM", "QL", "Solo líneas libres", "De catálogo", "QA", "/tipos-de-cotizacion"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("list is missing %q", want)
 		}
 	}
 }
 
-func TestFamiliasCreateStartsASeries(t *testing.T) {
+// A familia is a catalog category now: creating one asks only for its name (issue #53).
+func TestFamiliasCreate(t *testing.T) {
 	a := newTestAuth(t)
 	f, adminID := adminFamilias(t, a)
 
-	rec := doForm(t, a, adminID, f.Create, "POST", "/familias", nil, url.Values{
-		"name": {"  Fire Blanket "}, "series": {"qf"}, "series_label": {"Cobijas"},
-		"terms": {"Precios en MXN\r\n\r\n  Pago por adelantado  "},
-	}, false)
+	rec := doForm(t, a, adminID, f.Create, "POST", "/familias", nil, url.Values{"name": {"  Fire Blanket "}}, false)
 	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/familias?guardado=creada" {
 		t.Fatalf("Create = %d %q; body = %s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
 	}
-	series, _ := a.store.ListSeries(t.Context())
-	last := series[len(series)-1]
-	if last.Prefix != "QF" || last.PickerLabel() != "QF — Cobijas" || last.FamilyName != "Fire Blanket" {
-		t.Fatalf("new series = %+v", last)
-	}
 	all, _ := a.store.ListAllFamilies(t.Context())
-	if got := all[len(all)-1].Terms; got != "Precios en MXN\nPago por adelantado" {
-		t.Fatalf("terms = %q; want trimmed lines without blanks", got)
+	if last := all[len(all)-1]; last.Name != "Fire Blanket" || last.QuoteTypes != "" || last.FreeLinesOnly {
+		t.Fatalf("new familia = %+v", last)
 	}
-}
 
-func TestFamiliasCreateRejectsBadInput(t *testing.T) {
-	a := newTestAuth(t)
-	f, adminID := adminFamilias(t, a)
-
-	cases := []struct {
-		name string
-		form url.Values
-		want string
-	}{
-		{"empty name", url.Values{"name": {" "}, "series": {"QF"}}, "El nombre es obligatorio."},
-		{"series without Q", url.Values{"name": {"X"}, "series": {"AB"}}, "La serie son dos letras y empieza con Q"},
-		{"series too long", url.Values{"name": {"X"}, "series": {"QFF"}}, "La serie son dos letras y empieza con Q"},
-		{"taken series", url.Values{"name": {"X"}, "series": {"ql"}}, "Ya existe una familia con esta serie."},
-		{"taken name", url.Values{"name": {"cca"}, "series": {"QF"}}, "Ya existe una familia con este nombre."},
-	}
-	for _, c := range cases {
-		rec := doForm(t, a, adminID, f.Create, "POST", "/familias", nil, c.form, false)
-		if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), c.want) {
-			t.Errorf("%s: status %d, want 422 with %q", c.name, rec.Code, c.want)
+	for name, want := range map[string]string{" ": "El nombre es obligatorio.", "cca": "Ya existe una familia con este nombre."} {
+		rec := doForm(t, a, adminID, f.Create, "POST", "/familias", nil, url.Values{"name": {name}}, false)
+		if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("name %q: status %d, want 422 with %q", name, rec.Code, want)
 		}
 	}
-	// A refused form keeps what was typed.
-	rec := doForm(t, a, adminID, f.Create, "POST", "/familias", nil, url.Values{"name": {"Mi familia"}, "series": {"AB"}}, false)
-	if !strings.Contains(rec.Body.String(), `value="Mi familia"`) {
-		t.Error("refused form lost the typed name")
-	}
-	if all, _ := a.store.ListAllFamilies(t.Context()); len(all) != 4 {
-		t.Errorf("%d familias after refused forms; want the 4 seeded", len(all))
+	if all, _ := a.store.ListAllFamilies(t.Context()); len(all) != 5 {
+		t.Errorf("%d familias after refused forms; want the 4 seeded and Fire Blanket", len(all))
 	}
 }
 
-func TestFamiliasEditTerms(t *testing.T) {
+func TestFamiliasEditSATCode(t *testing.T) {
 	a := newTestAuth(t)
 	f, adminID := adminFamilias(t, a)
 	all, _ := a.store.ListAllFamilies(t.Context())
-	ql := all[len(all)-1]
-	path := "/familias/" + strconv.FormatInt(ql.ID, 10)
-	pv := map[string]string{"id": strconv.FormatInt(ql.ID, 10)}
+	cca := all[0]
+	path := "/familias/" + strconv.FormatInt(cca.ID, 10)
+	pv := map[string]string{"id": strconv.FormatInt(cca.ID, 10)}
 
-	rec := doForm(t, a, adminID, f.EditPage, "GET", path, pv, nil, false)
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Precios sujetos a cambios sin previo aviso") {
-		t.Fatalf("EditPage = %d; want the current terms in the textarea", rec.Code)
+	if rec := doForm(t, a, adminID, f.EditPage, "GET", path, pv, nil, false); rec.Code != http.StatusOK {
+		t.Fatalf("EditPage = %d", rec.Code)
 	}
-
-	rec = doForm(t, a, adminID, f.Update, "POST", path, pv, url.Values{
-		"series_label": {"Líneas libres"}, "terms": {"Definitivo uno\nDefinitivo dos"},
-	}, false)
-	if rec.Code != http.StatusSeeOther {
+	if rec := doForm(t, a, adminID, f.Update, "POST", path, pv, url.Values{"sat_product_code": {"123"}}, false); rec.Code != http.StatusUnprocessableEntity ||
+		!strings.Contains(rec.Body.String(), "La clave SAT son 8 dígitos") {
+		t.Errorf("a short SAT code = %d, want 422 saying why", rec.Code)
+	}
+	if rec := doForm(t, a, adminID, f.Update, "POST", path, pv, url.Values{"sat_product_code": {"26121600"}}, false); rec.Code != http.StatusSeeOther {
 		t.Fatalf("Update = %d", rec.Code)
 	}
 	all, _ = a.store.ListAllFamilies(t.Context())
-	if got := all[len(all)-1]; got.Terms != "Definitivo uno\nDefinitivo dos" || got.Series != "QL" {
-		t.Fatalf("after update: %+v", got)
+	if all[0].SATProductCode != "26121600" {
+		t.Fatalf("after update: %+v", all[0])
 	}
-
 	if rec := doForm(t, a, adminID, f.EditPage, "GET", "/familias/999", map[string]string{"id": "999"}, nil, false); rec.Code != http.StatusNotFound {
 		t.Errorf("EditPage(999) = %d, want 404", rec.Code)
 	}
