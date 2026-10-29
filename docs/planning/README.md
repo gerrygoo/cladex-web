@@ -36,4 +36,4 @@ documentation of shipped behavior.
 | [Facturas: timbrado digital y envío](facturas-timbrado-y-envio.md) | CFDI stamping through an external PAC and delivery to recipients: states before/after each step, cancellation, tracking model, dependencies |
 | [Órdenes de compra a proveedores](ordenes-de-compra-a-proveedores.md) | Designed 2026-10-22, parked: tracking and generating Cladex's own O.C. to suppliers for what a proyecto needs |
 | [Notificaciones y trabajos en segundo plano](notificaciones-y-trabajos.md) | Designed 2026-10-23, not started: the SQLite job runner (#19) and WhatsApp + email notifications (#18), first used for the seguimiento reminder |
-| [Tipos de cotización](tipos-de-cotizacion.md) | Proposed 2026-10-28 for #53: split the quote series (numbering, terms, PDF and builder behavior) from the catalog familia, so prefixes are labels, not keys |
+| [Tipos de cotización](tipos-de-cotizacion.md) | Designed 2026-10-28 for #53, not started: split the quote series (numbering, terms, PDF and builder behavior) from the catalog familia, so prefixes are labels, not keys |

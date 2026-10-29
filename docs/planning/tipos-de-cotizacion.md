@@ -1,6 +1,6 @@
 # Tipos de cotización: separating the quote series from the catalog familia
 
-**Proposed (Gerry, 2026-10-28), nothing built yet.** Driven by
+**Design approved (Gerry, 2026-10-28), nothing built yet.** Driven by
 [#53](https://github.com/gerrygoo/cladex-web/issues/53): Emilio wants series prefixes longer
 than two letters (`QCCA`, `QCCS`) and to rename the existing ones. Today that can't be done
 safely, because the prefix text is used as a key.
@@ -60,12 +60,11 @@ erDiagram
   type's prefix never changes an existing folio: `QA0105` stays `QA0105`, and the next
   one is `QCCA0106`.
 - The counter lives on the type (`quote_types.next_number`). Renaming continues the
-  numbering by default; an admin can restart it, but only above the highest number
-  already used by that type.
+  numbering (decided 2026-10-28); there is no restart.
 
 ### Prefix rules (what the app enforces, so nobody has to think about keys)
 
-- `Q` + 1 to 5 uppercase letters (`QA`, `QCCA`, `QCCSA`). This is open to change.
+- `Q` + 1 to 5 uppercase letters (`QA`, `QCCA`, `QCCSA`; decided 2026-10-28).
 - **Unique across history**: rejected if it is any type's current prefix *or* appears in
   any `quotes.prefix` snapshot. Otherwise a new type reusing a retired `QA` would collide
   with the old `QA0001` on `UNIQUE (folio)` at its first quote. The message is plain:
@@ -126,7 +125,5 @@ is a second namespace sharing a table keyed by text. After quote counters move o
 
 ## 6. Open questions
 
-- **Max prefix length** (proposed 5 letters after the Q).
-- **Restart numbering on rename?** Proposed: continue by default.
 - Does Emilio want the type's **name** (*Cable CCA*) shown anywhere besides the
   new-quote picker and the quote page?
