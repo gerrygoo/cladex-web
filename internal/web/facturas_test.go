@@ -296,3 +296,36 @@ func TestFacturacionOff(t *testing.T) {
 		t.Errorf("Stamp with facturación off = %v", err)
 	}
 }
+
+// TestFacturaConceptoIsOneLine covers issue #57: a quote line's description may hold line
+// breaks for the PDF, but the factura's concepto gets it on one line, as it always had.
+func TestFacturaConceptoIsOneLine(t *testing.T) {
+	a := newTestAuth(t)
+	ctx := context.Background()
+	admin := createTestUser(t, a, "gerry", "admin", "hunter2")
+	q := newTestQuotes(t, a)
+	customerID, _, productID := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, admin)
+	product, _ := a.store.ProductByID(ctx, productID)
+	product.Description = "Cable\nrojo"
+	if err := a.store.UpdateProduct(ctx, *product); err != nil {
+		t.Fatal(err)
+	}
+	folio := issueTestQuote(t, a, q, admin, customerID, productID)
+	project, _ := a.store.ProjectByFolio(ctx, folio)
+	if err := a.store.SetProjectProbability(ctx, project.ID, admin, 90, ""); err != nil {
+		t.Fatal(err)
+	}
+	if rec := postOC(t, a, NewProjects(a.store), admin, folio, map[string]string{"oc_numero": "4411", "oc_fecha": "2026-10-07", "forma_pago": "PPD"},
+		"oc.pdf", []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")); rec.Code != http.StatusSeeOther {
+		t.Fatalf("postOC = %d: %s", rec.Code, rec.Body.String())
+	}
+	id, err := a.store.CreateFacturaDraft(ctx, project.ID, admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, _ := a.store.ComprobanteByID(ctx, id)
+	if got := c.Conceptos[0].Description; got != "Cable rojo" {
+		t.Errorf("concepto description = %q, want %q", got, "Cable rojo")
+	}
+}

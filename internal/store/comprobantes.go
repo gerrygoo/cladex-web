@@ -364,7 +364,7 @@ func (s *Store) CreateFacturaDraft(ctx context.Context, projectID, userID int64)
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO comprobante_conceptos (comprobante_id, line_no, quote_line_id, sat_product_code, sat_unit_code,
 				unit_name, description, qty_milli, unit_price_micros, importe, iva)
-			SELECT ?, l.line_no, l.id, NULLIF(?, ''), un.sat_code, un.name, l.description_snapshot, l.qty_milli,
+			SELECT ?, l.line_no, l.id, NULLIF(?, ''), un.sat_code, un.name, REPLACE(l.description_snapshot, char(10), ' '), l.qty_milli,
 				l.unit_price_micros, l.line_total, 0
 			FROM quote_lines l
 			LEFT JOIN products pr ON pr.id = l.product_id

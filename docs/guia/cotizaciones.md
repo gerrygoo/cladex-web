@@ -185,7 +185,11 @@ Para conceptos que no están en el catálogo: un flete, un producto especial, un
 1. En **Agregar líneas**, junto a *"¿No está en el catálogo?"*, haz clic en **Línea libre**.
    Aparece una línea nueva. (En **QL**, el botón está arriba de las líneas, debajo de la
    vigencia.)
-2. Escribe la **Descripción**; así aparecerá en el PDF.
+2. Escribe la **Descripción**; así aparecerá en el PDF. Con **Enter** pasas a un renglón
+   nuevo, y el PDF respeta esos saltos de línea (también al pegar un texto que ya los
+   trae). Negritas y viñetas automáticas no se conservan; si quieres viñetas, escríbelas
+   como un guion o `•` al inicio del renglón. En la factura, la descripción va en un solo
+   renglón.
 3. Escribe el **Precio unitario** en pesos, sin signo `$` (p. ej. `123.45`).
 4. Opcional: escribe su **Costo** debajo del precio. No sale en el PDF; sirve para que la
    línea cuente en la utilidad de la cotización. Sin costo, la línea no suma utilidad.
@@ -308,8 +312,8 @@ de nuevo la vigencia.
 
 **Términos y condiciones adicionales (opcional)**, debajo de la vigencia: escribe
 condiciones propias de esta cotización, una por renglón. En el PDF, cada renglón es una
-viñeta dentro de *Términos y condiciones*, justo después de *"Pago por adelantado para
-colocar OC"* y en el orden en que las escribiste. Un texto largo se acomoda en varias
+viñeta dentro de *Términos y condiciones*, después de todos los términos del tipo de
+cotización y en el orden en que las escribiste. Un texto largo se acomoda en varias
 líneas bajo la misma viñeta; los renglones vacíos se ignoran. Si lo dejas vacío, el PDF
 queda igual. Una revisión los conserva.
 

@@ -134,12 +134,9 @@ type TermsInputs struct {
 	ExtraTerms   string
 }
 
-// paymentTerm is the series term the extra terms follow (issue #27).
-const paymentTerm = "pago por adelantado"
-
 // RenderTerms splits a terms block into lines and fills in the tokens. A value a draft
 // hasn't got yet renders as "por definir". The extra terms, blank lines dropped, go
-// right after the "Pago por adelantado…" term, or at the end without one.
+// after all of the series' terms (issue #58).
 func RenderTerms(terms string, in TermsInputs) []string {
 	deliveryTime := strings.TrimSpace(in.DeliveryTime)
 	if deliveryTime == "" {
@@ -150,17 +147,9 @@ func RenderTerms(terms string, in TermsInputs) []string {
 		currency = "moneda por definir"
 	}
 	lines := SplitTerms(terms)
-	at := len(lines)
 	for i, l := range lines {
 		l = strings.ReplaceAll(l, DeliveryTimeToken, deliveryTime)
 		lines[i] = strings.ReplaceAll(l, CurrencyToken, currency)
-		if at == len(lines) && strings.Contains(strings.ToLower(l), paymentTerm) {
-			at = i + 1
-		}
 	}
-	extra := SplitTerms(in.ExtraTerms)
-	if len(extra) == 0 {
-		return lines
-	}
-	return append(lines[:at:at], append(extra, lines[at:]...)...)
+	return append(lines, SplitTerms(in.ExtraTerms)...)
 }

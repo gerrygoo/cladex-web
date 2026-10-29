@@ -269,18 +269,19 @@ templ quoteLineRow(folio string, line QuoteLineView, freeLinesOnly, kg bool, par
 		<td>
 			<input type="hidden" name={ "lines[" + line.Key + "][kind]" } value={ lineKind(line) }/>
 			if line.IsFree {
-				<input
-					type="text"
+				// A textarea, so a description can keep its line breaks onto the PDF (issue #57).
+				<textarea
+					class="line-description"
+					rows="2"
 					id={ lineFieldID(line.Key, "description") }
 					name={ "lines[" + line.Key + "][description]" }
-					value={ line.Description }
 					placeholder="Descripción"
 					aria-label="Descripción de la línea libre"
 					hx-post={ recalcularPath(folio) }
 					hx-trigger="change"
 					hx-target="#quote-lines-fragment"
 					hx-swap="outerHTML"
-				/>
+				>{ line.Description }</textarea>
 			} else {
 				<input type="hidden" name={ "lines[" + line.Key + "][product_id]" } value={ productIDValue(line.ProductID) }/>
 				{ line.ProductLabel }
@@ -571,7 +572,7 @@ templ QuoteLinesReadOnly(lines []QuoteLineView, totals pricing.Totals, kg bool) 
 				for i, line := range lines {
 					<tr>
 						<td class="num">{ strconv.Itoa(i + 1) }</td>
-						<td>
+						<td class="line-description">
 							if line.IsFree {
 								{ line.Description }
 							} else {

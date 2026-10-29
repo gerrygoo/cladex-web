@@ -1223,7 +1223,7 @@ func TestQuotesDeliveryTimeRequiredToIssue(t *testing.T) {
 
 // TestQLCostAndMargin covers issue #27 (and #25's extras): a QL line takes its cost and its
 // own margin, and its price is cost ÷ (1 − margin), in whole centavos; the quote's profit
-// is price less cost; the extra terms print after the payment term; an issued quote's
+// is price less cost; the extra terms print after the series' terms; an issued quote's
 // costs change only through a revision, whose issue notes the change in the history; and
 // a free line on another series may carry an optional cost.
 func TestQLCostAndMargin(t *testing.T) {
@@ -1239,7 +1239,7 @@ func TestQLCostAndMargin(t *testing.T) {
 		return url.Values{
 			"line_keys":             {"0"},
 			"lines[0][kind]":        {"free"},
-			"lines[0][description]": {"Transformador"},
+			"lines[0][description]": {"Transformador\r\nTipo seco"},
 			"lines[0][cost]":        {cost},
 			"lines[0][margin]":      {margin},
 			"lines[0][qty]":         {"2"},
@@ -1248,6 +1248,16 @@ func TestQLCostAndMargin(t *testing.T) {
 			"valid_until":           {future},
 			"extra_terms":           {"Garantía de 1 año\n\n  Entrega en sitio  "},
 		}
+	}
+	// An admin may add a series term after "Pago por adelantado" (issue #58).
+	qlTypeID, err := a.store.QuoteTypeIDByPrefix(ctx, "QL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	qlType, _ := a.store.QuoteTypeByID(ctx, qlTypeID)
+	qlType.Terms += "\nLa selección es del cliente"
+	if err := a.store.UpdateQuoteType(ctx, *qlType); err != nil {
+		t.Fatal(err)
 	}
 	ql, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QL")
 	recalc := func(f url.Values) string {
@@ -1282,7 +1292,8 @@ func TestQLCostAndMargin(t *testing.T) {
 		t.Fatalf("Guardar = %d", rec.Code)
 	}
 	page = doForm(t, a, userID, q.Builder, "GET", "/cotizaciones/"+ql.Folio, pv(ql.Folio), nil, false).Body.String()
-	for _, want := range []string{`name="lines[0][cost]" value="1500"`, `name="lines[0][margin]" value="10"`, "Garantía de 1 año", "$1,666.67"} {
+	for _, want := range []string{`name="lines[0][cost]" value="1500"`, `name="lines[0][margin]" value="10"`, "Garantía de 1 año", "$1,666.67",
+		"Transformador\nTipo seco</textarea>"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("reopened QL draft missing %q", want)
 		}
@@ -1292,15 +1303,11 @@ func TestQLCostAndMargin(t *testing.T) {
 		t.Fatalf("Emitir = %d; body = %.300s", rec.Code, rec.Body.String())
 	}
 	issued, _ := a.store.QuoteByID(ctx, ql.ID)
+	// The extra terms follow every series term, even one after "Pago por adelantado" (issue #58).
 	terms := store.SplitTerms(*issued.TermsSnapshot)
-	at := -1
-	for i, l := range terms {
-		if strings.Contains(l, "Pago por adelantado") {
-			at = i
-		}
-	}
-	if at < 0 || len(terms) < at+3 || terms[at+1] != "Garantía de 1 año" || terms[at+2] != "Entrega en sitio" {
-		t.Errorf("extra terms are not right after the payment term, one per line, blanks dropped: %q", terms)
+	if n := len(terms); n < 4 || !strings.Contains(terms[n-4], "Pago por adelantado") || terms[n-3] != "La selección es del cliente" ||
+		terms[n-2] != "Garantía de 1 año" || terms[n-1] != "Entrega en sitio" {
+		t.Errorf("extra terms are not at the end, one per line, blanks dropped: %q", terms)
 	}
 	// The PDF carries the price, never the cost or the margin.
 	persisted, _ := a.store.ListQuoteLines(ctx, ql.ID)
@@ -1310,6 +1317,10 @@ func TestQLCostAndMargin(t *testing.T) {
 	}
 	if got := fmt.Sprintf("%+v", doc.Lines); !strings.Contains(got, "1,666.67") || strings.Contains(got, "1,500") || strings.Contains(got, "10%") {
 		t.Errorf("PDF lines = %s", got)
+	}
+	// The description keeps its line break onto the PDF (issue #57).
+	if got := doc.Lines[0].Description; got != "Transformador\nTipo seco" {
+		t.Errorf("PDF line description = %q", got)
 	}
 
 	// The issued quote and its proyecto show the profit: 2 × 166.67 = 333.34 of 3,333.34.
@@ -1342,7 +1353,7 @@ func TestQLCostAndMargin(t *testing.T) {
 		t.Fatalf("Emitir(revision) = %d; body = %.300s", rec.Code, rec.Body.String())
 	}
 	comments, _ := a.store.ListProjectComments(ctx, project.ID)
-	wantNote := "Costos cambiados respecto a " + ql.Folio + ":\nPartida 1 «Transformador»: costo unitario $1,500.00 → $1,600.00 (subió $100.00, 6.7%)."
+	wantNote := "Costos cambiados respecto a " + ql.Folio + ":\nPartida 1 «Transformador\nTipo seco»: costo unitario $1,500.00 → $1,600.00 (subió $100.00, 6.7%)."
 	if len(comments) == 0 || comments[0].Body != wantNote || comments[0].UserID != userID {
 		t.Errorf("history after issuing the revision = %+v, want first %q", comments, wantNote)
 	}

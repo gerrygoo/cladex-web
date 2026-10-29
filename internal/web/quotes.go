@@ -574,7 +574,7 @@ func parseQuoteLineInputs(r *http.Request) []quoteLineInput {
 		out = append(out, quoteLineInput{
 			Kind:        r.FormValue("lines[" + k + "][kind]"),
 			ProductID:   r.FormValue("lines[" + k + "][product_id]"),
-			Description: r.FormValue("lines[" + k + "][description]"),
+			Description: strings.ReplaceAll(r.FormValue("lines["+k+"][description]"), "\r\n", "\n"),
 			Qty:         r.FormValue("lines[" + k + "][qty]"),
 			UnitPrice:   r.FormValue("lines[" + k + "][unit_price]"),
 			Cost:        r.FormValue("lines[" + k + "][cost]"),

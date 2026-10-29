@@ -1370,6 +1370,17 @@ details.folio-list li {
   white-space: nowrap;
 }
 
+/* A free line's description keeps its line breaks, typed or shown (issue #57). */
+textarea.line-description {
+  width: 100%;
+  min-width: 16rem;
+  resize: vertical;
+}
+
+td.line-description {
+  white-space: pre-line;
+}
+
 /* A free line's optional cost, under its price (issue #27) */
 label.line-cost {
   margin-top: 0.25rem;
