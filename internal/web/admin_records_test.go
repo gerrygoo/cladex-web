@@ -88,6 +88,17 @@ func TestAdminDeleteAndReassign(t *testing.T) {
 	if d, _ := a.store.QuoteByFolio(ctx, draft.Folio); d == nil || d.UserID != gerardo {
 		t.Errorf("draft owner = %+v, want Gerardo", d)
 	}
+	// The issued quote keeps who issued it, and its page and PDF name the new vendedor (issue #59).
+	reassigned, _ := a.store.QuoteByID(ctx, project.ID)
+	body := muxDo(t, a, mux, admin, "GET", "/cotizaciones/"+project.Folio, nil).Body.String()
+	for _, want := range []string{"<dt>Emitió</dt><dd>Emilio Flores</dd>", "<dt>Vendedor</dt><dd>Gerardo</dd>"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("reassigned quote page missing %q", want)
+		}
+	}
+	if doc, err := issuedQuoteDocument(*reassigned, nil); err != nil || doc.Vendedor != "Gerardo" {
+		t.Errorf("reassigned quote PDF vendedor = %q (%v), want Gerardo", doc.Vendedor, err)
+	}
 	if rec := muxDo(t, a, mux, admin, "POST", "/proyectos/"+project.Folio+"/reasignar", url.Values{"user_id": {"999"}}); rec.Code != http.StatusBadRequest {
 		t.Errorf("reasignar to an unknown user = %d, want 400", rec.Code)
 	}

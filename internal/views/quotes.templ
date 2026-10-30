@@ -971,6 +971,11 @@ templ QuoteInfo(quote store.Quote, lines []QuoteLineView) {
 				{ quote.UserName }
 			}
 		</dd>
+		// After a reassignment the vendedor, who the PDF names, isn't who issued it (issue #59).
+		if quote.VendedorSnapshot != nil && *quote.VendedorSnapshot != quote.UserName {
+			<dt>Vendedor</dt>
+			<dd>{ quote.UserName }</dd>
+		}
 		if quote.IssuedAt != nil {
 			<dt>Emitida</dt>
 			<dd>

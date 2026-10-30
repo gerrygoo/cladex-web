@@ -311,8 +311,10 @@ Solo un administrador. Al final de la página del proyecto está la sección
 :::admin
 **Reasignar.** Elige el **Vendedor responsable** y haz clic en **Reasignar**. El proyecto
 y todas sus cotizaciones pasan a ese vendedor, que es quien le da seguimiento y quien
-lo ve como suyo. En el historial queda *"Se reasignó de … a …"*. Las cotizaciones ya
-emitidas conservan en su PDF el nombre del vendedor que las emitió.
+lo ve como suyo. En el historial queda *"Se reasignó de … a …"*. El PDF de sus
+cotizaciones, también las ya emitidas, dice el nombre del nuevo vendedor; en la página de
+la cotización, **Emitió** sigue diciendo quién la emitió y **Vendedor** dice a quién se
+asignó.
 
 **Eliminar.** Sirve, por ejemplo, para limpiar cotizaciones de prueba. Haz clic en
 **Eliminar proyecto** y confirma. Se borra el proyecto con todas sus cotizaciones y

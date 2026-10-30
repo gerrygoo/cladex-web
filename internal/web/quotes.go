@@ -1403,10 +1403,12 @@ func issuedQuoteDocument(quote store.Quote, persisted []store.QuoteLine) (pdf.Qu
 	if quote.ValidUntil != nil {
 		vencimiento = formatFechaDate(*quote.ValidUntil)
 	}
+	// Vendedor is the proyecto's vendedor now, not the frozen issuer: an admin may
+	// reassign it (issue #59).
 	return pdf.QuoteDocument{
 		Folio:        quote.Folio,
 		CustomerName: *quote.CustomerNameSnapshot,
-		Vendedor:     *quote.VendedorSnapshot,
+		Vendedor:     quote.UserName,
 		Fecha:        formatFecha(quote.CreatedAt),
 		Vencimiento:  vencimiento,
 		Currency:     quote.Currency,

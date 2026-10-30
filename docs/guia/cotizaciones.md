@@ -262,8 +262,10 @@ Qué pasa al emitir:
   cotización ya no se puede editar; aunque después cambien los ajustes o el catálogo,
   lo que ves en la página y en el PDF sigue siendo lo que se emitió.
 - El PDF queda definitivo. Cada vez que lo descargues tendrá los mismos precios,
-  cliente, vendedor, fechas y términos con que se emitió, aunque después cambien los
-  ajustes, el catálogo o los datos del cliente.
+  cliente, fechas y términos con que se emitió, aunque después cambien los
+  ajustes, el catálogo o los datos del cliente. Lo único que cambia es el **Vendedor**: si
+  un administrador [reasigna el proyecto](proyectos.md#reasignar-o-eliminar-un-proyecto),
+  el PDF dice el nombre del nuevo vendedor.
 - Cada línea lleva su número de **Partida** (1, 2, 3…), en la página y en el PDF, para
   referirte a ella en comentarios. En un borrador se renumeran si quitas o agregas
   líneas. Las cotizaciones emitidas antes de este cambio también salen numeradas al
@@ -465,6 +467,8 @@ cualquier cotización que no sea [[borrador]]. Debajo del nombre de la cotizaci�
 - **Proyecto**: el enlace a su [[proyecto]] y la etapa en que está. El
   [seguimiento](proyectos.md#dar-seguimiento-a-un-proyecto) se lleva ahí.
 - **Emitió**: quién la emitió.
+- **Vendedor**: solo si un administrador reasignó el proyecto; es a quién se asignó, y el
+  nombre que sale en el PDF.
 - **Emitida** y **Vigencia**: las fechas. Todas las fechas se ven como `28/09/2026 - 16:42`,
   en la zona horaria de tu navegador (la vigencia es solo un día, sin hora).
 - **Margen**: el margen con el que se cotizó, congelado al emitir. En QL, el margen de
