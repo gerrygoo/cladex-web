@@ -1287,6 +1287,21 @@ func TestQLCostAndMargin(t *testing.T) {
 		}
 	}
 
+	if !strings.Contains(page, `maxlength="10000"`) {
+		t.Error("extra terms box should take up to 10,000 characters (issue #58)")
+	}
+
+	// Long extra terms survive whole: 9,999 characters typed with Windows line breaks,
+	// which the browser counts as one character each (issue #58).
+	long := form("1500", "10")
+	long.Set("extra_terms", strings.Repeat(strings.Repeat("x", 99)+"\r\n", 99)+strings.Repeat("x", 99))
+	if rec := doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+ql.Folio+"/guardar", pv(ql.Folio), long, false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar = %d", rec.Code)
+	}
+	if saved, _ := a.store.QuoteByID(ctx, ql.ID); len(saved.ExtraTerms) != 9999 || strings.Count(saved.ExtraTerms, "\n") != 99 || strings.Contains(saved.ExtraTerms, "\r") {
+		t.Errorf("long extra terms saved as %d characters, want 9,999", len(saved.ExtraTerms))
+	}
+
 	// Saving and reopening keeps cost, margin and the extra terms.
 	if rec := doForm(t, a, userID, q.Guardar, "POST", "/cotizaciones/"+ql.Folio+"/guardar", pv(ql.Folio), form("1500", "10"), false); rec.Code != http.StatusSeeOther {
 		t.Fatalf("Guardar = %d", rec.Code)

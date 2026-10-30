@@ -126,6 +126,9 @@ func RequiresCurrency(terms string) bool {
 	return strings.Contains(terms, CurrencyToken)
 }
 
+// MaxExtraTerms caps a quote's extra terms, in characters (issue #58: 2,000 was too few).
+const MaxExtraTerms = 10000
+
 // TermsInputs are the per-quote values a terms block can hold tokens for, and the
 // quote's own extra terms (QL, issue #27), one per line.
 type TermsInputs struct {

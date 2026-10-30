@@ -314,7 +314,8 @@ de nuevo la vigencia.
 condiciones propias de esta cotización, una por renglón. En el PDF, cada renglón es una
 viñeta dentro de *Términos y condiciones*, después de todos los términos del tipo de
 cotización y en el orden en que las escribiste. Un texto largo se acomoda en varias
-líneas bajo la misma viñeta; los renglones vacíos se ignoran. Si lo dejas vacío, el PDF
+líneas bajo la misma viñeta; los renglones vacíos se ignoran. Caben hasta 10,000
+caracteres. Si lo dejas vacío, el PDF
 queda igual. Una revisión los conserva.
 
 ### Costo y margen por línea en QL

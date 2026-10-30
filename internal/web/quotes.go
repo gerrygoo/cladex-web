@@ -1049,9 +1049,6 @@ var duplicatedFolio = regexp.MustCompile(`^Q[A-Z][0-9]{4,}(-R[0-9]+)?$`)
 // maxDeliveryTime caps the free-text delivery time, which is printed on the PDF.
 const maxDeliveryTime = 120
 
-// maxExtraTerms caps a QL quote's extra terms, printed on the PDF one per line.
-const maxExtraTerms = 2000
-
 // takeTermsInputs reads the builder form's per-quote inputs onto quote for this request
 // (the caller decides whether to save them): the delivery time and currency when the
 // series' terms hold their tokens, and the validity date for a free-lines-only series.
@@ -1071,9 +1068,10 @@ func takeTermsInputs(r *http.Request, quote *store.Quote) {
 		}
 	}
 	if quote.SeriesFreeLines {
-		v := strings.TrimSpace(r.FormValue("extra_terms"))
-		if runes := []rune(v); len(runes) > maxExtraTerms {
-			v = string(runes[:maxExtraTerms])
+		// Counted with plain line breaks, as the browser's maxlength counts them.
+		v := strings.TrimSpace(strings.ReplaceAll(r.FormValue("extra_terms"), "\r\n", "\n"))
+		if runes := []rune(v); len(runes) > store.MaxExtraTerms {
+			v = string(runes[:store.MaxExtraTerms])
 		}
 		quote.ExtraTerms = v
 		quote.ValidUntil = nil

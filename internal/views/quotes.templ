@@ -839,7 +839,7 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 						<label>
 							Términos y condiciones adicionales (opcional)
 							<span class="hint">Cada renglón sale como una viñeta en el PDF, después de los términos de la serie.</span>
-							<textarea name="extra_terms" id="extra-terms" rows="3" maxlength="2000">{ quote.ExtraTerms }</textarea>
+							<textarea name="extra_terms" id="extra-terms" rows="3" maxlength={ strconv.Itoa(store.MaxExtraTerms) }>{ quote.ExtraTerms }</textarea>
 						</label>
 					</div>
 					@SupplierQuoteSection(supplier, true)
