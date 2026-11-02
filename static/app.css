@@ -1700,3 +1700,20 @@ dialog.confirm.duplicate {
   overflow: visible;
   width: min(32rem, calc(100vw - 2rem));
 }
+
+/* Notificaciones: the list's filters side by side, and a message's text as it was sent. */
+form.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: end;
+  margin: 1rem 0;
+}
+
+pre.notification-body {
+  white-space: pre-wrap;
+  font-family: inherit;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}

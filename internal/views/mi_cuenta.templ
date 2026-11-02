@@ -1,12 +1,25 @@
 package views
 
-templ MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) {
+import "github.com/gerrygoo/cladex-web/internal/store"
+
+// MiCuentaView is what /mi-cuenta shows: the password form's errors, the user's Avisos
+// (saved, or a refused submission with ContactErrors) and a success message. ContactSaved
+// shows the Avisos' own, next to the form the page scrolls to.
+type MiCuentaView struct {
+	PasswordErrors map[string]string
+	Contact        store.UserContact
+	ContactErrors  map[string]string
+	ContactSaved   bool
+	Success        string
+}
+
+templ MiCuenta(m MiCuentaView, user *NavUser) {
 	@Layout("Mi cuenta", user) {
 		<div class="page-title">
 			<h1>Mi cuenta</h1>
 			@HelpLink(HelpMiCuenta)
 		</div>
-		@Flash(successMsg)
+		@Flash(m.Success)
 		<h2>Sesión</h2>
 		<p>
 			Entraste como
@@ -20,20 +33,29 @@ templ MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) 
 		<form method="post" action="/mi-cuenta">
 			<label>
 				Contraseña actual
-				<input type="password" name="current_password" required autocomplete="current-password" { errAttrs(fieldErrors, "current_password")... }/>
+				<input type="password" name="current_password" required autocomplete="current-password" { errAttrs(m.PasswordErrors, "current_password")... }/>
 			</label>
-			@FieldError(fieldErrors, "current_password")
+			@FieldError(m.PasswordErrors, "current_password")
 			<label>
 				Contraseña nueva <span class="hint">(mínimo 8 caracteres)</span>
-				<input type="password" name="new_password" required autocomplete="new-password" minlength="8" { errAttrs(fieldErrors, "new_password")... }/>
+				<input type="password" name="new_password" required autocomplete="new-password" minlength="8" { errAttrs(m.PasswordErrors, "new_password")... }/>
 			</label>
-			@FieldError(fieldErrors, "new_password")
+			@FieldError(m.PasswordErrors, "new_password")
 			<label>
 				Confirmar contraseña nueva
-				<input type="password" name="confirm_password" required autocomplete="new-password" minlength="8" { errAttrs(fieldErrors, "confirm_password")... }/>
+				<input type="password" name="confirm_password" required autocomplete="new-password" minlength="8" { errAttrs(m.PasswordErrors, "confirm_password")... }/>
 			</label>
-			@FieldError(fieldErrors, "confirm_password")
+			@FieldError(m.PasswordErrors, "confirm_password")
 			<button type="submit" class="primary">Cambiar contraseña</button>
 		</form>
+		<div class="section-title">
+			<h2 id="avisos">Avisos</h2>
+			@SectionHelpLink(HelpAvisos, "avisos")
+		</div>
+		if m.ContactSaved {
+			@Flash("Avisos guardados.")
+		}
+		<p>Dónde quieres que la app te avise, por ejemplo, cuando vence el seguimiento de un proyecto.</p>
+		@ContactForm("/mi-cuenta/avisos", m.Contact, m.ContactErrors)
 	}
 }

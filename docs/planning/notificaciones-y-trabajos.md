@@ -1,6 +1,6 @@
 # Notificaciones y trabajos en segundo plano
 
-**Design approved (Gerry, 2026-10-23). N1 (the runner) built 2026-10-26; N2–N6 not started.** One design for
+**Design approved (Gerry, 2026-10-23). N1 (the runner) and N2 (notifications and email) built 2026-10-26; N3–N6 not started.** One design for
 [#19](https://github.com/gerrygoo/cladex-web/issues/19) (background jobs) and
 [#18](https://github.com/gerrygoo/cladex-web/issues/18) (outbound notifications), because
 the second is the first real consumer of the first. A notification is a row written in the
@@ -236,6 +236,25 @@ Questions for Emilio (they don't block the runner or the channels):
 N1–N3 need only a Resend account and its DNS records. N4 needs the WhatsApp setup
 (Meta Business account, number, approved templates), which can start in parallel and
 takes days because of Meta's reviews.
+
+### As built
+
+Where N1 and N2 differ from the text above (2026-10-26):
+
+- **Secrets are files, not env.** Like facturación's they're Compose secrets
+  (`resend_api_key`, `smtp_password`); only non-secret settings are environment variables
+  (docs/NAS_OPERATIONS.md#email-notifications).
+- **A runner only claims the job kinds it has handlers for**, so during a blue/green
+  deploy the old build leaves a new kind alone.
+- **A notification's send job has no dedupe key.** The notification's `job_id` names its
+  one current job and a job it doesn't name does nothing, so a manual retry while the
+  old job is still finishing can't leave it without a job, or send it twice.
+- **Resend's idempotency key** is per notification and job: retries of one job share it,
+  a manual retry (a new job) gets a new one.
+- **A manual retry of a failed job** gives it its 5 attempts again.
+- **No attachment column yet**: it comes with its first use, the factura resend (N5).
+- The users' contact fields are edited on **Mi cuenta → Avisos** and, by an admin, on
+  **Usuarios → Avisos**; Trabajos has an "Encolar trabajo de prueba" to check the runner.
 
 ## 5. Not in this work
 

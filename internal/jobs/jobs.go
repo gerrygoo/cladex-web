@@ -33,6 +33,12 @@ func (e permanentError) Unwrap() error { return e.err }
 // job fails at once instead of retrying.
 func Permanent(err error) error { return permanentError{err} }
 
+// IsPermanent reports whether err, or an error it wraps, was marked Permanent.
+func IsPermanent(err error) bool {
+	var p permanentError
+	return errors.As(err, &p)
+}
+
 const (
 	// pollInterval is how often the runner looks for due jobs when nothing wakes it.
 	pollInterval = 30 * time.Second
@@ -143,8 +149,7 @@ func (r *Runner) runOne(ctx context.Context, kinds []string) bool {
 		}
 		return true
 	}
-	var perm permanentError
-	permanent := errors.As(err, &perm)
+	permanent := IsPermanent(err)
 	log.Warn("job failed", slog.Any("err", err), slog.Bool("permanent", permanent))
 	now := r.now()
 	if err := r.store.FailJob(jobCtx, job.ID, err.Error(), permanent, now.Add(retryDelay(job.Attempts)), now); err != nil {

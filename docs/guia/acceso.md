@@ -28,6 +28,21 @@ del sistema**). A la derecha están **Manual de usuario** y tu nombre de usuario
    **Confirmar contraseña nueva**.
 4. Haz clic en **Cambiar contraseña**.
 
+## Recibir avisos
+
+La app te puede avisar por correo cuando algo necesita tu atención (por ejemplo, cuando
+vence el seguimiento de uno de tus proyectos). Los avisos por WhatsApp llegarán más
+adelante.
+
+1. Haz clic en tu nombre de usuario, arriba a la derecha. Se abre **Mi cuenta**.
+2. En **Avisos**, escribe tu **Correo** y, si quieres, tu número de **WhatsApp** (los 10
+   dígitos, p. ej. `33 1234 5678`; si no es de México, con `+` y la lada del país).
+3. En **Recibir avisos por**, marca **Correo**, **WhatsApp** o los dos.
+4. Haz clic en **Guardar avisos**. Verás *Avisos guardados.*
+
+Si no marcas ninguno, no recibes avisos. Un administrador también puede cambiar tus avisos
+desde **Usuarios**.
+
 ## Cerrar sesión
 
 1. Haz clic en tu nombre de usuario, arriba a la derecha. Se abre **Mi cuenta**.

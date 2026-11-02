@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 )
 
 // rowCount is COUNT(*) of table; the name is the test's own, never user input.
@@ -116,6 +117,47 @@ func TestDeleteProjectRemovesEverything(t *testing.T) {
 	}
 	if err := s.DeleteProject(ctx, projectID); err == nil {
 		t.Errorf("deleting an already deleted proyecto succeeded")
+	}
+}
+
+func TestDeleteProjectKeepsNotifications(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	projectID, adminID := fullProject(t, s, "borrador")
+	now := time.Now()
+	queue := func() int64 {
+		id, err := s.QueueNotification(ctx, NewNotification{Kind: "prueba", Channel: "email",
+			Address: "a@example.com", ProjectID: projectID, Subject: "s", BodyText: "b", CreatedBy: adminID}, now)
+		if err != nil {
+			t.Fatalf("QueueNotification: %v", err)
+		}
+		return id
+	}
+	pendingID, sentID := queue(), queue()
+	if err := s.StartSending(ctx, sentID, "fake", "", now); err != nil {
+		t.Fatalf("StartSending: %v", err)
+	}
+	if err := s.MarkNotificationAccepted(ctx, sentID, "m1", now); err != nil {
+		t.Fatalf("MarkNotificationAccepted: %v", err)
+	}
+
+	if err := s.DeleteProject(ctx, projectID); err != nil {
+		t.Fatalf("DeleteProject: %v", err)
+	}
+	for id, wantStatus := range map[int64]string{pendingID: NotifCancelada, sentID: NotifAceptada} {
+		n, err := s.NotificationByID(ctx, id)
+		if err != nil {
+			t.Fatalf("notification %d is gone: %v", id, err)
+		}
+		if n.Status != wantStatus || n.ProjectID != 0 {
+			t.Errorf("notification %d: status %q, proyecto %d; want %q and no proyecto", id, n.Status, n.ProjectID, wantStatus)
+		}
+	}
+	n, _ := s.NotificationByID(ctx, pendingID)
+	var jobStatus string
+	s.db.QueryRow(`SELECT status FROM jobs WHERE id = ?`, n.JobID).Scan(&jobStatus)
+	if jobStatus != "cancelado" {
+		t.Errorf("the cancelled notification's job is %q, want cancelado", jobStatus)
 	}
 }
 
@@ -234,6 +276,8 @@ func TestDeleteCoversEveryReference(t *testing.T) {
 		"comprobantes.project_id -> projects",
 		"comprobantes.quote_id -> quotes",
 		"comprobantes.related_id -> comprobantes",
+		"notifications.comprobante_id -> comprobantes",
+		"notifications.project_id -> projects",
 		"project_files.project_id -> projects",
 		"purchase_orders.project_id -> projects",
 		"purchase_orders.quote_id -> quotes",

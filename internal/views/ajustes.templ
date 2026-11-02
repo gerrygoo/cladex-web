@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gerrygoo/cladex-web/internal/facturoporti"
+	"github.com/gerrygoo/cladex-web/internal/notify"
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
@@ -29,7 +30,7 @@ func marginPath(o store.MarginOption, action string) string {
 // edited, made default, retired or restored by its own small form, then the materials
 // and their prices.
 // errorMsg is a refused margin or material action.
-templ Ajustes(margins []store.MarginOption, materials []store.Material, units []store.Unit, facturacion facturoporti.Status, emisor store.Emisor, emisorErrs map[string]string, poBilling store.POBilling, poErrs map[string]string, successMsg string, errorMsg string, user *NavUser) {
+templ Ajustes(margins []store.MarginOption, materials []store.Material, units []store.Unit, facturacion facturoporti.Status, notificaciones notify.Status, emisor store.Emisor, emisorErrs map[string]string, poBilling store.POBilling, poErrs map[string]string, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Configuración del sistema", user) {
 		<div class="page-title">
 			<h1>Configuración del sistema</h1>
@@ -165,6 +166,13 @@ templ Ajustes(margins []store.MarginOption, materials []store.Material, units []
 			</label>
 			<button type="submit">Agregar</button>
 		</form>
+		<div class="section-title">
+			<h2>Notificaciones</h2>
+			@SectionHelpLink(HelpNotificaciones, "notificaciones")
+		</div>
+		<p>Los avisos que la app manda por correo y WhatsApp. Las llaves de los proveedores se instalan en el servidor, no aquí.</p>
+		@NotificacionesStatus(notificaciones)
+		<p><a href="/ajustes/notificaciones">Ver las notificaciones y enviar una prueba</a></p>
 		<h2>Trabajos en segundo plano</h2>
 		<p>Tareas que la aplicación hace por su cuenta, como enviar avisos: <a href="/ajustes/trabajos">ver los trabajos y sus errores</a>.</p>
 		<h2>Facturación</h2>

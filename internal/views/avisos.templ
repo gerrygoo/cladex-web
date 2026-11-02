@@ -1,0 +1,50 @@
+package views
+
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// ContactForm is the Avisos form: a user's email and WhatsApp, and which of them to be
+// notified on. It posts to action.
+templ ContactForm(action string, c store.UserContact, errs map[string]string) {
+	<form method="post" action={ templ.URL(action) }>
+		<label>
+			Correo
+			<input type="email" name="email" value={ c.Email } autocomplete="email" placeholder="p. ej. ana@cladex.com.mx" { errAttrs(errs, "email")... }/>
+		</label>
+		@FieldError(errs, "email")
+		<label>
+			WhatsApp <span class="hint">(10 dígitos; con lada de país si no es de México)</span>
+			<input type="tel" name="whatsapp" value={ c.WhatsApp } autocomplete="tel" placeholder="p. ej. 33 1234 5678" { errAttrs(errs, "whatsapp")... }/>
+		</label>
+		@FieldError(errs, "whatsapp")
+		<fieldset>
+			<legend>Recibir avisos por</legend>
+			<label>
+				<input type="checkbox" name="notify_email" value="1" checked?={ c.NotifyEmail }/>
+				Correo
+			</label>
+			<label>
+				<input type="checkbox" name="notify_whatsapp" value="1" checked?={ c.NotifyWhatsApp }/>
+				WhatsApp
+			</label>
+		</fieldset>
+		<button type="submit" class="primary">Guardar avisos</button>
+	</form>
+}
+
+// UsuarioAvisos is an admin's edit of another user's Avisos.
+templ UsuarioAvisos(target store.User, c store.UserContact, errs map[string]string, successMsg string, user *NavUser) {
+	@Layout("Avisos de "+target.Name, user) {
+		<div class="page-title">
+			<h1>Avisos de { target.Name }</h1>
+			@HelpLink(HelpAvisos)
+		</div>
+		<p><a href="/usuarios">← Usuarios</a></p>
+		@Flash(successMsg)
+		<p>Dónde la app le avisa a { target.Username }, por ejemplo, cuando vence el seguimiento de un proyecto. Cada quien también lo puede cambiar en su Mi cuenta.</p>
+		@ContactForm("/usuarios/"+strconv.FormatInt(target.ID, 10)+"/avisos", c, errs)
+	}
+}

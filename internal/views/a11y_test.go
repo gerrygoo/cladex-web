@@ -134,7 +134,7 @@ func TestNavGroupsTablesAndLeavesLogoutToMiCuenta(t *testing.T) {
 		t.Error("Inicio should reach Nueva cotización only through the nav menu")
 	}
 
-	cuenta := render(t, MiCuenta(nil, "", &NavUser{Username: "ana"}))
+	cuenta := render(t, MiCuenta(MiCuentaView{}, &NavUser{Username: "ana"}))
 	assertContains(t, cuenta, `Entraste como <strong>ana</strong>.`,
 		`<form method="post" action="/logout"><button type="submit">Cerrar sesión</button></form>`)
 }

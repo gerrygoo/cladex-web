@@ -8,7 +8,20 @@ package views
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) templ.Component {
+import "github.com/gerrygoo/cladex-web/internal/store"
+
+// MiCuentaView is what /mi-cuenta shows: the password form's errors, the user's Avisos
+// (saved, or a refused submission with ContactErrors) and a success message. ContactSaved
+// shows the Avisos' own, next to the form the page scrolls to.
+type MiCuentaView struct {
+	PasswordErrors map[string]string
+	Contact        store.UserContact
+	ContactErrors  map[string]string
+	ContactSaved   bool
+	Success        string
+}
+
+func MiCuenta(m MiCuentaView, user *NavUser) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -53,7 +66,7 @@ func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) t
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Flash(successMsg).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = Flash(m.Success).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -64,7 +77,7 @@ func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) t
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(user.Username)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mi_cuenta.templ`, Line: 13, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mi_cuenta.templ`, Line: 26, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -74,7 +87,7 @@ func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) t
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, errAttrs(fieldErrors, "current_password"))
+			templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, errAttrs(m.PasswordErrors, "current_password"))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -82,7 +95,7 @@ func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) t
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = FieldError(fieldErrors, "current_password").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = FieldError(m.PasswordErrors, "current_password").Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -90,7 +103,7 @@ func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) t
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, errAttrs(fieldErrors, "new_password"))
+			templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, errAttrs(m.PasswordErrors, "new_password"))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -98,7 +111,7 @@ func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) t
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = FieldError(fieldErrors, "new_password").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = FieldError(m.PasswordErrors, "new_password").Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -106,7 +119,7 @@ func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) t
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, errAttrs(fieldErrors, "confirm_password"))
+			templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, errAttrs(m.PasswordErrors, "confirm_password"))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -114,11 +127,33 @@ func MiCuenta(fieldErrors map[string]string, successMsg string, user *NavUser) t
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = FieldError(fieldErrors, "confirm_password").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = FieldError(m.PasswordErrors, "confirm_password").Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<button type=\"submit\" class=\"primary\">Cambiar contraseña</button></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<button type=\"submit\" class=\"primary\">Cambiar contraseña</button></form><div class=\"section-title\"><h2 id=\"avisos\">Avisos</h2>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = SectionHelpLink(HelpAvisos, "avisos").Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if m.ContactSaved {
+				templ_7745c5c3_Err = Flash("Avisos guardados.").Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, " <p>Dónde quieres que la app te avise, por ejemplo, cuando vence el seguimiento de un proyecto.</p>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = ContactForm("/mi-cuenta/avisos", m.Contact, m.ContactErrors).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

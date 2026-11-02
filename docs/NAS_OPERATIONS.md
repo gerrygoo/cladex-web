@@ -204,6 +204,8 @@ read-only at `/run/secrets`:
 | `csd_cer` | The CSD certificate, the SAT's `.cer` as is |
 | `csd_key` | The CSD private key, the SAT's encrypted `.key` as is |
 | `csd_password` | The key's password, alone on one line |
+| `resend_api_key` | Resend's API key (`re_…`), sending-only permission, for email notifications |
+| `smtp_password` | The mailbox's SMTP password, only when `EMAIL_PROVIDER=smtp` |
 
 - Both directories sit outside `data/` and `backups/`, so neither Litestream nor the
   nightly tarball nor the cloud sync of `backups/` carries them. The durable copy of the
@@ -223,6 +225,37 @@ read-only at `/run/secrets`:
   off without stopping the app; the reason is in the `facturacion` startup log line and in
   **Configuración del sistema → Facturación**. After changing a file, roll production
   onto it (`/volume1/docker/cladex/deploy.sh restart`, no downtime).
+
+## Email notifications
+
+`internal/notify` sends email through Resend (or an SMTP mailbox) from a background job
+(docs/planning/notificaciones-y-trabajos.md). The settings are environment variables in
+`compose.yaml`; the key is a secret file, as above.
+
+| Variable | Value |
+|---|---|
+| `EMAIL_PROVIDER` | `resend`, `smtp`, or `fake` (logs instead of sending, for local dev); unset turns email off |
+| `EMAIL_FROM` | The sender, `Cladex <avisos@avisos.cladex.com.mx>` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME` | Only for `smtp`: e.g. `smtpout.secureserver.net`, `465` (or `587` with STARTTLS), the mailbox address (defaults to `EMAIL_FROM`'s) |
+| `NOTIFY_ALLOW` | Outside production, the only addresses and numbers that get anything, comma-separated |
+
+Setting up Resend, once:
+
+1. Create the Resend account and add the domain `avisos.cladex.com.mx`. Sending from a
+   subdomain keeps any reputation problem away from the team's own mailboxes.
+2. Add the DNS records Resend shows (SPF/MX on `send.avisos…`, the DKIM `TXT`) in
+   GoDaddy's DNS for `cladex.com.mx`, and wait for Resend to mark the domain verified.
+3. Create an API key with **sending access** only, and put it in `secrets/resend_api_key`
+   (ownership and mode as above). Staging can use the same key: it only sends to
+   `NOTIFY_ALLOW`.
+4. Roll production onto it: `/volume1/docker/cladex/deploy.sh restart`. The startup log's
+   `notificaciones` line and **Configuración del sistema → Notificaciones** should say
+   email is on.
+5. In the app, put your email in **Mi cuenta → Avisos**, then **Notificaciones → Enviarme
+   una prueba**. It should turn *Aceptada* and arrive.
+
+A channel without its settings is off, not fatal. A send that fails is retried by the job
+runner and shows its error under **Notificaciones** (and the job's under **Trabajos**).
 
 ## Staging
 

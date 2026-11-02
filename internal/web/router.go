@@ -12,6 +12,7 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/facturoporti"
 	"github.com/gerrygoo/cladex-web/internal/guia"
 	"github.com/gerrygoo/cladex-web/internal/jobs"
+	"github.com/gerrygoo/cladex-web/internal/notify"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
@@ -24,6 +25,8 @@ type Build struct {
 	Time        time.Time
 	Env         appenv.Env
 	Facturacion facturoporti.Status
+	// Notificaciones is which notification channels are on (internal/notify).
+	Notificaciones notify.Status
 }
 
 // NewMux builds the application router. build.SHA is surfaced on /healthz; the home
@@ -61,12 +64,14 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	users := NewUsers(db)
 	settings := NewSettings(db)
 	settings.facturacion = build.Facturacion
+	settings.notificaciones = build.Notificaciones
 	units := NewUnits(db)
 	familias := NewFamilias(db)
 	tipos := NewTipos(db)
 	documentos := NewDocumentos(db)
 	help := NewHelp(guide)
 	trabajos := NewTrabajos(db, runner)
+	notificaciones := NewNotificaciones(db, runner, build.Notificaciones)
 
 	static, err := newStaticHandler(staticFS)
 	if err != nil {
@@ -88,6 +93,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.HandleFunc("POST /logout", auth.Logout)
 	mux.Handle("GET /mi-cuenta", authed(auth.MiCuentaPage))
 	mux.Handle("POST /mi-cuenta", authed(auth.MiCuentaSubmit))
+	mux.Handle("POST /mi-cuenta/avisos", authed(auth.MiCuentaAvisos))
 
 	// A vendedor may add products but not change them once created, conversions and
 	// materials included since they change the price, nor delete a customer (issue #41).
@@ -198,6 +204,8 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /usuarios/{id}/rol", admin(users.SetRole))
 	mux.Handle("POST /usuarios/{id}/deshabilitar", admin(users.SetDisabled(true)))
 	mux.Handle("POST /usuarios/{id}/habilitar", admin(users.SetDisabled(false)))
+	mux.Handle("GET /usuarios/{id}/avisos", admin(users.AvisosPage))
+	mux.Handle("POST /usuarios/{id}/avisos", admin(users.Avisos))
 
 	mux.Handle("GET /ajustes", admin(settings.Page))
 	mux.Handle("POST /ajustes/margenes", admin(settings.CreateMargen))
@@ -212,6 +220,11 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("GET /ajustes/trabajos", admin(trabajos.Page))
 	mux.Handle("POST /ajustes/trabajos/prueba", admin(trabajos.Prueba))
 	mux.Handle("POST /ajustes/trabajos/{id}/reintentar", admin(trabajos.Reintentar))
+	mux.Handle("GET /ajustes/notificaciones", admin(notificaciones.List))
+	mux.Handle("POST /ajustes/notificaciones/prueba", admin(notificaciones.Prueba))
+	mux.Handle("GET /ajustes/notificaciones/{id}", admin(notificaciones.Page))
+	mux.Handle("POST /ajustes/notificaciones/{id}/reintentar", admin(notificaciones.Reintentar))
+	mux.Handle("POST /ajustes/notificaciones/{id}/cancelar", admin(notificaciones.Cancelar))
 
 	mux.Handle("GET /unidades", admin(units.List))
 	mux.Handle("POST /unidades", admin(units.Create))

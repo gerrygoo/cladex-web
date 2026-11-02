@@ -22,6 +22,7 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/facturoporti"
 	"github.com/gerrygoo/cladex-web/internal/guia"
 	"github.com/gerrygoo/cladex-web/internal/jobs"
+	"github.com/gerrygoo/cladex-web/internal/notify"
 	"github.com/gerrygoo/cladex-web/internal/satcat"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/web"
@@ -180,7 +181,18 @@ func runServer() {
 		slog.Bool("sandbox", facturacion.Sandbox), slog.String("problem", facturacion.Problem),
 		slog.String("rfc", facturacion.RFC), slog.Time("csd_expires", facturacion.Expires))
 
-	build := web.Build{SHA: buildSHA, Env: env, Facturacion: facturacion}
+	// Notification channels, like facturación, are off rather than fatal without their
+	// configuration; the status says why.
+	notifyCfg := notify.Load(env, os.Getenv)
+	for _, c := range notifyCfg.Status.Channels {
+		logger.Info("notificaciones", slog.String("channel", c.Channel), slog.Bool("enabled", c.Enabled),
+			slog.String("provider", c.Provider), slog.String("problem", c.Problem))
+	}
+	if !notifyCfg.Status.Production {
+		logger.Info("notificaciones: not production, only sending to NOTIFY_ALLOW", slog.Any("allow", notifyCfg.Status.Allow))
+	}
+
+	build := web.Build{SHA: buildSHA, Env: env, Facturacion: facturacion, Notificaciones: notifyCfg.Status}
 	if t, err := time.Parse(time.RFC3339, buildTime); err == nil {
 		build.Time = t
 	}
@@ -189,6 +201,7 @@ func runServer() {
 	// (internal/jobs). It stops claiming jobs on SIGTERM, with ctx.
 	runner := jobs.New(db, logger)
 	runner.Register(jobs.KindPrueba, jobs.Prueba)
+	runner.Register(store.NotificationJobKind, notify.New(db, notifyCfg, logger).Handle)
 	runnerDone := make(chan struct{})
 	go func() {
 		defer close(runnerDone)

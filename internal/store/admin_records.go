@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 )
 
 // ErrHasStampedInvoice means a proyecto can't be deleted because one of its comprobantes
@@ -22,7 +23,8 @@ const deletableComprobanteStatuses = `'borrador', 'lista', 'rechazada'`
 // (only unstamped ones; otherwise ErrHasStampedInvoice and nothing is touched), the
 // purchase order files, its órdenes de compra a proveedor (any state) and every quote it
 // ever had, with their lines, comments and supplier quotes. No foreign key cascades, so the order here is the dependency order.
-// Folios are not reused: folio_sequences only counts up.
+// Folios are not reused: folio_sequences only counts up. Notifications are never deleted:
+// those still por enviar about it are cancelled, and all of them lose the link.
 func (s *Store) DeleteProject(ctx context.Context, projectID int64) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -40,6 +42,9 @@ func (s *Store) DeleteProject(ctx context.Context, projectID int64) error {
 	}
 	if stamped > 0 {
 		return ErrHasStampedInvoice
+	}
+	if err := unlinkProjectNotifications(ctx, tx, projectID, time.Now()); err != nil {
+		return fmt.Errorf("store: delete project %d: notifications: %w", projectID, err)
 	}
 	steps := []struct{ what, query string }{
 		{"comprobante conceptos", `DELETE FROM comprobante_conceptos WHERE comprobante_id IN (SELECT id FROM comprobantes WHERE project_id = ?1)`},
@@ -85,6 +90,46 @@ func (s *Store) DeleteProject(ctx context.Context, projectID int64) error {
 		return fmt.Errorf("store: delete project %d: %w", projectID, err)
 	}
 	return nil
+}
+
+// unlinkProjectNotifications cancels a proyecto's notifications still por enviar (and
+// the jobs that would send them), then clears every notification's link to the proyecto
+// and its comprobantes, so the record outlives them.
+func unlinkProjectNotifications(ctx context.Context, tx *sql.Tx, projectID int64, now time.Time) error {
+	const about = `(project_id = ?1 OR comprobante_id IN (SELECT id FROM comprobantes WHERE project_id = ?1))`
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM notifications WHERE status = ?2 AND `+about, projectID, NotifPorEnviar)
+	if err != nil {
+		return err
+	}
+	var pending []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		pending = append(pending, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	actor, _ := ActorFromContext(ctx)
+	const reason = "Se eliminó el proyecto."
+	for _, id := range pending {
+		if err := transitionNotification(ctx, tx, id, actor.UserID, []string{NotifPorEnviar}, "cancelada", reason, now,
+			`status = 'cancelada', error = ?`, reason); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE jobs SET status = 'cancelado', result = 'Se canceló la notificación.', finished_at = ?
+			WHERE id = (SELECT job_id FROM notifications WHERE id = ?) AND status = 'pendiente'`,
+			jobTime(now), id); err != nil {
+			return err
+		}
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE notifications SET project_id = NULL, comprobante_id = NULL WHERE `+about, projectID)
+	return err
 }
 
 // DeleteDraftQuote removes a first draft that never became a proyecto, with its lines,

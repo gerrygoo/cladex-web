@@ -33,6 +33,10 @@ x-cladex-env: &cladex-env
   # static-asset and healthcheck requests.
   LOG_FORMAT: "json"
   LOG_LEVEL: "info"
+  # Email notifications (internal/notify). The API key is the resend_api_key secret; until
+  # it's there, email is off and Configuración del sistema says so.
+  EMAIL_PROVIDER: "resend"
+  EMAIL_FROM: "Cladex <avisos@avisos.cladex.com.mx>"
 
 services:
   cladex-blue:
@@ -92,6 +96,11 @@ services:
       PORT: "8091"
       DB_PATH: "/data/cladex.db"
       APP_ENV: "staging"
+      # Staging only notifies the addresses and numbers listed here, comma-separated; the
+      # rest are recorded as cancelled. Empty, it sends nothing to anyone.
+      EMAIL_PROVIDER: "resend"
+      EMAIL_FROM: "Cladex pruebas <avisos@avisos.cladex.com.mx>"
+      NOTIFY_ALLOW: ""
       # Plain HTTP on the LAN: a Secure cookie would never come back.
       COOKIE_SECURE: "false"
       LOG_FORMAT: "json"

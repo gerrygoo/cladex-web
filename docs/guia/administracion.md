@@ -117,6 +117,42 @@ cambies aquí sale en los borradores y en las órdenes que se confirmen después
 confirmadas no cambian. Si falta alguno de estos datos, una orden de compra no se puede
 confirmar.
 
+## Notificaciones
+
+Los avisos que la app manda por su cuenta, por correo (y más adelante por WhatsApp). En
+**Configuración del sistema**, **Notificaciones** dice si cada canal está *Encendido* o
+*Apagado* y por qué. Las llaves de los proveedores se instalan en el servidor
+([cómo](../NAS_OPERATIONS.md#secrets)).
+
+Haz clic en *Ver las notificaciones y enviar una prueba* para ver todas, de la más nueva a
+la más vieja. Puedes filtrarlas por **Estado**, **Canal** y **Tipo**. Los estados:
+
+- *Por enviar*: en la cola, o esperando un reintento después de un error.
+- *Enviando*: se está mandando en este momento.
+- *Aceptada*: el proveedor la recibió para entregarla. No quiere decir que ya se leyó.
+- *Fallida*: no se pudo enviar; el **Error** dice por qué.
+- *Cancelada*: ya no se va a enviar.
+
+Haz clic en la fecha de una notificación para ver lo que decía y su **Historial**: cada
+intento y su resultado.
+
+**Enviar una prueba**
+
+1. Escribe tu correo en **Mi cuenta → Avisos** ([cómo](acceso.md#recibir-avisos)).
+2. En **Notificaciones**, haz clic en **Enviarme una prueba**.
+3. Recarga la página en unos segundos: la prueba debe estar *Aceptada*, y el correo
+   *Prueba de avisos de Cladex* en tu bandeja (revisa también el correo no deseado).
+
+**Si una notificación falla**
+
+La app la reintenta sola varias veces (ver [trabajos en segundo
+plano](#trabajos-en-segundo-plano)). Si aun así queda *Fallida*, corrige lo que dice el
+error (por ejemplo, el correo del usuario en **Usuarios → Avisos**) y haz clic en
+**Reintentar** en la notificación. Una que sigue *Por enviar* se puede **Cancelar**.
+
+> En el [ambiente de pruebas](#ambiente-de-pruebas) solo se envían avisos a las
+> direcciones autorizadas; las demás quedan *Canceladas* con esa razón.
+
 ## Trabajos en segundo plano
 
 Algunas tareas la app las hace por su cuenta, sin que nadie esté en la página: por

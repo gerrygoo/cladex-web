@@ -1,0 +1,242 @@
+package views
+
+import (
+	"strconv"
+	"strings"
+
+	"github.com/gerrygoo/cladex-web/internal/notify"
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// notificationKindLabels name each notification kind for admins; a kind missing here
+// shows as stored.
+var notificationKindLabels = map[string]string{
+	notify.PruebaKind: "Prueba",
+}
+
+func notificationKindLabel(kind string) string {
+	if l, ok := notificationKindLabels[kind]; ok {
+		return l
+	}
+	return kind
+}
+
+// notificationEventLabels are the words a notification's history uses.
+var notificationEventLabels = map[string]string{
+	"en_cola":   "En la cola",
+	"enviando":  "Enviando",
+	"aceptada":  "Aceptada por el proveedor",
+	"error":     "Error; se reintentará",
+	"fallida":   "Fallida",
+	"cancelada": "Cancelada",
+	"reintento": "Reintentada a mano",
+}
+
+func notificationPath(n store.Notification, action string) string {
+	p := "/ajustes/notificaciones/" + strconv.FormatInt(n.ID, 10)
+	if action != "" {
+		p += "/" + action
+	}
+	return p
+}
+
+func notificationRecipient(n store.Notification) string {
+	if n.UserName != "" {
+		return n.UserName + " (" + n.Address + ")"
+	}
+	return n.Address
+}
+
+// channelStatusText is a channel's line in Configuración del sistema.
+func channelStatusText(c notify.ChannelStatus) string {
+	if !c.Enabled {
+		return "Apagado: " + c.Problem
+	}
+	s := "Encendido, por " + c.Provider
+	if c.From != "" {
+		s += ", desde " + c.From
+	}
+	return s
+}
+
+// allowText says who a non-production instance sends to.
+func allowText(allow []string) string {
+	if len(allow) == 0 {
+		return "No se envía nada a nadie (no hay NOTIFY_ALLOW)."
+	}
+	return "Solo se envía a " + strings.Join(allow, ", ") + "."
+}
+
+func providerText(n store.Notification) string {
+	if n.ProviderMessageID == "" {
+		return n.Provider
+	}
+	return n.Provider + " · id " + n.ProviderMessageID
+}
+
+// NotificacionesStatus is the channels' state, shown in Configuración del sistema and on
+// the Notificaciones page.
+templ NotificacionesStatus(st notify.Status) {
+	<dl class="facturacion-status">
+		for _, c := range st.Channels {
+			<dt>{ store.ChannelLabels[c.Channel] }</dt>
+			<dd>{ channelStatusText(c) }</dd>
+		}
+		if !st.Production {
+			<dt>Fuera de producción</dt>
+			<dd>
+				{ allowText(st.Allow) }
+			</dd>
+		}
+	</dl>
+}
+
+templ filterSelect(label, name, current string, values []string, labels func(string) string) {
+	<label>
+		{ label }
+		<select name={ name }>
+			<option value="">Todos</option>
+			for _, v := range values {
+				<option value={ v } selected?={ v == current }>{ labels(v) }</option>
+			}
+		</select>
+	</label>
+}
+
+var notificationStatuses = []string{store.NotifPorEnviar, store.NotifEnviando, store.NotifAceptada, store.NotifEntregada, store.NotifFallida, store.NotifCancelada}
+var notificationChannels = []string{store.ChannelEmail, store.ChannelWhatsApp}
+
+func notificationStatusLabel(s string) string  { return store.NotificationStatusLabels[s] }
+func notificationChannelLabel(c string) string { return store.ChannelLabels[c] }
+
+// Notificaciones is the admin list of every notification, newest first.
+templ Notificaciones(rows []store.Notification, f store.NotificationFilter, kinds []string, lv ListView, st notify.Status, successMsg, errorMsg string, user *NavUser) {
+	@Layout("Notificaciones", user) {
+		<div class="page-title">
+			<h1>Notificaciones</h1>
+			@HelpLink(HelpNotificaciones)
+		</div>
+		<p><a href="/ajustes">← Configuración del sistema</a></p>
+		@Flash(successMsg)
+		@FormError(errorMsg)
+		@NotificacionesStatus(st)
+		<form method="post" action="/ajustes/notificaciones/prueba">
+			<button type="submit">Enviarme una prueba</button>
+		</form>
+		<form method="get" action="/ajustes/notificaciones" class="filters">
+			@filterSelect("Estado", "estado", f.Status, notificationStatuses, notificationStatusLabel)
+			@filterSelect("Canal", "canal", f.Channel, notificationChannels, notificationChannelLabel)
+			@filterSelect("Tipo", "tipo", f.Kind, kinds, notificationKindLabel)
+			<button type="submit">Filtrar</button>
+		</form>
+		<div class="table-scroll">
+			<table>
+				<thead>
+					<tr>
+						<th>Fecha</th>
+						<th>Tipo</th>
+						<th>Canal</th>
+						<th>Para</th>
+						<th>Asunto</th>
+						<th>Estado</th>
+						<th>Error</th>
+					</tr>
+				</thead>
+				<tbody>
+					if len(rows) == 0 {
+						<tr>
+							<td colspan="7">No hay notificaciones.</td>
+						</tr>
+					}
+					for _, n := range rows {
+						<tr>
+							<td>
+								<a href={ templ.URL(notificationPath(n, "")) }>
+									@Timestamp(n.CreatedAt)
+								</a>
+							</td>
+							<td>{ notificationKindLabel(n.Kind) }</td>
+							<td>{ store.ChannelLabels[n.Channel] }</td>
+							<td>{ notificationRecipient(n) }</td>
+							<td>{ n.Subject }</td>
+							<td>{ store.NotificationStatusLabels[n.Status] }</td>
+							<td>{ n.Error }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		@listPager(lv, false)
+	}
+}
+
+// Notificacion is one notification: what it said, to whom, and what happened to it.
+templ Notificacion(n store.Notification, successMsg, errorMsg string, user *NavUser) {
+	@Layout("Notificación "+strconv.FormatInt(n.ID, 10), user) {
+		<div class="page-title">
+			<h1>Notificación { strconv.FormatInt(n.ID, 10) }</h1>
+			@HelpLink(HelpNotificaciones)
+		</div>
+		<p><a href="/ajustes/notificaciones">← Notificaciones</a></p>
+		@Flash(successMsg)
+		@FormError(errorMsg)
+		<dl class="facturacion-status">
+			<dt>Tipo</dt>
+			<dd>{ notificationKindLabel(n.Kind) }</dd>
+			<dt>Canal</dt>
+			<dd>{ store.ChannelLabels[n.Channel] }</dd>
+			<dt>Para</dt>
+			<dd>{ notificationRecipient(n) }</dd>
+			<dt>Estado</dt>
+			<dd>{ store.NotificationStatusLabels[n.Status] }</dd>
+			if n.Error != "" {
+				<dt>Error</dt>
+				<dd>{ n.Error }</dd>
+			}
+			if n.Provider != "" {
+				<dt>Proveedor</dt>
+				<dd>{ providerText(n) }</dd>
+			}
+		</dl>
+		if n.Status == store.NotifFallida {
+			<form method="post" action={ templ.URL(notificationPath(n, "reintentar")) }>
+				<button type="submit" class="primary">Reintentar</button>
+			</form>
+		}
+		if n.Status == store.NotifPorEnviar {
+			<form method="post" action={ templ.URL(notificationPath(n, "cancelar")) }>
+				<button type="submit" class="danger" data-confirm="¿Cancelar esta notificación? Ya no se enviará.">Cancelar</button>
+			</form>
+		}
+		<h2>Contenido</h2>
+		if n.Subject != "" {
+			<p><strong>{ n.Subject }</strong></p>
+		}
+		<pre class="notification-body">{ n.BodyText }</pre>
+		<h2>Historial</h2>
+		<ul>
+			for _, e := range n.Events {
+				<li>
+					@Timestamp(e.CreatedAt)
+					{ " · " + notificationEventText(e) }
+				</li>
+			}
+		</ul>
+	}
+}
+
+// notificationEventText is a history line after its time: "Reintentada a mano por Ana",
+// "Fallida: resend 422 …".
+func notificationEventText(e store.NotificationEvent) string {
+	s, ok := notificationEventLabels[e.Event]
+	if !ok {
+		s = e.Event
+	}
+	if e.UserName != "" {
+		s += " por " + e.UserName
+	}
+	if e.Detail != "" {
+		s += ": " + e.Detail
+	}
+	return s
+}

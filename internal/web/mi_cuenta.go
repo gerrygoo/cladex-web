@@ -32,8 +32,23 @@ func (f ChangePasswordForm) Validate() map[string]string {
 }
 
 func (a *Auth) MiCuentaPage(w http.ResponseWriter, r *http.Request) {
-	user, _ := UserFromContext(r.Context())
-	views.MiCuenta(nil, "", navUserView(user)).Render(r.Context(), w)
+	a.renderMiCuenta(w, r, views.MiCuentaView{ContactSaved: r.URL.Query().Get("avisos") == "1"})
+}
+
+// renderMiCuenta draws /mi-cuenta with the user's saved Avisos.
+func (a *Auth) renderMiCuenta(w http.ResponseWriter, r *http.Request, m views.MiCuentaView) {
+	ctx := r.Context()
+	user, _ := UserFromContext(ctx)
+	c, err := a.store.UserContactByID(ctx, user.ID)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	m.Contact = c
+	if len(m.PasswordErrors) > 0 {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+	}
+	views.MiCuenta(m, navUserView(user)).Render(ctx, w)
 }
 
 func (a *Auth) MiCuentaSubmit(w http.ResponseWriter, r *http.Request) {
@@ -65,8 +80,7 @@ func (a *Auth) MiCuentaSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(fieldErrors) > 0 {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		views.MiCuenta(fieldErrors, "", navUserView(authUser)).Render(ctx, w)
+		a.renderMiCuenta(w, r, views.MiCuentaView{PasswordErrors: fieldErrors})
 		return
 	}
 
@@ -80,5 +94,5 @@ func (a *Auth) MiCuentaSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	views.MiCuenta(nil, "Contraseña actualizada.", navUserView(authUser)).Render(ctx, w)
+	a.renderMiCuenta(w, r, views.MiCuentaView{Success: "Contraseña actualizada."})
 }

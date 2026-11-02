@@ -28,6 +28,7 @@ var appRoutes = []route{
 	{"GET", "/", false},
 	{"GET", "/mi-cuenta", false},
 	{"POST", "/mi-cuenta", false},
+	{"POST", "/mi-cuenta/avisos", false},
 
 	{"GET", "/productos", false},
 	{"GET", "/productos/nuevo", false},
@@ -100,6 +101,8 @@ var appRoutes = []route{
 	{"POST", "/usuarios/1/rol", true},
 	{"POST", "/usuarios/1/deshabilitar", true},
 	{"POST", "/usuarios/1/habilitar", true},
+	{"GET", "/usuarios/1/avisos", true},
+	{"POST", "/usuarios/1/avisos", true},
 
 	{"GET", "/ajustes", true},
 	{"POST", "/ajustes/margenes", true},
@@ -113,6 +116,11 @@ var appRoutes = []route{
 	{"GET", "/ajustes/trabajos", true},
 	{"POST", "/ajustes/trabajos/prueba", true},
 	{"POST", "/ajustes/trabajos/1/reintentar", true},
+	{"GET", "/ajustes/notificaciones", true},
+	{"POST", "/ajustes/notificaciones/prueba", true},
+	{"GET", "/ajustes/notificaciones/1", true},
+	{"POST", "/ajustes/notificaciones/1/reintentar", true},
+	{"POST", "/ajustes/notificaciones/1/cancelar", true},
 
 	{"GET", "/unidades", true},
 	{"POST", "/unidades", true},

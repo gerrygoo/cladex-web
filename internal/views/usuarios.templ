@@ -67,13 +67,12 @@ templ UsersList(users []store.User, currentUserID int64, lv ListView, successMsg
 								}
 							</td>
 							<td class="actions">
-								if u.ID == currentUserID {
-									—
-								} else if u.DisabledAt != nil {
+								<a href={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/avisos") }>Avisos<span class="visually-hidden">{ " de " + u.Username }</span></a>
+								if u.ID != currentUserID && u.DisabledAt != nil {
 									<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/habilitar") }>
 										<button type="submit">Habilitar</button>
 									</form>
-								} else {
+								} else if u.ID != currentUserID {
 									<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/deshabilitar") }>
 										<button type="submit" class="danger" data-confirm="¿Deshabilitar a este usuario?">Deshabilitar</button>
 									</form>

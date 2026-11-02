@@ -12,6 +12,7 @@ type HelpTopic string
 const (
 	HelpInicio             HelpTopic = "/ayuda#la-página-de-inicio"
 	HelpMiCuenta           HelpTopic = "/ayuda/acceso#cambiar-tu-contraseña"
+	HelpAvisos             HelpTopic = "/ayuda/acceso#recibir-avisos"
 	HelpClientes           HelpTopic = "/ayuda/clientes"
 	HelpClienteNuevo       HelpTopic = "/ayuda/clientes#dar-de-alta-un-cliente"
 	HelpClienteEditar      HelpTopic = "/ayuda/clientes#editar-un-cliente"
@@ -37,15 +38,16 @@ const (
 	HelpOrdenCompra        HelpTopic = "/ayuda/ordenes-de-compra"
 
 	// Admin-only screens link to the admin-only guide page.
-	HelpAjustes       HelpTopic = "/ayuda/administracion#márgenes"
-	HelpMateriales    HelpTopic = "/ayuda/administracion#materiales"
-	HelpUsuarios      HelpTopic = "/ayuda/administracion#cambiar-el-rol-de-un-usuario"
-	HelpUnidades      HelpTopic = "/ayuda/administracion#unidades"
-	HelpFamilias      HelpTopic = "/ayuda/administracion#familias-y-tipos-de-cotización"
-	HelpFamiliaEditar HelpTopic = "/ayuda/administracion#editar-una-familia"
-	HelpTipoNuevo     HelpTopic = "/ayuda/administracion#crear-un-tipo-de-cotización"
-	HelpTipoEditar    HelpTopic = "/ayuda/administracion#cambiar-un-tipo-de-cotización"
-	HelpTrabajos      HelpTopic = "/ayuda/administracion#trabajos-en-segundo-plano"
+	HelpAjustes        HelpTopic = "/ayuda/administracion#márgenes"
+	HelpMateriales     HelpTopic = "/ayuda/administracion#materiales"
+	HelpUsuarios       HelpTopic = "/ayuda/administracion#cambiar-el-rol-de-un-usuario"
+	HelpUnidades       HelpTopic = "/ayuda/administracion#unidades"
+	HelpFamilias       HelpTopic = "/ayuda/administracion#familias-y-tipos-de-cotización"
+	HelpFamiliaEditar  HelpTopic = "/ayuda/administracion#editar-una-familia"
+	HelpTipoNuevo      HelpTopic = "/ayuda/administracion#crear-un-tipo-de-cotización"
+	HelpTipoEditar     HelpTopic = "/ayuda/administracion#cambiar-un-tipo-de-cotización"
+	HelpTrabajos       HelpTopic = "/ayuda/administracion#trabajos-en-segundo-plano"
+	HelpNotificaciones HelpTopic = "/ayuda/administracion#notificaciones"
 
 	// Only admins open a supplier's form; its sections are admin-only in the guide.
 	HelpProveedorNuevo  HelpTopic = "/ayuda/proveedores#dar-de-alta-un-proveedor"
@@ -56,6 +58,7 @@ const (
 var HelpTopics = map[HelpTopic]bool{
 	HelpInicio:             false,
 	HelpMiCuenta:           false,
+	HelpAvisos:             false,
 	HelpClientes:           false,
 	HelpClienteNuevo:       false,
 	HelpClienteEditar:      false,
@@ -90,6 +93,7 @@ var HelpTopics = map[HelpTopic]bool{
 	HelpProveedorNuevo:     true,
 	HelpProveedorEditar:    true,
 	HelpTrabajos:           true,
+	HelpNotificaciones:     true,
 }
 
 func quoteHelpTopic(status string) HelpTopic {

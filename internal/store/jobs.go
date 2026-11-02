@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// Job statuses (migrations/0031_jobs.sql).
+// Job statuses (migrations/0035_jobs.sql).
 const (
 	JobPendiente = "pendiente"
 	JobEnCurso   = "en_curso"
