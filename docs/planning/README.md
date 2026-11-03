@@ -37,3 +37,4 @@ documentation of shipped behavior.
 | [Órdenes de compra a proveedores](ordenes-de-compra-a-proveedores.md) | Designed 2026-10-22, parked: tracking and generating Cladex's own O.C. to suppliers for what a proyecto needs |
 | [Notificaciones y trabajos en segundo plano](notificaciones-y-trabajos.md) | Designed 2026-10-23, not started: the SQLite job runner (#19) and WhatsApp + email notifications (#18), first used for the seguimiento reminder |
 | [Tipos de cotización](tipos-de-cotizacion.md) | Designed 2026-10-28 for #53, not started: split the quote series (numbering, terms, PDF and builder behavior) from the catalog familia, so prefixes are labels, not keys |
+| [Estados del proyecto](estados-del-proyecto.md) | Decided 2026-11-03, not started: facturación, entrega and cobro as three states derived in a view (#63, #66, #67), real stamping plus manual mode, supplier per familia |

@@ -28,6 +28,10 @@ comes in (see [the lifecycle doc](ciclo-de-vida-cotizacion-a-cobro.md#2-etapa-de
   generation used for quotes, and the proyecto as the thing an O.C. belongs to
   ([milestone plan](hitos-proyectos-y-facturas.md), M4).
 
+> **2026-11-03:** Proveedores (#64) and supplier O.C.s (#65) are being built. The default
+> supplier is **per familia**, not per product, and there is **no exchange rate**; this
+> supersedes decisions 1 and 4 below. See [Estados del proyecto](estados-del-proyecto.md).
+
 ## Decisions (2026-10-22)
 
 Cladex buys mostly from one manufacturer (the CCS wire), plus occasional suppliers for
