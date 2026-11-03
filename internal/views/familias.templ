@@ -57,14 +57,21 @@ templ FamiliasList(families []store.Family, name string, fieldErrors map[string]
 	}
 }
 
-templ FamiliaEdit(f store.Family, fieldErrors map[string]string, user *NavUser) {
-	@Layout("Editar "+f.Name, user) {
+// FamiliaEdit is the familia's edit form. savedName is its name as stored, for the
+// heading, while f holds what the form shows (what was typed, after an error).
+templ FamiliaEdit(savedName string, f store.Family, fieldErrors map[string]string, user *NavUser) {
+	@Layout("Editar "+savedName, user) {
 		<div class="page-title">
-			<h1>Editar familia { f.Name }</h1>
+			<h1>Editar familia { savedName }</h1>
 			@HelpLink(HelpFamilias)
 		</div>
-		<p>El nombre de una familia no se puede cambiar.</p>
 		<form method="post" action={ templ.URL("/familias/" + strconv.FormatInt(f.ID, 10)) }>
+			<label>
+				Nombre
+				<input type="text" name="name" value={ f.Name } required { errAttrs(fieldErrors, "name")... }/>
+			</label>
+			@FieldError(fieldErrors, "name")
+			<p class="hint">El nombre nuevo se ve en el catálogo, en los tipos de cotización y en los borradores. Las cotizaciones ya emitidas no cambian: su PDF no lleva el nombre de la familia.</p>
 			<label>
 				Clave de producto SAT para facturar (8 dígitos, opcional)
 				<input type="text" name="sat_product_code" value={ f.SATProductCode } inputmode="numeric" maxlength="8" pattern="[0-9]{8}" placeholder="p. ej. 26121600" { errAttrs(fieldErrors, "sat_product_code")... }/>

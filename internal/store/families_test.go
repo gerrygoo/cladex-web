@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/fs"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -276,5 +277,56 @@ func TestQLTermsMigration(t *testing.T) {
 	defer s.Close()
 	if got := qlTerms(s); got != "Editado por un admin" {
 		t.Fatalf("0014/0015 overwrote an admin's edit of QL's terms: %q", got)
+	}
+}
+
+// A familia can be renamed (issue #55: "CCS & AC" becomes "CCS"). Its quote type follows
+// it by id, the name stays unique ignoring case, and the change is audited.
+func TestUpdateFamilyRenames(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	userID, err := s.CreateUser(ctx, "ana", "Ana López", "hashedpw", "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	actorCtx := WithActor(ctx, Actor{UserID: userID, Source: SourceWeb})
+	var ccs Family
+	all, _ := s.ListAllFamilies(ctx)
+	for _, f := range all {
+		if f.Name == "CCS & AC" {
+			ccs = f
+		}
+	}
+	if ccs.ID == 0 {
+		t.Fatalf("no seeded CCS & AC familia in %+v", all)
+	}
+
+	if err := s.UpdateFamily(actorCtx, ccs.ID, "CCS", "26121600"); err != nil {
+		t.Fatalf("UpdateFamily: %v", err)
+	}
+	types, _ := s.ListQuoteTypes(ctx)
+	for _, qt := range types {
+		if qt.Prefix == "QS" && qt.FamilyName != "CCS" {
+			t.Errorf("QS familia = %q, want it to follow the rename", qt.FamilyName)
+		}
+	}
+	entries, err := s.AuditLog(ctx, AuditFilter{TableName: "product_families", RowKey: strconv.FormatInt(ccs.ID, 10)})
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("audit entries = %+v, %v; want the rename", entries, err)
+	}
+	if e := entries[0]; e.Op != "update" || e.OldValues["name"] != "CCS & AC" || e.NewValues["name"] != "CCS" ||
+		e.NewValues["sat_product_code"] != "26121600" || e.ActorID == nil || *e.ActorID != userID {
+		t.Errorf("audit entry = %+v", e)
+	}
+
+	// Another familia's name, in any case, is taken; its own name in another case isn't.
+	if err := s.UpdateFamily(ctx, ccs.ID, "cca", ""); !errors.Is(err, ErrDuplicateFamilyName) {
+		t.Errorf("renaming onto cca = %v, want ErrDuplicateFamilyName", err)
+	}
+	if err := s.UpdateFamily(ctx, ccs.ID, "ccs", ""); err != nil {
+		t.Errorf("changing only the case = %v", err)
+	}
+	if err := s.UpdateFamily(ctx, 9999, "Nueva", ""); !errors.Is(err, sql.ErrNoRows) {
+		t.Errorf("UpdateFamily on a missing familia = %v, want sql.ErrNoRows", err)
 	}
 }

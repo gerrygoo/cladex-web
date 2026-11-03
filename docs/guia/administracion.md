@@ -180,14 +180,21 @@ familia especial sin productos: la usa el tipo QL, que solo cotiza
 3. Para cotizar sus productos con una serie propia, crea después un
    [tipo de cotización](#crear-un-tipo-de-cotización) de esa familia.
 
-### Clave SAT de una familia
+### Editar una familia
 
-En **Familias**, haz clic en **Editar** en la fila de la familia, escribe la **Clave de
-producto SAT** (8 dígitos, p. ej. `26121600`) y haz clic en **Guardar**. Las partidas de
-las facturas de esa familia empiezan con esa clave; en cada factura se puede cambiar.
-Confírmala con el contador.
+En **Familias**, haz clic en **Editar** en la fila de la familia. Ahí puedes cambiar:
 
-El nombre de una familia no se puede cambiar, y las familias no se eliminan desde la app.
+- El **Nombre**, p. ej. de `CCS & AC` a `CCS`. Sus productos y sus tipos de cotización
+  siguen siendo los mismos y muestran el nombre nuevo, igual que los borradores. Las
+  cotizaciones ya emitidas no cambian: su PDF no lleva el nombre de la familia.
+- La **Clave de producto SAT** (8 dígitos, p. ej. `26121600`). Las partidas de las
+  facturas de esa familia empiezan con esa clave; en cada factura se puede cambiar.
+  Confírmala con el contador.
+
+Haz clic en **Guardar**. Las familias no se eliminan desde la app.
+
+El nombre de un [tipo de cotización](#tipos-de-cotización) (p. ej. *Cable CCS & AC*) es
+aparte: se cambia en **Tipos de cotización**.
 
 Mensajes de error:
 

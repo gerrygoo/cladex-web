@@ -46,7 +46,8 @@ func (s *Store) ListAllFamilies(ctx context.Context) ([]Family, error) {
 	return families, rows.Err()
 }
 
-// ErrDuplicateFamilyName is returned by CreateFamily when the name is already taken.
+// ErrDuplicateFamilyName is returned by CreateFamily and UpdateFamily when the name is
+// already taken.
 var ErrDuplicateFamilyName = errors.New("store: a familia with this name already exists")
 
 // CreateFamily inserts a familia named name and returns its id. Names are unique,
@@ -67,12 +68,24 @@ func (s *Store) CreateFamily(ctx context.Context, name string) (int64, error) {
 	return res.LastInsertId()
 }
 
-// SetFamilySATCode sets a familia's default c_ClaveProdServ; "" clears it. It returns
+// UpdateFamily renames a familia and sets its default c_ClaveProdServ ("" clears it).
+// Names are unique ignoring case, as in CreateFamily, though a familia may keep its name
+// or change only its case. Products and quote types point at the familia by id, so they
+// show the new name; an issued quote's PDF never prints it (issue #55). It returns
 // sql.ErrNoRows when there is no such familia.
-func (s *Store) SetFamilySATCode(ctx context.Context, id int64, code string) error {
-	res, err := s.exec(ctx, `UPDATE product_families SET sat_product_code = NULLIF(?, '') WHERE id = ?`, code, id)
+func (s *Store) UpdateFamily(ctx context.Context, id int64, name, satCode string) error {
+	var taken int
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT count(*) FROM product_families WHERE name = ? COLLATE NOCASE AND id <> ?`, name, id).Scan(&taken); err != nil {
+		return fmt.Errorf("store: check familia %q: %w", name, err)
+	}
+	if taken > 0 {
+		return ErrDuplicateFamilyName
+	}
+	res, err := s.exec(ctx, `UPDATE product_families SET name = ?, sat_product_code = NULLIF(?, '') WHERE id = ?`,
+		name, satCode, id)
 	if err != nil {
-		return fmt.Errorf("store: familia %d sat code: %w", id, err)
+		return fmt.Errorf("store: update familia %d: %w", id, err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return sql.ErrNoRows

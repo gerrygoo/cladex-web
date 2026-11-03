@@ -13,9 +13,9 @@ import (
 )
 
 // Familias holds the dependencies for the admin-only /familias handlers: list and
-// create the product familias (catalog categories) and set a familia's SAT code. How a
-// quote is numbered and printed lives on its quote type (/tipos-de-cotizacion).
-// Familias are never deleted or renamed here: products reference them.
+// create the product familias (catalog categories), and rename one or set its SAT code.
+// How a quote is numbered and printed lives on its quote type (/tipos-de-cotizacion).
+// Familias are never deleted here: products reference them.
 type Familias struct {
 	store *store.Store
 }
@@ -100,7 +100,7 @@ func (f *Familias) EditPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, _ := UserFromContext(r.Context())
-	views.FamiliaEdit(fam, nil, navUserView(user)).Render(r.Context(), w)
+	views.FamiliaEdit(fam.Name, fam, nil, navUserView(user)).Render(r.Context(), w)
 }
 
 func (f *Familias) Update(w http.ResponseWriter, r *http.Request) {
@@ -108,21 +108,34 @@ func (f *Familias) Update(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	savedName := fam.Name
+	name := strings.TrimSpace(r.FormValue("name"))
 	satCode := strings.TrimSpace(r.FormValue("sat_product_code"))
-	if satCode != "" && !satProductPattern.MatchString(satCode) {
-		user, _ := UserFromContext(r.Context())
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		fam.SATProductCode = satCode
-		views.FamiliaEdit(fam, map[string]string{"sat_product_code": "La clave SAT son 8 dígitos, p. ej. 26121600."}, navUserView(user)).Render(r.Context(), w)
-		return
+	errs := map[string]string{}
+	if name == "" {
+		errs["name"] = "El nombre es obligatorio."
 	}
-	if err := f.store.SetFamilySATCode(r.Context(), fam.ID, satCode); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+	if satCode != "" && !satProductPattern.MatchString(satCode) {
+		errs["sat_product_code"] = "La clave SAT son 8 dígitos, p. ej. 26121600."
+	}
+	if len(errs) == 0 {
+		err := f.store.UpdateFamily(r.Context(), fam.ID, name, satCode)
+		switch {
+		case err == nil:
+			http.Redirect(w, r, "/familias?guardado=editada", http.StatusSeeOther)
+			return
+		case errors.Is(err, store.ErrDuplicateFamilyName):
+			errs["name"] = "Ya existe una familia con este nombre."
+		case errors.Is(err, sql.ErrNoRows):
 			http.NotFound(w, r)
 			return
+		default:
+			serverError(w, r, err)
+			return
 		}
-		serverError(w, r, err)
-		return
 	}
-	http.Redirect(w, r, "/familias?guardado=editada", http.StatusSeeOther)
+	user, _ := UserFromContext(r.Context())
+	w.WriteHeader(http.StatusUnprocessableEntity)
+	fam.Name, fam.SATProductCode = name, satCode
+	views.FamiliaEdit(savedName, fam, errs, navUserView(user)).Render(r.Context(), w)
 }
