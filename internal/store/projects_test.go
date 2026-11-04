@@ -49,10 +49,10 @@ func TestForecastRelevant(t *testing.T) {
 }
 
 // testOC is a complete purchase order for tests that only need a proyecto past prospecto.
-var testOC = OC{Number: "4411", Date: "2026-10-07", PaymentMethod: "PUE"}
+var testOC = OC{Number: "4411", Date: "2026-10-07"}
 
-// testInvoice is a factura for tests that only need a proyecto past oc_recibida. With
-// testOC, which is P.U.E., recording it also leaves the proyecto pagado.
+// testInvoice is a factura for tests that only need a proyecto past oc_recibida.
+// Recorded as P.U.E., it also leaves the proyecto pagado.
 var testInvoice = Document{Ref: "F-1001", Date: "2026-10-08"}
 
 // projectFixture issues one quote through the store, so it has a proyecto, and returns
@@ -175,7 +175,7 @@ func TestMoveProject(t *testing.T) {
 	if err := s.ReceiveOC(ctx, project, user, testOC, nil, ""); err != nil {
 		t.Fatalf("ReceiveOC again: %v", err)
 	}
-	if err := s.RecordInvoice(ctx, project, user, testInvoice, ""); err != nil {
+	if err := s.RecordInvoice(ctx, project, user, testInvoice, "PUE", ""); err != nil {
 		t.Fatalf("RecordInvoice: %v", err)
 	}
 	for _, to := range []string{"en_entrega", "cerrado"} {
@@ -200,7 +200,7 @@ func TestMoveProject(t *testing.T) {
 	if len(comments) != 6 {
 		t.Fatalf("comments = %d, want 6", len(comments))
 	}
-	if last := comments[len(comments)-1]; last.Body != "Pasó a O.C. recibida.\nO.C. 4411 · 07/10/2026 · P.U.E.\nLlegó la OC 4411" {
+	if last := comments[len(comments)-1]; last.Body != "Pasó a O.C. recibida.\nO.C. 4411 · 07/10/2026\nLlegó la OC 4411" {
 		t.Errorf("first comment = %q", last.Body)
 	}
 	if comments[len(comments)-2].Body != "Regresó a Prospecto." {
@@ -618,7 +618,7 @@ func TestLoseAndReopenProject(t *testing.T) {
 	if p = load(); p.Status != "oc_recibida" {
 		t.Fatalf("reopened to %q, want oc_recibida", p.Status)
 	}
-	if err := s.RecordInvoice(ctx, project, user, testInvoice, ""); err != nil {
+	if err := s.RecordInvoice(ctx, project, user, testInvoice, "PUE", ""); err != nil {
 		t.Fatalf("RecordInvoice: %v", err)
 	}
 	if err := s.MoveProject(ctx, project, user, "facturado", "en_entrega", ""); err != nil {
@@ -776,13 +776,12 @@ func TestReceiveOC(t *testing.T) {
 		return p
 	}
 
-	// All three pieces of the purchase order are required, and a file can't be empty.
+	// Both pieces of the purchase order are required, and a file can't be empty. The
+	// método de pago isn't one of them: it is chosen with the factura (issue #61).
 	for name, oc := range map[string]OC{
-		"no number":         {Number: "  ", Date: "2026-10-07", PaymentMethod: "PUE"},
-		"no date":           {Number: "4411", PaymentMethod: "PUE"},
-		"malformed date":    {Number: "4411", Date: "07/10/2026", PaymentMethod: "PUE"},
-		"no payment method": {Number: "4411", Date: "2026-10-07"},
-		"unknown method":    {Number: "4411", Date: "2026-10-07", PaymentMethod: "contado"},
+		"no number":      {Number: "  ", Date: "2026-10-07"},
+		"no date":        {Number: "4411"},
+		"malformed date": {Number: "4411", Date: "07/10/2026"},
 	} {
 		if err := s.ReceiveOC(ctx, project, user, oc, nil, ""); !errors.Is(err, ErrBadTransition) {
 			t.Errorf("ReceiveOC(%s) = %v, want ErrBadTransition", name, err)
@@ -808,16 +807,20 @@ func TestReceiveOC(t *testing.T) {
 	}
 
 	pdf := &NewFile{Filename: " OC-4411.pdf ", ContentType: "application/pdf", Data: []byte("%PDF-1.7 one")}
-	if err := s.ReceiveOC(ctx, project, user, OC{Number: " 4411 ", Date: "2026-10-07", PaymentMethod: "PPD"}, pdf, "Llegó por correo"); err != nil {
+	if err := s.ReceiveOC(ctx, project, user, OC{Number: " 4411 ", Date: "2026-10-07"}, pdf, "Llegó por correo"); err != nil {
 		t.Fatalf("ReceiveOC: %v", err)
 	}
 	p := load()
-	if p.Status != "oc_recibida" || p.OC != (OC{Number: "4411", Date: "2026-10-07", PaymentMethod: "PPD"}) || !p.HasOC() {
+	if p.Status != "oc_recibida" || p.OC != (OC{Number: "4411", Date: "2026-10-07"}) || !p.HasOC() || p.PaymentMethod != "" {
 		t.Fatalf("after ReceiveOC = %+v", p)
 	}
-	want := "Pasó a O.C. recibida.\nO.C. 4411 · 07/10/2026 · P.P.D.\nArchivo de la O.C.: OC-4411.pdf\nLlegó por correo"
+	want := "Pasó a O.C. recibida.\nO.C. 4411 · 07/10/2026\nArchivo de la O.C.: OC-4411.pdf\nLlegó por correo"
 	if p.LastBody != want {
 		t.Errorf("history = %q", p.LastBody)
+	}
+	// Who received it and when come from the audit log.
+	if r, err := s.ProjectOCReceipt(ctx, project); err != nil || r.UserName != "Rodolfo" || r.At == "" {
+		t.Errorf("ProjectOCReceipt = %+v, %v", r, err)
 	}
 
 	// In oc_recibida it corrects the data; saving the same thing says nothing.
@@ -828,12 +831,12 @@ func TestReceiveOC(t *testing.T) {
 		t.Errorf("an unchanged save wrote to the history: %q", got)
 	}
 	corrected := &NewFile{Filename: "OC-4411-corregida.pdf", ContentType: "application/pdf", Data: []byte("%PDF-1.7 two")}
-	if err := s.ReceiveOC(ctx, project, user, OC{Number: "4411-A", Date: "2026-10-08", PaymentMethod: "PUE"}, corrected, ""); err != nil {
+	if err := s.ReceiveOC(ctx, project, user, OC{Number: "4411-A", Date: "2026-10-08"}, corrected, ""); err != nil {
 		t.Fatalf("ReceiveOC(correction): %v", err)
 	}
 	p = load()
-	if p.OC.Number != "4411-A" || p.OC.PaymentMethod != "PUE" ||
-		p.LastBody != "O.C. actualizada: 4411-A · 08/10/2026 · P.U.E.\nArchivo de la O.C.: OC-4411-corregida.pdf" {
+	if p.OC.Number != "4411-A" ||
+		p.LastBody != "O.C. actualizada: 4411-A · 08/10/2026\nArchivo de la O.C.: OC-4411-corregida.pdf" {
 		t.Errorf("after correction = %+v", p)
 	}
 
@@ -865,7 +868,7 @@ func TestReceiveOC(t *testing.T) {
 	if err := s.ReceiveOC(ctx, project, user, p.OC, nil, ""); err != nil {
 		t.Fatalf("ReceiveOC again: %v", err)
 	}
-	if err := s.RecordInvoice(ctx, project, user, testInvoice, ""); err != nil {
+	if err := s.RecordInvoice(ctx, project, user, testInvoice, "PUE", ""); err != nil {
 		t.Fatalf("RecordInvoice: %v", err)
 	}
 	if err := s.MoveProject(ctx, project, user, "facturado", "en_entrega", ""); err != nil {
@@ -882,15 +885,16 @@ func TestReceiveOC(t *testing.T) {
 	}
 }
 
-// TestPaymentGates walks both formas de pago through the gated steps: nothing is
-// delivered without a factura and nothing is closed without being pagado.
+// TestPaymentGates walks both métodos de pago through the gated steps: nothing is
+// delivered without a factura and nothing is closed without being pagado. The método is
+// chosen when the factura is recorded and kept on the proyecto.
 func TestPaymentGates(t *testing.T) {
 	ctx := context.Background()
-	setup := func(t *testing.T, method string) (*Store, int64, int64, func() *Project) {
+	setup := func(t *testing.T) (*Store, int64, int64, func() *Project) {
 		s := newTestStore(t)
 		q, user := projectFixture(t, s)
 		project := *q.ProjectID
-		if err := s.ReceiveOC(ctx, project, user, OC{Number: "4411", Date: "2026-10-07", PaymentMethod: method}, nil, ""); err != nil {
+		if err := s.ReceiveOC(ctx, project, user, testOC, nil, ""); err != nil {
 			t.Fatalf("ReceiveOC: %v", err)
 		}
 		return s, project, user, func() *Project {
@@ -904,7 +908,7 @@ func TestPaymentGates(t *testing.T) {
 	}
 
 	t.Run("P.U.E. is paid when it is invoiced", func(t *testing.T) {
-		s, project, user, load := setup(t, "PUE")
+		s, project, user, load := setup(t)
 		// The stage button doesn't invoice, and there is no skipping to delivery.
 		for _, to := range []string{"facturado", "en_entrega"} {
 			if err := s.MoveProject(ctx, project, user, "oc_recibida", to, ""); !errors.Is(err, ErrBadTransition) {
@@ -912,15 +916,21 @@ func TestPaymentGates(t *testing.T) {
 			}
 		}
 		for name, bad := range map[string]Document{"no folio": {Ref: " ", Date: "2026-10-08"}, "no date": {Ref: "F-1"}, "bad date": {Ref: "F-1", Date: "8/10/26"}} {
-			if err := s.RecordInvoice(ctx, project, user, bad, ""); !errors.Is(err, ErrBadTransition) {
+			if err := s.RecordInvoice(ctx, project, user, bad, "PUE", ""); !errors.Is(err, ErrBadTransition) {
 				t.Errorf("RecordInvoice(%s) = %v, want ErrBadTransition", name, err)
 			}
 		}
-		if err := s.RecordInvoice(ctx, project, user, Document{Ref: " F-1001 ", Date: "2026-10-08"}, "Transferencia"); err != nil {
+		for _, method := range []string{"", "contado"} {
+			if err := s.RecordInvoice(ctx, project, user, testInvoice, method, ""); !errors.Is(err, ErrBadTransition) {
+				t.Errorf("RecordInvoice(método %q) = %v, want ErrBadTransition", method, err)
+			}
+		}
+		if err := s.RecordInvoice(ctx, project, user, Document{Ref: " F-1001 ", Date: "2026-10-08"}, "PUE", "Transferencia"); err != nil {
 			t.Fatalf("RecordInvoice: %v", err)
 		}
 		p := load()
-		if p.Status != "facturado" || p.Invoice != (Document{Ref: "F-1001", Date: "2026-10-08"}) || !p.Paid() || p.PaidAt != "2026-10-08" || p.PaymentRef != "" {
+		if p.Status != "facturado" || p.Invoice != (Document{Ref: "F-1001", Date: "2026-10-08"}) || !p.Paid() || p.PaidAt != "2026-10-08" ||
+			p.PaymentRef != "" || p.PaymentMethod != "PUE" {
 			t.Fatalf("after RecordInvoice = %+v", p)
 		}
 		if p.LastBody != "Pasó a Facturado.\nPago recibido · factura F-1001 · 08/10/2026\nTransferencia" {
@@ -930,7 +940,7 @@ func TestPaymentGates(t *testing.T) {
 		if err := s.RecordPayment(ctx, project, user, Document{Ref: "CP-1", Date: "2026-10-09"}, ""); !errors.Is(err, ErrBadTransition) {
 			t.Errorf("RecordPayment(P.U.E.) = %v, want ErrBadTransition", err)
 		}
-		if err := s.RecordInvoice(ctx, project, user, testInvoice, ""); !errors.Is(err, ErrBadTransition) {
+		if err := s.RecordInvoice(ctx, project, user, testInvoice, "PUE", ""); !errors.Is(err, ErrBadTransition) {
 			t.Errorf("RecordInvoice(facturado) = %v, want ErrBadTransition", err)
 		}
 		// The purchase order is closed once it is invoiced.
@@ -945,15 +955,15 @@ func TestPaymentGates(t *testing.T) {
 	})
 
 	t.Run("P.P.D. is delivered unpaid but not closed", func(t *testing.T) {
-		s, project, user, load := setup(t, "PPD")
+		s, project, user, load := setup(t)
 		if err := s.RecordPayment(ctx, project, user, Document{Ref: "CP-1", Date: "2026-10-09"}, ""); !errors.Is(err, ErrBadTransition) {
 			t.Errorf("RecordPayment before the factura = %v, want ErrBadTransition", err)
 		}
-		if err := s.RecordInvoice(ctx, project, user, Document{Ref: "A-77", Date: "2026-10-08"}, ""); err != nil {
+		if err := s.RecordInvoice(ctx, project, user, Document{Ref: "A-77", Date: "2026-10-08"}, "PPD", ""); err != nil {
 			t.Fatalf("RecordInvoice: %v", err)
 		}
 		p := load()
-		if p.Status != "facturado" || p.PaymentStatus != PaymentAdvanceInvoiced || p.Paid() || p.PaidAt != "" {
+		if p.Status != "facturado" || p.PaymentStatus != PaymentAdvanceInvoiced || p.Paid() || p.PaidAt != "" || p.PaymentMethod != "PPD" {
 			t.Fatalf("after the factura de anticipo = %+v", p)
 		}
 		if p.LastBody != "Pasó a Facturado.\nFactura de anticipo A-77 · 08/10/2026" {
@@ -993,8 +1003,8 @@ func TestPaymentGates(t *testing.T) {
 	})
 
 	t.Run("going back to O.C. recibida undoes the factura", func(t *testing.T) {
-		s, project, user, load := setup(t, "PUE")
-		if err := s.RecordInvoice(ctx, project, user, testInvoice, ""); err != nil {
+		s, project, user, load := setup(t)
+		if err := s.RecordInvoice(ctx, project, user, testInvoice, "PUE", ""); err != nil {
 			t.Fatalf("RecordInvoice: %v", err)
 		}
 		if err := s.MoveProject(ctx, project, user, "facturado", "oc_recibida", ""); err != nil {
@@ -1004,15 +1014,33 @@ func TestPaymentGates(t *testing.T) {
 		if p.Status != "oc_recibida" || p.Invoice != (Document{}) || p.PaymentStatus != "" || p.PaidAt != "" || !p.HasOC() {
 			t.Fatalf("after going back = %+v", p)
 		}
-		// The order can be corrected to P.P.D. and invoiced again.
-		if err := s.ReceiveOC(ctx, project, user, OC{Number: "4411", Date: "2026-10-07", PaymentMethod: "PPD"}, nil, ""); err != nil {
-			t.Fatalf("ReceiveOC(correction): %v", err)
-		}
-		if err := s.RecordInvoice(ctx, project, user, testInvoice, ""); err != nil {
+		// It can be invoiced again, as P.P.D. this time.
+		if err := s.RecordInvoice(ctx, project, user, testInvoice, "PPD", ""); err != nil {
 			t.Fatalf("RecordInvoice again: %v", err)
 		}
-		if p = load(); p.PaymentStatus != PaymentAdvanceInvoiced {
-			t.Errorf("payment status = %q, want facturado de anticipo", p.PaymentStatus)
+		if p = load(); p.PaymentStatus != PaymentAdvanceInvoiced || p.PaymentMethod != "PPD" {
+			t.Errorf("payment status = %q, método %q; want facturado de anticipo, PPD", p.PaymentStatus, p.PaymentMethod)
+		}
+	})
+
+	t.Run("a método chosen at the O.C. before issue #61 is kept", func(t *testing.T) {
+		s, project, user, load := setup(t)
+		if _, err := s.db.ExecContext(ctx, `UPDATE projects SET payment_method = 'PPD' WHERE id = ?`, project); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+		// Correcting the purchase order doesn't touch it.
+		if err := s.ReceiveOC(ctx, project, user, OC{Number: "4411-B", Date: "2026-10-07"}, nil, ""); err != nil {
+			t.Fatalf("ReceiveOC(correction): %v", err)
+		}
+		if p := load(); p.PaymentMethod != "PPD" {
+			t.Fatalf("PaymentMethod after correcting the O.C. = %q, want PPD", p.PaymentMethod)
+		}
+		// The factura's método is what counts.
+		if err := s.RecordInvoice(ctx, project, user, testInvoice, "PUE", ""); err != nil {
+			t.Fatalf("RecordInvoice: %v", err)
+		}
+		if p := load(); p.PaymentMethod != "PUE" || !p.Paid() {
+			t.Errorf("after RecordInvoice(PUE) = %+v", p)
 		}
 	})
 
@@ -1022,7 +1050,7 @@ func TestPaymentGates(t *testing.T) {
 		if _, err := s.db.ExecContext(ctx, `UPDATE projects SET status = 'oc_recibida' WHERE id = ?`, *q.ProjectID); err != nil {
 			t.Fatalf("seed: %v", err)
 		}
-		if err := s.RecordInvoice(ctx, *q.ProjectID, user, testInvoice, ""); !errors.Is(err, ErrBadTransition) {
+		if err := s.RecordInvoice(ctx, *q.ProjectID, user, testInvoice, "PUE", ""); !errors.Is(err, ErrBadTransition) {
 			t.Errorf("RecordInvoice without O.C. = %v, want ErrBadTransition", err)
 		}
 	})

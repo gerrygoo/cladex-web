@@ -145,16 +145,29 @@ func (f *Facturas) Crear(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/facturas/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
 }
 
-// draftEdit reads the draft form.
+// draftEdit reads the draft form. A factura's "metodo_pago" (PUE or PPD) is chosen on
+// the draft (issue #61), except on one that replaces a stamped factura, which keeps the
+// original's; left out, it stays as it was. P.P.D. means forma de pago 99, and a forma 99
+// left over from P.P.D. is cleared when the método changes to P.U.E.
 func draftEdit(r *http.Request, c *store.Comprobante) (store.DraftEdit, string) {
 	e := store.DraftEdit{
 		UsoCFDI:    r.FormValue("uso_cfdi"),
+		MetodoPago: c.MetodoPago,
 		FormaPago:  r.FormValue("forma_pago"),
 		Recipients: facturacion.NormalizeRecipients(r.FormValue("recipients")),
 		PagoFecha:  strings.TrimSpace(r.FormValue("pago_fecha")),
 	}
-	if c.Tipo == store.TipoFactura && c.MetodoPago == "PPD" {
+	if m := r.FormValue("metodo_pago"); c.Tipo == store.TipoFactura && c.RelatedID == 0 && m != "" {
+		if store.PaymentMethodLabels[m] == "" {
+			return e, "Elige el método de pago: P.U.E. o P.P.D."
+		}
+		e.MetodoPago = m
+	}
+	switch {
+	case c.Tipo == store.TipoFactura && e.MetodoPago == "PPD":
 		e.FormaPago = "99"
+	case c.Tipo == store.TipoFactura && e.FormaPago == "99":
+		e.FormaPago = ""
 	}
 	if c.Moneda == "USD" {
 		if raw := strings.TrimSpace(r.FormValue("tipo_cambio")); raw != "" {

@@ -113,30 +113,32 @@ por cerrar, cuándo se espera la orden de compra y cuánto suma. Está en el men
 
 ## O.C. recibida
 
-El cliente ya mandó su orden de compra y el proyecto tiene su número, su fecha y la
-forma de pago. Desde este momento la cotización del proyecto ya no se puede revisar.
+El cliente ya mandó su orden de compra y el proyecto tiene su número, su fecha y su
+archivo. Desde este momento la cotización del proyecto ya no se puede revisar.
 
-## Forma de pago
+## Método de pago
 
-Cómo va a pagar el cliente, según su orden de compra. **P.U.E.**: pago en una sola
-exhibición. **P.P.D.**: pago en parcialidades o diferido. Se elige al recibir la orden
-de compra.
+Cómo paga el cliente la factura. **P.U.E.**: pago en una sola exhibición (ya pagó).
+**P.P.D.**: pago en parcialidades o diferido (la factura es de anticipo y el pago se
+completa después). Se elige al registrar la factura, o en su borrador si se timbra desde
+la app. Los proyectos que lo eligieron al recibir la orden de compra, cuando ahí se pedía,
+lo conservan como opción inicial.
 
 ## Facturado
 
-La factura de la orden de compra ya está registrada en el proyecto (en una orden
+La factura de la orden de compra ya está registrada en el proyecto (si es
 P.P.D., la factura de anticipo). Es lo que permite entregar: sin factura no se entrega.
 
 ## Estado de pago
 
 En qué va el cobro de un proyecto. **Sin tramitar**: todavía no se registra su factura.
-**Facturado de anticipo**: orden P.P.D. con su factura de anticipo, falta completar el
+**Facturado de anticipo**: factura P.P.D. (de anticipo) registrada, falta completar el
 pago. **Pagado**: ya se cobró. Un proyecto solo se puede cerrar si está pagado.
 
 ## En entrega
 
-El pedido ya va en camino o se le entregó al cliente. Una orden P.P.D. puede estar en
-entrega sin haberse pagado todavía.
+El pedido ya va en camino o se le entregó al cliente. Un proyecto con factura P.P.D.
+puede estar en entrega sin haberse pagado todavía.
 
 ## Cerrado
 

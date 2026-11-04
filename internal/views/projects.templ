@@ -125,7 +125,7 @@ templ ProjectsTableBody(projects []store.Project) {
 // ProjectPage is a proyecto: where it stands, the controls that move it (probability
 // while it is a prospecto, the next stage, and an admin-only step back), every quote it
 // has had, and its history — the comments of all those quotes in one timeline.
-templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []store.ProjectFile, comments []store.ProjectComment, commentsLV ListView, facturas []store.Comprobante, factEnabled bool, user *NavUser, supplier SupplierQuoteView, adminPanel *AdminPanel) {
+templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []store.ProjectFile, receipt store.OCReceipt, comments []store.ProjectComment, commentsLV ListView, facturas []store.Comprobante, factEnabled bool, user *NavUser, supplier SupplierQuoteView, adminPanel *AdminPanel) {
 	@Layout("Proyecto "+p.Folio, user) {
 		<div class="page-title">
 			<h1>Proyecto { p.Folio }</h1>
@@ -232,29 +232,17 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 				</form>
 			}
 		}
-		@followUpAndComments(p, today, comments, commentsLV)
+		@followUpAndComments(p, today, files, receipt, comments, commentsLV)
 		if p.Status != "prospecto" && store.NextStage(p.Status) != "" {
 			<h2>Etapa</h2>
 		}
-		if p.Status == "prospecto" {
-			// The purchase order is only asked for once the sale is about to close.
-			if p.Probability == store.ReceiveOCProbability {
-				if p.CurrentQuoteStatus != store.QuoteEmitida {
-					<p>Para pasarlo a { store.StageLabels["oc_recibida"] }, primero emite la revisión <a href={ templ.URL("/cotizaciones/" + p.CurrentQuoteFolio) }>{ p.CurrentQuoteFolio }</a>.</p>
-				} else {
-					<h2>Recibir la orden de compra</h2>
-					<p>{ stageHint(p.Status) }</p>
-					@OCForm(p, today, "Pasar a O.C. recibida", true, false)
-				}
-			}
-		} else if p.Status == "oc_recibida" {
+		if p.Status == "oc_recibida" {
 			if !p.HasOC() {
-				<p>Para facturarlo, primero captura la orden de compra del cliente, aquí abajo.</p>
+				<p>Para facturarlo, primero captura la orden de compra del cliente, más arriba en <a href="#oc">Orden de compra recibida</a>.</p>
 			} else {
 				<p>{ stageHint(p.Status) }</p>
 			}
-			@LoseForm(p)
-		} else if next := store.NextStage(p.Status); next != "" {
+		} else if next := store.NextStage(p.Status); next != "" && p.Status != "prospecto" {
 			if next == "cerrado" && !p.Paid() && p.Invoice.Ref == "" {
 				<p>Este proyecto llegó a En entrega antes de que se pidiera la factura. Para cerrarlo, pídele a un administrador que lo regrese a O.C. recibida y registra ahí su factura y su pago.</p>
 			} else if next == "cerrado" && !p.Paid() {
@@ -277,14 +265,16 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 			<section id="pago">
 				<h2>Facturación y pago</h2>
 				<dl class="quote-info">
-					<dt>Forma de pago</dt>
-					<dd>{ paymentMethodText(p.OC.PaymentMethod) }</dd>
+					if p.Invoice.Ref != "" && p.PaymentMethod != "" {
+						<dt>Método de pago</dt>
+						<dd>{ paymentMethodText(p.PaymentMethod) }</dd>
+					}
 					<dt>Estado de pago</dt>
 					<dd>
 						<span class={ "badge", "badge-pago-" + paymentBadge(p.PaymentStatus) }>{ store.PaymentStatusLabels[p.PaymentStatus] }</span>
 					</dd>
 					if p.Invoice.Ref != "" {
-						<dt>{ invoiceLabel(p.OC.PaymentMethod) }</dt>
+						<dt>{ invoiceLabel(p.PaymentMethod) }</dt>
 						<dd>{ p.Invoice.Ref + " · " + dateText(p.Invoice.Date) }</dd>
 					}
 					if p.PaymentRef != "" {
@@ -311,24 +301,25 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 					}
 				} else if p.Status == "oc_recibida" {
 					<form method="post" action={ templ.URL(projectPath(p.Folio) + "/factura") } class="stage-form">
-						if p.OC.PaymentMethod == "PUE" {
-							<h3>Registrar pago y factura</h3>
-							<p>La orden es P.U.E.: cuando el cliente pague y se emita la factura, regístralo aquí. El proyecto pasa a Facturado y queda pagado.</p>
-						} else {
-							<h3>Registrar factura de anticipo</h3>
-							<p>La orden es P.P.D.: cuando se emita la factura de anticipo, regístrala aquí. El proyecto pasa a Facturado y se puede entregar; el pago completado se registra después.</p>
-						}
+						<h3>Registrar la factura</h3>
+						<p>Cuando se emita la factura, regístrala aquí con su método de pago. El proyecto pasa a Facturado.</p>
+						<fieldset class="probability">
+							<legend>Método de pago</legend>
+							for _, m := range store.PaymentMethods {
+								<label>
+									<input type="radio" name="metodo_pago" value={ m } checked?={ m == p.PaymentMethod } required/>
+									{ paymentMethodText(m) }
+								</label>
+							}
+						</fieldset>
+						<p class="hint">P.U.E.: el cliente ya pagó, y el proyecto queda pagado. P.P.D.: es la factura de anticipo; el proyecto se puede entregar y el pago completado se registra después.</p>
 						<div class="followup-dates">
 							<label>
-								{ "Folio de la " + invoiceWord(p.OC.PaymentMethod) }
+								Folio de la factura
 								<input type="text" name="folio" maxlength="100" required/>
 							</label>
 							<label>
-								if p.OC.PaymentMethod == "PUE" {
-									Fecha de pago
-								} else {
-									Fecha de la factura
-								}
+								Fecha de la factura
 								<input type="date" name="fecha" value={ today } required/>
 							</label>
 						</div>
@@ -336,13 +327,7 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 							Comentario (opcional)
 							<textarea name="note" rows="2" maxlength="2000"></textarea>
 						</label>
-						<button type="submit" class="primary">
-							if p.OC.PaymentMethod == "PUE" {
-								Registrar pago y pasar a Facturado
-							} else {
-								Registrar factura y pasar a Facturado
-							}
-						</button>
+						<button type="submit" class="primary">Registrar factura y pasar a Facturado</button>
 					</form>
 				} else if p.PaymentStatus == store.PaymentAdvanceInvoiced && (p.Status == "facturado" || p.Status == "en_entrega") && !hasStampedFactura(facturas) {
 					<form method="post" action={ templ.URL(projectPath(p.Folio) + "/pago") } class="stage-form">
@@ -364,50 +349,6 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 						</label>
 						<button type="submit" class="primary">Registrar pago completado</button>
 					</form>
-				}
-			</section>
-		}
-		if p.HasOC() || p.Status == "oc_recibida" {
-			<section id="oc">
-				<h2>Orden de compra del cliente</h2>
-				if p.HasOC() {
-					<dl class="quote-info">
-						<dt>No. de O.C.</dt>
-						<dd>{ p.OC.Number }</dd>
-						<dt>Fecha</dt>
-						<dd>{ dateText(p.OC.Date) }</dd>
-						<dt>Forma de pago</dt>
-						<dd>{ paymentMethodText(p.OC.PaymentMethod) }</dd>
-						<dt>Archivo</dt>
-						<dd>
-							if len(files) == 0 {
-								Sin archivo
-							}
-							for i, f := range files {
-								if i > 0 {
-									<br/>
-								}
-								<a href={ templ.URL(projectFilePath(p.Folio, f.ID) + "?descargar=1") }>{ f.Filename }</a>
-								<small>
-									{ " · " + fileSizeText(f.Size) + " · " + f.UploadedByName + " · " }
-									@Timestamp(f.UploadedAt)
-									if i == 0 && len(files) > 1 {
-										{ " · el vigente" }
-									}
-								</small>
-							}
-						</dd>
-					</dl>
-				} else {
-					<p>Este proyecto llegó a O.C. recibida antes de que se pidieran los datos de la orden. Captúralos para poder continuar.</p>
-				}
-				if p.Status == "oc_recibida" {
-					if p.HasOC() {
-						<h3>Corregir la orden de compra</h3>
-						@OCForm(p, today, "Guardar O.C.", false, true)
-					} else {
-						@OCForm(p, today, "Guardar O.C.", true, true)
-					}
 				}
 			</section>
 		}
@@ -455,13 +396,23 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 
 // followUpAndComments is the proyecto's one place to write (issue #22): a prospecto's
 // follow-up form, or past prospecto a plain comment box, each with a single Guardar, and
-// right below it the history of comments, typed and automatic.
-templ followUpAndComments(p store.Project, today string, comments []store.ProjectComment, commentsLV ListView) {
+// right below it the history of comments, typed and automatic. Past prospecto (issue
+// #61) the probabilidad de cierre stays in view, fixed at Orden colocada 100%, the dates
+// of the follow-up are gone, and the purchase order received sits above the comment box.
+templ followUpAndComments(p store.Project, today string, files []store.ProjectFile, receipt store.OCReceipt, comments []store.ProjectComment, commentsLV ListView) {
 	<section id="historial">
 		<h2>Seguimiento y comentarios</h2>
 		if p.Status == "prospecto" {
 			@FollowUpForm(p, today)
 		} else {
+			if store.CanLose(p.Status) {
+				@LoseForm(p)
+			} else if p.Status != "perdido" {
+				@probabilitySteps(false)
+			}
+			if p.HasOC() || p.Status == "oc_recibida" {
+				@ocReceived(p, today, files, receipt)
+			}
 			<form method="post" action={ templ.URL(projectPath(p.Folio) + "/comentarios") } class="stage-form">
 				<label>
 					Comentario
@@ -502,34 +453,40 @@ templ followUpAndComments(p store.Project, today string, comments []store.Projec
 // dates come filled in with the current ones, so while the next follow-up is still ahead,
 // writing the comment is all it takes to save one. O.C. esperada only shows with
 // Inminente 90% picked; hidden, it still sends the date it has, so it is kept as it is.
+//
+// In Inminente 90% the step to receive the purchase order sits between the dates and the
+// comment (issue #61). It is a form of its own, and forms don't nest, so the comment
+// and Guardar come after it and belong to the follow-up form through their form
+// attribute.
 templ FollowUpForm(p store.Project, today string) {
-	<form method="post" action={ templ.URL(seguimientoPath(p.Folio)) } class="stage-form" data-followup>
-		<fieldset class="probability">
-			<legend>Probabilidad de cierre</legend>
-			for _, st := range store.ProbabilitySteps {
+	{{ formID := "seguimiento-" + p.Folio }}
+	<div class="followup" data-followup>
+		<form id={ formID } method="post" action={ templ.URL(seguimientoPath(p.Folio)) } class="stage-form">
+			<fieldset class="probability">
+				<legend>Probabilidad de cierre</legend>
+				for _, st := range store.ProbabilitySteps {
+					<label>
+						<input type="radio" name="probabilidad" value={ strconv.Itoa(st.Percent) } checked?={ st.Percent == p.Probability } required/>
+						{ st.Label }
+						<small>{ strconv.Itoa(st.Percent) }%</small>
+					</label>
+				}
 				<label>
-					<input type="radio" name="probabilidad" value={ strconv.Itoa(st.Percent) } checked?={ st.Percent == p.Probability } required/>
-					{ st.Label }
-					<small>{ strconv.Itoa(st.Percent) }%</small>
+					<input type="radio" name="probabilidad_oc" value="100" disabled/>
+					Orden colocada
+					<small>100%</small>
 				</label>
-			}
-			<label>
-				<input type="radio" name="probabilidad_oc" value="100" disabled/>
-				Orden colocada
-				<small>100%</small>
+				<label>
+					<input type="radio" name="probabilidad" value="perdida" required/>
+					Perdida
+				</label>
+			</fieldset>
+			<p class="hint">Desde Alta, el proyecto es relevante para pronóstico: es de los que se revisan cuando el equipo ve qué está por cerrar. En Inminente 90% aparece aquí abajo el paso para recibir la orden de compra, que es lo único que lleva el proyecto a Orden colocada 100%.</p>
+			<label data-lost-only hidden>
+				Motivo de la pérdida
+				<textarea name="reason" rows="2" maxlength="2000"></textarea>
 			</label>
-			<label>
-				<input type="radio" name="probabilidad" value="perdida" required/>
-				Perdida
-			</label>
-		</fieldset>
-		<p class="hint">Desde Alta, el proyecto es relevante para pronóstico: es de los que se revisan cuando el equipo ve qué está por cerrar. En Inminente 90% aparece aquí abajo el paso para recibir la orden de compra, que es lo único que lleva el proyecto a Orden colocada 100%.</p>
-		<label data-lost-only hidden>
-			Motivo de la pérdida
-			<textarea name="reason" rows="2" maxlength="2000"></textarea>
-		</label>
-		<div data-not-lost>
-			<div class="followup-dates">
+			<div class="followup-dates" data-not-lost>
 				<label data-imminent-only hidden?={ p.Probability != store.ReceiveOCProbability }>
 					O.C. esperada
 					<input type="date" name="oc_esperada" value={ p.ExpectedOCDate }/>
@@ -539,33 +496,126 @@ templ FollowUpForm(p store.Project, today string) {
 					<input type="date" name="proximo_seguimiento" value={ p.NextFollowUpDate } min={ nextDay(today) } required/>
 				</label>
 			</div>
-			<label>
+		</form>
+		// The purchase order is only asked for once the sale is about to close.
+		if p.Probability == store.ReceiveOCProbability {
+			<section class="receive-oc" data-not-lost>
+				<h3>Recibir la orden de compra</h3>
+				if p.CurrentQuoteStatus != store.QuoteEmitida {
+					<p>Para pasarlo a { store.StageLabels["oc_recibida"] }, primero emite la revisión <a href={ templ.URL("/cotizaciones/" + p.CurrentQuoteFolio) }>{ p.CurrentQuoteFolio }</a>.</p>
+				} else {
+					<p>{ stageHint(p.Status) }</p>
+					@OCForm(p, today, "Pasar a O.C. recibida", true, false)
+				}
+			</section>
+		}
+		<div class="followup-note">
+			<label data-not-lost>
 				Comentario
-				<textarea name="note" rows="2" maxlength="2000" required></textarea>
+				<textarea form={ formID } name="note" rows="2" maxlength="2000" required></textarea>
 			</label>
+			<button type="submit" form={ formID }>Guardar<span class="visually-hidden">{ " seguimiento de " + p.Folio }</span></button>
 		</div>
-		<button type="submit">Guardar<span class="visually-hidden">{ " seguimiento de " + p.Folio }</span></button>
-	</form>
+	</div>
 }
 
-// LoseForm is how a proyecto with its purchase order in is marked lost: the same two
-// closing radios the follow-up form ends with, "Orden colocada 100%" (where it is, so
-// checked and fixed) and "Perdida", with the required Motivo. There are no probabilities
-// left to pick, so this is not the follow-up form.
-templ LoseForm(p store.Project) {
-	<form method="post" action={ templ.URL(projectPath(p.Folio) + "/perder") } class="stage-form">
-		<fieldset class="probability">
-			<legend>Probabilidad de cierre</legend>
+// probabilitySteps shows the probabilidad de cierre of a proyecto past prospecto: every
+// step, fixed, with "Orden colocada 100%" checked, all disabled (issue #61). withLost
+// adds the "Perdida" radio, the one that can be picked, for LoseForm.
+templ probabilitySteps(withLost bool) {
+	<fieldset class="probability" disabled?={ !withLost }>
+		<legend>Probabilidad de cierre</legend>
+		for _, st := range store.ProbabilitySteps {
 			<label>
-				<input type="radio" name="probabilidad_oc" value="100" checked disabled/>
-				Orden colocada
-				<small>100%</small>
+				<input type="radio" name="probabilidad_paso" value={ strconv.Itoa(st.Percent) } disabled/>
+				{ st.Label }
+				<small>{ strconv.Itoa(st.Percent) }%</small>
 			</label>
+		}
+		<label>
+			<input type="radio" name="probabilidad_oc" value="100" checked disabled/>
+			Orden colocada
+			<small>100%</small>
+		</label>
+		if withLost {
 			<label>
 				<input type="radio" name="perdida" value="1" required/>
 				Perdida
 			</label>
-		</fieldset>
+		}
+	</fieldset>
+}
+
+// ocReceived is the purchase order of a proyecto past prospecto (issue #61): its number,
+// date and file to open or download, and who put it on record and when. While the
+// proyecto is in O.C. recibida, a disclosure below it corrects the data; one that got
+// there before the data was asked for gets the form open.
+templ ocReceived(p store.Project, today string, files []store.ProjectFile, receipt store.OCReceipt) {
+	<section id="oc" class="oc-received">
+		<h3>Orden de compra recibida</h3>
+		if p.HasOC() {
+			<dl class="quote-info">
+				<dt>No. de O.C.</dt>
+				<dd>{ p.OC.Number }</dd>
+				<dt>Fecha de la O.C.</dt>
+				<dd>{ dateText(p.OC.Date) }</dd>
+				<dt>Archivo</dt>
+				<dd>
+					if len(files) == 0 {
+						Sin archivo
+					}
+					for i, f := range files {
+						if i > 0 {
+							<br/>
+						}
+						<a href={ templ.URL(projectFilePath(p.Folio, f.ID)) }>{ f.Filename }</a>
+						{ " · " }
+						<a href={ templ.URL(projectFilePath(p.Folio, f.ID) + "?descargar=1") }>Descargar<span class="visually-hidden">{ " " + f.Filename }</span></a>
+						<small>
+							{ " · " + fileSizeText(f.Size) }
+							if len(files) > 1 {
+								{ " · " + f.UploadedByName + " · " }
+								@Timestamp(f.UploadedAt)
+								if i == 0 {
+									{ " · el vigente" }
+								}
+							}
+						</small>
+					}
+				</dd>
+				<dt>Registró</dt>
+				<dd>
+					if receipt.UserName != "" {
+						{ receipt.UserName + " · " }
+						@Timestamp(receipt.At)
+					} else {
+						Sin registro
+					}
+				</dd>
+			</dl>
+		} else {
+			<p>Este proyecto llegó a O.C. recibida antes de que se pidieran los datos de la orden. Captúralos para poder continuar.</p>
+		}
+		if p.Status == "oc_recibida" {
+			if p.HasOC() {
+				<details class="disclosure">
+					<summary>Corregir la orden de compra</summary>
+					@OCForm(p, today, "Guardar O.C.", false, true)
+				</details>
+			} else {
+				@OCForm(p, today, "Guardar O.C.", true, true)
+			}
+		}
+	</section>
+}
+
+// LoseForm is how a proyecto with its purchase order in is marked lost: the probabilidad
+// de cierre fixed at "Orden colocada 100%" (see probabilitySteps), with "Perdida" the one
+// radio that can be picked, and the required Motivo. There are no probabilities left to
+// pick, so this is not the follow-up form.
+templ LoseForm(p store.Project) {
+	<form method="post" action={ templ.URL(projectPath(p.Folio) + "/perder") } class="stage-form">
+		@probabilitySteps(true)
 		<label>
 			Motivo de la pérdida
 			<textarea name="reason" rows="2" maxlength="2000" required></textarea>
@@ -710,9 +760,9 @@ templ dateWarningCell(day, warning string) {
 	}
 }
 
-// OCForm captures the client's purchase order: number, date, forma de pago, its file
-// (required to receive it on a prospecto) and a comment when withNote (receiving the
-// order has none). On a prospecto its button is what moves the proyecto to O.C. recibida;
+// OCForm captures the client's purchase order: number, date, its file (required to
+// receive it on a prospecto) and a comment when withNote (receiving the order has none).
+// The método de pago is chosen with the factura, not here (issue #61). On a prospecto its button is what moves the proyecto to O.C. recibida;
 // afterwards the same form corrects the data. primary styles the button as the page's
 // main action.
 templ OCForm(p store.Project, today, button string, primary, withNote bool) {
@@ -727,15 +777,6 @@ templ OCForm(p store.Project, today, button string, primary, withNote bool) {
 				<input type="date" name="oc_fecha" value={ ocDateValue(p, today) } required/>
 			</label>
 		</div>
-		<fieldset class="probability">
-			<legend>Forma de pago</legend>
-			for _, m := range store.PaymentMethods {
-				<label>
-					<input type="radio" name="forma_pago" value={ m } checked?={ m == p.OC.PaymentMethod } required/>
-					{ paymentMethodText(m) }
-				</label>
-			}
-		</fieldset>
 		<label>
 			if p.HasOC() {
 				Archivo nuevo de la O.C. (opcional; PDF, JPG o PNG de hasta 10 MB)

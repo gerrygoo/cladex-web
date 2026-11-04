@@ -181,8 +181,10 @@ func (s *Store) MoveProject(ctx context.Context, projectID, userID int64, from, 
 	return nil
 }
 
-// PaymentMethods are the formas de pago a purchase order can be received with, and
-// PaymentMethodLabels how users read them.
+// PaymentMethods are the métodos de pago a proyecto's factura can have, and
+// PaymentMethodLabels how users read them. The método is chosen when the factura is
+// recorded (issue #61); proyectos that received their purchase order before that keep the
+// one chosen then, and it is the starting choice when they are invoiced.
 var PaymentMethods = []string{"PUE", "PPD"}
 
 var PaymentMethodLabels = map[string]string{
@@ -190,25 +192,24 @@ var PaymentMethodLabels = map[string]string{
 	"PPD": "P.P.D.",
 }
 
-// OC is the client's purchase order as recorded on a proyecto: its number, its date
-// (YYYY-MM-DD) and the forma de pago, one of PaymentMethods. All three are required.
+// OC is the client's purchase order as recorded on a proyecto: its number and its date
+// (YYYY-MM-DD). Both are required.
 type OC struct {
-	Number        string
-	Date          string
-	PaymentMethod string
+	Number string
+	Date   string
 }
 
 func (oc OC) valid() bool {
-	if strings.TrimSpace(oc.Number) == "" || PaymentMethodLabels[oc.PaymentMethod] == "" {
+	if strings.TrimSpace(oc.Number) == "" {
 		return false
 	}
 	_, err := time.Parse("2006-01-02", oc.Date)
 	return err == nil
 }
 
-// text is the purchase order as the history shows it: "4411 · 07/10/2026 · P.U.E.".
+// text is the purchase order as the history shows it: "4411 · 07/10/2026".
 func (oc OC) text() string {
-	return oc.Number + " · " + dayText(oc.Date) + " · " + PaymentMethodLabels[oc.PaymentMethod]
+	return oc.Number + " · " + dayText(oc.Date)
 }
 
 // NewFile is a file about to be attached to a proyecto.
@@ -253,8 +254,8 @@ func (s *Store) ReceiveOC(ctx context.Context, projectID, userID int64, oc OC, f
 	var status string
 	var old OC
 	err = tx.QueryRowContext(ctx, `
-		SELECT status, COALESCE(oc_number, ''), COALESCE(oc_date, ''), COALESCE(payment_method, '')
-		FROM projects WHERE id = ?`, projectID).Scan(&status, &old.Number, &old.Date, &old.PaymentMethod)
+		SELECT status, COALESCE(oc_number, ''), COALESCE(oc_date, '')
+		FROM projects WHERE id = ?`, projectID).Scan(&status, &old.Number, &old.Date)
 	if err != nil && err != sql.ErrNoRows {
 		return fmt.Errorf("store: receive OC of project %d: %w", projectID, err)
 	}
@@ -278,8 +279,8 @@ func (s *Store) ReceiveOC(ctx context.Context, projectID, userID int64, oc OC, f
 	}
 	if status == "prospecto" || old != oc {
 		if _, err := tx.ExecContext(ctx, `
-			UPDATE projects SET status = 'oc_recibida', oc_number = ?, oc_date = ?, payment_method = ?
-			WHERE id = ?`, oc.Number, oc.Date, oc.PaymentMethod, projectID); err != nil {
+			UPDATE projects SET status = 'oc_recibida', oc_number = ?, oc_date = ?
+			WHERE id = ?`, oc.Number, oc.Date, projectID); err != nil {
 			return fmt.Errorf("store: receive OC of project %d: %w", projectID, err)
 		}
 	}
@@ -348,6 +349,40 @@ func (s *Store) ProjectFileData(ctx context.Context, projectID, fileID int64) (*
 	return &f, data, nil
 }
 
+// OCReceipt is who put a proyecto's purchase order on record and when (a UTC
+// timestamp): the user whose write moved it from prospecto to oc_recibida, as the audit
+// log has it, the latest such move if it was reopened. A proyecto received before the
+// log kept it, or by a write no user is attributed to, falls back to who uploaded its
+// first purchase order file. Both are empty when neither is known.
+type OCReceipt struct {
+	UserName string
+	At       string
+}
+
+// ProjectOCReceipt returns the proyecto's OCReceipt.
+func (s *Store) ProjectOCReceipt(ctx context.Context, projectID int64) (OCReceipt, error) {
+	var r OCReceipt
+	err := s.db.QueryRowContext(ctx, `
+		SELECT COALESCE(u.name, ''), a.at FROM audit_log a LEFT JOIN users u ON u.id = a.actor_id
+		WHERE a.table_name = 'projects' AND a.row_key = CAST(? AS TEXT) AND a.op = 'update'
+			AND json_extract(a.old_values, '$.status') = 'prospecto'
+			AND json_extract(a.new_values, '$.status') = 'oc_recibida'
+		ORDER BY a.id DESC LIMIT 1`, projectID).Scan(&r.UserName, &r.At)
+	if err != nil && err != sql.ErrNoRows {
+		return r, fmt.Errorf("store: OC receipt of project %d: %w", projectID, err)
+	}
+	if r.UserName != "" {
+		return r, nil
+	}
+	err = s.db.QueryRowContext(ctx, `
+		SELECT u.name, f.uploaded_at FROM project_files f JOIN users u ON u.id = f.uploaded_by
+		WHERE f.project_id = ? AND f.kind = 'oc' ORDER BY f.id LIMIT 1`, projectID).Scan(&r.UserName, &r.At)
+	if err != nil && err != sql.ErrNoRows {
+		return r, fmt.Errorf("store: OC receipt of project %d: %w", projectID, err)
+	}
+	return r, nil
+}
+
 // Payment states. A proyecto's payment state is separate from its stage: empty until the
 // purchase order's factura is on record, then facturado de anticipo for a P.P.D. order
 // still to be collected, and pagado. Until facturas are issued from the app these are
@@ -380,16 +415,17 @@ func (d Document) valid() bool {
 	return err == nil
 }
 
-// RecordInvoice puts the purchase order's factura on record and moves the proyecto from
-// oc_recibida to facturado, the only way in. What it means depends on the forma de pago
-// the order was received with. P.U.E.: the client paid and the factura was issued, so
-// the proyecto is pagado as of the factura's day. P.P.D.: it is the factura de anticipo,
-// and the proyecto is facturado de anticipo until RecordPayment. The history gets one
-// comment saying which, ending with the user's note. A proyecto that isn't in
-// oc_recibida with its purchase order on record is ErrBadTransition.
-func (s *Store) RecordInvoice(ctx context.Context, projectID, userID int64, invoice Document, note string) error {
+// RecordInvoice puts the purchase order's factura on record with its método de pago
+// (one of PaymentMethods, kept on the proyecto) and moves the proyecto from oc_recibida
+// to facturado, the only way in. What it means depends on that método. P.U.E.: the
+// client paid and the factura was issued, so the proyecto is pagado as of the factura's
+// day. P.P.D.: it is the factura de anticipo, and the proyecto is facturado de anticipo
+// until RecordPayment. The history gets one comment saying which, ending with the user's
+// note. A proyecto that isn't in oc_recibida with its purchase order on record, or a
+// método that isn't one, is ErrBadTransition.
+func (s *Store) RecordInvoice(ctx context.Context, projectID, userID int64, invoice Document, method, note string) error {
 	invoice.Ref = strings.TrimSpace(invoice.Ref)
-	if !invoice.valid() {
+	if !invoice.valid() || PaymentMethodLabels[method] == "" {
 		return ErrBadTransition
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -400,7 +436,7 @@ func (s *Store) RecordInvoice(ctx context.Context, projectID, userID int64, invo
 	if err := stampActor(ctx, tx); err != nil {
 		return fmt.Errorf("store: record invoice of project %d: %w", projectID, err)
 	}
-	if err := recordInvoiceTx(ctx, tx, projectID, userID, invoice, note); err != nil {
+	if err := recordInvoiceTx(ctx, tx, projectID, userID, invoice, method, note); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -409,13 +445,16 @@ func (s *Store) RecordInvoice(ctx context.Context, projectID, userID int64, invo
 	return nil
 }
 
-// recordInvoiceTx is RecordInvoice inside tx, which a stamped factura also goes through.
-func recordInvoiceTx(ctx context.Context, tx *sql.Tx, projectID, userID int64, invoice Document, note string) error {
-	var method string
+// recordInvoiceTx is RecordInvoice inside tx, which a stamped factura also goes through
+// with the método de pago it was stamped with.
+func recordInvoiceTx(ctx context.Context, tx *sql.Tx, projectID, userID int64, invoice Document, method, note string) error {
+	if PaymentMethodLabels[method] == "" {
+		return ErrBadTransition
+	}
+	var one int
 	err := tx.QueryRowContext(ctx, `
-		SELECT payment_method FROM projects
-		WHERE id = ? AND status = 'oc_recibida' AND oc_number IS NOT NULL AND payment_method IS NOT NULL`,
-		projectID).Scan(&method)
+		SELECT 1 FROM projects WHERE id = ? AND status = 'oc_recibida' AND oc_number IS NOT NULL`,
+		projectID).Scan(&one)
 	if err == sql.ErrNoRows {
 		return ErrBadTransition
 	}
@@ -436,9 +475,9 @@ func recordInvoiceTx(ctx context.Context, tx *sql.Tx, projectID, userID int64, i
 		what = "Pago recibido · factura " + invoice.Ref + " · " + dayText(invoice.Date)
 	}
 	if _, err := tx.ExecContext(ctx, `
-		UPDATE projects SET status = 'facturado', invoice_ref = ?, invoice_date = ?,
+		UPDATE projects SET status = 'facturado', invoice_ref = ?, invoice_date = ?, payment_method = ?,
 			payment_status = ?, paid_at = ?, payment_ref = NULL
-		WHERE id = ?`, invoice.Ref, invoice.Date, status, paidAt, projectID); err != nil {
+		WHERE id = ?`, invoice.Ref, invoice.Date, method, status, paidAt, projectID); err != nil {
 		return fmt.Errorf("store: record invoice of project %d: %w", projectID, err)
 	}
 	body := "Pasó a " + StageLabels["facturado"] + ".\n" + what
@@ -794,6 +833,10 @@ type Project struct {
 	// OC is the client's purchase order, zero until it is received (and on proyectos
 	// that reached oc_recibida before it was asked for).
 	OC OC
+	// PaymentMethod is the factura's método de pago, one of PaymentMethods: set when the
+	// factura is recorded, or already on proyectos whose purchase order was received
+	// while it was asked for there. Empty until then.
+	PaymentMethod string
 	// Invoice is the purchase order's factura as typed in (the factura de anticipo for a
 	// P.P.D. order), PaymentStatus one of PaymentStatusLabels' keys, PaymentRef the folio
 	// of the comprobante de pago of a P.P.D. order and PaidAt the day it was paid. All
@@ -894,7 +937,7 @@ func scanProject(row interface{ Scan(...any) error }) (*Project, error) {
 		&p.ExpectedOCDate, &p.NextFollowUpDate, &p.QuoteIssuedAt, &p.QuoteValidUntil,
 		&p.ContactName, &p.ContactPhone, &p.ContactEmail,
 		&p.LastBody, &p.LastUserName, &p.LastAt,
-		&p.OC.Number, &p.OC.Date, &p.OC.PaymentMethod,
+		&p.OC.Number, &p.OC.Date, &p.PaymentMethod,
 		&p.Invoice.Ref, &p.Invoice.Date, &p.PaymentStatus, &p.PaymentRef, &p.PaidAt,
 		&p.Subtotal, &p.Profit, &p.LastMovementAt)
 	if err == sql.ErrNoRows {

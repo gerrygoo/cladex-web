@@ -38,8 +38,14 @@ social, régimen fiscal, código postal fiscal y uso de CFDI
 La factura empieza como **borrador** con las partidas de la cotización emitida: cantidades,
 precios e importes no cambian. Revisa y completa:
 
-- **Uso de CFDI** (sale del cliente) y, si la orden es P.U.E., la **forma de pago** con que
-  pagó el cliente. Una orden P.P.D. lleva forma de pago *99 - Por definir*.
+- **Uso de CFDI** (sale del cliente).
+- **Método de pago**: **PUE** (el cliente ya pagó) o **PPD** (el pago se completa después
+  con un comprobante de pago). Viene elegido si el proyecto ya tenía uno guardado, de
+  cuando se pedía al recibir la orden de compra; si no, dice *Sin elegir* y hay que
+  elegirlo.
+- Con PUE, la **forma de pago** con que pagó el cliente. Una factura PPD lleva forma de
+  pago *99 - Por definir*; si cambias el método, haz clic en **Guardar borrador** para que
+  la página pida (o quite) la forma de pago.
 - **Enviar por correo a**: Facturoporti manda el XML y el PDF a estas direcciones al
   timbrarla. Puedes dejarlo vacío y mandarla tú.
 - En cada partida, la **clave de producto SAT**, la **clave de unidad SAT**, la unidad y la

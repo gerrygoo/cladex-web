@@ -178,20 +178,23 @@
     if (box) box.hidden = true;
   });
 
-  // The follow-up form's "Perdida" radio swaps the dates and comment for the Motivo of
-  // the loss, and O.C. esperada only shows with Inminente 90%. The server renders the
-  // fields as they are for the saved probabilidad, and checks which ones apply.
+  // The follow-up form's "Perdida" radio swaps the dates, the step to receive the
+  // purchase order and the comment for the Motivo of the loss, and O.C. esperada only
+  // shows with Inminente 90%. The server renders the fields as they are for the saved
+  // probabilidad, and checks which ones apply. The comment sits outside the <form> (the
+  // purchase order's own form comes between), so this looks in the whole [data-followup].
   document.addEventListener("change", function (e) {
-    var form = e.target.closest && e.target.closest("form[data-followup]");
-    if (!form || e.target.name !== "probabilidad") return;
+    var box = e.target.closest && e.target.closest("[data-followup]");
+    if (!box || e.target.name !== "probabilidad") return;
     var lost = e.target.value === "perdida";
-    form.querySelector("[data-imminent-only]").hidden = e.target.value !== "90";
-    var reason = form.querySelector("[data-lost-only]");
-    var rest = form.querySelector("[data-not-lost]");
+    box.querySelector("[data-imminent-only]").hidden = e.target.value !== "90";
+    var reason = box.querySelector("[data-lost-only]");
     reason.hidden = !lost;
-    rest.hidden = lost;
     reason.querySelector("textarea").required = lost;
-    rest.querySelectorAll("[name=proximo_seguimiento], [name=note]").forEach(function (el) {
+    box.querySelectorAll("[data-not-lost]").forEach(function (rest) {
+      rest.hidden = lost;
+    });
+    box.querySelectorAll("[name=proximo_seguimiento], [name=note]").forEach(function (el) {
       el.required = !lost;
     });
   });

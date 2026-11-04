@@ -315,10 +315,12 @@ func activeFactura(ctx context.Context, tx *sql.Tx, projectID int64) (int64, err
 	return id, err
 }
 
-// CreateFacturaDraft starts the factura of a proyecto in O.C. recibida from its issued
-// quote: its lines (amounts as quoted), the customer's uso de CFDI and email, the purchase
-// order's método de pago (P.P.D. facturas carry forma de pago 99), and each line's SAT
-// codes. Those are the product's own "Datos para facturar" (issue #62), the unit's name
+// CreateFacturaDraft starts the factura of a proyecto in O.C. recibida (with its purchase
+// order on record) from its issued quote: its lines (amounts as quoted), the customer's
+// uso de CFDI and email, the proyecto's método de pago as the starting choice when it has
+// one (proyectos received before issue #61; otherwise it is chosen on the draft, and
+// P.P.D. facturas carry forma de pago 99), and each line's SAT codes. Those are the
+// product's own "Datos para facturar" (issue #62), the unit's name
 // as the SAT's catalog has it; where the product has none yet, or for a free line, the
 // previous defaults: the quote type's familia's c_ClaveProdServ and the c_ClaveUnidad of
 // the product's unit (a kg-priced type's line is quoted per metre whatever the product's
@@ -330,11 +332,11 @@ func activeFactura(ctx context.Context, tx *sql.Tx, projectID int64) (int64, err
 func (s *Store) CreateFacturaDraft(ctx context.Context, projectID, userID int64) (int64, error) {
 	var id int64
 	err := s.inTx(ctx, "create factura draft", func(tx *sql.Tx) error {
-		var status, method, use, email, currency, familyCode string
+		var status, ocNumber, method, use, email, currency, familyCode string
 		var quoteID int64
 		var kgPriced, byWeight bool
 		err := tx.QueryRowContext(ctx, `
-			SELECT p.status, COALESCE(p.payment_method, ''), COALESCE(cu.cfdi_use, ''), COALESCE(cu.email, ''),
+			SELECT p.status, COALESCE(p.oc_number, ''), COALESCE(p.payment_method, ''), COALESCE(cu.cfdi_use, ''), COALESCE(cu.email, ''),
 				q.id, COALESCE(q.currency, 'MXN'), COALESCE(f.sat_product_code, ''), COALESCE(q.kg_priced_snapshot, t.kg_priced),
 				COALESCE(q.kg_priced_snapshot, t.kg_priced) OR COALESCE(q.copper_price_margin_snapshot, t.copper_price_margin)
 			FROM projects p
@@ -342,8 +344,8 @@ func (s *Store) CreateFacturaDraft(ctx context.Context, projectID, userID int64)
 			JOIN quotes q ON q.project_id = p.id AND q.status = 'emitida'
 			JOIN quote_types t ON t.id = q.quote_type_id
 			LEFT JOIN product_families f ON f.id = t.family_id
-			WHERE p.id = ?`, projectID).Scan(&status, &method, &use, &email, &quoteID, &currency, &familyCode, &kgPriced, &byWeight)
-		if err == sql.ErrNoRows || err == nil && (status != "oc_recibida" || method == "") {
+			WHERE p.id = ?`, projectID).Scan(&status, &ocNumber, &method, &use, &email, &quoteID, &currency, &familyCode, &kgPriced, &byWeight)
+		if err == sql.ErrNoRows || err == nil && (status != "oc_recibida" || ocNumber == "") {
 			return ErrComprobanteState
 		}
 		if err != nil {
@@ -361,7 +363,7 @@ func (s *Store) CreateFacturaDraft(ctx context.Context, projectID, userID int64)
 		}
 		res, err := tx.ExecContext(ctx, `
 			INSERT INTO comprobantes (tipo, project_id, quote_id, uso_cfdi, metodo_pago, forma_pago, moneda, recipients, created_by)
-			VALUES ('factura', ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?)`,
+			VALUES ('factura', ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''), ?)`,
 			projectID, quoteID, use, method, forma, currency, strings.TrimSpace(email), userID)
 		if err != nil {
 			return err
@@ -557,9 +559,10 @@ func (s *Store) CreateReplacementDraft(ctx context.Context, facturaID, userID in
 }
 
 // DraftEdit is what can change on a draft. Conceptos are matched by id; amounts never
-// change.
+// change. MetodoPago is a factura's (PUE or PPD; "" on a comprobante de pago).
 type DraftEdit struct {
 	UsoCFDI          string
+	MetodoPago       string
 	FormaPago        string
 	TipoCambioMicros *money.Micros
 	Recipients       string
@@ -591,10 +594,10 @@ func (s *Store) UpdateDraft(ctx context.Context, id, userID int64, e DraftEdit) 
 			tc = int64(*e.TipoCambioMicros)
 		}
 		if _, err := tx.ExecContext(ctx, `
-			UPDATE comprobantes SET status = 'borrador', uso_cfdi = NULLIF(?, ''), forma_pago = NULLIF(?, ''),
-				tipo_cambio_micros = ?, recipients = NULLIF(?, ''), pago_fecha = NULLIF(?, ''),
+			UPDATE comprobantes SET status = 'borrador', uso_cfdi = NULLIF(?, ''), metodo_pago = NULLIF(?, ''),
+				forma_pago = NULLIF(?, ''), tipo_cambio_micros = ?, recipients = NULLIF(?, ''), pago_fecha = NULLIF(?, ''),
 				request = NULL, request_sha256 = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-			WHERE id = ?`, e.UsoCFDI, e.FormaPago, tc, strings.TrimSpace(e.Recipients), e.PagoFecha, id); err != nil {
+			WHERE id = ?`, e.UsoCFDI, e.MetodoPago, e.FormaPago, tc, strings.TrimSpace(e.Recipients), e.PagoFecha, id); err != nil {
 			return err
 		}
 		for _, c := range e.Conceptos {
@@ -795,7 +798,10 @@ func projectAfterStamp(ctx context.Context, tx *sql.Tx, id, userID int64, tipo s
 			}
 		}
 	default:
-		err = recordInvoiceTx(ctx, tx, projectID, userID, doc, note)
+		var method string
+		if err = tx.QueryRowContext(ctx, `SELECT COALESCE(metodo_pago, '') FROM comprobantes WHERE id = ?`, id).Scan(&method); err == nil {
+			err = recordInvoiceTx(ctx, tx, projectID, userID, doc, method, note)
+		}
 	}
 	if errors.Is(err, ErrBadTransition) {
 		// The stamp is real whatever the proyecto's state; say so instead of failing.

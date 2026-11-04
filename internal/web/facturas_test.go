@@ -65,7 +65,7 @@ func facturaFixture(t *testing.T, a *Auth, admin int64) (projectFolio string) {
 	if err := a.store.SetProjectProbability(ctx, project.ID, admin, 90, ""); err != nil {
 		t.Fatal(err)
 	}
-	if rec := postOC(t, a, p, admin, folio, map[string]string{"oc_numero": "4411", "oc_fecha": "2026-10-07", "forma_pago": "PPD"},
+	if rec := postOC(t, a, p, admin, folio, map[string]string{"oc_numero": "4411", "oc_fecha": "2026-10-07"},
 		"oc.pdf", []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")); rec.Code != http.StatusSeeOther {
 		t.Fatalf("postOC = %d: %s", rec.Code, rec.Body.String())
 	}
@@ -86,7 +86,7 @@ func TestFacturacionEndToEnd(t *testing.T) {
 	projectPage := func() string {
 		return doForm(t, a, admin, p.Page, "GET", "/proyectos/"+folio, map[string]string{"folio": folio}, nil, false).Body.String()
 	}
-	if body := projectPage(); !strings.Contains(body, "Crear factura") || strings.Contains(body, "Registrar factura de anticipo") {
+	if body := projectPage(); !strings.Contains(body, "Crear factura") || strings.Contains(body, "Registrar la factura") {
 		t.Fatalf("project page should offer Crear factura instead of the typed form")
 	}
 	post := func(userID int64, h http.HandlerFunc, path string, pv map[string]string, form url.Values) *httptest.ResponseRecorder {
@@ -108,17 +108,44 @@ func TestFacturacionEndToEnd(t *testing.T) {
 	}
 
 	// The draft says what's missing: the familia has no SAT code and the product no unit.
+	// The proyecto has no método de pago (issue #61: it isn't asked with the O.C.), so the
+	// draft asks for it.
 	body := page(admin, id)
 	for _, want := range []string{"Factura (borrador)", "Para validarla falta", "falta la clave de producto SAT", "falta la clave de unidad SAT",
-		"99 - Por definir", "compras@peme.mx", "IIA040805DZ4", "Pruebas: sin validez fiscal"} {
+		"Elige el método de pago: P.U.E. o P.P.D.", "<dd>Sin elegir</dd>", `name="metodo_pago" value="PPD" required`,
+		"compras@peme.mx", "IIA040805DZ4", "Pruebas: sin validez fiscal"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("draft page missing %q", want)
 		}
 	}
 	c, _ := a.store.ComprobanteByID(ctx, mustAtoi(t, id))
 	line := strconv.FormatInt(c.Conceptos[0].ID, 10)
-	form := url.Values{"uso_cfdi": {"G01"}, "recipients": {"compras@peme.mx"}, "concepto_id": {line},
+	form := url.Values{"uso_cfdi": {"G01"}, "recipients": {"compras@peme.mx"}, "concepto_id": {line}, "metodo_pago": {"PUE"},
 		"sat_product_" + line: {"26121600"}, "sat_unit_" + line: {"mtr"}, "unit_name_" + line: {"Metro"}, "description_" + line: {"Cable THW 14"}}
+	// P.U.E. asks for the forma de pago; P.P.D. sets it to 99, and back to P.U.E. it is
+	// asked again.
+	if rec := post(admin, f.Guardar, "/facturas/"+id, pv, form); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar(PUE) = %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := page(admin, id); !strings.Contains(body, "Elige la forma de pago con que el cliente pagó.") || !strings.Contains(body, `value="PUE" checked`) {
+		t.Error("a P.U.E. draft without forma de pago doesn't ask for it")
+	}
+	form.Set("metodo_pago", "PPD")
+	if rec := post(admin, f.Guardar, "/facturas/"+id, pv, form); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Guardar(PPD) = %d: %s", rec.Code, rec.Body.String())
+	}
+	if body := page(admin, id); !strings.Contains(body, "99 - Por definir") {
+		t.Error("a P.P.D. draft doesn't carry forma de pago 99")
+	}
+	bad := url.Values{"metodo_pago": {"contado"}}
+	for k, v := range form {
+		if k != "metodo_pago" {
+			bad[k] = v
+		}
+	}
+	if rec := post(admin, f.Guardar, "/facturas/"+id, pv, bad); rec.Code != http.StatusUnprocessableEntity {
+		t.Errorf("Guardar(método contado) = %d, want 422", rec.Code)
+	}
 	if rec := post(vendedor, f.Validar, "/facturas/"+id+"/validar", pv, form); rec.Code != http.StatusForbidden {
 		t.Fatalf("vendedor Validar = %d, want 403", rec.Code)
 	}
@@ -253,7 +280,7 @@ func TestFacturacionCancelPending(t *testing.T) {
 		t.Fatal(err)
 	}
 	c, _ := a.store.ComprobanteByID(ctx, id)
-	if err := a.store.UpdateDraft(ctx, id, admin, store.DraftEdit{UsoCFDI: "G01", FormaPago: "99", Conceptos: []store.ConceptoEdit{
+	if err := a.store.UpdateDraft(ctx, id, admin, store.DraftEdit{UsoCFDI: "G01", MetodoPago: "PPD", FormaPago: "99", Conceptos: []store.ConceptoEdit{
 		{ID: c.Conceptos[0].ID, SATProductCode: "26121600", SATUnitCode: "MTR", Description: "Cable"}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +316,7 @@ func TestFacturacionOff(t *testing.T) {
 	p := NewProjects(a.store)
 	p.fact = facturacion.New(a.store, nil, facturoporti.Status{Sandbox: true, Problem: "no está configurada"})
 	body := doForm(t, a, admin, p.Page, "GET", "/proyectos/"+folio, map[string]string{"folio": folio}, nil, false).Body.String()
-	if !strings.Contains(body, "Registrar factura de anticipo") || strings.Contains(body, "Crear factura") {
+	if !strings.Contains(body, "Registrar la factura") || strings.Contains(body, "Crear factura") {
 		t.Error("facturación off should keep the typed form")
 	}
 	if _, err := p.fact.Stamp(context.Background(), 1, admin); err == nil || !strings.Contains(err.Error(), "apagada") {
@@ -316,7 +343,7 @@ func TestFacturaConceptoIsOneLine(t *testing.T) {
 	if err := a.store.SetProjectProbability(ctx, project.ID, admin, 90, ""); err != nil {
 		t.Fatal(err)
 	}
-	if rec := postOC(t, a, NewProjects(a.store), admin, folio, map[string]string{"oc_numero": "4411", "oc_fecha": "2026-10-07", "forma_pago": "PPD"},
+	if rec := postOC(t, a, NewProjects(a.store), admin, folio, map[string]string{"oc_numero": "4411", "oc_fecha": "2026-10-07"},
 		"oc.pdf", []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")); rec.Code != http.StatusSeeOther {
 		t.Fatalf("postOC = %d: %s", rec.Code, rec.Body.String())
 	}
@@ -375,7 +402,7 @@ func TestFacturaDraftTakesProductSATCodes(t *testing.T) {
 	if err := a.store.SetProjectProbability(ctx, project.ID, admin, 90, ""); err != nil {
 		t.Fatal(err)
 	}
-	if rec := postOC(t, a, NewProjects(a.store), admin, quote.Folio, map[string]string{"oc_numero": "4411", "oc_fecha": "2026-10-07", "forma_pago": "PPD"},
+	if rec := postOC(t, a, NewProjects(a.store), admin, quote.Folio, map[string]string{"oc_numero": "4411", "oc_fecha": "2026-10-07"},
 		"oc.pdf", []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")); rec.Code != http.StatusSeeOther {
 		t.Fatalf("postOC = %d: %s", rec.Code, rec.Body.String())
 	}
@@ -397,7 +424,7 @@ func TestFacturaDraftTakesProductSATCodes(t *testing.T) {
 	// Codes typed on the draft are checked against the catalogs before validating.
 	svc, _ := testFacturacion(t, a, admin)
 	f := NewFacturas(a.store, svc, nil)
-	if err := a.store.UpdateDraft(ctx, id, admin, store.DraftEdit{UsoCFDI: "G01", FormaPago: "99", Conceptos: []store.ConceptoEdit{
+	if err := a.store.UpdateDraft(ctx, id, admin, store.DraftEdit{UsoCFDI: "G01", MetodoPago: "PPD", FormaPago: "99", Conceptos: []store.ConceptoEdit{
 		{ID: c.Conceptos[0].ID, SATProductCode: "26121699", SATUnitCode: "QQQ", Description: "Foco LED"}}}); err != nil {
 		t.Fatal(err)
 	}

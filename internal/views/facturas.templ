@@ -90,6 +90,8 @@ func methodLabel(m string) string {
 		return "PUE - Pago en una sola exhibición"
 	case "PPD":
 		return "PPD - Pago en parcialidades o diferido"
+	case "":
+		return "Sin elegir"
 	}
 	return m
 }
@@ -326,6 +328,18 @@ templ facturaDraftForm(v FacturaView) {
 					}
 				</select>
 			</label>
+			if c.RelatedID == 0 {
+				<fieldset class="probability">
+					<legend>Método de pago</legend>
+					for _, m := range store.PaymentMethods {
+						<label>
+							<input type="radio" name="metodo_pago" value={ m } checked?={ m == c.MetodoPago } required/>
+							{ methodLabel(m) }
+						</label>
+					}
+				</fieldset>
+				<p class="hint">P.U.E.: el cliente ya pagó; al timbrarla el proyecto queda pagado. P.P.D.: el pago se completa después con un comprobante de pago, y la forma de pago es 99 - Por definir.</p>
+			}
 			if c.MetodoPago == "PPD" {
 				<input type="hidden" name="forma_pago" value="99"/>
 				<p>Forma de pago: 99 - Por definir (la factura es P.P.D.; el pago se documenta después con un comprobante de pago).</p>

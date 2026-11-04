@@ -1298,6 +1298,21 @@ form.stage-form textarea {
   width: 100%;
 }
 
+/* A prospecto's follow-up: the comment and Guardar belong to the follow-up form but sit
+   after the step to receive the purchase order, its own form (issue #61). */
+div.followup-note {
+  margin-block: 1rem;
+  max-width: 40rem;
+}
+
+div.followup-note textarea {
+  width: 100%;
+}
+
+div.followup > form.stage-form {
+  margin-bottom: 0;
+}
+
 /* A date that is due: the words carry it, the colour only helps */
 strong.overdue {
   color: var(--warning);

@@ -89,6 +89,13 @@ func (p *Projects) Page(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
+	var receipt store.OCReceipt
+	if project.HasOC() {
+		if receipt, err = p.store.ProjectOCReceipt(ctx, project.ID); err != nil {
+			serverError(w, r, err)
+			return
+		}
+	}
 	comments, err := p.store.ListProjectComments(ctx, project.ID)
 	if err != nil {
 		serverError(w, r, err)
@@ -118,7 +125,7 @@ func (p *Projects) Page(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	views.ProjectPage(*project, today(r), quotes, files, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user), supplier, panel).Render(ctx, w)
+	views.ProjectPage(*project, today(r), quotes, files, receipt, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user), supplier, panel).Render(ctx, w)
 }
 
 // Etapa handles POST /proyectos/{folio}/etapa: moves the proyecto one stage along the
@@ -363,11 +370,11 @@ const maxOCFileBytes = 10 << 20
 var ocFileTypes = map[string]bool{"application/pdf": true, "image/jpeg": true, "image/png": true}
 
 // OC handles POST /proyectos/{folio}/oc: records the client's purchase order —
-// "oc_numero", "oc_fecha" (a day) and "forma_pago" (PUE or PPD), all required, with the
-// "archivo" (PDF, JPG or PNG up to 10 MB) and an optional "note". On a prospecto this is
-// what moves the proyecto to O.C. recibida, and the file is required; on one already there
-// it corrects the data, and a new file is optional.
-// Any signed-in user can.
+// "oc_numero" and "oc_fecha" (a day), both required, with the "archivo" (PDF, JPG or PNG
+// up to 10 MB) and an optional "note". On a prospecto this is what moves the proyecto to
+// O.C. recibida, and the file is required; on one already there it corrects the data, and
+// a new file is optional. The método de pago is not asked here: it belongs to the factura
+// (issue #61). Any signed-in user can.
 func (p *Projects) OC(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := p.loadProjectOrNotFound(w, r)
@@ -386,9 +393,8 @@ func (p *Projects) OC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	oc := store.OC{
-		Number:        strings.TrimSpace(r.FormValue("oc_numero")),
-		Date:          strings.TrimSpace(r.FormValue("oc_fecha")),
-		PaymentMethod: r.FormValue("forma_pago"),
+		Number: strings.TrimSpace(r.FormValue("oc_numero")),
+		Date:   strings.TrimSpace(r.FormValue("oc_fecha")),
 	}
 	if oc.Number == "" || utf8.RuneCountInString(oc.Number) > 100 {
 		http.Error(w, "escribe el número de la orden de compra, de no más de 100 caracteres", http.StatusBadRequest)
@@ -396,10 +402,6 @@ func (p *Projects) OC(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := time.Parse("2006-01-02", oc.Date); err != nil {
 		http.Error(w, "escribe la fecha de la orden de compra", http.StatusBadRequest)
-		return
-	}
-	if store.PaymentMethodLabels[oc.PaymentMethod] == "" {
-		http.Error(w, "elige la forma de pago: P.U.E. o P.P.D.", http.StatusBadRequest)
 		return
 	}
 	file, msg, status := ocFile(r)
@@ -524,9 +526,9 @@ func documentForm(r *http.Request) (store.Document, string) {
 }
 
 // Factura handles POST /proyectos/{folio}/factura: puts the purchase order's factura on
-// record ("folio", "fecha", optional "note") and moves the proyecto from O.C. recibida to
-// Facturado. For a P.U.E. order that is the payment too; for P.P.D. it is the factura de
-// anticipo. Any signed-in user can.
+// record ("folio", "fecha", "metodo_pago" PUE or PPD, optional "note") and moves the
+// proyecto from O.C. recibida to Facturado. A P.U.E. factura is the payment too; a P.P.D.
+// one is the factura de anticipo. Any signed-in user can.
 func (p *Projects) Factura(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := p.loadProjectOrNotFound(w, r)
@@ -543,8 +545,13 @@ func (p *Projects) Factura(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
+	method := r.FormValue("metodo_pago")
+	if store.PaymentMethodLabels[method] == "" {
+		http.Error(w, "elige el método de pago: P.U.E. o P.P.D.", http.StatusBadRequest)
+		return
+	}
 	user, _ := UserFromContext(ctx)
-	if err := p.store.RecordInvoice(ctx, project.ID, user.ID, invoice, note); err != nil {
+	if err := p.store.RecordInvoice(ctx, project.ID, user.ID, invoice, method, note); err != nil {
 		if errors.Is(err, store.ErrBadTransition) {
 			http.Error(w, "la factura solo se registra en un proyecto en O.C. recibida con su orden de compra capturada", http.StatusConflict)
 			return

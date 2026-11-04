@@ -97,9 +97,11 @@ func (s *Service) Problems(ctx context.Context, c *store.Comprobante, related *s
 			p = append(p, "Elige el uso de CFDI.")
 		}
 		switch {
+		case c.MetodoPago != "PUE" && c.MetodoPago != "PPD":
+			p = append(p, "Elige el método de pago: P.U.E. o P.P.D.")
 		case c.MetodoPago == "PPD" && c.FormaPago != "99":
 			p = append(p, "Una factura P.P.D. lleva forma de pago 99 (Por definir).")
-		case c.MetodoPago == "PUE" && (!store.ValidSATCode(store.PaymentForms, c.FormaPago) || c.FormaPago == "99"):
+		case c.MetodoPago == "PUE" && (c.FormaPago == "" || !store.ValidSATCode(store.PaymentForms, c.FormaPago) || c.FormaPago == "99"):
 			p = append(p, "Elige la forma de pago con que el cliente pagó.")
 		}
 		if len(c.Conceptos) == 0 {

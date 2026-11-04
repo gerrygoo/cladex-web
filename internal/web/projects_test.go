@@ -22,7 +22,7 @@ import (
 // testOCForm is a complete purchase order form, without a file. Receiving the order on a
 // prospecto needs a file too: see receiveOC.
 func testOCForm(note string) url.Values {
-	return url.Values{"oc_numero": {"4411"}, "oc_fecha": {"2026-10-07"}, "forma_pago": {"PUE"}, "note": {note}}
+	return url.Values{"oc_numero": {"4411"}, "oc_fecha": {"2026-10-07"}, "note": {note}}
 }
 
 // receiveOC posts testOCForm with a PDF, as a prospecto needs to receive its order.
@@ -35,10 +35,10 @@ func receiveOC(t *testing.T, a *Auth, p *Projects, userID int64, folio, note str
 	return postOC(t, a, p, userID, folio, fields, "oc.pdf", []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n"))
 }
 
-// testInvoiceForm is a complete factura form. With testOCForm, which is P.U.E., posting
-// it also leaves the proyecto pagado.
+// testInvoiceForm is a complete factura form, P.U.E., so posting it also leaves the
+// proyecto pagado.
 func testInvoiceForm() url.Values {
-	return url.Values{"folio": {"F-1001"}, "fecha": {"2026-10-08"}}
+	return url.Values{"folio": {"F-1001"}, "fecha": {"2026-10-08"}, "metodo_pago": {"PUE"}}
 }
 
 // issueTestQuote creates a QA draft with one catalog line and issues it through the
@@ -202,8 +202,31 @@ func TestProjectsFollowUp(t *testing.T) {
 	if !strings.Contains(body, "<label data-imminent-only>") {
 		t.Error("O.C. esperada is hidden at Inminente")
 	}
-	if rest := body[strings.Index(body, "Recibir la orden de compra"):]; strings.Contains(rest, "Comentario") {
-		t.Error("the receive-the-purchase-order section still has a comment field")
+	// Issue #61: the section sits right below O.C. esperada and Próximo seguimiento and
+	// above the follow-up's Comentario and Guardar, then the history, the quotes and (for
+	// an admin) Administración. It asks for no comment and no forma de pago.
+	adminBody := page(beto)
+	order := []string{"Probabilidad de cierre", "O.C. esperada", "Próximo seguimiento", "Recibir la orden de compra",
+		`class="followup-note"`, `name="note"`, "Ya casi cierra", "<h2>Cotizaciones</h2>", "Administración"}
+	last := -1
+	for _, want := range order {
+		i := strings.Index(adminBody[last+1:], want)
+		if i < 0 {
+			t.Errorf("Inminente page: %q missing or out of order", want)
+			continue
+		}
+		last += 1 + i
+	}
+	section := body[strings.Index(body, "Recibir la orden de compra"):strings.Index(body, `class="followup-note"`)]
+	for _, gone := range []string{"Comentario", "Forma de pago", "forma_pago", "P.U.E."} {
+		if strings.Contains(section, gone) {
+			t.Errorf("the receive-the-purchase-order section still has %q", gone)
+		}
+	}
+	// The comment and Guardar sit outside the follow-up <form> and belong to it.
+	if !strings.Contains(body, `<textarea form="seguimiento-`+folio+`" name="note"`) ||
+		!strings.Contains(body, `<button type="submit" form="seguimiento-`+folio+`">Guardar`) {
+		t.Error("the follow-up's comment and Guardar are not tied to its form")
 	}
 
 	if rec := move(ana, "en_entrega", ""); rec.Code != http.StatusConflict {
@@ -225,13 +248,18 @@ func TestProjectsFollowUp(t *testing.T) {
 
 	// With the purchase order in: no probability, and the quote can't be revised.
 	body = page(ana)
-	for _, want := range []string{"O.C. recibida", "Registrar pago y pasar a Facturado", "Pasó a O.C. recibida.", "OC 4411",
-		"Orden colocada", "Marcar como perdida"} {
+	for _, want := range []string{"O.C. recibida", "Registrar factura y pasar a Facturado", "Pasó a O.C. recibida.", "OC 4411",
+		"Orden colocada", "Marcar como perdida", "Orden de compra recibida", "<dt>Registró</dt><dd>ana · ",
+		// Issue #61: the probability stays in view, fixed.
+		`name="probabilidad_paso" value="90" disabled`, `name="probabilidad_oc" value="100" checked disabled`,
+		// The comment needs no date.
+		`name="comment"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("oc_recibida page missing %q", want)
 		}
 	}
-	for _, gone := range []string{"Guardar seguimiento", "Relevante para pronóstico"} {
+	for _, gone := range []string{"Guardar seguimiento", "Relevante para pronóstico", "<dt>O.C. esperada</dt>", "<dt>Próximo seguimiento</dt>", `name="oc_esperada"`,
+		"Recibir la orden de compra", "proximo_seguimiento", "data-followup"} {
 		if strings.Contains(body, gone) {
 			t.Errorf("oc_recibida page still shows %q", gone)
 		}
@@ -366,7 +394,7 @@ func TestProjectsList(t *testing.T) {
 	if err := a.store.SetProjectProbability(context.Background(), project.ID, ana, 90, ""); err != nil {
 		t.Fatalf("SetProjectProbability: %v", err)
 	}
-	if err := a.store.ReceiveOC(context.Background(), project.ID, ana, store.OC{Number: "4411", Date: "2026-10-07", PaymentMethod: "PUE"}, nil, ""); err != nil {
+	if err := a.store.ReceiveOC(context.Background(), project.ID, ana, store.OC{Number: "4411", Date: "2026-10-07"}, nil, ""); err != nil {
 		t.Fatalf("ReceiveOC: %v", err)
 	}
 
@@ -672,8 +700,8 @@ func TestProjectsReceiveOC(t *testing.T) {
 	page := func() string {
 		return doForm(t, a, ana, p.Page, "GET", "/proyectos/"+folio, pv, nil, false).Body.String()
 	}
-	fields := func(number, date, method string) map[string]string {
-		return map[string]string{"oc_numero": number, "oc_fecha": date, "forma_pago": method, "note": "Llegó por correo"}
+	fields := func(number, date string) map[string]string {
+		return map[string]string{"oc_numero": number, "oc_fecha": date, "note": "Llegó por correo"}
 	}
 	pdf := []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")
 
@@ -690,33 +718,34 @@ func TestProjectsReceiveOC(t *testing.T) {
 	}
 
 	body := page()
-	for _, want := range []string{"Recibir la orden de compra", "No. de O.C.", "Fecha de la O.C.", "Forma de pago",
-		"P.U.E. · pago en una sola exhibición", "P.P.D. · pago en parcialidades o diferido", "Pasar a O.C. recibida",
+	for _, want := range []string{"Recibir la orden de compra", "No. de O.C.", "Fecha de la O.C.",
+		"Archivo de la O.C. (obligatorio; PDF, JPG o PNG de hasta 10 MB)", "Pasar a O.C. recibida",
 		`enctype="multipart/form-data"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("prospecto page missing %q", want)
 		}
 	}
-	if strings.Contains(body, "Orden de compra del cliente") {
-		t.Error("a prospecto with no purchase order shows the purchase order section")
+	// Issue #61: the método de pago is no longer asked when the order is received.
+	for _, gone := range []string{"Orden de compra recibida", "Forma de pago", "forma_pago", "P.U.E.", "P.P.D."} {
+		if strings.Contains(body, gone) {
+			t.Errorf("prospecto page still shows %q", gone)
+		}
 	}
 
-	// Number, date and forma de pago are all required; the file has to be a real PDF or
-	// image, whatever it is called.
+	// Number and date are both required; the file has to be a real PDF or image,
+	// whatever it is called.
 	for name, c := range map[string]struct {
 		fields map[string]string
 		file   string
 		data   []byte
 		want   int
 	}{
-		"no number":      {fields("", "2026-10-07", "PUE"), "", nil, http.StatusBadRequest},
-		"no date":        {fields("4411", "", "PUE"), "", nil, http.StatusBadRequest},
-		"no forma":       {fields("4411", "2026-10-07", ""), "", nil, http.StatusBadRequest},
-		"no file":        {fields("4411", "2026-10-07", "PUE"), "", nil, http.StatusBadRequest}, // required to receive it
-		"unknown forma":  {fields("4411", "2026-10-07", "contado"), "", nil, http.StatusBadRequest},
-		"html as pdf":    {fields("4411", "2026-10-07", "PUE"), "oc.pdf", []byte("<html><script>alert(1)</script></html>"), http.StatusBadRequest},
-		"empty file":     {fields("4411", "2026-10-07", "PUE"), "oc.pdf", nil, http.StatusBadRequest},
-		"file too large": {fields("4411", "2026-10-07", "PUE"), "oc.pdf", append([]byte("%PDF-1.7\n"), make([]byte, maxOCFileBytes)...), http.StatusRequestEntityTooLarge},
+		"no number":      {fields("", "2026-10-07"), "", nil, http.StatusBadRequest},
+		"no date":        {fields("4411", ""), "", nil, http.StatusBadRequest},
+		"no file":        {fields("4411", "2026-10-07"), "", nil, http.StatusBadRequest}, // required to receive it
+		"html as pdf":    {fields("4411", "2026-10-07"), "oc.pdf", []byte("<html><script>alert(1)</script></html>"), http.StatusBadRequest},
+		"empty file":     {fields("4411", "2026-10-07"), "oc.pdf", nil, http.StatusBadRequest},
+		"file too large": {fields("4411", "2026-10-07"), "oc.pdf", append([]byte("%PDF-1.7\n"), make([]byte, maxOCFileBytes)...), http.StatusRequestEntityTooLarge},
 	} {
 		if rec := postOC(t, a, p, ana, folio, c.fields, c.file, c.data); rec.Code != c.want {
 			t.Errorf("OC(%s) status = %d, want %d; body = %s", name, rec.Code, c.want, rec.Body.String())
@@ -726,17 +755,33 @@ func TestProjectsReceiveOC(t *testing.T) {
 		t.Fatalf("after refused attempts = %+v", project)
 	}
 
-	rec := postOC(t, a, p, ana, folio, fields("4411", "2026-10-07", "PPD"), `C:\Users\ana\OC 4411.pdf`, pdf)
+	// A forma_pago sent by an old page is ignored.
+	received := fields("4411", "2026-10-07")
+	received["forma_pago"] = "PPD"
+	rec := postOC(t, a, p, ana, folio, received, `C:\Users\ana\OC 4411.pdf`, pdf)
 	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/proyectos/"+folio+"#oc" {
 		t.Fatalf("OC status = %d, Location = %q; body = %s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
 	}
+	if project, _ := a.store.ProjectByFolio(context.Background(), folio); project.PaymentMethod != "" {
+		t.Errorf("receiving the O.C. stored método de pago %q", project.PaymentMethod)
+	}
 	body = page()
-	for _, want := range []string{"O.C. recibida", "Orden de compra del cliente", "4411", "07/10/2026", "P.P.D. · pago en parcialidades o diferido",
-		"OC 4411.pdf", "Corregir la orden de compra", "Guardar O.C.", "Registrar factura de anticipo",
-		"O.C. 4411 · 07/10/2026 · P.P.D.", "Archivo de la O.C.: OC 4411.pdf", "Llegó por correo"} {
+	for _, want := range []string{"O.C. recibida", "Orden de compra recibida", "<dd>4411</dd>", "07/10/2026",
+		"OC 4411.pdf", "Descargar", "<dt>Registró</dt><dd>ana · ", "Corregir la orden de compra", "Guardar O.C.", "Registrar la factura",
+		"O.C. 4411 · 07/10/2026", "Archivo de la O.C.: OC 4411.pdf", "Llegó por correo"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("oc_recibida page missing %q", want)
 		}
+	}
+	// The receive section and the follow-up dates are gone; the purchase order's summary
+	// comes before the comment box.
+	for _, gone := range []string{"Recibir la orden de compra", "O.C. 4411 · 07/10/2026 · P.", `name="forma_pago"`} {
+		if strings.Contains(body, gone) {
+			t.Errorf("oc_recibida page still shows %q", gone)
+		}
+	}
+	if i, j := strings.Index(body, "Orden de compra recibida"), strings.Index(body, `name="comment"`); i < 0 || j < 0 || i > j {
+		t.Error("Orden de compra recibida is not above the comment box")
 	}
 	if strings.Contains(body, `C:\Users`) {
 		t.Error("the uploaded file kept its client-side path")
@@ -748,6 +793,11 @@ func TestProjectsReceiveOC(t *testing.T) {
 		t.Fatalf("ListProjectFiles = %+v, %v", files, err)
 	}
 	id := strconv.FormatInt(files[0].ID, 10)
+	// Its name opens it; Descargar downloads it.
+	if !strings.Contains(body, `href="/proyectos/`+folio+`/archivos/`+id+`">OC 4411.pdf</a>`) ||
+		!strings.Contains(body, `href="/proyectos/`+folio+`/archivos/`+id+`?descargar=1">Descargar`) {
+		t.Error("the purchase order's file has no link to open it and one to download it")
+	}
 	download := func(folio, id string) *httptest.ResponseRecorder {
 		return doForm(t, a, ana, p.Archivo, "GET", "/proyectos/"+folio+"/archivos/"+id+"?descargar=1", map[string]string{"folio": folio, "id": id}, nil, false)
 	}
@@ -768,12 +818,12 @@ func TestProjectsReceiveOC(t *testing.T) {
 
 	// Correcting it keeps the first file and marks the new one as the one in force.
 	png := append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 32)...)
-	if rec := postOC(t, a, p, ana, folio, fields("4411-A", "2026-10-08", "PUE"), "oc-corregida.png", png); rec.Code != http.StatusSeeOther {
+	if rec := postOC(t, a, p, ana, folio, fields("4411-A", "2026-10-08"), "oc-corregida.png", png); rec.Code != http.StatusSeeOther {
 		t.Fatalf("OC(correction) status = %d; body = %s", rec.Code, rec.Body.String())
 	}
 	body = page()
-	for _, want := range []string{"4411-A", "08/10/2026", "P.U.E. · pago en una sola exhibición", "oc-corregida.png", "OC 4411.pdf", "el vigente",
-		"O.C. actualizada: 4411-A · 08/10/2026 · P.U.E."} {
+	for _, want := range []string{"4411-A", "08/10/2026", "oc-corregida.png", "OC 4411.pdf", "el vigente",
+		"O.C. actualizada: 4411-A · 08/10/2026"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("corrected page missing %q", want)
 		}
@@ -784,10 +834,14 @@ func TestProjectsReceiveOC(t *testing.T) {
 		t.Fatalf("Factura status = %d; body = %s", rec.Code, rec.Body.String())
 	}
 	body = page()
-	if !strings.Contains(body, "Orden de compra del cliente") || strings.Contains(body, "Guardar O.C.") {
+	if !strings.Contains(body, "Orden de compra recibida") || strings.Contains(body, "Guardar O.C.") {
 		t.Error("an invoiced proyecto doesn't show its purchase order, or still lets it be edited")
 	}
-	if rec := postOC(t, a, p, ana, folio, fields("9999", "2026-10-09", "PUE"), "", nil); rec.Code != http.StatusConflict {
+	// Past O.C. recibida the probability is still in view, fixed, with no Perdida.
+	if !strings.Contains(body, `<fieldset class="probability" disabled>`) || strings.Contains(body, `name="perdida"`) {
+		t.Error("an invoiced proyecto's probabilidad de cierre is not shown fixed")
+	}
+	if rec := postOC(t, a, p, ana, folio, fields("9999", "2026-10-09"), "", nil); rec.Code != http.StatusConflict {
 		t.Errorf("OC(facturado) status = %d, want 409", rec.Code)
 	}
 }
@@ -837,8 +891,21 @@ func TestProjectsLegacyOCRecibida(t *testing.T) {
 	if rec := receiveOC(t, a, p, ana, folio, ""); rec.Code != http.StatusSeeOther {
 		t.Fatalf("OC status = %d; body = %s", rec.Code, rec.Body.String())
 	}
+	// A método de pago chosen when the order was received, before issue #61, is kept and
+	// comes picked in the factura's form.
+	if _, err := raw.Exec(`UPDATE projects SET payment_method = 'PPD' WHERE folio = ?`, folio); err != nil {
+		t.Fatalf("seed método: %v", err)
+	}
+	body = doForm(t, a, ana, p.Page, "GET", "/proyectos/"+folio, pv, nil, false).Body.String()
+	if !strings.Contains(body, `name="metodo_pago" value="PPD" checked required`) || strings.Contains(body, `value="PUE" checked`) {
+		t.Error("the stored método de pago is not the factura form's starting choice")
+	}
 	if rec := invoice(); rec.Code != http.StatusSeeOther {
 		t.Errorf("Factura with O.C. status = %d", rec.Code)
+	}
+	// The método sent with the factura is the one that counts.
+	if project, _ := a.store.ProjectByFolio(context.Background(), folio); project.PaymentMethod != "PUE" || !project.Paid() {
+		t.Errorf("after a P.U.E. factura = %+v", project)
 	}
 }
 
@@ -872,21 +939,22 @@ func TestProjectsPaymentGates(t *testing.T) {
 	}
 	move := func(to string) *httptest.ResponseRecorder { return post(p.Etapa, "/etapa", url.Values{"to": {to}}) }
 	doc := func(folio, date string) url.Values {
-		return url.Values{"folio": {folio}, "fecha": {date}, "note": {"nota"}}
+		return url.Values{"folio": {folio}, "fecha": {date}, "note": {"nota"}, "metodo_pago": {"PPD"}}
 	}
 
 	// Nothing to invoice or collect before the purchase order.
 	if rec := post(p.Factura, "/factura", doc("A-77", "2026-10-08")); rec.Code != http.StatusConflict {
 		t.Errorf("Factura(prospecto) status = %d, want 409", rec.Code)
 	}
-	oc := map[string]string{"oc_numero": "4411", "oc_fecha": "2026-10-07", "forma_pago": "PPD"}
+	oc := map[string]string{"oc_numero": "4411", "oc_fecha": "2026-10-07"}
 	if rec := postOC(t, a, p, ana, folio, oc, "oc.pdf", []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")); rec.Code != http.StatusSeeOther {
 		t.Fatalf("OC status = %d; body = %s", rec.Code, rec.Body.String())
 	}
 
 	body := page()
-	for _, want := range []string{"Facturación y pago", "Sin tramitar", "Registrar factura de anticipo", "Folio de la factura de anticipo",
-		"Registrar factura y pasar a Facturado", "Sin factura no se puede entregar"} {
+	for _, want := range []string{"Facturación y pago", "Sin tramitar", "Registrar la factura", "Método de pago",
+		`name="metodo_pago" value="PUE" required`, `name="metodo_pago" value="PPD" required`,
+		"Folio de la factura", "Fecha de la factura", "Registrar factura y pasar a Facturado", "Sin factura no se puede entregar"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("oc_recibida page missing %q", want)
 		}
@@ -899,7 +967,11 @@ func TestProjectsPaymentGates(t *testing.T) {
 			t.Errorf("Etapa(→ %s) without a factura = %d %q", to, rec.Code, rec.Body.String())
 		}
 	}
-	for name, bad := range map[string]url.Values{"no folio": doc("", "2026-10-08"), "no date": doc("A-77", ""), "bad date": doc("A-77", "8/10/2026")} {
+	noMethod, badMethod := doc("A-77", "2026-10-08"), doc("A-77", "2026-10-08")
+	noMethod.Del("metodo_pago")
+	badMethod.Set("metodo_pago", "contado")
+	for name, bad := range map[string]url.Values{"no folio": doc("", "2026-10-08"), "no date": doc("A-77", ""), "bad date": doc("A-77", "8/10/2026"),
+		"no método": noMethod, "unknown método": badMethod} {
 		if rec := post(p.Factura, "/factura", bad); rec.Code != http.StatusBadRequest {
 			t.Errorf("Factura(%s) status = %d, want 400", name, rec.Code)
 		}
@@ -914,6 +986,7 @@ func TestProjectsPaymentGates(t *testing.T) {
 	}
 	body = page()
 	for _, want := range []string{"Facturado", "Facturado de anticipo", "A-77 · 08/10/2026", "Registrar pago completado",
+		"<dt>Método de pago</dt><dd>P.P.D. · pago en parcialidades o diferido</dd>", "<dt>Factura de anticipo</dt>",
 		"Folio del comprobante de pago", "Pasar a En entrega", "Factura de anticipo A-77 · 08/10/2026"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("facturado page missing %q", want)
@@ -964,7 +1037,7 @@ func TestProjectsPaymentGates(t *testing.T) {
 	}
 }
 
-// A P.U.E. order is paid by the same step that invoices it.
+// A P.U.E. factura is paid by the same step that invoices it.
 func TestProjectsPUEIsPaidWhenInvoiced(t *testing.T) {
 	a := newTestAuth(t)
 	q := newTestQuotes(t, a)
@@ -982,7 +1055,7 @@ func TestProjectsPUEIsPaidWhenInvoiced(t *testing.T) {
 		t.Fatalf("OC status = %d", rec.Code)
 	}
 	body := page()
-	for _, want := range []string{"Registrar pago y factura", "Folio de la factura", "Fecha de pago", "Registrar pago y pasar a Facturado"} {
+	for _, want := range []string{"Registrar la factura", "Folio de la factura", "Fecha de la factura", "Registrar factura y pasar a Facturado"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("P.U.E. oc_recibida page missing %q", want)
 		}
@@ -991,7 +1064,8 @@ func TestProjectsPUEIsPaidWhenInvoiced(t *testing.T) {
 		t.Fatalf("Factura status = %d", rec.Code)
 	}
 	body = page()
-	for _, want := range []string{"Pagado", "F-1001 · 08/10/2026", "Pagado el", "Pago recibido · factura F-1001 · 08/10/2026", "Pasar a En entrega"} {
+	for _, want := range []string{"Pagado", "F-1001 · 08/10/2026", "Pagado el", "Pago recibido · factura F-1001 · 08/10/2026", "Pasar a En entrega",
+		"<dt>Método de pago</dt><dd>P.U.E. · pago en una sola exhibición</dd>"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("P.U.E. facturado page missing %q", want)
 		}

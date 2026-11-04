@@ -98,7 +98,9 @@ multipart form with real file bytes and checks the download's headers, and
 `TestProjectsLegacyOCRecibida`, which opens a second handle on the test database to
 write a state the store no longer allows. Slice 4.5 added `TestPaymentGates` in the
 store and `TestProjectsPaymentGates` and `TestProjectsPUEIsPaidWhenInvoiced` in the web
-layer, which walk both formas de pago through the gated steps. Those also pin the strings
+layer, which walk both métodos de pago through the gated steps (since issue #61 the método
+is chosen with the factura, not the O.C.; `TestProjectsFollowUp` also pins the page order
+in Inminente and what a proyecto past prospecto hides). Those also pin the strings
 `docs/guia/proyectos.md` quotes, so they double as its guide-conformance tests.
 
 ## Tracked gaps

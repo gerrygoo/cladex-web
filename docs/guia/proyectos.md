@@ -59,10 +59,10 @@ Debajo del folio y del cliente verás este resumen:
   [pronóstico](#revisar-el-pronóstico). No aparecen mientras la vigente es una revisión en
   borrador.
 
-Más abajo están **Seguimiento y comentarios** (el formulario y, justo debajo, el
-historial), los botones para moverlo de etapa, **Orden de compra del cliente** y
-**Facturación y pago** (desde que se recibe la orden) y **Cotizaciones** (la vigente y las
-que fueron revisadas, cada una con su enlace).
+Más abajo están **Seguimiento y comentarios** (la probabilidad, las fechas o, desde que se
+recibe, la orden de compra, el comentario y, justo debajo, el historial), los botones para
+moverlo de etapa, **Facturación y pago** (desde que se recibe la orden) y **Cotizaciones**
+(la vigente y las que fueron revisadas, cada una con su enlace).
 
 En un proyecto **QL**, antes de **Cotizaciones** está también la **Cotización del
 proveedor**: el proveedor, su número de cotización y los archivos, los mismos que en la
@@ -88,7 +88,9 @@ Mientras el proyecto es prospecto, anota qué tan cerca está de cerrarse y qué
    solo al [recibir la orden de compra](#recibir-la-orden-de-compra-del-cliente)) y
    **Perdida** (para [marcar el proyecto como perdido](#marcar-un-proyecto-como-perdido)).
 3. Si elegiste **Inminente**, aparece **O.C. esperada**: pon la fecha en que esperas la
-   orden de compra del cliente. Con las demás probabilidades no se muestra.
+   orden de compra del cliente. Con las demás probabilidades no se muestra. Con la
+   probabilidad guardada en Inminente, justo debajo de las fechas aparece también
+   [**Recibir la orden de compra**](#recibir-la-orden-de-compra-del-cliente).
 4. En **Próximo seguimiento**, pon la fecha en que hay que volver a buscar al cliente.
    Es obligatoria y tiene que ser posterior a hoy.
 5. Escribe en **Comentario** qué pasó y cuáles son los siguientes pasos. Es obligatorio.
@@ -119,25 +121,36 @@ debajo tu nota.
 Cuando el cliente manda su orden de compra, el proyecto pasa de [[prospecto]] a
 [[O.C. recibida]] (**Orden colocada 100%**). Para eso hay que capturar los datos de la
 orden. La sección **Recibir la orden de compra** solo aparece cuando la probabilidad está
-en **Inminente 90%**:
+en **Inminente 90%**, justo debajo de **O.C. esperada** y **Próximo seguimiento**:
 
 1. Abre el proyecto y, si hace falta, [sube su probabilidad](#anotar-el-seguimiento) a
    Inminente.
 2. En **Recibir la orden de compra**, escribe el **No. de O.C.** del cliente.
 3. Revisa la **Fecha de la O.C.** (viene con la fecha de hoy; cámbiala si la orden es de
    otro día).
-4. Elige la [[forma de pago]]: **P.U.E.** (pago en una sola exhibición) o **P.P.D.**
-   (pago en parcialidades o diferido).
-5. En **Archivo de la O.C.**, adjunta la orden (obligatorio): un PDF, JPG o PNG de hasta
+4. En **Archivo de la O.C.**, adjunta la orden (obligatorio): un PDF, JPG o PNG de hasta
    10 MB.
-6. Haz clic en **Pasar a O.C. recibida**.
+5. Haz clic en **Pasar a O.C. recibida**.
 
-El proyecto queda en O.C. recibida, con la sección **Orden de compra del cliente**
-(número, fecha, forma de pago y el archivo para descargar). En el historial aparece
-*"Pasó a O.C. recibida."* con los datos de la orden.
+El proyecto queda en O.C. recibida. En **Seguimiento y comentarios**:
 
-- El número, la fecha, la forma de pago y el archivo son obligatorios para pasar a O.C.
-  recibida. Después, para corregir los datos, un archivo nuevo es opcional.
+- La **Probabilidad de cierre** queda fija en **Orden colocada 100%**: los demás pasos se
+  ven, pero ya no se pueden elegir.
+- **O.C. esperada** y **Próximo seguimiento** ya no aparecen.
+- En lugar de **Recibir la orden de compra** está **Orden de compra recibida**: el número,
+  la fecha, el archivo (haz clic en su nombre para abrirlo o en **Descargar** para
+  guardarlo) y en **Registró**, quién la capturó y cuándo.
+- El **Comentario** sigue ahí para agregar notas (por ejemplo, *"Se mandó el comprobante
+  de pago al proveedor"*): escríbelo y haz clic en **Guardar**. Ya no pide fecha de
+  seguimiento.
+
+En el historial aparece *"Pasó a O.C. recibida."* con los datos de la orden.
+
+- El número, la fecha y el archivo son obligatorios para pasar a O.C. recibida. Después,
+  para corregir los datos, un archivo nuevo es opcional.
+- El [[método de pago]] (P.U.E. o P.P.D.) ya no se pide aquí: se elige al
+  [registrar la factura](#registrar-la-factura-y-el-pago). Si el proyecto ya tenía uno
+  guardado de cuando se pedía con la orden, se conserva y viene elegido al facturar.
 - Si el cliente todavía pide cambios,
   [revisa la cotización](cotizaciones.md#revisar-una-cotización-emitida) **antes** de
   recibir la orden. Con la orden recibida la cotización ya no se puede revisar: la
@@ -145,9 +158,9 @@ El proyecto queda en O.C. recibida, con la sección **Orden de compra del client
 - Si hay una revisión en borrador, en lugar del formulario verás *"primero emite la
   revisión"* con un enlace a ella. Emítela y vuelve al proyecto.
 - ¿Te equivocaste en un dato o llegó una orden corregida? Mientras el proyecto está en
-  O.C. recibida, usa **Corregir la orden de compra**, en la misma sección, y haz clic
-  en **Guardar O.C.** Si adjuntas otro archivo, el anterior se conserva y el nuevo
-  queda marcado como *el vigente*.
+  O.C. recibida, haz clic en **Corregir la orden de compra**, debajo de **Orden de compra
+  recibida**, y luego en **Guardar O.C.** Si adjuntas otro archivo, el anterior se
+  conserva y el nuevo queda marcado como *el vigente*.
 - Cuando el proyecto pasa a Facturado, los datos de la orden ya no se pueden cambiar.
 - Un proyecto que ya estaba en O.C. recibida sin estos datos dice *"primero captura la
   orden de compra del cliente"*: captúralos ahí mismo para poder continuar.
@@ -163,28 +176,25 @@ proyecto pueda avanzar. Hay dos reglas: **sin factura no se entrega** y **sin pa
 se cierra**. Todo se hace en la sección **Facturación y pago** del proyecto, que
 aparece al recibir la orden de compra y muestra el [[estado de pago]].
 
-Qué hay que registrar depende de la [[forma de pago]] de la orden:
-
-**Si la orden es P.U.E.** (el cliente paga y entonces se factura):
-
 1. Abre el proyecto, que está en [[O.C. recibida]].
-2. En **Registrar pago y factura**, escribe el **Folio de la factura** y revisa la
-   **Fecha de pago**.
-3. Haz clic en **Registrar pago y pasar a Facturado**.
+2. En **Registrar la factura**, elige el [[método de pago]] de la factura (obligatorio):
+   **P.U.E.** (el cliente ya pagó) o **P.P.D.** (es la factura de anticipo y el pago se
+   completa después). Si el proyecto ya tenía uno guardado, viene elegido; cámbialo si
+   la factura dice otro.
+3. Escribe el **Folio de la factura** y revisa la **Fecha de la factura**.
+4. Haz clic en **Registrar factura y pasar a Facturado**.
 
-El proyecto pasa a [[facturado]] y su estado de pago queda en *Pagado*.
+El proyecto pasa a [[facturado]]. Qué sigue depende del método de pago:
 
-**Si la orden es P.P.D.** (se factura un anticipo y el pago se completa después):
+- **P.U.E.**: su estado de pago queda en *Pagado*. No hay que registrar nada más.
+- **P.P.D.**: su estado de pago queda en *Facturado de anticipo*, y ya se puede entregar.
+  Cuando el cliente termine de pagar y se emita el comprobante de pago, vuelve al
+  proyecto (esté en Facturado o En entrega). En **Registrar pago completado**, escribe
+  el **Folio del comprobante de pago** y la **Fecha de pago**, y haz clic en
+  **Registrar pago completado**. El estado de pago queda en *Pagado*.
 
-1. Abre el proyecto, que está en O.C. recibida.
-2. En **Registrar factura de anticipo**, escribe el **Folio de la factura de anticipo**
-   y revisa la **Fecha de la factura**.
-3. Haz clic en **Registrar factura y pasar a Facturado**. El proyecto pasa a Facturado
-   con estado de pago *Facturado de anticipo*, y ya se puede entregar.
-4. Cuando el cliente termine de pagar y se emita el comprobante de pago, vuelve al
-   proyecto (esté en Facturado o En entrega). En **Registrar pago completado**, escribe
-   el **Folio del comprobante de pago** y la **Fecha de pago**, y haz clic en
-   **Registrar pago completado**. El estado de pago queda en *Pagado*.
+Desde ese momento, **Facturación y pago** muestra el **Método de pago** y la factura
+(en una P.P.D., la **Factura de anticipo**).
 
 - En el historial queda una línea por cada registro, con el folio y la fecha.
 - Una vez facturado, los datos de la orden de compra ya no se pueden cambiar.
@@ -282,8 +292,8 @@ cotización.
 1. Abre el proyecto.
 2. Si es prospecto, en **Probabilidad de cierre** elige **Perdida** y escribe el
    **Motivo** (obligatorio): por qué se perdió. Si ya tiene la O.C. recibida, la
-   sección **Etapa** muestra *Orden colocada 100%* y **Perdida**; elige
-   **Perdida** y escribe el motivo.
+   **Probabilidad de cierre** está fija en *Orden colocada 100%* y **Perdida** es lo
+   único que se puede elegir; elígela y escribe el motivo.
 3. Haz clic en **Guardar** (o en **Marcar como perdida**) y confirma si te lo pide.
 
 Qué pasa al perderlo:
@@ -338,7 +348,7 @@ Hay una sola caja para escribir, arriba del historial:
 
 - Mientras el proyecto es prospecto, es el **Comentario** del seguimiento (ver
   [Anotar el seguimiento](#anotar-el-seguimiento)).
-- Después, es una caja **Comentario** con su botón **Guardar**.
+- Después, es una caja **Comentario** con su botón **Guardar**, que no pide fecha.
 
 Este es el único lugar donde se comenta: las cotizaciones muestran los comentarios pero no
 tienen caja para escribir. El comentario se guarda en la cotización vigente, así que también

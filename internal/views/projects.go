@@ -23,20 +23,12 @@ func paymentMethodText(method string) string {
 	return method
 }
 
-// invoiceLabel names the factura on record by what it is for the order's forma de pago,
-// and invoiceWord is the same in running text.
+// invoiceLabel names the factura on record by what it is for its método de pago.
 func invoiceLabel(method string) string {
 	if method == "PPD" {
 		return "Factura de anticipo"
 	}
 	return "Factura"
-}
-
-func invoiceWord(method string) string {
-	if method == "PPD" {
-		return "factura de anticipo"
-	}
-	return "factura"
 }
 
 // paymentBadge is the CSS suffix for a payment state's badge.
