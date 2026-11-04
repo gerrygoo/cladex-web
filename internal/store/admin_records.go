@@ -20,8 +20,8 @@ const deletableComprobanteStatuses = `'borrador', 'lista', 'rechazada'`
 
 // DeleteProject removes a proyecto with everything that hangs from it: its comprobantes
 // (only unstamped ones; otherwise ErrHasStampedInvoice and nothing is touched), the
-// purchase order files and every quote it ever had, with their lines, comments and
-// supplier quotes. No foreign key cascades, so the order here is the dependency order.
+// purchase order files, its órdenes de compra a proveedor (any state) and every quote it
+// ever had, with their lines, comments and supplier quotes. No foreign key cascades, so the order here is the dependency order.
 // Folios are not reused: folio_sequences only counts up.
 func (s *Store) DeleteProject(ctx context.Context, projectID int64) error {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -47,6 +47,9 @@ func (s *Store) DeleteProject(ctx context.Context, projectID int64) error {
 		{"comprobante links", `UPDATE comprobantes SET related_id = NULL WHERE project_id = ?1`},
 		{"comprobantes", `DELETE FROM comprobantes WHERE project_id = ?1`},
 		{"project files", `DELETE FROM project_files WHERE project_id = ?1`},
+		{"purchase order lines", `DELETE FROM purchase_order_lines WHERE purchase_order_id IN (SELECT id FROM purchase_orders WHERE project_id = ?1)`},
+		{"purchase order links", `UPDATE purchase_orders SET supersedes_id = NULL WHERE project_id = ?1 AND supersedes_id IS NOT NULL`},
+		{"purchase orders", `DELETE FROM purchase_orders WHERE project_id = ?1`},
 		{"quote comments", `DELETE FROM quote_comments WHERE quote_id IN (SELECT id FROM quotes WHERE project_id = ?1)`},
 		{"quote lines", `DELETE FROM quote_lines WHERE quote_id IN (SELECT id FROM quotes WHERE project_id = ?1)`},
 		{"supplier quote files", `DELETE FROM supplier_quote_files WHERE root_quote_id IN (SELECT id FROM quotes WHERE project_id = ?1)`},

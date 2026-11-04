@@ -85,6 +85,55 @@ func (e Emisor) Errors() map[string]string {
 	return errs
 }
 
+// POBilling is the rest of the "Datos de facturación" block an orden de compra a
+// proveedor prints (issue #65), next to the emisor's RFC and régimen: the razón social
+// with its régimen de capital ("CLADEX S.A. de C.V."), the domicilio fiscal on one line,
+// and the uso de CFDI the supplier is asked to invoice with. Kept in settings and edited
+// in Configuración del sistema.
+type POBilling struct {
+	Name    string
+	Address string
+	CFDIUse string // c_UsoCFDI
+}
+
+var poBillingKeys = []string{"oc_razon_social", "oc_domicilio_fiscal", "oc_uso_cfdi"}
+
+// POBillingSettings returns the O.C. billing data as stored; unset fields are empty.
+func (s *Store) POBillingSettings(ctx context.Context) (POBilling, error) {
+	v, err := s.SettingValues(ctx, poBillingKeys)
+	if err != nil {
+		return POBilling{}, err
+	}
+	return POBilling{Name: v["oc_razon_social"], Address: v["oc_domicilio_fiscal"], CFDIUse: v["oc_uso_cfdi"]}, nil
+}
+
+// Errors returns the O.C. billing data's problems by field (oc_nombre, oc_domicilio,
+// oc_uso), empty when an O.C. can print it.
+func (b POBilling) Errors() map[string]string {
+	errs := map[string]string{}
+	if strings.TrimSpace(b.Name) == "" {
+		errs["oc_nombre"] = "Escribe la razón social con su régimen de capital, p. ej. CLADEX S.A. de C.V."
+	}
+	if strings.TrimSpace(b.Address) == "" {
+		errs["oc_domicilio"] = "Escribe el domicilio fiscal."
+	}
+	if b.CFDIUse == "" || !ValidSATCode(CFDIUses, b.CFDIUse) {
+		errs["oc_uso"] = "Elige el uso de CFDI."
+	}
+	return errs
+}
+
+// SetPOBilling saves the O.C. billing data. The caller validates it first.
+func (s *Store) SetPOBilling(ctx context.Context, b POBilling, userID int64) error {
+	values := []string{strings.TrimSpace(b.Name), strings.TrimSpace(b.Address), b.CFDIUse}
+	for i, k := range poBillingKeys {
+		if err := s.SetSetting(ctx, k, values[i], userID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // SetEmisor saves the emisor. The caller validates it first (Emisor.Errors).
 func (s *Store) SetEmisor(ctx context.Context, e Emisor, userID int64) error {
 	values := []string{e.RFC, strings.TrimSpace(e.Name), e.TaxRegime, e.PostalCode, e.SerieFactura, e.SeriePago}

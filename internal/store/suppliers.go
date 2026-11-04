@@ -404,18 +404,21 @@ func (s *Store) SetSupplierInactive(ctx context.Context, id int64, inactive bool
 }
 
 // SupplierInUseError is DeleteSupplier's refusal: the supplier still supplies
-// Familias (names). Órdenes de compra will block it too once they exist.
+// Familias (names), or has órdenes de compra (OrdenesCompra, their numbers; issue #65).
 type SupplierInUseError struct {
-	Familias []string
+	Familias      []string
+	OrdenesCompra []string
 }
 
 func (e *SupplierInUseError) Error() string {
-	return "store: supplier in use by familias " + strings.Join(e.Familias, ", ")
+	return "store: supplier in use by familias " + strings.Join(e.Familias, ", ") +
+		"; purchase orders " + strings.Join(e.OrdenesCompra, ", ")
 }
 
 // DeleteSupplier deletes supplier id and its contacts for good, unless it is the default
-// supplier of some familia: then it returns a *SupplierInUseError naming them. It
-// returns sql.ErrNoRows when there is no such supplier.
+// supplier of some familia or has órdenes de compra (in any state): then it returns a
+// *SupplierInUseError naming them. It returns sql.ErrNoRows when there is no such
+// supplier.
 func (s *Store) DeleteSupplier(ctx context.Context, id int64) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -442,8 +445,12 @@ func (s *Store) DeleteSupplier(ctx context.Context, id int64) error {
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("store: supplier %d familias: %w", id, err)
 	}
-	if len(names) > 0 {
-		return &SupplierInUseError{Familias: names}
+	orders, err := s.SupplierPurchaseOrders(ctx, id)
+	if err != nil {
+		return err
+	}
+	if len(names) > 0 || len(orders) > 0 {
+		return &SupplierInUseError{Familias: names, OrdenesCompra: orders}
 	}
 	res, err := tx.ExecContext(ctx, `DELETE FROM suppliers WHERE id = ?`, id)
 	if err != nil {

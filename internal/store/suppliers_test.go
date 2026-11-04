@@ -12,13 +12,16 @@ import (
 )
 
 // countAuditWithoutSupplierSeed counts the audit trail leaving out what 0033's carga
-// inicial wrote (Cable Anti Robo, its contacts and its familias), for the migration
-// tests that check an earlier migration added no rows of its own.
+// inicial wrote (Cable Anti Robo, its contacts and its familias) and the settings 0034
+// seeds (the O.C.'s datos de facturación), for the migration tests that check an
+// earlier migration added no rows of its own.
 const countAuditWithoutSupplierSeed = `SELECT count(*) FROM audit_log
 	WHERE table_name NOT IN ('suppliers', 'supplier_contacts')
 	  AND NOT (table_name = 'product_families' AND actor_id IS NULL
 	           AND json_extract(old_values, '$.default_supplier_id') IS NULL
-	           AND json_extract(new_values, '$.default_supplier_id') IS NOT NULL)`
+	           AND json_extract(new_values, '$.default_supplier_id') IS NOT NULL)
+	  AND NOT (table_name = 'settings' AND actor_id IS NULL AND op = 'insert'
+	           AND row_key IN ('emisor_rfc', 'emisor_regimen', 'oc_razon_social', 'oc_domicilio_fiscal', 'oc_uso_cfdi'))`
 
 func familyIDByName(t *testing.T, s *Store, name string) int64 {
 	t.Helper()

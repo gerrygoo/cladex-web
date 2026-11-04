@@ -239,7 +239,7 @@ func TestRequireAuthAttributesStoreWrites(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
 	h.ServeHTTP(httptest.NewRecorder(), req)
 
-	entries, err := a.store.AuditLog(context.Background(), store.AuditFilter{TableName: "settings"})
+	entries, err := a.store.AuditLog(context.Background(), store.AuditFilter{TableName: "settings", RowKey: "fx_rate_micros"})
 	if err != nil {
 		t.Fatalf("AuditLog: %v", err)
 	}
