@@ -75,7 +75,7 @@ func FamiliasList(families []store.Family, name string, fieldErrors map[string]s
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(f.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `familias.templ`, Line: 32, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/familias.templ`, Line: 32, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -103,7 +103,7 @@ func FamiliasList(families []store.Family, name string, fieldErrors map[string]s
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(f.SATProductCode)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `familias.templ`, Line: 40, Col: 29}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/familias.templ`, Line: 40, Col: 29}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -116,7 +116,7 @@ func FamiliasList(families []store.Family, name string, fieldErrors map[string]s
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(f.QuoteTypes)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `familias.templ`, Line: 41, Col: 25}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/familias.templ`, Line: 41, Col: 25}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -139,7 +139,7 @@ func FamiliasList(families []store.Family, name string, fieldErrors map[string]s
 					var templ_7745c5c3_Var6 templ.SafeURL
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(supplierPath(f.DefaultSupplierID)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `familias.templ`, Line: 47, Col: 63}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/familias.templ`, Line: 47, Col: 63}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -152,7 +152,7 @@ func FamiliasList(families []store.Family, name string, fieldErrors map[string]s
 					var templ_7745c5c3_Var7 string
 					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(f.DefaultSupplierName)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `familias.templ`, Line: 47, Col: 89}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/familias.templ`, Line: 47, Col: 89}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 					if templ_7745c5c3_Err != nil {
@@ -175,7 +175,7 @@ func FamiliasList(families []store.Family, name string, fieldErrors map[string]s
 				var templ_7745c5c3_Var8 templ.SafeURL
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/familias/" + strconv.FormatInt(f.ID, 10)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `familias.templ`, Line: 52, Col: 74}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/familias.templ`, Line: 52, Col: 74}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -188,7 +188,7 @@ func FamiliasList(families []store.Family, name string, fieldErrors map[string]s
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(" " + f.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `familias.templ`, Line: 52, Col: 127}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/familias.templ`, Line: 52, Col: 127}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -206,7 +206,7 @@ func FamiliasList(families []store.Family, name string, fieldErrors map[string]s
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue(name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `familias.templ`, Line: 62, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/familias.templ`, Line: 62, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 			if templ_7745c5c3_Err != nil {
@@ -284,7 +284,7 @@ func FamiliaEdit(savedName string, f store.Family, fieldErrors map[string]string
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(savedName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `familias.templ`, Line: 76, Col: 33}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/familias.templ`, Line: 76, Col: 33}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -305,7 +305,7 @@ func FamiliaEdit(savedName string, f store.Family, fieldErrors map[string]string
 			var templ_7745c5c3_Var14 templ.SafeURL
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/familias/" + strconv.FormatInt(f.ID, 10)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `familias.templ`, Line: 79, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/familias.templ`, Line: 79, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -318,7 +318,7 @@ func FamiliaEdit(savedName string, f store.Family, fieldErrors map[string]string
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(f.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `familias.templ`, Line: 82, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/familias.templ`, Line: 82, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 			if templ_7745c5c3_Err != nil {
@@ -347,7 +347,7 @@ func FamiliaEdit(savedName string, f store.Family, fieldErrors map[string]string
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.ResolveAttributeValue(f.SATProductCode)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `familias.templ`, Line: 88, Col: 71}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/familias.templ`, Line: 88, Col: 71}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
 			if templ_7745c5c3_Err != nil {

@@ -119,7 +119,7 @@ func UsersList(users []store.User, currentUserID int64, lv ListView, successMsg 
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(u.Username)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `usuarios.templ`, Line: 40, Col: 23}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/usuarios.templ`, Line: 40, Col: 23}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -132,7 +132,7 @@ func UsersList(users []store.User, currentUserID int64, lv ListView, successMsg 
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(u.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `usuarios.templ`, Line: 41, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/usuarios.templ`, Line: 41, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -146,7 +146,7 @@ func UsersList(users []store.User, currentUserID int64, lv ListView, successMsg 
 					var templ_7745c5c3_Var5 string
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(roleLabel(u.Role))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `usuarios.templ`, Line: 44, Col: 28}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/usuarios.templ`, Line: 44, Col: 28}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -160,7 +160,7 @@ func UsersList(users []store.User, currentUserID int64, lv ListView, successMsg 
 					var templ_7745c5c3_Var6 templ.SafeURL
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/rol"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `usuarios.templ`, Line: 46, Col: 100}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/usuarios.templ`, Line: 46, Col: 100}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -178,7 +178,7 @@ func UsersList(users []store.User, currentUserID int64, lv ListView, successMsg 
 						var templ_7745c5c3_Var7 string
 						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue("Rol de " + u.Username)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `usuarios.templ`, Line: 48, Col: 66}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/usuarios.templ`, Line: 48, Col: 66}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 						if templ_7745c5c3_Err != nil {
@@ -191,7 +191,7 @@ func UsersList(users []store.User, currentUserID int64, lv ListView, successMsg 
 						var templ_7745c5c3_Var8 string
 						templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(store.RoleAdmin)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `usuarios.templ`, Line: 49, Col: 43}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/usuarios.templ`, Line: 49, Col: 43}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 						if templ_7745c5c3_Err != nil {
@@ -204,7 +204,7 @@ func UsersList(users []store.User, currentUserID int64, lv ListView, successMsg 
 						var templ_7745c5c3_Var9 string
 						templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(store.RoleVendedor)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `usuarios.templ`, Line: 50, Col: 46}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/usuarios.templ`, Line: 50, Col: 46}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 						if templ_7745c5c3_Err != nil {
@@ -222,7 +222,7 @@ func UsersList(users []store.User, currentUserID int64, lv ListView, successMsg 
 						var templ_7745c5c3_Var10 string
 						templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue("Rol de " + u.Username)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `usuarios.templ`, Line: 53, Col: 66}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/usuarios.templ`, Line: 53, Col: 66}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 						if templ_7745c5c3_Err != nil {
@@ -235,7 +235,7 @@ func UsersList(users []store.User, currentUserID int64, lv ListView, successMsg 
 						var templ_7745c5c3_Var11 string
 						templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(store.RoleAdmin)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `usuarios.templ`, Line: 54, Col: 43}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/usuarios.templ`, Line: 54, Col: 43}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 						if templ_7745c5c3_Err != nil {
@@ -248,7 +248,7 @@ func UsersList(users []store.User, currentUserID int64, lv ListView, successMsg 
 						var templ_7745c5c3_Var12 string
 						templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(store.RoleVendedor)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `usuarios.templ`, Line: 55, Col: 46}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/usuarios.templ`, Line: 55, Col: 46}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 						if templ_7745c5c3_Err != nil {
@@ -296,7 +296,7 @@ func UsersList(users []store.User, currentUserID int64, lv ListView, successMsg 
 					var templ_7745c5c3_Var13 templ.SafeURL
 					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/habilitar"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `usuarios.templ`, Line: 73, Col: 106}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/usuarios.templ`, Line: 73, Col: 106}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 					if templ_7745c5c3_Err != nil {
@@ -314,7 +314,7 @@ func UsersList(users []store.User, currentUserID int64, lv ListView, successMsg 
 					var templ_7745c5c3_Var14 templ.SafeURL
 					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/deshabilitar"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `usuarios.templ`, Line: 77, Col: 109}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/usuarios.templ`, Line: 77, Col: 109}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 					if templ_7745c5c3_Err != nil {
