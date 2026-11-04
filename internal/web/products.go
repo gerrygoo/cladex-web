@@ -94,8 +94,11 @@ func (f ProductForm) Validate() map[string]string {
 // requireWeight adds a kg_per_m error to errs when the form files the product under the
 // QG familia without a Peso: there its price per metre is its cost per kg × that weight
 // (issue #37). Likewise for a product quoted per metre by weight (QS, QG) that is
-// invoiced in kilograms, KGM: the Peso is what turns its metres into kilos (issue #62).
-func (p *Products) requireWeight(ctx context.Context, f ProductForm, errs map[string]string) error {
+// invoiced in kilograms, KGM: the Peso is what turns its metres into kilos (issue #62),
+// unless the product's kilos per metre come from its materials, the ones measured in kg
+// (a CCS cable's 0.1723 kg of CCS 30% per metre), as a QS line weighs it (kgPerUnit).
+// productID is the product being edited, 0 for a new one, which has no materials yet.
+func (p *Products) requireWeight(ctx context.Context, productID int64, f ProductForm, errs map[string]string) error {
 	if errs["family_id"] != "" || errs["kg_per_m"] != "" {
 		return nil
 	}
@@ -114,10 +117,40 @@ func (p *Products) requireWeight(ctx context.Context, f ProductForm, errs map[st
 		case fam.KgPriced:
 			errs["kg_per_m"] = "El peso es obligatorio en la familia " + fam.Name + ": el precio por metro sale del costo por kg × el peso. Escríbelo en kg/m, p. ej. 0.3896."
 		case fam.ByWeight && f.SATUnitCode == "KGM":
-			errs["kg_per_m"] = "El peso es obligatorio para facturar en kilos (KGM) un producto que se cotiza por metro: convierte los metros a kilos. Escríbelo en kg/m, p. ej. 0.3896."
+			kg, err := p.materialsKgPerUnit(ctx, productID)
+			if err != nil {
+				return err
+			}
+			if kg <= 0 {
+				errs["kg_per_m"] = kgmNeedsWeightMsg
+			}
 		}
 	}
 	return nil
+}
+
+// kgmNeedsWeightMsg is requireWeight's error for a product quoted per metre by weight,
+// invoiced in KGM, with neither a Peso nor materials in kg.
+const kgmNeedsWeightMsg = "Para facturar en kilos (KGM) un producto que se cotiza por metro hace falta su peso, que convierte los metros a kilos: " +
+	"escríbelo en kg/m, p. ej. 0.3896, o agrégale sus materiales en kg."
+
+// materialsKgPerUnit is the kg of material one unit of the product holds: its materials
+// measured in kg, added up. 0 for a new product (productID 0) or one without any.
+func (p *Products) materialsKgPerUnit(ctx context.Context, productID int64) (money.Micros, error) {
+	if productID == 0 {
+		return 0, nil
+	}
+	materials, err := p.store.ListProductMaterials(ctx, productID)
+	if err != nil {
+		return 0, err
+	}
+	var kg money.Micros
+	for _, m := range materials {
+		if m.Material.UnitCode == "kg" {
+			kg += m.QtyPerUnitMicros
+		}
+	}
+	return kg, nil
 }
 
 func (f ProductForm) toValues() views.ProductFormValues {
@@ -278,7 +311,7 @@ func (p *Products) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	form := parseProductForm(r)
 	fieldErrors := form.Validate()
-	if err := p.requireWeight(ctx, form, fieldErrors); err != nil {
+	if err := p.requireWeight(ctx, 0, form, fieldErrors); err != nil {
 		serverError(w, r, err)
 		return
 	}
@@ -537,7 +570,7 @@ func (p *Products) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	form := parseProductForm(r)
 	fieldErrors := form.Validate()
-	if err := p.requireWeight(ctx, form, fieldErrors); err != nil {
+	if err := p.requireWeight(ctx, id, form, fieldErrors); err != nil {
 		serverError(w, r, err)
 		return
 	}

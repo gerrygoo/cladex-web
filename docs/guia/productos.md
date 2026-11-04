@@ -120,7 +120,11 @@ familia pueden llevar claves distintas, p. ej. uno por metro y otro por pieza.
 
 Solo se aceptan claves que existan en los catálogos del SAT (CFDI 4.0). Si un producto que
 se cotiza por metro con su peso (como los de las series QS y QG) se factura en kilos
-(**KGM**), su **Peso (kg/m)** es obligatorio: con él se convierten los metros a kilos.
+(**KGM**), necesita su peso por metro para convertir los metros a kilos: o su **Peso
+(kg/m)**, o sus [materiales](#materiales-de-un-producto) en kg (p. ej. un cable CCS, que
+lleva 0.1723 kg de CCS 30% por metro). Un producto nuevo todavía no tiene materiales: si
+su peso sale de ellos, guárdalo primero con otra clave de unidad, agrégale sus materiales
+y después elige **KGM**.
 
 Al crear una factura, cada partida toma las claves de su producto
 ([Facturas](facturas.md#crear-una-factura)).
@@ -183,6 +187,6 @@ Qué pasa al eliminar:
 | *El peso es obligatorio en la familia Alumoclad: el precio por metro sale del costo por kg × el peso. Escríbelo en kg/m, p. ej. 0.3896.* | Escribe el peso en kg por metro, mayor que 0. |
 | *La clave de producto 12345678 no existe en el catálogo del SAT. Búscala por su descripción.* | Busca la clave en **Buscar la clave por descripción o por número** y elígela de la lista. |
 | *La clave de unidad XYZ no existe en el catálogo del SAT.* | Elige la unidad de la lista o búscala en el catálogo. |
-| *El peso es obligatorio para facturar en kilos (KGM) un producto que se cotiza por metro: convierte los metros a kilos. Escríbelo en kg/m, p. ej. 0.3896.* | Escribe el **Peso (kg/m)**, o elige otra clave de unidad (p. ej. *MTR · Metro*). |
+| *Para facturar en kilos (KGM) un producto que se cotiza por metro hace falta su peso, que convierte los metros a kilos: escríbelo en kg/m, p. ej. 0.3896, o agrégale sus materiales en kg.* | Escribe el **Peso (kg/m)**; o, si el peso sale de sus materiales, guárdalo con otra clave de unidad (p. ej. *MTR · Metro*), agrega sus materiales en kg y vuelve a elegir **KGM**. |
 | *Cantidad inválida; usa un número positivo, p. ej. 0.1723.* | En Materiales, escribe la cantidad como número mayor que 0. |
 | *Este producto ya tiene ese material; elimínalo y vuelve a agregarlo para cambiar la cantidad.* | Elimina la fila del material y agrégalo con la cantidad nueva. |

@@ -46,7 +46,8 @@ func (p Product) MissingSAT() bool {
 // selector. KgPriced is whether a quote type quoting it costs its products per kg, so
 // they need a Peso. ByWeight is whether a quote type quotes its products per metre with
 // their weight (kg-priced, QG, or following the copper price, QS; see views.ShowsKg):
-// invoiced in kilograms (KGM), such a product needs a Peso to turn metres into kilos.
+// invoiced in kilograms (KGM), such a product needs a Peso, or materials in kg, to turn
+// metres into kilos.
 type ProductFamily struct {
 	ID       int64
 	Name     string

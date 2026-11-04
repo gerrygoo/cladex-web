@@ -1,11 +1,13 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/gerrygoo/cladex-web/internal/money"
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
@@ -135,7 +137,8 @@ func TestProductsSATCodesAdminEdit(t *testing.T) {
 }
 
 // Issue #62: a product quoted per metre by weight (CCS & AC's QS, a kg-priced type's
-// familia) and invoiced in KGM needs its Peso; elsewhere, or in another unit, it doesn't.
+// familia) and invoiced in KGM needs its Peso, or materials in kg that give it (see
+// TestProductsKGMWeightFromMaterials); elsewhere, or in another unit, it doesn't.
 func TestProductsKGMNeedsWeightWhenQuotedByWeight(t *testing.T) {
 	a := newTestAuth(t)
 	p := newTestProducts(t, a)
@@ -148,7 +151,10 @@ func TestProductsKGMNeedsWeightWhenQuotedByWeight(t *testing.T) {
 		rec := doForm(t, a, vendedor, p.Create, "POST", "/productos/nuevo", nil, form, false)
 		return rec.Code, rec.Body.String()
 	}
-	const msg = "El peso es obligatorio para facturar en kilos (KGM) un producto que se cotiza por metro: convierte los metros a kilos. Escríbelo en kg/m, p. ej. 0.3896."
+	const msg = kgmNeedsWeightMsg
+	if !strings.Contains(msg, "o agrégale sus materiales en kg") {
+		t.Fatalf("message = %q", msg)
+	}
 	if code, body := create(ccs, "CCS-1", "KGM", ""); code != http.StatusUnprocessableEntity || !strings.Contains(body, msg) {
 		t.Errorf("CCS & AC in KGM without Peso = %d; want 422 with %q", code, msg)
 	}
@@ -163,6 +169,60 @@ func TestProductsKGMNeedsWeightWhenQuotedByWeight(t *testing.T) {
 		if code, body := create(c.fam, c.sku, c.unit, c.peso); code != http.StatusSeeOther {
 			t.Errorf("%s in %s with Peso %q = %d; body = %s", c.sku, c.unit, c.peso, code, body)
 		}
+	}
+}
+
+// Issue #62 (Gerry's decision): a CCS & AC product whose kilos per metre come from its
+// materials in kg may be invoiced in KGM without a typed Peso; materials in another unit
+// don't weigh it.
+func TestProductsKGMWeightFromMaterials(t *testing.T) {
+	a := newTestAuth(t)
+	p := newTestProducts(t, a)
+	admin := createTestUser(t, a, "admin1", "admin", "hunter2")
+	ctx := context.Background()
+	id, ccs := seedCCSProduct(t, a)
+	if ccs.UnitCode != "kg" {
+		t.Fatalf("seeded material %+v is not in kg", ccs)
+	}
+	pid := itoa(id)
+	pv := map[string]string{"id": pid}
+	update := func() (int, string) {
+		form := url.Values{"family_id": {itoa(familyID(t, a, "CCS & AC"))}, "sku": {"ccs-alambre-4"}, "description": {"Cable CCS 30% ALAMBRE 4"},
+			"sat_product_code": {"26121600"}, "sat_unit_code": {"KGM"}, "kg_per_m": {""}}
+		rec := doForm(t, a, admin, p.Update, "POST", "/productos/"+pid, pv, form, false)
+		return rec.Code, rec.Body.String()
+	}
+	if code, body := update(); code != http.StatusSeeOther {
+		t.Fatalf("KGM with 0.1723 kg of material per metre = %d; body = %s", code, body)
+	}
+
+	// Only materials in kg count.
+	materials, err := a.store.ListProductMaterials(ctx, id)
+	if err != nil || len(materials) != 1 {
+		t.Fatalf("ListProductMaterials = %+v, %v", materials, err)
+	}
+	if err := a.store.DeleteProductMaterial(ctx, id, materials[0].ID); err != nil {
+		t.Fatalf("DeleteProductMaterial: %v", err)
+	}
+	var metre int64
+	units, err := a.store.ListUnits(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, u := range units {
+		if u.Code == "m" {
+			metre = u.ID
+		}
+	}
+	tape, err := a.store.CreateMaterial(ctx, "Cinta", metre, money.Micros(2_000_000), admin)
+	if err != nil {
+		t.Fatalf("CreateMaterial: %v", err)
+	}
+	if _, err := a.store.AddProductMaterial(ctx, id, tape, money.Micros(1_000_000)); err != nil {
+		t.Fatalf("AddProductMaterial: %v", err)
+	}
+	if code, body := update(); code != http.StatusUnprocessableEntity || !strings.Contains(body, kgmNeedsWeightMsg) {
+		t.Errorf("KGM with only a material in metres = %d; want 422 asking for the Peso", code)
 	}
 }
 

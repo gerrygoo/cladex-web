@@ -209,7 +209,7 @@ func TestGuiaClienteEliminadoConservaCotizaciones(t *testing.T) {
 // the most used units it lists first, and the list's Datos SAT column and its
 // "Sin datos para facturar" button. The section's messages are pinned by
 // products_sat_test.go (TestProductsSATCodesOnCreate, TestProductsKGMNeedsWeightWhenQuotedByWeight,
-// TestProductsListSinDatosParaFacturar), facturas.md's by TestFacturaDraftTakesProductSATCodes.
+// TestProductsKGMWeightFromMaterials, TestProductsListSinDatosParaFacturar), facturas.md's by TestFacturaDraftTakesProductSATCodes.
 func TestGuiaProductosDatosParaFacturar(t *testing.T) {
 	a := newTestAuth(t)
 	p := NewProducts(a.store)
@@ -220,6 +220,8 @@ func TestGuiaProductosDatosParaFacturar(t *testing.T) {
 		"Clave de unidad SAT", "Buscar otra unidad en el catálogo del SAT",
 		"H87 · Pieza", "KGM · Kilogramo", "MTR · Metro", "XBX · Caja", "XRO · Rollo", "XRL · Carrete",
 		"XPK · Paquete", "KT · Kit", "PR · Par", "LTR · Litro", "E48 · Unidad de servicio", "ACT · Actividad",
+		// The Peso's label states the KGM rule, materials in kg included (issue #62).
+		"que se facturan en kilos, KGM, salvo que sus materiales en kg den el peso",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("new-product form missing %q", want)

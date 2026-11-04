@@ -927,7 +927,7 @@ func productFields(action string, values ProductFormValues, fieldErrors map[stri
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "<label>Peso (kg/m — obligatorio en la serie QG, donde da el precio por metro, y en productos cotizados por metro que se facturan en kilos, KGM; si no, solo informativo) <input type=\"text\" name=\"kg_per_m\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "<label>Peso (kg/m — obligatorio en la serie QG, donde da el precio por metro, y en productos cotizados por metro que se facturan en kilos, KGM, salvo que sus materiales en kg den el peso; si no, solo informativo) <input type=\"text\" name=\"kg_per_m\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
