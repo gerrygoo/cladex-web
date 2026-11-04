@@ -329,3 +329,84 @@ func TestFacturaConceptoIsOneLine(t *testing.T) {
 		t.Errorf("concepto description = %q, want %q", got, "Cable rojo")
 	}
 }
+
+// TestFacturaDraftTakesProductSATCodes covers issue #62: a factura's concepto starts with
+// its product's own SAT codes, the unit named as the SAT's catalog has it; a product
+// without them falls back to its quote type's familia code and its unit's code.
+func TestFacturaDraftTakesProductSATCodes(t *testing.T) {
+	a := newTestAuth(t)
+	ctx := context.Background()
+	admin := createTestUser(t, a, "gerry", "admin", "hunter2")
+	q := newTestQuotes(t, a)
+	customerID, coded, plain := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, admin)
+
+	product, _ := a.store.ProductByID(ctx, coded)
+	product.SATProductCode, product.SATUnitCode = "26121609", "XRL"
+	if err := a.store.UpdateProduct(ctx, *product); err != nil {
+		t.Fatal(err)
+	}
+	units, _ := a.store.ListUnits(ctx)
+	product, _ = a.store.ProductByID(ctx, plain)
+	for _, u := range units {
+		if u.Code == "pza" {
+			product.UnitID = &u.ID
+		}
+	}
+	if err := a.store.UpdateProduct(ctx, *product); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.store.UpdateFamily(ctx, product.FamilyID, product.FamilyName, "39111500"); err != nil {
+		t.Fatal(err)
+	}
+
+	quote, err := a.store.CreateDraftQuote(ctx, customerID, admin, "QA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	form := url.Values{"line_keys": {"0,1"},
+		"lines[0][kind]": {"product"}, "lines[0][product_id]": {itoa(coded)}, "lines[0][qty]": {"1"},
+		"lines[1][kind]": {"product"}, "lines[1][product_id]": {itoa(plain)}, "lines[1][qty]": {"2"}}
+	pv := map[string]string{"folio": quote.Folio}
+	if rec := doForm(t, a, admin, q.Emitir, "POST", "/cotizaciones/"+quote.Folio+"/emitir", pv, form, false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir = %d: %s", rec.Code, rec.Body.String())
+	}
+	project, _ := a.store.ProjectByFolio(ctx, quote.Folio)
+	if err := a.store.SetProjectProbability(ctx, project.ID, admin, 90, ""); err != nil {
+		t.Fatal(err)
+	}
+	if rec := postOC(t, a, NewProjects(a.store), admin, quote.Folio, map[string]string{"oc_numero": "4411", "oc_fecha": "2026-10-07", "forma_pago": "PPD"},
+		"oc.pdf", []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")); rec.Code != http.StatusSeeOther {
+		t.Fatalf("postOC = %d: %s", rec.Code, rec.Body.String())
+	}
+	id, err := a.store.CreateFacturaDraft(ctx, project.ID, admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, _ := a.store.ComprobanteByID(ctx, id)
+	if len(c.Conceptos) != 2 {
+		t.Fatalf("conceptos = %+v", c.Conceptos)
+	}
+	if k := c.Conceptos[0]; k.SATProductCode != "26121609" || k.SATUnitCode != "XRL" || k.UnitName != "Carrete" {
+		t.Errorf("coded product's concepto = %+v; want 26121609, XRL Carrete", k)
+	}
+	if k := c.Conceptos[1]; k.SATProductCode != "39111500" || k.SATUnitCode != "H87" || k.UnitName != "Pieza" {
+		t.Errorf("uncoded product's concepto = %+v; want the familia's 39111500 and the unit's H87 Pieza", k)
+	}
+
+	// Codes typed on the draft are checked against the catalogs before validating.
+	svc, _ := testFacturacion(t, a, admin)
+	f := NewFacturas(a.store, svc, nil)
+	if err := a.store.UpdateDraft(ctx, id, admin, store.DraftEdit{UsoCFDI: "G01", FormaPago: "99", Conceptos: []store.ConceptoEdit{
+		{ID: c.Conceptos[0].ID, SATProductCode: "26121699", SATUnitCode: "QQQ", Description: "Foco LED"}}}); err != nil {
+		t.Fatal(err)
+	}
+	sid := itoa(id)
+	body := doForm(t, a, admin, f.Page, "GET", "/facturas/"+sid, map[string]string{"id": sid}, nil, false).Body.String()
+	for _, want := range []string{"Partida 1: la clave de producto SAT 26121699 no existe en el catálogo del SAT.",
+		"Partida 1: la clave de unidad SAT QQQ no existe en el catálogo del SAT."} {
+		if !strings.Contains(body, want) {
+			t.Errorf("draft page missing %q", want)
+		}
+	}
+}

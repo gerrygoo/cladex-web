@@ -151,7 +151,9 @@ per guide page:
 - **productos.md** — `Producto guardado.`, the five form validation messages including
   the Costo and Peso variants, the two Materiales messages (non-positive quantity,
   duplicate material), and the Costo column's three forms (cost / `+ materiales` /
-  `materiales`).
+  `materiales`); the *Datos para facturar (SAT)* fields, the twelve most used SAT units
+  and the *Sin datos para facturar* button (`TestGuiaProductosDatosParaFacturar`, with the
+  section's messages in `products_sat_test.go`).
 - **cotizaciones.md** — `Selecciona un cliente.` / `Selecciona una serie de folio.`, the
   three line-level errors, `Borrador guardado.`, `Cotización emitida.`, `Producto no encontrado.` on a draft whose product was deleted (and that
   such a draft refuses to save), the 30-day vigencia, that an empty quote does not issue,

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gerrygoo/cladex-web/internal/satcat"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
@@ -77,6 +78,10 @@ func (u *Units) SetSAT(w http.ResponseWriter, r *http.Request) {
 	code := strings.ToUpper(strings.TrimSpace(r.FormValue("sat_code")))
 	if code != "" && !satUnitPattern.MatchString(code) {
 		u.renderListError(w, r, "La clave de unidad SAT son 2 o 3 letras o números, p. ej. MTR, KGM o H87.")
+		return
+	}
+	if _, ok := satcat.Unit(code); code != "" && !ok {
+		u.renderListError(w, r, "La clave de unidad SAT "+code+" no existe en el catálogo del SAT.")
 		return
 	}
 	if err := u.store.SetUnitSATCode(r.Context(), id, code); err != nil {

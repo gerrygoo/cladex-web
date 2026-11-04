@@ -947,6 +947,36 @@ p.picker-free {
 }
 
 /* The picker's products: a plain list of buttons that each add one line. */
+/* The product form's SAT code searches (issue #62): results as a list of buttons, like
+   the quote builder's product picker. */
+div.sat-results ul {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
+div.sat-results li button {
+  width: min(100%, 40rem);
+  justify-content: flex-start;
+  white-space: normal;
+  text-align: left;
+  min-height: 2.25rem;
+  padding: 0.3rem 0.8rem;
+}
+
+p.sat-desc {
+  margin-top: 0.3rem;
+}
+
+/* A product the product list marks "Sin datos para facturar". */
+td.sat-missing {
+  color: var(--warning);
+}
+
 #product-search-results ul {
   list-style: none;
   margin: 0.75rem 0 0;

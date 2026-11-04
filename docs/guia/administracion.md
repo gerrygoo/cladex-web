@@ -162,7 +162,10 @@ Las unidades (metro, caja, pieza…) que se pueden asignar a los productos.
    (p. ej. `Caja`).
 3. Haz clic en **Agregar**.
 
-Las unidades no se pueden editar ni eliminar desde la app.
+Las unidades no se pueden editar ni eliminar desde la app. Lo que sí se cambia en la
+lista es la **clave de unidad SAT** de cada una (p. ej. `MTR`), que tiene que existir en
+el catálogo del SAT. La usan las facturas de los productos que aún no tienen su propia
+[clave de unidad](productos.md#datos-para-facturar-sat).
 
 ## Familias
 
@@ -187,9 +190,10 @@ En **Familias**, haz clic en **Editar** en la fila de la familia. Ahí puedes ca
 - El **Nombre**, p. ej. de `CCS & AC` a `CCS`. Sus productos y sus tipos de cotización
   siguen siendo los mismos y muestran el nombre nuevo, igual que los borradores. Las
   cotizaciones ya emitidas no cambian: su PDF no lleva el nombre de la familia.
-- La **Clave de producto SAT** (8 dígitos, p. ej. `26121600`). Las partidas de las
-  facturas de esa familia empiezan con esa clave; en cada factura se puede cambiar.
-  Confírmala con el contador.
+- La **Clave de producto SAT** (8 dígitos, p. ej. `26121600`). Cada producto lleva la
+  suya en sus [Datos para facturar](productos.md#datos-para-facturar-sat); la de la familia
+  la usan las líneas libres y los productos que aún no tienen clave propia. En cada
+  factura se puede cambiar. Confírmala con el contador.
 
 Haz clic en **Guardar**. Las familias no se eliminan desde la app.
 
@@ -203,6 +207,7 @@ Mensajes de error:
 | *El nombre es obligatorio.* | Escribe el nombre de la familia. |
 | *Ya existe una familia con este nombre.* | Usa otro nombre. |
 | *La clave SAT son 8 dígitos, p. ej. 26121600.* | Escribe solo los 8 dígitos. |
+| *La clave SAT 12345678 no existe en el catálogo del SAT.* | Revisa la clave con el contador. |
 
 ## Tipos de cotización
 

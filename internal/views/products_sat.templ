@@ -1,0 +1,209 @@
+package views
+
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/satcat"
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// SATSearchLimit is how many matches a SAT code search shows; more words narrow it.
+const SATSearchLimit = 20
+
+// satProductText is a c_ClaveProdServ with its official description, "" for none, or
+// the code alone if the catalog doesn't have it.
+func satProductText(code string) string {
+	if code == "" {
+		return ""
+	}
+	if c, ok := satcat.ProdServ(code); ok {
+		return c.Label()
+	}
+	return code
+}
+
+// satUnitText is a c_ClaveUnidad as "MTR · Metro".
+func satUnitText(code string) string {
+	if code == "" {
+		return ""
+	}
+	if c, ok := satcat.Unit(code); ok {
+		return c.Label()
+	}
+	return code
+}
+
+// productSATCell is the product list's Datos SAT column: both codes, or "Sin datos para
+// facturar" naming what's missing.
+func productSATCell(p store.Product) string {
+	switch {
+	case !p.MissingSAT():
+		return p.SATProductCode + " · " + p.SATUnitCode
+	case p.SATProductCode != "":
+		return "Sin datos para facturar (falta la clave de unidad)"
+	case p.SATUnitCode != "":
+		return "Sin datos para facturar (falta la clave de producto)"
+	default:
+		return "Sin datos para facturar"
+	}
+}
+
+// isCommonUnit reports whether code is one of the unit picker's "Más usadas".
+func isCommonUnit(code string) bool {
+	for _, c := range satcat.CommonUnitCodes {
+		if c == code {
+			return true
+		}
+	}
+	return false
+}
+
+// productSATFields is the product form's "Datos para facturar (SAT)" section (issue #62):
+// the c_ClaveProdServ, typed or picked from a search of the SAT's catalog, with its
+// official description under it; and the c_ClaveUnidad, picked from the most used units
+// or, through a search, from the whole catalog. A pick (static/app.js, data-sat-pick)
+// only fills the field; the server checks both codes against the catalog on save.
+templ productSATFields(values ProductFormValues, fieldErrors map[string]string) {
+	<fieldset class="sat-fields">
+		<legend>
+			Datos para facturar (SAT)
+			@SectionHelpLink(HelpProductoSAT, "los datos para facturar")
+		</legend>
+		<p class="hint">Opcionales para dar de alta y cotizar el producto. Sin las dos claves no se podrá facturar.</p>
+		<label>
+			Clave de producto o servicio SAT (8 dígitos)
+			<input
+				type="text"
+				id="sat_product_code"
+				name="sat_product_code"
+				value={ values.SATProductCode }
+				inputmode="numeric"
+				maxlength="8"
+				autocomplete="off"
+				placeholder="p. ej. 26121600"
+				hx-get="/productos/sat/clave"
+				hx-trigger="input changed delay:300ms"
+				hx-target="#sat-product-desc"
+				hx-swap="outerHTML"
+				{ errAttrs(fieldErrors, "sat_product_code")... }
+			/>
+		</label>
+		@FieldError(fieldErrors, "sat_product_code")
+		@SATProductDescription(values.SATProductCode)
+		<label>
+			Buscar la clave por descripción o por número
+			<input
+				type="search"
+				id="sat_q"
+				name="sat_q"
+				autocomplete="off"
+				placeholder="p. ej. cable"
+				data-no-submit
+				hx-get="/productos/sat/claves"
+				hx-trigger="input changed delay:400ms, search"
+				hx-target="#sat-product-results"
+				hx-swap="outerHTML"
+			/>
+		</label>
+		@SATProductResults("", nil)
+		<label>
+			Clave de unidad SAT
+			<select id="sat_unit_code" name="sat_unit_code" { errAttrs(fieldErrors, "sat_unit_code")... }>
+				<option value="">— Sin clave —</option>
+				<optgroup label="Más usadas">
+					for _, u := range satcat.CommonUnits() {
+						<option value={ u.Code } selected?={ u.Code == values.SATUnitCode }>{ u.Label() }</option>
+					}
+				</optgroup>
+				if values.SATUnitCode != "" && !isCommonUnit(values.SATUnitCode) {
+					<optgroup label="Otras" data-sat-other>
+						<option value={ values.SATUnitCode } selected>{ satUnitText(values.SATUnitCode) }</option>
+					</optgroup>
+				}
+			</select>
+		</label>
+		@FieldError(fieldErrors, "sat_unit_code")
+		<label>
+			Buscar otra unidad en el catálogo del SAT
+			<input
+				type="search"
+				id="sat_unit_q"
+				name="sat_unit_q"
+				autocomplete="off"
+				placeholder="p. ej. carrete o XRL"
+				data-no-submit
+				hx-get="/productos/sat/unidades"
+				hx-trigger="input changed delay:400ms, search"
+				hx-target="#sat-unit-results"
+				hx-swap="outerHTML"
+			/>
+		</label>
+		@SATUnitResults("", nil)
+	</fieldset>
+}
+
+// SATProductDescription is the official description of the code in the field, or why
+// there is none.
+templ SATProductDescription(code string) {
+	<p id="sat-product-desc" class="hint sat-desc" aria-live="polite">
+		if code == "" {
+			Sin clave.
+		} else if c, ok := satcat.ProdServ(code); ok {
+			{ c.Description }
+		} else if len(code) == 8 {
+			La clave { code } no existe en el catálogo del SAT.
+		} else {
+			La clave son 8 dígitos.
+		}
+	</p>
+}
+
+// SATProductResults lists the c_ClaveProdServ codes matching a search; each one fills
+// the code field when clicked.
+templ SATProductResults(q string, codes []satcat.Code) {
+	<div id="sat-product-results" class="sat-results" data-announce={ satAnnouncement(q, codes) }>
+		@satResultList(q, codes, "sat_product_code", "claves")
+	</div>
+}
+
+// SATUnitResults lists the c_ClaveUnidad codes matching a search; each one picks that
+// unit in the select.
+templ SATUnitResults(q string, codes []satcat.Code) {
+	<div id="sat-unit-results" class="sat-results" data-announce={ satAnnouncement(q, codes) }>
+		@satResultList(q, codes, "sat_unit_code", "unidades")
+	</div>
+}
+
+templ satResultList(q string, codes []satcat.Code, target, noun string) {
+	if len(codes) > 0 {
+		<ul>
+			for _, c := range codes {
+				<li>
+					<button type="button" data-sat-pick={ c.Code } data-sat-target={ target } data-sat-label={ c.Label() }>
+						<strong>{ c.Code }</strong> · { c.Description }
+					</button>
+				</li>
+			}
+		</ul>
+		if len(codes) == SATSearchLimit {
+			<p class="hint">Se muestran las primeras { strconv.Itoa(SATSearchLimit) }; escribe más palabras para acotar.</p>
+		}
+	} else if q != "" {
+		<p>Ninguna de las { noun } del SAT coincide con «{ q }».</p>
+	}
+}
+
+func satAnnouncement(q string, codes []satcat.Code) string {
+	if q == "" {
+		return ""
+	}
+	return countAnnouncement(len(codes), "resultado", "resultados")
+}
+
+// productSATReadOnly is the section as a vendedor sees an existing product.
+templ productSATReadOnly(values ProductFormValues) {
+	<dt>Clave de producto o servicio SAT</dt>
+	<dd>{ orDash(satProductText(values.SATProductCode)) }</dd>
+	<dt>Clave de unidad SAT</dt>
+	<dd>{ orDash(satUnitText(values.SATUnitCode)) }</dd>
+}

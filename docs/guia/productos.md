@@ -15,8 +15,13 @@ corrija.
 1. En el menú **Catálogos**, elige **Productos**.
 2. Escribe en *"Buscar por SKU o descripción…"*. La lista se filtra mientras escribes.
 3. Para ordenar, haz clic en el encabezado de una columna (**SKU**, **Descripción**,
-   **Familia**, **Costo**, **Unidad**).
+   **Familia**, **Costo**, **Unidad**, **Datos SAT**).
 4. Para acotar más, [filtra por columna](README.md#filtrar-las-tablas) con el embudo de cada encabezado.
+
+La columna **Datos SAT** muestra las dos [claves para facturar](#datos-para-facturar-sat)
+del producto (p. ej. *26121600 · MTR*) o, si le falta alguna, *"Sin datos para
+facturar"*. Para ver solo esos productos, haz clic en el botón **Sin datos para
+facturar** junto a **Nuevo producto** (o filtra la columna **Datos SAT**).
 
 En la columna **Costo** verás el costo del producto, sin margen: su costo fijo, seguido
 de *"+ materiales"* si además tiene materiales, o solo *"materiales"* si su costo sale
@@ -72,7 +77,9 @@ convertido a pesos.
    el costo va por kilo y el peso es obligatorio, p. ej. `0.3896`.
 6. Opcional: elige la **Unidad** (p. ej. metro). Aparece junto a la cantidad en las
    cotizaciones.
-7. Haz clic en **Guardar**. Antes de crearlo aparece un cuadro: *"¿Revisaste que todos
+7. Opcional, pero necesario para facturarlo: en **Datos para facturar (SAT)**, la clave
+   de producto y la clave de unidad del SAT ([ver abajo](#datos-para-facturar-sat)).
+8. Haz clic en **Guardar**. Antes de crearlo aparece un cuadro: *"¿Revisaste que todos
    los datos sean correctos? Una vez creado, solo un administrador podrá modificarlo."*
    - **Sí, crear producto**: lo crea. Verás *"Producto guardado."*
    - **Regresar a revisar**: cierra el cuadro sin guardar y deja lo que escribiste.
@@ -88,6 +95,35 @@ Solo un administrador. Por ejemplo, para actualizar un precio o un costo.
 El cambio aplica a las cotizaciones nuevas y a los borradores que ya incluyen el
 producto (toman el precio nuevo la próxima vez que se abren). Las cotizaciones emitidas
 no cambian.
+
+## Datos para facturar (SAT)
+
+Cada producto lleva dos claves del SAT, las que salen en la factura. Son opcionales para
+dar de alta y cotizar el producto, pero sin las dos **no se podrá facturar**. Las captura
+quien da de alta el producto; después, como el resto del producto, solo un administrador
+las cambia. Confírmalas con el contador.
+
+- **Clave de producto o servicio SAT**: 8 dígitos del catálogo del SAT, p. ej.
+  `26121600`. Escríbela si la sabes, o búscala en **Buscar la clave por descripción o por
+  número**: escribe una palabra (p. ej. `cable`) o el principio de la clave, y haz clic en
+  la que corresponda. Debajo del campo ves la descripción oficial de la clave (p. ej.
+  *Cables eléctricos y accesorios*) para confirmar que es la correcta.
+- **Clave de unidad SAT**: cómo se factura el producto, p. ej. *MTR · Metro*. La lista
+  trae primero las más usadas (*H87 · Pieza*, *KGM · Kilogramo*, *MTR · Metro*, *XBX ·
+  Caja*, *XRO · Rollo*, *XRL · Carrete*, *XPK · Paquete*, *KT · Kit*, *PR · Par*, *LTR ·
+  Litro*, *E48 · Unidad de servicio*, *ACT · Actividad*). Para otra, búscala en **Buscar
+  otra unidad en el catálogo del SAT** y haz clic en ella.
+
+Las dos se eligen producto por producto: no dependen de la familia ni de la **Unidad**
+del producto (esa se queda para el uso interno de la app). Dos productos de la misma
+familia pueden llevar claves distintas, p. ej. uno por metro y otro por pieza.
+
+Solo se aceptan claves que existan en los catálogos del SAT (CFDI 4.0). Si un producto que
+se cotiza por metro con su peso (como los de las series QS y QG) se factura en kilos
+(**KGM**), su **Peso (kg/m)** es obligatorio: con él se convierten los metros a kilos.
+
+Al crear una factura, cada partida toma las claves de su producto
+([Facturas](facturas.md#crear-una-factura)).
 
 ## Materiales de un producto
 
@@ -145,5 +181,8 @@ Qué pasa al eliminar:
 | *Selecciona una familia.* | Elige una familia de la lista. |
 | *Costo inválido; usa un número, p. ej. 123.45.* (y el equivalente de Peso) | Escribe solo el número, sin `$` ni comas. |
 | *El peso es obligatorio en la familia Alumoclad: el precio por metro sale del costo por kg × el peso. Escríbelo en kg/m, p. ej. 0.3896.* | Escribe el peso en kg por metro, mayor que 0. |
+| *La clave de producto 12345678 no existe en el catálogo del SAT. Búscala por su descripción.* | Busca la clave en **Buscar la clave por descripción o por número** y elígela de la lista. |
+| *La clave de unidad XYZ no existe en el catálogo del SAT.* | Elige la unidad de la lista o búscala en el catálogo. |
+| *El peso es obligatorio para facturar en kilos (KGM) un producto que se cotiza por metro: convierte los metros a kilos. Escríbelo en kg/m, p. ej. 0.3896.* | Escribe el **Peso (kg/m)**, o elige otra clave de unidad (p. ej. *MTR · Metro*). |
 | *Cantidad inválida; usa un número positivo, p. ej. 0.1723.* | En Materiales, escribe la cantidad como número mayor que 0. |
 | *Este producto ya tiene ese material; elimínalo y vuelve a agregarlo para cambiar la cantidad.* | Elimina la fila del material y agrégalo con la cantidad nueva. |

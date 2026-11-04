@@ -69,6 +69,10 @@ func TestFamiliasEditSATCode(t *testing.T) {
 		!strings.Contains(rec.Body.String(), "La clave SAT son 8 dígitos") {
 		t.Errorf("a short SAT code = %d, want 422 saying why", rec.Code)
 	}
+	if rec := doForm(t, a, adminID, f.Update, "POST", path, pv, url.Values{"name": {"CCA"}, "sat_product_code": {"26121699"}}, false); rec.Code != http.StatusUnprocessableEntity ||
+		!strings.Contains(rec.Body.String(), "La clave SAT 26121699 no existe en el catálogo del SAT.") {
+		t.Errorf("a code not in the SAT's catalog = %d, want 422 saying why", rec.Code)
+	}
 	if rec := doForm(t, a, adminID, f.Update, "POST", path, pv, url.Values{"name": {"CCA"}, "sat_product_code": {"26121600"}}, false); rec.Code != http.StatusSeeOther {
 		t.Fatalf("Update = %d", rec.Code)
 	}

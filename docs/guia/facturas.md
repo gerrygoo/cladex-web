@@ -18,10 +18,13 @@ Una sola vez, en **Configuración del sistema** (administradores):
    situación fiscal: RFC, razón social (sin «S.A. de C.V.»), régimen fiscal, código postal
    del lugar de expedición y las series (*F* para facturas y *P* para pagos, si no se
    cambian).
-2. En **Familias**, la **clave de producto SAT** de cada familia (8 dígitos, confírmala con
-   el contador). Las partidas de la factura empiezan con ella.
-3. En **Unidades**, la **clave de unidad SAT** de cada unidad (*MTR* metro, *KGM* kilogramo y
-   *H87* pieza ya vienen puestas).
+2. En cada producto, sus **Datos para facturar (SAT)**: la clave de producto y la clave de
+   unidad ([Productos](productos.md#datos-para-facturar-sat)). En **Productos**, el botón
+   **Sin datos para facturar** muestra los que aún no las tienen.
+3. En **Familias**, la **clave de producto SAT** de cada familia (8 dígitos, confírmala con
+   el contador): la usan las líneas libres y los productos que aún no tienen la suya.
+4. En **Unidades**, la **clave de unidad SAT** de cada unidad (*MTR* metro, *KGM* kilogramo y
+   *H87* pieza ya vienen puestas): la usan los productos que aún no tienen la suya.
 
 Y para cada cliente que se va a facturar, sus **datos fiscales** en su ficha: RFC, razón
 social, régimen fiscal, código postal fiscal y uso de CFDI
@@ -40,10 +43,14 @@ precios e importes no cambian. Revisa y completa:
 - **Enviar por correo a**: Facturoporti manda el XML y el PDF a estas direcciones al
   timbrarla. Puedes dejarlo vacío y mandarla tú.
 - En cada partida, la **clave de producto SAT**, la **clave de unidad SAT**, la unidad y la
-  descripción.
+  descripción. Empiezan con las claves del producto; si el producto no las tiene, con la
+  clave de su familia y la de su unidad. Por ahora, un producto que se cotiza por metro y
+  se factura en kilos (*KGM*) empieza en metros (*MTR*), porque la cantidad de la
+  cotización está en metros.
 
 Haz clic en **Guardar borrador** para seguir después, o en **Guardar y validar**. Si falta
-algo, la página dice qué (*"Para validarla falta: …"*).
+algo, la página dice qué (*"Para validarla falta: …"*), p. ej. una clave que no existe en
+el catálogo del SAT.
 
 ## Timbrar una factura
 

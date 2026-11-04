@@ -323,7 +323,7 @@ func FamiliaEdit(savedName string, f store.Family, fieldErrors map[string]string
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<p class=\"hint\">La usan de inicio las partidas de las facturas de esta familia; en cada factura se puede cambiar. Confírmala con el contador.</p><button type=\"submit\" class=\"primary\">Guardar</button> <a href=\"/familias\">Cancelar</a></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<p class=\"hint\">La usan de inicio las partidas de las facturas de esta familia cuyo producto no tiene su propia clave (en Productos, «Datos para facturar») y las líneas libres; en cada factura se puede cambiar. Confírmala con el contador.</p><button type=\"submit\" class=\"primary\">Guardar</button> <a href=\"/familias\">Cancelar</a></form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

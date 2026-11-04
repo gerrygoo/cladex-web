@@ -16,6 +16,7 @@ import (
 
 	"github.com/gerrygoo/cladex-web/internal/facturoporti"
 	"github.com/gerrygoo/cladex-web/internal/money"
+	"github.com/gerrygoo/cladex-web/internal/satcat"
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
@@ -108,9 +109,13 @@ func (s *Service) Problems(ctx context.Context, c *store.Comprobante, related *s
 			name := fmt.Sprintf("Partida %d", l.LineNo)
 			if !prodServPattern.MatchString(l.SATProductCode) {
 				p = append(p, name+": falta la clave de producto SAT (8 dígitos).")
+			} else if _, ok := satcat.ProdServ(l.SATProductCode); !ok {
+				p = append(p, name+": la clave de producto SAT "+l.SATProductCode+" no existe en el catálogo del SAT.")
 			}
 			if !unitPattern.MatchString(l.SATUnitCode) {
 				p = append(p, name+": falta la clave de unidad SAT (p. ej. MTR, KGM, H87).")
+			} else if _, ok := satcat.Unit(l.SATUnitCode); !ok {
+				p = append(p, name+": la clave de unidad SAT "+l.SATUnitCode+" no existe en el catálogo del SAT.")
 			}
 			if strings.TrimSpace(l.Description) == "" {
 				p = append(p, name+": falta la descripción.")

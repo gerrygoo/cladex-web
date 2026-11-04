@@ -366,4 +366,41 @@
       e.returnValue = "";
     });
   });
+
+  // A search box inside a form that is only a lookup (the product form's SAT searches,
+  // issue #62): Enter searches right away instead of sending the form.
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" || !e.target.matches || !e.target.matches("input[data-no-submit]")) return;
+    e.preventDefault();
+    if (window.htmx) htmx.trigger(e.target, "search");
+  });
+
+  // A SAT search result fills its field: the product code's text box (whose
+  // description then updates), or the unit's select, adding the unit under "Otras" if
+  // it isn't among the most used. Focus goes to the field just filled.
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest && e.target.closest("[data-sat-pick]");
+    if (!btn) return;
+    var field = document.getElementById(btn.dataset.satTarget);
+    if (!field) return;
+    var code = btn.dataset.satPick;
+    if (field.tagName === "SELECT") {
+      var opt = Array.prototype.find.call(field.options, function (o) { return o.value === code; });
+      if (!opt) {
+        var group = field.querySelector("optgroup[data-sat-other]");
+        if (!group) {
+          group = document.createElement("optgroup");
+          group.label = "Otras";
+          group.setAttribute("data-sat-other", "");
+          field.append(group);
+        }
+        opt = new Option(btn.dataset.satLabel, code);
+        group.append(opt);
+      }
+    }
+    field.value = code;
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+    field.focus();
+  });
 })();

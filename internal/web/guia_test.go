@@ -205,6 +205,34 @@ func TestGuiaClienteEliminadoConservaCotizaciones(t *testing.T) {
 
 // --- docs/guia/productos.md ---
 
+// "Datos para facturar (SAT)": the section's fields and searches on the new-product form,
+// the most used units it lists first, and the list's Datos SAT column and its
+// "Sin datos para facturar" button. The section's messages are pinned by
+// products_sat_test.go (TestProductsSATCodesOnCreate, TestProductsKGMNeedsWeightWhenQuotedByWeight,
+// TestProductsListSinDatosParaFacturar), facturas.md's by TestFacturaDraftTakesProductSATCodes.
+func TestGuiaProductosDatosParaFacturar(t *testing.T) {
+	a := newTestAuth(t)
+	p := NewProducts(a.store)
+	userID := createTestUser(t, a, "rodolfo", "vendedor", "hunter2")
+	body := doForm(t, a, userID, p.NewPage, "GET", "/productos/nuevo", nil, nil, false).Body.String()
+	for _, want := range []string{
+		"Datos para facturar (SAT)", "Clave de producto o servicio SAT", "Buscar la clave por descripción o por número",
+		"Clave de unidad SAT", "Buscar otra unidad en el catálogo del SAT",
+		"H87 · Pieza", "KGM · Kilogramo", "MTR · Metro", "XBX · Caja", "XRO · Rollo", "XRL · Carrete",
+		"XPK · Paquete", "KT · Kit", "PR · Par", "LTR · Litro", "E48 · Unidad de servicio", "ACT · Actividad",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("new-product form missing %q", want)
+		}
+	}
+	body = doForm(t, a, userID, p.List, "GET", "/productos", nil, nil, false).Body.String()
+	for _, want := range []string{"Datos SAT", ">Sin datos para facturar</a>", ">Nuevo producto</a>"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("product list missing %q", want)
+		}
+	}
+}
+
 // "Haz clic en Guardar. Verás Producto guardado.", plus the page's "Problemas comunes"
 // table — including the Peso variant the guide calls "el equivalente de Peso", and the
 // two Materiales rows.

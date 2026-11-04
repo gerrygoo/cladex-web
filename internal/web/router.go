@@ -85,6 +85,10 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("GET /productos", authed(products.List))
 	mux.Handle("GET /productos/nuevo", authed(products.NewPage))
 	mux.Handle("POST /productos/nuevo", authed(products.Create))
+	// The product form's SAT code lookups (issue #62); a vendedor fills them in when adding one.
+	mux.Handle("GET /productos/sat/clave", authed(products.SATClave))
+	mux.Handle("GET /productos/sat/claves", authed(products.SATClaves))
+	mux.Handle("GET /productos/sat/unidades", authed(products.SATUnidades))
 	mux.Handle("GET /productos/{id}", authed(products.EditPage))
 	mux.Handle("POST /productos/{id}", admin(products.Update))
 	mux.Handle("POST /productos/{id}/eliminar", admin(products.Delete))

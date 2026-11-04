@@ -21,6 +21,7 @@ import (
 	factsvc "github.com/gerrygoo/cladex-web/internal/facturacion"
 	"github.com/gerrygoo/cladex-web/internal/facturoporti"
 	"github.com/gerrygoo/cladex-web/internal/guia"
+	"github.com/gerrygoo/cladex-web/internal/satcat"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/web"
 )
@@ -184,6 +185,8 @@ func runServer() {
 	}
 
 	mux := web.NewMux(build, staticFS, guide, db, cookieSecure, logger, factsvc.New(db, factCfg, facturacion))
+	// Read the SAT catalogs (~0.2 s) now rather than on the first product form search.
+	go satcat.Count()
 
 	// ReadHeaderTimeout stops a client holding a connection open by trickling headers.
 	// ReadTimeout is generous because it covers the body too, and uploads can be large.

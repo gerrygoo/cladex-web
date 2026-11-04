@@ -88,6 +88,7 @@ templ ProductsList(products []store.Product, lv ListView, families []FilterOptio
 				@listHiddenInputs(lv, "q")
 				<button type="submit">Buscar</button>
 			</form>
+			<a class="button" href={ templ.URL("/productos?f.sat=" + store.SATFaltan) }>Sin datos para facturar</a>
 			<a class="button primary" href="/productos/nuevo">Nuevo producto</a>
 		</div>
 		@listActiveFilters(lv)
@@ -100,6 +101,9 @@ templ ProductsList(products []store.Product, lv ListView, families []FilterOptio
 						@columnHeader(lv, "Familia", "familia", enumFilter(families...))
 						@columnHeader(lv, "Costo", "costo", numberFilter)
 						@columnHeader(lv, "Unidad", "unidad", enumFilter(units...))
+						@columnHeader(lv, "Datos SAT", "sat", enumFilter(
+							FilterOption{Value: store.SATFaltan, Label: "Sin datos para facturar"},
+							FilterOption{Value: store.SATCompletos, Label: "Completos"}))
 						<th><span class="visually-hidden">Acciones</span></th>
 					</tr>
 				</thead>
@@ -116,7 +120,7 @@ templ ProductsTableBody(products []store.Product, canEdit bool) {
 	<tbody id="productos-tbody" data-announce={ countAnnouncement(len(products), "producto", "productos") }>
 		if len(products) == 0 {
 			<tr>
-				<td colspan="6">No se encontraron productos.</td>
+				<td colspan="7">No se encontraron productos.</td>
 			</tr>
 		}
 		for _, p := range products {
@@ -126,6 +130,7 @@ templ ProductsTableBody(products []store.Product, canEdit bool) {
 				<td>{ p.FamilyName }</td>
 				<td class="num">{ productPriceDisplay(p) }</td>
 				<td>{ p.UnitCode }</td>
+				<td class={ templ.KV("sat-missing", p.MissingSAT()) }>{ productSATCell(p) }</td>
 				<td class="actions">
 					if canEdit {
 						<a class="button" href={ templ.URL("/productos/" + strconv.FormatInt(p.ID, 10)) }>Editar<span class="visually-hidden">{ " " + p.SKU }</span></a>
@@ -153,6 +158,9 @@ type ProductFormValues struct {
 	Cost        string
 	KgPerM      string
 	UnitID      string
+	// SATProductCode and SATUnitCode are the "Datos para facturar (SAT)" (issue #62).
+	SATProductCode string
+	SATUnitCode    string
 }
 
 // ProductForm renders the create/edit form. productID is 0 for the create form, which
@@ -200,6 +208,7 @@ templ productReadOnly(values ProductFormValues, families []store.ProductFamily, 
 		<dd>{ orDash(values.KgPerM) }</dd>
 		<dt>Unidad</dt>
 		<dd>{ orDash(unitName(units, values.UnitID)) }</dd>
+		@productSATReadOnly(values)
 	</dl>
 	<p><a href="/productos">Regresar a productos</a></p>
 }
@@ -238,7 +247,7 @@ templ productFields(action string, values ProductFormValues, fieldErrors map[str
 		</label>
 		@FieldError(fieldErrors, "cost")
 		<label>
-			Peso (kg/m — obligatorio en la serie QG, donde da el precio por metro; en las demás, solo informativo)
+			Peso (kg/m — obligatorio en la serie QG, donde da el precio por metro, y en productos cotizados por metro que se facturan en kilos, KGM; si no, solo informativo)
 			<input type="text" name="kg_per_m" value={ values.KgPerM } placeholder="p. ej. 0.123" { errAttrs(fieldErrors, "kg_per_m")... }/>
 		</label>
 		@FieldError(fieldErrors, "kg_per_m")
@@ -255,6 +264,7 @@ templ productFields(action string, values ProductFormValues, fieldErrors map[str
 				}
 			</select>
 		</label>
+		@productSATFields(values, fieldErrors)
 		if confirmCreate {
 			<button type="submit" class="primary" data-confirm-dialog="confirmar-alta">Guardar</button>
 		} else {

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
+	"github.com/gerrygoo/cladex-web/internal/satcat"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
@@ -32,17 +33,28 @@ type ProductForm struct {
 	Cost        string
 	KgPerM      string
 	UnitID      string
+	// SATProductCode (c_ClaveProdServ) and SATUnitCode (c_ClaveUnidad), optional
+	// (issue #62).
+	SATProductCode string
+	SATUnitCode    string
 }
 
 func parseProductForm(r *http.Request) ProductForm {
-	return ProductForm{
-		FamilyID:    r.FormValue("family_id"),
-		SKU:         strings.TrimSpace(r.FormValue("sku")),
-		Description: strings.TrimSpace(r.FormValue("description")),
-		Cost:        strings.TrimSpace(r.FormValue("cost")),
-		KgPerM:      strings.TrimSpace(r.FormValue("kg_per_m")),
-		UnitID:      strings.TrimSpace(r.FormValue("unit_id")),
+	f := ProductForm{
+		FamilyID:       r.FormValue("family_id"),
+		SKU:            strings.TrimSpace(r.FormValue("sku")),
+		Description:    strings.TrimSpace(r.FormValue("description")),
+		Cost:           strings.TrimSpace(r.FormValue("cost")),
+		KgPerM:         strings.TrimSpace(r.FormValue("kg_per_m")),
+		UnitID:         strings.TrimSpace(r.FormValue("unit_id")),
+		SATProductCode: strings.TrimSpace(r.FormValue("sat_product_code")),
+		SATUnitCode:    strings.TrimSpace(r.FormValue("sat_unit_code")),
 	}
+	// A unit code is stored as the SAT writes it, whatever case it came in.
+	if u, ok := satcat.Unit(f.SATUnitCode); ok {
+		f.SATUnitCode = u.Code
+	}
+	return f
 }
 
 func (f ProductForm) Validate() map[string]string {
@@ -66,12 +78,23 @@ func (f ProductForm) Validate() map[string]string {
 			errs["kg_per_m"] = "Peso inválido; usa un número, p. ej. 0.123."
 		}
 	}
+	if f.SATProductCode != "" {
+		if _, ok := satcat.ProdServ(f.SATProductCode); !ok {
+			errs["sat_product_code"] = "La clave de producto " + f.SATProductCode + " no existe en el catálogo del SAT. Búscala por su descripción."
+		}
+	}
+	if f.SATUnitCode != "" {
+		if _, ok := satcat.Unit(f.SATUnitCode); !ok {
+			errs["sat_unit_code"] = "La clave de unidad " + f.SATUnitCode + " no existe en el catálogo del SAT."
+		}
+	}
 	return errs
 }
 
 // requireWeight adds a kg_per_m error to errs when the form files the product under the
 // QG familia without a Peso: there its price per metre is its cost per kg × that weight
-// (issue #37).
+// (issue #37). Likewise for a product quoted per metre by weight (QS, QG) that is
+// invoiced in kilograms, KGM: the Peso is what turns its metres into kilos (issue #62).
 func (p *Products) requireWeight(ctx context.Context, f ProductForm, errs map[string]string) error {
 	if errs["family_id"] != "" || errs["kg_per_m"] != "" {
 		return nil
@@ -84,8 +107,14 @@ func (p *Products) requireWeight(ctx context.Context, f ProductForm, errs map[st
 		return err
 	}
 	for _, fam := range families {
-		if strconv.FormatInt(fam.ID, 10) == f.FamilyID && fam.KgPriced {
+		if strconv.FormatInt(fam.ID, 10) != f.FamilyID {
+			continue
+		}
+		switch {
+		case fam.KgPriced:
 			errs["kg_per_m"] = "El peso es obligatorio en la familia " + fam.Name + ": el precio por metro sale del costo por kg × el peso. Escríbelo en kg/m, p. ej. 0.3896."
+		case fam.ByWeight && f.SATUnitCode == "KGM":
+			errs["kg_per_m"] = "El peso es obligatorio para facturar en kilos (KGM) un producto que se cotiza por metro: convierte los metros a kilos. Escríbelo en kg/m, p. ej. 0.3896."
 		}
 	}
 	return nil
@@ -99,6 +128,9 @@ func (f ProductForm) toValues() views.ProductFormValues {
 		Cost:        f.Cost,
 		KgPerM:      f.KgPerM,
 		UnitID:      f.UnitID,
+
+		SATProductCode: f.SATProductCode,
+		SATUnitCode:    f.SATUnitCode,
 	}
 }
 
@@ -108,9 +140,11 @@ func (f ProductForm) toValues() views.ProductFormValues {
 func (f ProductForm) toProduct() store.Product {
 	familyID, _ := strconv.ParseInt(f.FamilyID, 10, 64)
 	p := store.Product{
-		FamilyID:    familyID,
-		SKU:         f.SKU,
-		Description: f.Description,
+		FamilyID:       familyID,
+		SKU:            f.SKU,
+		Description:    f.Description,
+		SATProductCode: f.SATProductCode,
+		SATUnitCode:    f.SATUnitCode,
 	}
 	if f.Cost != "" {
 		m, _ := money.ParseMicros(f.Cost)
@@ -129,9 +163,11 @@ func (f ProductForm) toProduct() store.Product {
 
 func productToValues(p store.Product) views.ProductFormValues {
 	v := views.ProductFormValues{
-		FamilyID:    strconv.FormatInt(p.FamilyID, 10),
-		SKU:         p.SKU,
-		Description: p.Description,
+		FamilyID:       strconv.FormatInt(p.FamilyID, 10),
+		SKU:            p.SKU,
+		Description:    p.Description,
+		SATProductCode: p.SATProductCode,
+		SATUnitCode:    p.SATUnitCode,
 	}
 	if p.CostMicros != nil {
 		v.Cost = p.CostMicros.String()
@@ -193,6 +229,26 @@ func (p *Products) List(w http.ResponseWriter, r *http.Request) {
 	}
 	user, _ := UserFromContext(ctx)
 	views.ProductsList(products, lv, familyOptions, unitOptions, successMsg, navUserView(user)).Render(ctx, w)
+}
+
+// SATClave handles GET /productos/sat/clave: the official description of the
+// c_ClaveProdServ typed in the product form, shown under the field as it's typed.
+func (p *Products) SATClave(w http.ResponseWriter, r *http.Request) {
+	views.SATProductDescription(strings.TrimSpace(r.URL.Query().Get("sat_product_code"))).Render(r.Context(), w)
+}
+
+// SATClaves handles GET /productos/sat/claves: the product form's search of the SAT's
+// c_ClaveProdServ catalog, by code or by words of the description.
+func (p *Products) SATClaves(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("sat_q"))
+	views.SATProductResults(q, satcat.SearchProdServ(q, views.SATSearchLimit)).Render(r.Context(), w)
+}
+
+// SATUnidades handles GET /productos/sat/unidades: the product form's search of the
+// SAT's c_ClaveUnidad catalog, by code or by name.
+func (p *Products) SATUnidades(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("sat_unit_q"))
+	views.SATUnitResults(q, satcat.SearchUnits(q, views.SATSearchLimit)).Render(r.Context(), w)
 }
 
 // NewPage renders the empty create form at /productos/nuevo.

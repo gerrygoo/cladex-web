@@ -283,9 +283,11 @@ func TestQuoteQGPricesPerMetreFromKg(t *testing.T) {
 			kgUnit = &u.ID
 		}
 	}
-	// Catalogued in kilos, as production has it; quoted (and invoiced) per metre.
+	// Catalogued in kilos, as production has it; quoted (and invoiced) per metre. Its own
+	// SAT unit is KGM, which a factura can't use yet on a line quoted in metres (#62).
 	alcID, err := a.store.CreateProduct(ctx, store.Product{FamilyID: familyID, SKU: "ALC-C7#8",
-		Description: "Cable Alumoclad 7#8 AWG", CostMicros: &cost, KgPerMMicros: &kg, UnitID: kgUnit})
+		Description: "Cable Alumoclad 7#8 AWG", CostMicros: &cost, KgPerMMicros: &kg, UnitID: kgUnit,
+		SATProductCode: "26121600", SATUnitCode: "KGM"})
 	if err != nil {
 		t.Fatalf("CreateProduct: %v", err)
 	}
@@ -348,7 +350,8 @@ func TestQuoteQGPricesPerMetreFromKg(t *testing.T) {
 	if project == nil || project.Profit != 4_112_44 {
 		t.Fatalf("proyecto profit = %+v, want $4,112.44", project)
 	}
-	// Its factura takes the metro unit the line was quoted in, not the catalog's kilo.
+	// Its factura takes the metro unit the line was quoted in, not the catalog's kilo nor
+	// the product's KGM (its quantity is in metres), and the product's own SAT code.
 	if err := a.store.SetProjectProbability(ctx, project.ID, userID, 90, ""); err != nil {
 		t.Fatal(err)
 	}
@@ -360,8 +363,9 @@ func TestQuoteQGPricesPerMetreFromKg(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateFacturaDraft: %v", err)
 	}
-	if c, _ := a.store.ComprobanteByID(ctx, facturaID); c == nil || c.Conceptos[0].SATUnitCode != "MTR" || c.Conceptos[0].UnitName != "Metro" {
-		t.Errorf("QG factura concepto = %+v, want MTR Metro", c)
+	if c, _ := a.store.ComprobanteByID(ctx, facturaID); c == nil || c.Conceptos[0].SATUnitCode != "MTR" || c.Conceptos[0].UnitName != "Metro" ||
+		c.Conceptos[0].SATProductCode != "26121600" {
+		t.Errorf("QG factura concepto = %+v, want 26121600 in MTR Metro", c)
 	}
 
 	other, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QG")

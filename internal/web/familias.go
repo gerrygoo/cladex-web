@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gerrygoo/cladex-web/internal/satcat"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
@@ -117,6 +118,8 @@ func (f *Familias) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if satCode != "" && !satProductPattern.MatchString(satCode) {
 		errs["sat_product_code"] = "La clave SAT son 8 dígitos, p. ej. 26121600."
+	} else if _, ok := satcat.ProdServ(satCode); satCode != "" && !ok {
+		errs["sat_product_code"] = "La clave SAT " + satCode + " no existe en el catálogo del SAT."
 	}
 	if len(errs) == 0 {
 		err := f.store.UpdateFamily(r.Context(), fam.ID, name, satCode)

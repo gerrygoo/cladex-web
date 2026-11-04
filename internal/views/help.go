@@ -29,6 +29,7 @@ const (
 	HelpProductoEditar     HelpTopic = "/ayuda/productos#editar-un-producto"
 	HelpConversiones       HelpTopic = "/ayuda/productos#conversiones-de-unidades"
 	HelpProductoMateriales HelpTopic = "/ayuda/productos#materiales-de-un-producto"
+	HelpProductoSAT        HelpTopic = "/ayuda/productos#datos-para-facturar-sat"
 	HelpDocumentos         HelpTopic = "/ayuda/documentos"
 	HelpFacturas           HelpTopic = "/ayuda/facturas"
 	HelpFactura            HelpTopic = "/ayuda/facturas#timbrar-una-factura"
@@ -63,6 +64,7 @@ var HelpTopics = map[HelpTopic]bool{
 	HelpProductoEditar:     false,
 	HelpConversiones:       false,
 	HelpProductoMateriales: false,
+	HelpProductoSAT:        false,
 	HelpDocumentos:         false,
 	HelpFacturas:           false,
 	HelpFactura:            false,
