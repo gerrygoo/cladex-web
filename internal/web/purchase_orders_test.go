@@ -64,7 +64,7 @@ func receiveClientOC(t *testing.T, a *Auth, folio string, userID int64) {
 	if err != nil || p == nil {
 		t.Fatalf("ProjectByFolio: %v", err)
 	}
-	if err := a.store.ReceiveOC(context.Background(), p.ID, userID, store.OC{Number: "4411", Date: "2026-10-07", PaymentMethod: "PUE"}, nil, ""); err != nil {
+	if err := a.store.ReceiveOC(context.Background(), p.ID, userID, store.OC{Number: "4411", Date: "2026-10-07"}, nil, ""); err != nil {
 		t.Fatalf("ReceiveOC: %v", err)
 	}
 }
