@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
+	"github.com/gerrygoo/cladex-web/internal/satcat"
 )
 
 // Comprobante statuses (migrations/0024_facturacion.sql).
@@ -316,25 +317,32 @@ func activeFactura(ctx context.Context, tx *sql.Tx, projectID int64) (int64, err
 
 // CreateFacturaDraft starts the factura of a proyecto in O.C. recibida from its issued
 // quote: its lines (amounts as quoted), the customer's uso de CFDI and email, the purchase
-// order's método de pago (P.P.D. facturas carry forma de pago 99), and SAT codes from each
-// product's unit and the quote type's familia. A kg-priced type's line is quoted per metre
-// whatever the product's catalog unit (kg), so it takes the metro unit. A proyecto has one factura at a time; a
-// cancelled one doesn't count.
+// order's método de pago (P.P.D. facturas carry forma de pago 99), and each line's SAT
+// codes. Those are the product's own "Datos para facturar" (issue #62), the unit's name
+// as the SAT's catalog has it; where the product has none yet, or for a free line, the
+// previous defaults: the quote type's familia's c_ClaveProdServ and the c_ClaveUnidad of
+// the product's unit (a kg-priced type's line is quoted per metre whatever the product's
+// catalog unit, kg, so it takes the metro unit). A product invoiced in KGM on a quote
+// priced per metre by weight (QG, QS) keeps the metre default too: its quantity is in
+// metres, and turning it into kilos belongs to invoicing by weight, not built yet. Every
+// code stays editable on the draft. A proyecto has one factura at a time; a cancelled one
+// doesn't count.
 func (s *Store) CreateFacturaDraft(ctx context.Context, projectID, userID int64) (int64, error) {
 	var id int64
 	err := s.inTx(ctx, "create factura draft", func(tx *sql.Tx) error {
 		var status, method, use, email, currency, familyCode string
 		var quoteID int64
-		var kgPriced bool
+		var kgPriced, byWeight bool
 		err := tx.QueryRowContext(ctx, `
 			SELECT p.status, COALESCE(p.payment_method, ''), COALESCE(cu.cfdi_use, ''), COALESCE(cu.email, ''),
-				q.id, COALESCE(q.currency, 'MXN'), COALESCE(f.sat_product_code, ''), COALESCE(q.kg_priced_snapshot, t.kg_priced)
+				q.id, COALESCE(q.currency, 'MXN'), COALESCE(f.sat_product_code, ''), COALESCE(q.kg_priced_snapshot, t.kg_priced),
+				COALESCE(q.kg_priced_snapshot, t.kg_priced) OR COALESCE(q.copper_price_margin_snapshot, t.copper_price_margin)
 			FROM projects p
 			JOIN customers cu ON cu.id = p.customer_id
 			JOIN quotes q ON q.project_id = p.id AND q.status = 'emitida'
 			JOIN quote_types t ON t.id = q.quote_type_id
 			LEFT JOIN product_families f ON f.id = t.family_id
-			WHERE p.id = ?`, projectID).Scan(&status, &method, &use, &email, &quoteID, &currency, &familyCode, &kgPriced)
+			WHERE p.id = ?`, projectID).Scan(&status, &method, &use, &email, &quoteID, &currency, &familyCode, &kgPriced, &byWeight)
 		if err == sql.ErrNoRows || err == nil && (status != "oc_recibida" || method == "") {
 			return ErrComprobanteState
 		}
@@ -364,12 +372,20 @@ func (s *Store) CreateFacturaDraft(ctx context.Context, projectID, userID int64)
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO comprobante_conceptos (comprobante_id, line_no, quote_line_id, sat_product_code, sat_unit_code,
 				unit_name, description, qty_milli, unit_price_micros, importe, iva)
-			SELECT ?, l.line_no, l.id, NULLIF(?, ''), un.sat_code, un.name, REPLACE(l.description_snapshot, char(10), ' '), l.qty_milli,
+			SELECT ?, l.line_no, l.id, COALESCE(pr.sat_product_code, NULLIF(?, '')),
+				CASE WHEN own.code IS NOT NULL THEN own.code ELSE un.sat_code END,
+				CASE WHEN own.code IS NOT NULL THEN NULL ELSE un.name END,
+				REPLACE(l.description_snapshot, char(10), ' '), l.qty_milli,
 				l.unit_price_micros, l.line_total, 0
 			FROM quote_lines l
 			LEFT JOIN products pr ON pr.id = l.product_id
+			LEFT JOIN (SELECT id, sat_unit_code AS code FROM products) own
+				ON own.id = pr.id AND NOT (? AND own.code = 'KGM')
 			LEFT JOIN units un ON un.id = CASE WHEN pr.id IS NOT NULL AND ? THEN (SELECT id FROM units WHERE code = 'm') ELSE pr.unit_id END
-			WHERE l.quote_id = ? ORDER BY l.line_no`, id, familyCode, kgPriced, quoteID); err != nil {
+			WHERE l.quote_id = ? ORDER BY l.line_no`, id, familyCode, byWeight, kgPriced, quoteID); err != nil {
+			return err
+		}
+		if err := nameSATUnits(ctx, tx, id); err != nil {
 			return err
 		}
 		if err := recomputeTotals(ctx, tx, id); err != nil {
@@ -378,6 +394,39 @@ func (s *Store) CreateFacturaDraft(ctx context.Context, projectID, userID int64)
 		return addEvent(ctx, tx, id, userID, "created", nil)
 	})
 	return id, err
+}
+
+// nameSATUnits gives the conceptos that took their product's own c_ClaveUnidad the
+// unit's name from the SAT's catalog ("Carrete" for XRL), the CFDI's Unidad.
+func nameSATUnits(ctx context.Context, tx *sql.Tx, id int64) error {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id, sat_unit_code FROM comprobante_conceptos
+		WHERE comprobante_id = ? AND sat_unit_code IS NOT NULL AND unit_name IS NULL`, id)
+	if err != nil {
+		return err
+	}
+	names := map[int64]string{}
+	for rows.Next() {
+		var cid int64
+		var code string
+		if err := rows.Scan(&cid, &code); err != nil {
+			rows.Close()
+			return err
+		}
+		if u, ok := satcat.Unit(code); ok {
+			names[cid] = u.Description
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for cid, name := range names {
+		if _, err := tx.ExecContext(ctx, `UPDATE comprobante_conceptos SET unit_name = ? WHERE id = ?`, name, cid); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // recomputeTotals sets each concepto's IVA and the comprobante's totals from its

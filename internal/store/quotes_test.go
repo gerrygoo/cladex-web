@@ -61,20 +61,30 @@ func seedQuoteFixtures(t *testing.T, s *Store, ctx context.Context) (customerID,
 		t.Fatalf("UpsertFamily: %v", err)
 	}
 	flatPrice := money.Micros(100_000_000) // $100.00
-	flatProductID, err = s.CreateProduct(ctx, Product{
+	flatProductID = insertProductRaw(t, s, ctx, Product{
 		FamilyID: familyID, SKU: "abl-foco", Description: "Foco LED", CostMicros: &flatPrice,
 	})
-	if err != nil {
-		t.Fatalf("CreateProduct(flat): %v", err)
-	}
 	cost := money.Micros(45_000_000) // $45.00 cost
-	costProductID, err = s.CreateProduct(ctx, Product{
+	costProductID = insertProductRaw(t, s, ctx, Product{
 		FamilyID: familyID, SKU: "cca-c14", Description: "Cable THW 14", CostMicros: &cost,
 	})
-	if err != nil {
-		t.Fatalf("CreateProduct(cost): %v", err)
-	}
 	return customerID, userID, flatProductID, costProductID
+}
+
+// insertProductRaw creates a product with only the columns products has had since 0003,
+// so migration tests that stop at an older schema can seed products too (CreateProduct
+// writes the current schema's columns).
+func insertProductRaw(t *testing.T, s *Store, ctx context.Context, p Product) int64 {
+	t.Helper()
+	res, err := s.exec(ctx, `
+		INSERT INTO products (family_id, sku, description, kg_per_m_micros, cost_micros, unit_id)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		p.FamilyID, p.SKU, p.Description, microsPtr(p.KgPerMMicros), microsPtr(p.CostMicros), idPtr(p.UnitID))
+	if err != nil {
+		t.Fatalf("insert product %s: %v", p.SKU, err)
+	}
+	id, _ := res.LastInsertId()
+	return id
 }
 
 func TestCreateDraftQuote(t *testing.T) {

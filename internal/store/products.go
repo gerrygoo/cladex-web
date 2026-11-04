@@ -29,15 +29,29 @@ type Product struct {
 	UnitCode     string // populated by the CRUD read paths when UnitID is set
 	UnitName     string // populated by the CRUD read paths when UnitID is set
 	HasMaterials bool
+	// SATProductCode (c_ClaveProdServ) and SATUnitCode (c_ClaveUnidad) are the product's
+	// "Datos para facturar" (issue #62), "" until captured. They're the product's own,
+	// independent of its familia and of UnitID.
+	SATProductCode string
+	SATUnitCode    string
+}
+
+// MissingSAT reports whether the product lacks either SAT code, so it can't be invoiced
+// from its own data ("Sin datos para facturar").
+func (p Product) MissingSAT() bool {
+	return p.SATProductCode == "" || p.SATUnitCode == ""
 }
 
 // ProductFamily is a product_families row, for populating the product form's family
 // selector. KgPriced is whether a quote type quoting it costs its products per kg, so
-// they need a Peso.
+// they need a Peso. ByWeight is whether a quote type quotes its products per metre with
+// their weight (kg-priced, QG, or following the copper price, QS; see views.ShowsKg):
+// invoiced in kilograms (KGM), such a product needs a Peso to turn metres into kilos.
 type ProductFamily struct {
 	ID       int64
 	Name     string
 	KgPriced bool
+	ByWeight bool
 }
 
 // UpsertFamily inserts a product family by name if it doesn't exist, or updates its
@@ -78,7 +92,8 @@ const productSelectCols = `
 	p.id, p.family_id, pf.name, p.sku, p.description,
 	p.kg_per_m_micros, p.cost_micros,
 	p.unit_id, u.code, u.name,
-	EXISTS (SELECT 1 FROM product_materials pm WHERE pm.product_id = p.id)`
+	EXISTS (SELECT 1 FROM product_materials pm WHERE pm.product_id = p.id),
+	COALESCE(p.sat_product_code, ''), COALESCE(p.sat_unit_code, '')`
 
 const productFrom = `
 	FROM products p
@@ -90,7 +105,8 @@ func scanProduct(row interface{ Scan(...any) error }) (*Product, error) {
 	var kgPerM, cost, unitID sql.NullInt64
 	var unitCode, unitName sql.NullString
 	err := row.Scan(&p.ID, &p.FamilyID, &p.FamilyName, &p.SKU, &p.Description,
-		&kgPerM, &cost, &unitID, &unitCode, &unitName, &p.HasMaterials)
+		&kgPerM, &cost, &unitID, &unitCode, &unitName, &p.HasMaterials,
+		&p.SATProductCode, &p.SATUnitCode)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -119,7 +135,8 @@ func scanProduct(row interface{ Scan(...any) error }) (*Product, error) {
 func (s *Store) ListFamilies(ctx context.Context) ([]ProductFamily, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT f.id, f.name,
-			EXISTS (SELECT 1 FROM quote_types t WHERE t.family_id = f.id AND t.kg_priced = 1)
+			EXISTS (SELECT 1 FROM quote_types t WHERE t.family_id = f.id AND t.kg_priced = 1),
+			EXISTS (SELECT 1 FROM quote_types t WHERE t.family_id = f.id AND (t.kg_priced = 1 OR t.copper_price_margin = 1))
 		FROM product_families f WHERE f.free_lines_only = 0 ORDER BY f.name`)
 	if err != nil {
 		return nil, fmt.Errorf("store: list families: %w", err)
@@ -129,7 +146,7 @@ func (s *Store) ListFamilies(ctx context.Context) ([]ProductFamily, error) {
 	var families []ProductFamily
 	for rows.Next() {
 		var f ProductFamily
-		if err := rows.Scan(&f.ID, &f.Name, &f.KgPriced); err != nil {
+		if err := rows.Scan(&f.ID, &f.Name, &f.KgPriced, &f.ByWeight); err != nil {
 			return nil, fmt.Errorf("store: list families: %w", err)
 		}
 		families = append(families, f)
@@ -145,7 +162,19 @@ var productSortColumns = []sortColumn{
 	{"familia", "pf.name"},
 	{"costo", "p.cost_micros"},
 	{"unidad", "u.code"},
+	{"sat", productSATState},
 }
+
+// productSATState is a product's "Datos SAT" column for sorting and filtering: whether
+// it has both SAT codes.
+const productSATState = `CASE WHEN p.sat_product_code IS NULL OR p.sat_unit_code IS NULL
+	THEN '` + SATFaltan + `' ELSE '` + SATCompletos + `' END`
+
+// The values of ListProducts' "sat" filter.
+const (
+	SATFaltan    = "faltan"    // Sin datos para facturar
+	SATCompletos = "completos" // both codes captured
+)
 
 // productFilterColumns are the per-column filters ListProducts accepts. The cost
 // filter skips products costed only from their materials.
@@ -155,6 +184,7 @@ var productFilterColumns = []filterColumn{
 	{name: "familia", expr: "pf.name", kind: FilterEnum},
 	{name: "costo", expr: "p.cost_micros", kind: FilterNumber, scale: 1_000_000},
 	{name: "unidad", expr: "u.code", kind: FilterEnum},
+	{name: "sat", expr: productSATState, kind: FilterEnum},
 }
 
 // ListProducts returns non-deleted products, optionally filtered by a case-insensitive
@@ -256,9 +286,11 @@ func (s *Store) ProductBySKU(ctx context.Context, sku string) (*Product, error) 
 // CreateProduct inserts a new product, returning its id.
 func (s *Store) CreateProduct(ctx context.Context, p Product) (int64, error) {
 	res, err := s.exec(ctx, `
-		INSERT INTO products (family_id, sku, description, kg_per_m_micros, cost_micros, unit_id)
-		VALUES (?, ?, ?, ?, ?, ?)`,
+		INSERT INTO products (family_id, sku, description, kg_per_m_micros, cost_micros, unit_id,
+			sat_product_code, sat_unit_code)
+		VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''))`,
 		p.FamilyID, p.SKU, p.Description, microsPtr(p.KgPerMMicros), microsPtr(p.CostMicros), idPtr(p.UnitID),
+		p.SATProductCode, p.SATUnitCode,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("store: create product %q: %w", p.SKU, err)
@@ -276,9 +308,12 @@ func (s *Store) UpdateProduct(ctx context.Context, p Product) error {
 			kg_per_m_micros    = ?,
 			cost_micros        = ?,
 			unit_id            = ?,
+			sat_product_code   = NULLIF(?, ''),
+			sat_unit_code      = NULLIF(?, ''),
 			updated_at         = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 		WHERE id = ?`,
-		p.FamilyID, p.SKU, p.Description, microsPtr(p.KgPerMMicros), microsPtr(p.CostMicros), idPtr(p.UnitID), p.ID,
+		p.FamilyID, p.SKU, p.Description, microsPtr(p.KgPerMMicros), microsPtr(p.CostMicros), idPtr(p.UnitID),
+		p.SATProductCode, p.SATUnitCode, p.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("store: update product %d: %w", p.ID, err)

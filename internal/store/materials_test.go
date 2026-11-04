@@ -108,13 +108,7 @@ func TestMigration0008(t *testing.T) {
 		return id
 	}
 	micros := func(m money.Micros) *money.Micros { return &m }
-	add := func(p Product) int64 {
-		id, err := old.CreateProduct(ctx, p)
-		if err != nil {
-			t.Fatalf("CreateProduct(%s): %v", p.SKU, err)
-		}
-		return id
-	}
+	add := func(p Product) int64 { return insertProductRaw(t, old, ctx, p) }
 	ccs := add(Product{FamilyID: fam("CCS & AC"), SKU: "ccs-alambre-4", Description: "ALAMBRE 4", KgPerMMicros: micros(172_300)})
 	// A pre-M2.3 import left "cost before margin" on CCS & AC rows; kept, it would be
 	// added on top of the materials.
