@@ -61,8 +61,9 @@ Debajo del folio y del cliente verás este resumen:
 
 Más abajo están **Seguimiento y comentarios** (la probabilidad, las fechas o, desde que se
 recibe, la orden de compra, el comentario y, justo debajo, el historial), los botones para
-moverlo de etapa, **Facturación y pago** (desde que se recibe la orden) y **Cotizaciones**
-(la vigente y las que fueron revisadas, cada una con su enlace).
+moverlo de etapa, **Facturación y pago** y **Orden de compra al proveedor** (desde que se
+recibe la orden; ver [Órdenes de compra a proveedor](ordenes-de-compra.md)) y
+**Cotizaciones** (la vigente y las que fueron revisadas, cada una con su enlace).
 
 En un proyecto **QL**, antes de **Cotizaciones** está también la **Cotización del
 proveedor**: el proveedor, su número de cotización y los archivos, los mismos que en la
@@ -328,8 +329,9 @@ asignó.
 
 **Eliminar.** Sirve, por ejemplo, para limpiar cotizaciones de prueba. Haz clic en
 **Eliminar proyecto** y confirma. Se borra el proyecto con todas sus cotizaciones y
-revisiones, su historial, la orden de compra y sus facturas sin timbrar. **No se puede
-deshacer**, y los folios borrados no se vuelven a usar.
+revisiones, su historial, la orden de compra, sus órdenes de compra al proveedor (también
+las confirmadas) y sus facturas sin timbrar. **No se puede deshacer**, y los folios
+borrados no se vuelven a usar.
 
 Un proyecto con una factura timbrada (o en proceso de timbrarse) no se puede eliminar:
 es un documento fiscal. En su lugar la página explica por qué.

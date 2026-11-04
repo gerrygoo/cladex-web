@@ -1,8 +1,8 @@
 # Proveedores
 
 El catálogo de proveedores guarda los datos fiscales, de contacto y de pago de quienes le
-venden a Cladex, y qué [[familia|familias]] surte cada uno. Es la base para las órdenes de
-compra a proveedores, que todavía no se hacen desde la app.
+venden a Cladex, y qué [[familia|familias]] surte cada uno. De aquí salen el proveedor y
+sus datos en las [órdenes de compra a proveedor](ordenes-de-compra.md).
 
 Todos ven la lista y la ficha de cada proveedor. Solo un administrador puede darlos de
 alta, editarlos, marcarlos como inactivos y eliminarlos; un vendedor no ve sus datos
@@ -92,10 +92,15 @@ usarlo, haz clic en **Reactivar**.
    confirma *"¿Seguro que quieres eliminar a Cable Anti Robo? No se puede deshacer."*
 2. Verás *"Proveedor eliminado."*
 
-No se puede eliminar un proveedor que todavía es el predeterminado de alguna familia (más
-adelante, tampoco uno con órdenes de compra). En ese caso la app dice
-*"No se puede eliminar a …"*, con las familias que lo impiden, y ofrece
-**Marcar como inactivo**. Si le quitas sus familias y guardas, ya se puede eliminar.
+No se puede eliminar un proveedor que todavía es el predeterminado de alguna familia, ni
+uno con [órdenes de compra](ordenes-de-compra.md) (en borrador, confirmadas o
+reemplazadas). En ese caso la app dice *"No se puede eliminar a …"*, con las familias o
+las órdenes de compra que lo impiden, y ofrece **Marcar como inactivo**:
+
+- Si son familias, quítaselas en «Familias que surte» y guarda; ya se puede eliminar.
+- Si tiene órdenes de compra, dice *"Tiene órdenes de compra: OC-QA0037-301026. Un
+  proveedor con órdenes de compra no se puede eliminar; márcalo como inactivo."* Las
+  órdenes de compra son el registro de lo que se le pidió, así que el proveedor se queda.
 :::
 
 ## Historial de un proveedor

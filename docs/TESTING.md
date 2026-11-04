@@ -161,6 +161,12 @@ per guide page:
   reassignment questions, the delete rule and Inactivo, `Sin asignar` / `No aplica` on
   Familias, and the Historial lines. The carga inicial and the CLABE check digit are in
   `internal/store/suppliers_test.go`.
+- **ordenes-de-compra.md** — pinned by `internal/web/purchase_orders_test.go` (issue #65):
+  who may generate, edit, confirm and revise, the confirm messages, the QA0037 totals and
+  the QALC kg columns, the conditions' texts, the numbers with -2 and -R1, the new
+  supplier from a QL O.C. and the Configuración del sistema block. The cost and rounding
+  rules, numbering and the delete rules are in `internal/store/purchase_orders_test.go`,
+  the PDF's layout in `internal/pdf/purchase_order_test.go`.
 - **cotizaciones.md** — `Selecciona un cliente.` / `Selecciona una serie de folio.`, the
   three line-level errors, `Borrador guardado.`, `Cotización emitida.`, `Producto no encontrado.` on a draft whose product was deleted (and that
   such a draft refuses to save), the 30-day vigencia, that an empty quote does not issue,

@@ -102,6 +102,21 @@ instalan en el servidor ([cómo](../NAS_OPERATIONS.md#secrets)).
   configurada* o *el certificado venció el …*).
 - **Certificado**: el RFC, el número y la fecha de vencimiento del certificado.
 
+### Datos de facturación en órdenes de compra
+
+Debajo del **Emisor**, lo que las [órdenes de compra a proveedor](ordenes-de-compra.md)
+piden al proveedor en su factura, en el bloque **Datos de facturación**:
+
+- **Razón social**, con el régimen de capital (*CLADEX S.A. de C.V.*).
+- **Domicilio fiscal**, en un renglón, tal como saldrá.
+- **Uso de CFDI** (*G01 - Adquisición de mercancías*).
+
+El **RFC** y el **Régimen fiscal** son los del Emisor. Haz clic en **Guardar datos de
+facturación**; verás *"Datos de facturación de las órdenes de compra guardados."* Lo que
+cambies aquí sale en los borradores y en las órdenes que se confirmen después; las ya
+confirmadas no cambian. Si falta alguno de estos datos, una orden de compra no se puede
+confirmar.
+
 ## Ambiente de pruebas
 
 Hay una copia de la app para probar sin tocar los datos reales, en

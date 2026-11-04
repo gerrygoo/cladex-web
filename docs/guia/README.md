@@ -15,6 +15,7 @@ parte de este manual que la explica.
 | [Proveedores](proveedores.md) | Consultar proveedores, sus contactos y las familias que surten; darlos de alta y editarlos (administradores) |
 | [Cotizaciones](cotizaciones.md) | Crear una cotización, agregar productos por SKU, líneas libres, guardar, emitir, descargar el PDF, revisar |
 | [Proyectos](proyectos.md) | Dar seguimiento después de emitir: etapas, probabilidad de cierre, fechas, pronóstico, perdidos, historial |
+| [Órdenes de compra a proveedor](ordenes-de-compra.md) | Generar la orden de compra al proveedor desde el proyecto, ver el PDF, confirmar y descargar, revisiones |
 | [Facturas](facturas.md) | Timbrar la factura de un proyecto y su comprobante de pago, descargar XML y PDF, sustituir y cancelar |
 | [Productos](productos.md) | Buscar, dar de alta y editar productos; cómo se calcula cada precio; conversiones de unidades |
 | [Documentos oficiales](documentos.md) | Ver y descargar fichas técnicas, presentaciones y material de capacitación |
@@ -44,6 +45,8 @@ parte de este manual que la explica.
 | Ver Proveedores (sin datos bancarios) | ✓ | ✓ |
 | Dar de alta, editar, desactivar y eliminar Proveedores; ver sus datos bancarios | — | ✓ |
 | Eliminar y reasignar Proyectos y borradores de cotización | — | ✓ |
+| Generar y editar el borrador de la orden de compra al proveedor (de sus proyectos) | ✓ | ✓ |
+| Confirmar órdenes de compra a proveedor y crear sus revisiones | — | ✓ |
 | Dar de alta Productos | ✓ | ✓ |
 | Editar y eliminar Productos (con sus materiales y conversiones) | — | ✓ |
 | Ver y descargar Documentos oficiales | ✓ | ✓ |
