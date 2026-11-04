@@ -45,6 +45,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	auth := NewAuth(db, cookieSecure)
 	products := NewProducts(db)
 	customers := NewCustomers(db)
+	suppliers := NewSuppliers(db)
 	quotes := NewQuotes(db, logger)
 	quotes.watermark = build.Env.Watermark()
 	projects := NewProjects(db)
@@ -103,6 +104,16 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("GET /clientes/{id}", authed(customers.EditPage))
 	mux.Handle("POST /clientes/{id}", authed(customers.Update))
 	mux.Handle("POST /clientes/{id}/eliminar", admin(customers.Delete))
+
+	// Proveedores (issue #64): a vendedor only looks them up.
+	mux.Handle("GET /proveedores", authed(suppliers.List))
+	mux.Handle("GET /proveedores/nuevo", admin(suppliers.NewPage))
+	mux.Handle("POST /proveedores/nuevo", admin(suppliers.Create))
+	mux.Handle("GET /proveedores/{id}", authed(suppliers.Page))
+	mux.Handle("POST /proveedores/{id}", admin(suppliers.Update))
+	mux.Handle("POST /proveedores/{id}/eliminar", admin(suppliers.Delete))
+	mux.Handle("POST /proveedores/{id}/inactivar", admin(suppliers.SetInactive(true)))
+	mux.Handle("POST /proveedores/{id}/reactivar", admin(suppliers.SetInactive(false)))
 
 	mux.Handle("GET /cotizaciones", authed(quotes.List))
 	mux.Handle("GET /cotizaciones/nueva", authed(quotes.NewPage))

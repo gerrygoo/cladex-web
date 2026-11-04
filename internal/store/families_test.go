@@ -311,7 +311,8 @@ func TestUpdateFamilyRenames(t *testing.T) {
 		}
 	}
 	entries, err := s.AuditLog(ctx, AuditFilter{TableName: "product_families", RowKey: strconv.FormatInt(ccs.ID, 10)})
-	if err != nil || len(entries) != 1 {
+	// Newest first; before it, 0033 gave the familia its default supplier.
+	if err != nil || len(entries) == 0 {
 		t.Fatalf("audit entries = %+v, %v; want the rename", entries, err)
 	}
 	if e := entries[0]; e.Op != "update" || e.OldValues["name"] != "CCS & AC" || e.NewValues["name"] != "CCS" ||

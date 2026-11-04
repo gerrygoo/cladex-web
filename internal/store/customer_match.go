@@ -57,15 +57,21 @@ func (s *Store) SimilarCustomers(ctx context.Context, name, rfc string) ([]Custo
 			out = append(out, c)
 			continue
 		}
-		have := normalizeName(c.Name)
-		if wantName == "" || have == "" {
-			continue
-		}
-		if have == wantName ||
-			(len(wantName) >= minContainedName && strings.Contains(have, wantName)) ||
-			(len(have) >= minContainedName && strings.Contains(wantName, have)) {
+		if similarNormalizedName(wantName, normalizeName(c.Name)) {
 			out = append(out, c)
 		}
 	}
 	return out, nil
+}
+
+// similarNormalizedName reports whether two normalized names (see normalizeName) are the
+// same, or one contains the other whole: the duplicate check's name criterion, shared by
+// customers and suppliers.
+func similarNormalizedName(want, have string) bool {
+	if want == "" || have == "" {
+		return false
+	}
+	return have == want ||
+		(len(want) >= minContainedName && strings.Contains(have, want)) ||
+		(len(have) >= minContainedName && strings.Contains(want, have))
 }

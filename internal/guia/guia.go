@@ -45,6 +45,7 @@ var pageDefs = []pageDef{
 	{"", "README.md", "Inicio", false},
 	{"acceso", "acceso.md", "Acceso y cuenta", false},
 	{"clientes", "clientes.md", "Clientes", false},
+	{"proveedores", "proveedores.md", "Proveedores", false},
 	{"cotizaciones", "cotizaciones.md", "Cotizaciones", false},
 	{"proyectos", "proyectos.md", "Proyectos", false},
 	{"productos", "productos.md", "Productos", false},

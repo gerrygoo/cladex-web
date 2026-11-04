@@ -344,7 +344,7 @@ func TestMigration0016(t *testing.T) {
 	}
 	// The copy is not an edit: nothing new in the audit log.
 	var auditAfter int
-	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM audit_log`).Scan(&auditAfter); err != nil || auditAfter != auditBefore {
+	if err := s.db.QueryRowContext(ctx, countAuditWithoutSupplierSeed).Scan(&auditAfter); err != nil || auditAfter != auditBefore {
 		t.Fatalf("audit_log rows = %d, were %d (%v)", auditAfter, auditBefore, err)
 	}
 

@@ -87,7 +87,7 @@ func TestGuiaMiCuentaMessages(t *testing.T) {
 
 // --- docs/guia/README.md, "Quién puede hacer qué" ---
 
-// "Si en el menú Catálogos solo ves Productos y Clientes, tu cuenta es de vendedor."
+// "Si en el menú Catálogos solo ves Productos, Clientes y Proveedores, tu cuenta es de vendedor."
 func TestGuiaNavLinksByRole(t *testing.T) {
 	a := newTestAuth(t)
 	products := NewProducts(a.store)
@@ -106,7 +106,7 @@ func TestGuiaNavLinksByRole(t *testing.T) {
 		}
 	}
 	// The seller-facing links are there for both roles.
-	for _, link := range []string{`href="/cotizaciones"`, `href="/productos"`, `href="/clientes"`} {
+	for _, link := range []string{`href="/cotizaciones"`, `href="/productos"`, `href="/clientes"`, `href="/proveedores"`} {
 		if !strings.Contains(rec.Body.String(), link) {
 			t.Errorf("vendedor's menu is missing %s", link)
 		}

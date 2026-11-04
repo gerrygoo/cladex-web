@@ -403,4 +403,25 @@
     field.dispatchEvent(new Event("change", { bubbles: true }));
     field.focus();
   });
+
+  // A supplier's contacts (issue #64): the server renders a few empty contact slots.
+  // Show only the first empty one, and "Agregar otro contacto" opens the next, its name
+  // field focused. Without JS every slot shows and empty ones are ignored on save.
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("[data-contacts]").forEach(function (box) {
+      var button = box.querySelector("[data-add-contact]");
+      var blanks = Array.prototype.slice.call(box.querySelectorAll("[data-contact-blank]"));
+      if (!button || blanks.length < 2) return;
+      blanks.slice(1).forEach(function (slot) { slot.hidden = true; });
+      button.hidden = false;
+      button.addEventListener("click", function () {
+        var next = blanks.find(function (slot) { return slot.hidden; });
+        if (!next) return;
+        next.hidden = false;
+        var field = next.querySelector("input[type=text]");
+        if (field) field.focus();
+        if (!blanks.some(function (slot) { return slot.hidden; })) button.hidden = true;
+      });
+    });
+  });
 })();

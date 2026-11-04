@@ -33,6 +33,7 @@ const (
 	HelpDocumentos         HelpTopic = "/ayuda/documentos"
 	HelpFacturas           HelpTopic = "/ayuda/facturas"
 	HelpFactura            HelpTopic = "/ayuda/facturas#timbrar-una-factura"
+	HelpProveedores        HelpTopic = "/ayuda/proveedores"
 
 	// Admin-only screens link to the admin-only guide page.
 	HelpAjustes    HelpTopic = "/ayuda/administracion#márgenes"
@@ -41,6 +42,10 @@ const (
 	HelpUnidades   HelpTopic = "/ayuda/administracion#unidades"
 	HelpFamilias   HelpTopic = "/ayuda/administracion#familias"
 	HelpTipos      HelpTopic = "/ayuda/administracion#tipos-de-cotización"
+
+	// Only admins open a supplier's form; its sections are admin-only in the guide.
+	HelpProveedorNuevo  HelpTopic = "/ayuda/proveedores#dar-de-alta-un-proveedor"
+	HelpProveedorEditar HelpTopic = "/ayuda/proveedores#editar-un-proveedor"
 )
 
 // HelpTopics lists every topic with whether it is only linked from admin screens.
@@ -68,12 +73,15 @@ var HelpTopics = map[HelpTopic]bool{
 	HelpDocumentos:         false,
 	HelpFacturas:           false,
 	HelpFactura:            false,
+	HelpProveedores:        false,
 	HelpAjustes:            true,
 	HelpMateriales:         true,
 	HelpUsuarios:           true,
 	HelpUnidades:           true,
 	HelpFamilias:           true,
 	HelpTipos:              true,
+	HelpProveedorNuevo:     true,
+	HelpProveedorEditar:    true,
 }
 
 func quoteHelpTopic(status string) HelpTopic {

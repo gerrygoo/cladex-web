@@ -146,8 +146,18 @@ type CustomerHistoryEntry struct {
 }
 
 // CustomerFieldChange is one field an edit changed, with its values as shown on screen.
+// Text, when set, is the whole line instead ("Contacto agregado: Cotizaciones"), for a
+// change that isn't one value replacing another (a supplier's Historial, issue #64).
 type CustomerFieldChange struct {
 	Label, Old, New string
+	Text            string
+}
+
+func (c CustomerFieldChange) line() string {
+	if c.Text != "" {
+		return c.Text
+	}
+	return c.Label + ": " + c.Old + " → " + c.New
 }
 
 // CustomerForm is the new and edit customer form. similar, on a new one, lists the
@@ -285,7 +295,7 @@ templ customerHistory(entries []CustomerHistoryEntry) {
 					@Timestamp(e.At)
 					<ul>
 						for _, c := range e.Changes {
-							<li>{ c.Label + ": " + c.Old + " → " + c.New }</li>
+							<li>{ c.line() }</li>
 						}
 					</ul>
 				}

@@ -12,6 +12,7 @@ parte de este manual que la explica.
 |---|---|
 | [Acceso y cuenta](acceso.md) | Iniciar sesión, cambiar tu contraseña, cerrar sesión |
 | [Clientes](clientes.md) | Dar de alta, buscar, editar y eliminar clientes |
+| [Proveedores](proveedores.md) | Consultar proveedores, sus contactos y las familias que surten; darlos de alta y editarlos (administradores) |
 | [Cotizaciones](cotizaciones.md) | Crear una cotización, agregar productos por SKU, líneas libres, guardar, emitir, descargar el PDF, revisar |
 | [Proyectos](proyectos.md) | Dar seguimiento después de emitir: etapas, probabilidad de cierre, fechas, pronóstico, perdidos, historial |
 | [Facturas](facturas.md) | Timbrar la factura de un proyecto y su comprobante de pago, descargar XML y PDF, sustituir y cancelar |
@@ -40,6 +41,8 @@ parte de este manual que la explica.
 | Cotizaciones | ✓ | ✓ |
 | Dar de alta y editar Clientes | ✓ | ✓ |
 | Eliminar Clientes | — | ✓ |
+| Ver Proveedores (sin datos bancarios) | ✓ | ✓ |
+| Dar de alta, editar, desactivar y eliminar Proveedores; ver sus datos bancarios | — | ✓ |
 | Eliminar y reasignar Proyectos y borradores de cotización | — | ✓ |
 | Dar de alta Productos | ✓ | ✓ |
 | Editar y eliminar Productos (con sus materiales y conversiones) | — | ✓ |
@@ -47,7 +50,7 @@ parte de este manual que la explica.
 | Subir, editar y eliminar Documentos oficiales y sus secciones | — | ✓ |
 | Usuarios, Familias, Unidades, Configuración del sistema | — | ✓ |
 
-Si en el menú **Catálogos** solo ves **Productos** y **Clientes**, tu cuenta es de vendedor.
+Si en el menú **Catálogos** solo ves **Productos**, **Clientes** y **Proveedores**, tu cuenta es de vendedor.
 Si intentas algo que solo puede hacer un administrador, la app lo bloquea con *"No tienes
 permiso para hacer esto. Solo un administrador puede hacerlo."*
 
@@ -92,7 +95,7 @@ Abajo, **Compilado el …** indica cuándo se instaló la versión actual de la 
 
 ## Filtrar las tablas
 
-Las listas de **Cotizaciones**, **Productos**, **Clientes** y **Usuarios** se pueden
+Las listas de **Cotizaciones**, **Productos**, **Clientes**, **Proveedores** y **Usuarios** se pueden
 filtrar por cualquier columna, además de buscar y ordenar:
 
 1. Haz clic en el embudo junto al nombre de la columna.
@@ -118,7 +121,7 @@ guardarla o compartirla.
 
 ## Páginas largas
 
-Las listas de **Cotizaciones**, **Productos**, **Clientes**, **Usuarios** y **Unidades**, y
+Las listas de **Cotizaciones**, **Productos**, **Clientes**, **Proveedores**, **Usuarios** y **Unidades**, y
 los **Comentarios** de cada cotización, muestran 20 filas por página. Cuando hay más de 10 filas, debajo de la tabla verás
 *"Página 1 de 3"* con los enlaces **← Anterior** y **Siguiente →**, y el selector
 **Filas por página** (10, 20, 50 o 100). Al buscar, filtrar u ordenar vuelves a la

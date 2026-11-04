@@ -1,0 +1,578 @@
+package views
+
+import (
+	"strconv"
+	"strings"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// Proveedores (issue #64): admins keep the catalog; a vendedor sees the list and each
+// supplier read-only, without its bank data.
+
+var supplierStatusFilter = enumFilter(FilterOption{"activo", "Activo"}, FilterOption{"inactivo", "Inactivo"})
+
+func supplierPath(id int64) string {
+	return "/proveedores/" + strconv.FormatInt(id, 10)
+}
+
+templ SuppliersList(suppliers []store.SupplierRow, lv ListView, successMsg string, user *NavUser) {
+	@Layout("Proveedores", user) {
+		<div class="page-title">
+			<h1>Proveedores</h1>
+			@HelpLink(HelpProveedores)
+		</div>
+		@Flash(successMsg)
+		<div class="toolbar">
+			<form method="get" action="/proveedores" role="search">
+				<input
+					type="search"
+					name="q"
+					placeholder="Buscar por nombre, RFC, razón social o contacto…"
+					aria-label="Buscar por nombre, RFC, razón social o contacto"
+					value={ lv.Query }
+					hx-get="/proveedores"
+					hx-trigger="keyup changed delay:400ms, search"
+					hx-target="#proveedores-tbody"
+					hx-swap="outerHTML"
+					hx-include="closest form"
+					hx-push-url="true"
+				/>
+				@listHiddenInputs(lv, "q")
+				<button type="submit">Buscar</button>
+			</form>
+			if user != nil && user.IsAdmin {
+				<a class="button primary" href="/proveedores/nuevo">Nuevo proveedor</a>
+			}
+		</div>
+		@listActiveFilters(lv)
+		<div class="table-scroll">
+			<table>
+				<thead>
+					<tr>
+						@columnHeader(lv, "Nombre comercial", "name", textFilter)
+						@columnHeader(lv, "RFC", "rfc", textFilter)
+						@columnHeader(lv, "Razón social", "legal_name", textFilter)
+						@columnHeader(lv, "Familias que surte", "families", textFilter)
+						@columnHeader(lv, "Estado", "status", supplierStatusFilter)
+						<th><span class="visually-hidden">Acciones</span></th>
+					</tr>
+				</thead>
+				@SuppliersTableBody(suppliers, user != nil && user.IsAdmin)
+			</table>
+		</div>
+		@listPager(lv, false)
+	}
+}
+
+// SuppliersTableBody lists suppliers: an admin edits or deletes each, a vendedor only
+// opens it.
+templ SuppliersTableBody(suppliers []store.SupplierRow, isAdmin bool) {
+	<tbody id="proveedores-tbody" data-announce={ countAnnouncement(len(suppliers), "proveedor", "proveedores") }>
+		if len(suppliers) == 0 {
+			<tr>
+				<td colspan="6">No se encontraron proveedores.</td>
+			</tr>
+		}
+		for _, s := range suppliers {
+			<tr>
+				<td>{ s.Name }</td>
+				<td>{ s.RFC }</td>
+				<td>{ s.LegalName }</td>
+				<td>{ orDash(s.Families) }</td>
+				<td>
+					@supplierStatusBadge(s.Inactive)
+				</td>
+				<td class="actions">
+					if isAdmin {
+						<a class="button" href={ templ.URL(supplierPath(s.ID)) }>Editar<span class="visually-hidden">{ " " + s.Name }</span></a>
+						<form method="post" action={ templ.URL(supplierPath(s.ID) + "/eliminar") }>
+							<button type="submit" class="danger" data-confirm={ deleteSupplierQuestion(s.Name) }>Eliminar<span class="visually-hidden">{ " " + s.Name }</span></button>
+						</form>
+					} else {
+						<a class="button" href={ templ.URL(supplierPath(s.ID)) }>Ver<span class="visually-hidden">{ " " + s.Name }</span></a>
+					}
+				</td>
+			</tr>
+		}
+	</tbody>
+}
+
+func deleteSupplierQuestion(name string) string {
+	return "¿Seguro que quieres eliminar a " + name + "? No se puede deshacer."
+}
+
+templ supplierStatusBadge(inactive bool) {
+	if inactive {
+		<span class="badge badge-inactivo">Inactivo</span>
+	} else {
+		<span class="badge badge-activo">Activo</span>
+	}
+}
+
+// SupplierContactValues is one contact slot of the form, as typed. ID is "" for a new
+// one; Remove is its "Quitar este contacto" box.
+type SupplierContactValues struct {
+	ID         string
+	Name       string
+	Role       string
+	Phone      string
+	Email      string
+	ReceivesPO bool
+	Remove     bool
+}
+
+// Blank reports whether the slot is an unused new one.
+func (c SupplierContactValues) Blank() bool {
+	return c.ID == "" && c.Name == "" && c.Role == "" && c.Phone == "" && c.Email == ""
+}
+
+// SupplierFormValues is what the supplier form shows: raw strings, so an error can
+// redisplay exactly what was typed.
+type SupplierFormValues struct {
+	Name, RFC, LegalName                                    string
+	Street, ExtNumber, Neighborhood, Municipality, State    string
+	PostalCode, TaxRegime, Notes                            string
+	CreditDays, Currency, PaymentTerms, LeadTime            string
+	Bank, CLABE, Beneficiary                                string
+	Contacts                                                []SupplierContactValues
+	FamilyIDs                                               map[int64]bool
+	// Confirmed carries "Sí, darlo de alta de todos modos" past the duplicate check,
+	// so the reassignment question after it doesn't ask that again.
+	Confirmed bool
+}
+
+// SupplierReassignment is a familia the form takes from another supplier.
+type SupplierReassignment struct {
+	Familia, Supplier string
+}
+
+// SupplierFormPage is the new or edit supplier page (admins only).
+type SupplierFormPage struct {
+	ID       int64 // 0 for a new one
+	Values   SupplierFormValues
+	Errors   map[string]string
+	Families []store.SupplierFamilyOption
+	// Similar are the suppliers a new one may duplicate; Reassign the familias saving
+	// would take from another supplier. Either asks before saving.
+	Similar  []store.SupplierRow
+	Reassign []SupplierReassignment
+	// SavedName is the supplier's name as stored, for the heading; Inactive its state.
+	SavedName string
+	Inactive  bool
+	// InUse names the familias that kept a delete from going through.
+	InUse      []string
+	SuccessMsg string
+	History    []CustomerHistoryEntry
+}
+
+func (p SupplierFormPage) title() string {
+	if p.ID == 0 {
+		return "Nuevo proveedor"
+	}
+	return "Editar proveedor " + p.SavedName
+}
+
+func (p SupplierFormPage) action() string {
+	if p.ID == 0 {
+		return "/proveedores/nuevo"
+	}
+	return supplierPath(p.ID)
+}
+
+// FamilyOptionLabel is how a familia reads in "Familias que surte": its name with the
+// quote types that quote it, "CCA — Cable CCA (QA)", so two familias are never confused.
+func FamilyOptionLabel(o store.SupplierFamilyOption) string {
+	if len(o.QuoteTypes) == 0 {
+		return o.Name
+	}
+	var types []string
+	for _, t := range o.QuoteTypes {
+		if t.Name == "" {
+			types = append(types, "("+t.Prefix+")")
+		} else {
+			types = append(types, t.Name+" ("+t.Prefix+")")
+		}
+	}
+	return o.Name + " — " + strings.Join(types, ", ")
+}
+
+func contactField(i int, name string) string {
+	return "contacto-" + strconv.Itoa(i) + "-" + name
+}
+
+templ SupplierForm(p SupplierFormPage, user *NavUser) {
+	@Layout(p.title(), user) {
+		<div class="page-title">
+			<h1>{ p.title() }</h1>
+			if p.ID == 0 {
+				@HelpLink(HelpProveedorNuevo)
+			} else {
+				@HelpLink(HelpProveedorEditar)
+			}
+		</div>
+		@Flash(p.SuccessMsg)
+		if len(p.InUse) > 0 {
+			<div class="notice warning" id="no-se-puede-eliminar" role="alert" tabindex="-1">
+				<p>
+					<strong>{ "No se puede eliminar a " + p.SavedName + "." }</strong>
+					{ " Es el proveedor predeterminado de: " + strings.Join(p.InUse, ", ") + ". Quítale esas familias en «Familias que surte» y guarda para poder eliminarlo, o márcalo como inactivo." }
+				</p>
+				if !p.Inactive {
+					<form method="post" action={ templ.URL(supplierPath(p.ID) + "/inactivar") }>
+						<button type="submit">Marcar como inactivo</button>
+					</form>
+				}
+			</div>
+		}
+		<form method="post" action={ templ.URL(p.action()) }>
+			if p.Values.Confirmed {
+				<input type="hidden" name="confirmar" value="1"/>
+			}
+			if len(p.Similar) > 0 {
+				<div class="notice warning" id="posible-duplicado" role="alert" tabindex="-1">
+					<p><strong>Este proveedor podría estar duplicado.</strong> Encontramos proveedores parecidos ya dados de alta:</p>
+					<ul>
+						for _, s := range p.Similar {
+							<li>
+								{ s.Name + " — RFC: " + s.RFC + " — Razón social: " + s.LegalName + " " }
+								<a href={ templ.URL(supplierPath(s.ID)) } class="button">Ver este proveedor<span class="visually-hidden">{ " " + s.Name }</span></a>
+							</li>
+						}
+					</ul>
+					<p>¿Estás seguro de que quieres darlo de alta?</p>
+					<p>
+						<button type="submit" name="confirmar" value="1" class="primary">Sí, darlo de alta de todos modos</button>
+						<a href="#nombre" class="button" data-dismiss="posible-duplicado">Regresar a editar</a>
+					</p>
+				</div>
+			}
+			if len(p.Reassign) > 0 {
+				<div class="notice warning" id="reasignar" role="alert" tabindex="-1">
+					<ul>
+						for _, r := range p.Reassign {
+							<li>{ "La familia " + r.Familia + " ya está asignada a " + r.Supplier + ". ¿Quieres reasignarla?" }</li>
+						}
+					</ul>
+					<p>Al reasignarla, deja de ser del otro proveedor: cada familia tiene un solo proveedor predeterminado.</p>
+					<p>
+						<button type="submit" name="reasignar" value="1" class="primary">Sí, reasignar y guardar</button>
+						<a href="#familias" class="button" data-dismiss="reasignar">Regresar a editar</a>
+					</p>
+				</div>
+			}
+			<label>
+				Nombre comercial
+				<input type="text" id="nombre" name="name" value={ p.Values.Name } required { errAttrs(p.Errors, "name")... }/>
+			</label>
+			@FieldError(p.Errors, "name")
+			<label>
+				RFC
+				<span class="hint">12 caracteres si es persona moral, 13 si es persona física.</span>
+				<input type="text" name="rfc" value={ p.Values.RFC } required maxlength="13" autocapitalize="characters" { errAttrs(p.Errors, "rfc")... }/>
+			</label>
+			@FieldError(p.Errors, "rfc")
+			<label>
+				Razón social
+				<input type="text" name="legal_name" value={ p.Values.LegalName } required { errAttrs(p.Errors, "legal_name")... }/>
+			</label>
+			@FieldError(p.Errors, "legal_name")
+			<fieldset>
+				<legend>Dirección fiscal</legend>
+				<label>
+					Calle
+					<input type="text" name="street" value={ p.Values.Street } required { errAttrs(p.Errors, "street")... }/>
+				</label>
+				@FieldError(p.Errors, "street")
+				<label>
+					Número
+					<input type="text" name="ext_number" value={ p.Values.ExtNumber } required { errAttrs(p.Errors, "ext_number")... }/>
+				</label>
+				@FieldError(p.Errors, "ext_number")
+				<label>
+					Colonia
+					<input type="text" name="neighborhood" value={ p.Values.Neighborhood } required { errAttrs(p.Errors, "neighborhood")... }/>
+				</label>
+				@FieldError(p.Errors, "neighborhood")
+				<label>
+					Municipio o alcaldía
+					<input type="text" name="municipality" value={ p.Values.Municipality } required { errAttrs(p.Errors, "municipality")... }/>
+				</label>
+				@FieldError(p.Errors, "municipality")
+				<label>
+					Estado
+					<input type="text" name="state" value={ p.Values.State } required { errAttrs(p.Errors, "state")... }/>
+				</label>
+				@FieldError(p.Errors, "state")
+				<label>
+					Código postal
+					<input type="text" name="postal_code" value={ p.Values.PostalCode } required inputmode="numeric" maxlength="5" { errAttrs(p.Errors, "postal_code")... }/>
+				</label>
+				@FieldError(p.Errors, "postal_code")
+			</fieldset>
+			<label>
+				Régimen fiscal (opcional)
+				<select name="tax_regime" { errAttrs(p.Errors, "tax_regime")... }>
+					<option value="">— Sin definir —</option>
+					for _, c := range store.TaxRegimes {
+						<option value={ c.Code } selected?={ c.Code == p.Values.TaxRegime }>{ c.Code + " - " + c.Description }</option>
+					}
+				</select>
+			</label>
+			@FieldError(p.Errors, "tax_regime")
+			<fieldset id="familias">
+				<legend>Familias que surte (opcional)</legend>
+				<p class="hint">Este proveedor será el predeterminado de las familias que marques. Cada familia tiene un solo proveedor predeterminado.</p>
+				for _, f := range p.Families {
+					<label>
+						<input type="checkbox" name="familia" value={ strconv.FormatInt(f.ID, 10) } checked?={ p.Values.FamilyIDs[f.ID] }/>
+						{ FamilyOptionLabel(f) }
+						if f.SupplierID != 0 && f.SupplierID != p.ID {
+							<span class="hint">{ "(ahora: " + f.SupplierName + ")" }</span>
+						}
+					</label>
+				}
+			</fieldset>
+			<fieldset id="contactos" data-contacts>
+				<legend>Contactos (opcionales)</legend>
+				<p class="hint">Marca <strong>Recibe O.C.</strong> en quien deba recibir las órdenes de compra; puede ser más de uno. Es solo informativo: la app no envía correos.</p>
+				<input type="hidden" name="contactos" value={ strconv.Itoa(len(p.Values.Contacts)) }/>
+				for i, c := range p.Values.Contacts {
+					@supplierContactFields(i, c, p.Errors)
+				}
+				<button type="button" data-add-contact hidden>Agregar otro contacto</button>
+			</fieldset>
+			<fieldset>
+				<legend>Condiciones comerciales (opcionales)</legend>
+				<label>
+					Días de crédito
+					<input type="text" name="credit_days" value={ p.Values.CreditDays } inputmode="numeric" placeholder="p. ej. 30" { errAttrs(p.Errors, "credit_days")... }/>
+				</label>
+				@FieldError(p.Errors, "credit_days")
+				<label>
+					Moneda
+					<span class="hint">En la que factura el proveedor. Solo informativa: no se hace ninguna conversión.</span>
+					<select name="currency" { errAttrs(p.Errors, "currency")... }>
+						<option value="">— Sin definir —</option>
+						for _, c := range store.Currencies {
+							<option value={ c } selected?={ c == p.Values.Currency }>{ c }</option>
+						}
+					</select>
+				</label>
+				@FieldError(p.Errors, "currency")
+				<label>
+					Condiciones de pago
+					<input type="text" name="payment_terms" value={ p.Values.PaymentTerms } placeholder="p. ej. 50% anticipo, 50% contra entrega"/>
+				</label>
+				<label>
+					Tiempo de entrega habitual
+					<input type="text" name="lead_time" value={ p.Values.LeadTime } placeholder="p. ej. 2 semanas"/>
+				</label>
+			</fieldset>
+			<fieldset>
+				<legend>Datos bancarios (opcionales; los vendedores no los ven)</legend>
+				<label>
+					Banco
+					<input type="text" name="bank" value={ p.Values.Bank }/>
+				</label>
+				<label>
+					CLABE (18 dígitos)
+					<input type="text" name="clabe" value={ p.Values.CLABE } inputmode="numeric" maxlength="18" { errAttrs(p.Errors, "clabe")... }/>
+				</label>
+				@FieldError(p.Errors, "clabe")
+				<label>
+					Beneficiario
+					<input type="text" name="beneficiary" value={ p.Values.Beneficiary }/>
+				</label>
+			</fieldset>
+			<label>
+				Notas (opcional)
+				<textarea name="notes" rows="3">{ p.Values.Notes }</textarea>
+			</label>
+			<button type="submit" class="primary">Guardar</button>
+			<a href="/proveedores">Cancelar</a>
+		</form>
+		if p.ID != 0 {
+			<div class="section-title">
+				<h2 id="estado">Estado</h2>
+			</div>
+			<p>
+				@supplierStatusBadge(p.Inactive)
+				if p.Inactive {
+					{ " Sigue en el catálogo y conserva sus familias, marcado como inactivo." }
+				}
+			</p>
+			<div class="supplier-state-actions">
+				if p.Inactive {
+					<form method="post" action={ templ.URL(supplierPath(p.ID) + "/reactivar") }>
+						<button type="submit">Reactivar</button>
+					</form>
+				} else {
+					<form method="post" action={ templ.URL(supplierPath(p.ID) + "/inactivar") }>
+						<button type="submit">Marcar como inactivo</button>
+					</form>
+				}
+				<form method="post" action={ templ.URL(supplierPath(p.ID) + "/eliminar") }>
+					<button type="submit" class="danger" data-confirm={ deleteSupplierQuestion(p.SavedName) }>Eliminar proveedor</button>
+				</form>
+			</div>
+			if len(p.History) > 0 {
+				@customerHistory(p.History)
+			}
+		}
+	}
+}
+
+// supplierContactFields is one contact slot. A saved contact has "Quitar este
+// contacto"; an empty new one is ignored on save. static/app.js hides all but the first
+// empty slot behind "Agregar otro contacto"; without JS they all show.
+templ supplierContactFields(i int, c SupplierContactValues, errs map[string]string) {
+	<fieldset class="contact" data-contact-blank?={ c.Blank() }>
+		<legend>
+			if c.ID != "" {
+				{ "Contacto: " + c.Name }
+			} else {
+				Contacto nuevo
+			}
+		</legend>
+		<input type="hidden" name={ contactField(i, "id") } value={ c.ID }/>
+		<label>
+			Nombre
+			<input type="text" name={ contactField(i, "nombre") } value={ c.Name } { errAttrs(errs, contactField(i, "nombre"))... }/>
+		</label>
+		@FieldError(errs, contactField(i, "nombre"))
+		<label>
+			Puesto
+			<input type="text" name={ contactField(i, "puesto") } value={ c.Role }/>
+		</label>
+		<label>
+			Teléfono
+			<input type="tel" name={ contactField(i, "telefono") } value={ c.Phone }/>
+		</label>
+		<label>
+			Email
+			<input type="email" name={ contactField(i, "email") } value={ c.Email } { errAttrs(errs, contactField(i, "email"))... }/>
+		</label>
+		@FieldError(errs, contactField(i, "email"))
+		<label>
+			<input type="checkbox" name={ contactField(i, "oc") } value="1" checked?={ c.ReceivesPO }/>
+			Recibe O.C.
+		</label>
+		if c.ID != "" {
+			<label>
+				<input type="checkbox" name={ contactField(i, "quitar") } value="1" checked?={ c.Remove }/>
+				Quitar este contacto
+			</label>
+		}
+	</fieldset>
+}
+
+// SupplierDetailPage is a supplier as a vendedor sees it: read-only, no bank data.
+type SupplierDetailPage struct {
+	Supplier store.Supplier
+	// Families are the names of the familias it supplies, labelled as in the form.
+	Families []string
+	History  []CustomerHistoryEntry
+}
+
+func supplierAddress(s store.Supplier) string {
+	return s.Street + " " + s.ExtNumber + ", Col. " + s.Neighborhood + ", " + s.Municipality + ", " + s.State + ", C.P. " + s.PostalCode
+}
+
+func creditDaysText(d *int64) string {
+	if d == nil {
+		return ""
+	}
+	if *d == 1 {
+		return "1 día"
+	}
+	return strconv.FormatInt(*d, 10) + " días"
+}
+
+templ SupplierDetail(p SupplierDetailPage, user *NavUser) {
+	@Layout(p.Supplier.Name, user) {
+		<div class="page-title">
+			<h1>{ p.Supplier.Name }</h1>
+			@HelpLink(HelpProveedores)
+		</div>
+		<p>Solo un administrador puede modificar o eliminar este proveedor.</p>
+		<dl class="quote-info">
+			<dt>Estado</dt>
+			<dd>
+				@supplierStatusBadge(p.Supplier.Inactive)
+			</dd>
+			<dt>RFC</dt>
+			<dd>{ p.Supplier.RFC }</dd>
+			<dt>Razón social</dt>
+			<dd>{ p.Supplier.LegalName }</dd>
+			<dt>Dirección fiscal</dt>
+			<dd>{ supplierAddress(p.Supplier) }</dd>
+			<dt>Régimen fiscal</dt>
+			<dd>{ orDash(satLabel(p.Supplier.TaxRegime)) }</dd>
+			<dt>Familias que surte</dt>
+			<dd>{ orDash(strings.Join(p.Families, "; ")) }</dd>
+			<dt>Días de crédito</dt>
+			<dd>{ orDash(creditDaysText(p.Supplier.CreditDays)) }</dd>
+			<dt>Moneda</dt>
+			<dd>{ orDash(p.Supplier.Currency) }</dd>
+			<dt>Condiciones de pago</dt>
+			<dd>{ orDash(p.Supplier.PaymentTerms) }</dd>
+			<dt>Tiempo de entrega habitual</dt>
+			<dd>{ orDash(p.Supplier.LeadTime) }</dd>
+			<dt>Notas</dt>
+			<dd>{ orDash(p.Supplier.Notes) }</dd>
+		</dl>
+		<div class="section-title">
+			<h2 id="contactos">Contactos</h2>
+		</div>
+		if len(p.Supplier.Contacts) == 0 {
+			<p>Sin contactos.</p>
+		} else {
+			<div class="table-scroll">
+				<table>
+					<thead>
+						<tr>
+							<th scope="col">Nombre</th>
+							<th scope="col">Puesto</th>
+							<th scope="col">Teléfono</th>
+							<th scope="col">Email</th>
+							<th scope="col">Recibe O.C.</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, c := range p.Supplier.Contacts {
+							<tr>
+								<td>{ c.Name }</td>
+								<td>{ c.Role }</td>
+								<td>{ c.Phone }</td>
+								<td>
+									if c.Email != "" {
+										<a href={ templ.URL("mailto:" + c.Email) }>{ c.Email }</a>
+									}
+								</td>
+								<td>
+									if c.ReceivesPO {
+										Sí
+									} else {
+										No
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		<p><a href="/proveedores">Regresar a proveedores</a></p>
+		if len(p.History) > 0 {
+			@customerHistory(p.History)
+		}
+	}
+}
+
+func satLabel(code string) string {
+	if code == "" {
+		return ""
+	}
+	return store.SATLabel(store.TaxRegimes, code)
+}

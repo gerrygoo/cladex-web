@@ -20,6 +20,10 @@ type Family struct {
 	// quote types start with; "" when not set.
 	SATProductCode string
 	QuoteTypes     string
+	// DefaultSupplierID and DefaultSupplierName are the familia's default supplier
+	// (issue #64), set from the supplier's form; 0 and "" when it has none.
+	DefaultSupplierID   int64
+	DefaultSupplierName string
 }
 
 // ListAllFamilies returns every familia, including free-lines-only ones, in creation
@@ -28,8 +32,11 @@ func (s *Store) ListAllFamilies(ctx context.Context) ([]Family, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT f.id, f.name, f.free_lines_only, COALESCE(f.sat_product_code, ''),
 			COALESCE((SELECT group_concat(prefix, ', ') FROM
-				(SELECT prefix FROM quote_types t WHERE t.family_id = f.id ORDER BY t.id)), '')
-		FROM product_families f ORDER BY f.id`)
+				(SELECT prefix FROM quote_types t WHERE t.family_id = f.id ORDER BY t.id)), ''),
+			COALESCE(sup.id, 0), COALESCE(sup.name, '')
+		FROM product_families f
+		LEFT JOIN suppliers sup ON sup.id = f.default_supplier_id
+		ORDER BY f.id`)
 	if err != nil {
 		return nil, fmt.Errorf("store: list all families: %w", err)
 	}
@@ -38,7 +45,8 @@ func (s *Store) ListAllFamilies(ctx context.Context) ([]Family, error) {
 	var families []Family
 	for rows.Next() {
 		var f Family
-		if err := rows.Scan(&f.ID, &f.Name, &f.FreeLinesOnly, &f.SATProductCode, &f.QuoteTypes); err != nil {
+		if err := rows.Scan(&f.ID, &f.Name, &f.FreeLinesOnly, &f.SATProductCode, &f.QuoteTypes,
+			&f.DefaultSupplierID, &f.DefaultSupplierName); err != nil {
 			return nil, fmt.Errorf("store: list all families: %w", err)
 		}
 		families = append(families, f)

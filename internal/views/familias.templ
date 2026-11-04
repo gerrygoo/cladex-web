@@ -22,6 +22,7 @@ templ FamiliasList(families []store.Family, name string, fieldErrors map[string]
 						<th>Productos</th>
 						<th>Clave SAT</th>
 						<th>Tipos de cotización</th>
+						<th>Proveedor predeterminado</th>
 						<th><span class="visually-hidden">Acciones</span></th>
 					</tr>
 				</thead>
@@ -38,6 +39,16 @@ templ FamiliasList(families []store.Family, name string, fieldErrors map[string]
 							</td>
 							<td>{ f.SATProductCode }</td>
 							<td>{ f.QuoteTypes }</td>
+							<td>
+								// Set from the supplier's form (issue #64); QL never has one.
+								if f.FreeLinesOnly {
+									No aplica
+								} else if f.DefaultSupplierID != 0 {
+									<a href={ templ.URL(supplierPath(f.DefaultSupplierID)) }>{ f.DefaultSupplierName }</a>
+								} else {
+									Sin asignar
+								}
+							</td>
 							<td><a href={ templ.URL("/familias/" + strconv.FormatInt(f.ID, 10)) }>Editar<span class="visually-hidden">{ " " + f.Name }</span></a></td>
 						</tr>
 					}

@@ -251,7 +251,7 @@ func TestMigration0028OrdersSections(t *testing.T) {
 		t.Errorf("order = %s\nwant    %s", got, want)
 	}
 	var auditAfter int
-	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM audit_log`).Scan(&auditAfter); err != nil || auditAfter != auditBefore {
+	if err := s.db.QueryRowContext(ctx, countAuditWithoutSupplierSeed).Scan(&auditAfter); err != nil || auditAfter != auditBefore {
 		t.Errorf("audit_log rows = %d, were %d (%v)", auditAfter, auditBefore, err)
 	}
 }

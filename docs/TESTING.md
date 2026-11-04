@@ -154,6 +154,11 @@ per guide page:
   `materiales`); the *Datos para facturar (SAT)* fields, the twelve most used SAT units
   and the *Sin datos para facturar* button (`TestGuiaProductosDatosParaFacturar`, with the
   section's messages in `products_sat_test.go`).
+- **proveedores.md** — pinned by `internal/web/suppliers_test.go` (issue #64): who may do
+  what (a vendedor reads without bank data), every validation message, the duplicate and
+  reassignment questions, the delete rule and Inactivo, `Sin asignar` / `No aplica` on
+  Familias, and the Historial lines. The carga inicial and the CLABE check digit are in
+  `internal/store/suppliers_test.go`.
 - **cotizaciones.md** — `Selecciona un cliente.` / `Selecciona una serie de folio.`, the
   three line-level errors, `Borrador guardado.`, `Cotización emitida.`, `Producto no encontrado.` on a draft whose product was deleted (and that
   such a draft refuses to save), the 30-day vigencia, that an empty quote does not issue,

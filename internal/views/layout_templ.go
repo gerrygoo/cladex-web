@@ -43,7 +43,7 @@ func Layout(title string, user *NavUser) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layout.templ`, Line: 16, Col: 17}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 16, Col: 17}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -61,7 +61,7 @@ func Layout(title string, user *NavUser) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(banner)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layout.templ`, Line: 29, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 29, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -77,7 +77,7 @@ func Layout(title string, user *NavUser) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if user != nil {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<nav class=\"app-nav\"><details class=\"nav-menu\"><summary>Cotizaciones</summary><ul><li><a href=\"/cotizaciones/nueva\">Nueva cotización</a></li><li><a href=\"/cotizaciones\">Ver cotizaciones</a></li></ul></details> <details class=\"nav-menu\"><summary>Proyectos</summary><ul><li><a href=\"/proyectos\">Ver proyectos</a></li><li><a href=\"/pronostico\">Pronóstico</a></li><li><a href=\"/facturas\">Facturas</a></li></ul></details><details class=\"nav-menu\"><summary>Catálogos</summary><ul><li><a href=\"/productos\">Productos</a></li><li><a href=\"/clientes\">Clientes</a></li>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<nav class=\"app-nav\"><details class=\"nav-menu\"><summary>Cotizaciones</summary><ul><li><a href=\"/cotizaciones/nueva\">Nueva cotización</a></li><li><a href=\"/cotizaciones\">Ver cotizaciones</a></li></ul></details> <details class=\"nav-menu\"><summary>Proyectos</summary><ul><li><a href=\"/proyectos\">Ver proyectos</a></li><li><a href=\"/pronostico\">Pronóstico</a></li><li><a href=\"/facturas\">Facturas</a></li></ul></details><details class=\"nav-menu\"><summary>Catálogos</summary><ul><li><a href=\"/productos\">Productos</a></li><li><a href=\"/clientes\">Clientes</a></li><li><a href=\"/proveedores\">Proveedores</a></li>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -104,7 +104,7 @@ func Layout(title string, user *NavUser) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(user.Username)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layout.templ`, Line: 81, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 82, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {

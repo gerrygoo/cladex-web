@@ -130,9 +130,7 @@ func (s *Store) AuditLog(ctx context.Context, f AuditFilter) ([]AuditEntry, erro
 		limit = defaultAuditLimit
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT a.id, a.table_name, a.row_key, a.op, a.actor_id,
-		       COALESCE(u.username, ''), COALESCE(u.name, ''), COALESCE(a.source, ''),
-		       a.old_values, a.new_values, a.at
+		SELECT `+auditSelect+`
 		FROM audit_log a
 		LEFT JOIN users u ON u.id = a.actor_id
 		WHERE (? = '' OR a.table_name = ?)
@@ -145,6 +143,17 @@ func (s *Store) AuditLog(ctx context.Context, f AuditFilter) ([]AuditEntry, erro
 	if err != nil {
 		return nil, fmt.Errorf("store: audit log: %w", err)
 	}
+	return scanAuditEntries(rows)
+}
+
+// auditSelect is the column list scanAuditEntries reads, from audit_log a joined to
+// users u.
+const auditSelect = `a.id, a.table_name, a.row_key, a.op, a.actor_id,
+		       COALESCE(u.username, ''), COALESCE(u.name, ''), COALESCE(a.source, ''),
+		       a.old_values, a.new_values, a.at`
+
+// scanAuditEntries reads and closes rows selected with auditSelect.
+func scanAuditEntries(rows *sql.Rows) ([]AuditEntry, error) {
 	defer rows.Close()
 
 	var entries []AuditEntry
@@ -152,6 +161,7 @@ func (s *Store) AuditLog(ctx context.Context, f AuditFilter) ([]AuditEntry, erro
 		var e AuditEntry
 		var actorID sql.NullInt64
 		var oldJSON, newJSON sql.NullString
+		var err error
 		if err := rows.Scan(&e.ID, &e.TableName, &e.RowKey, &e.Op, &actorID,
 			&e.ActorName, &e.ActorFull, &e.Source, &oldJSON, &newJSON, &e.At); err != nil {
 			return nil, fmt.Errorf("store: audit log: %w", err)

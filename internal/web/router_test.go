@@ -50,6 +50,15 @@ var appRoutes = []route{
 	{"POST", "/clientes/1", false},
 	{"POST", "/clientes/1/eliminar", true},
 
+	{"GET", "/proveedores", false},
+	{"GET", "/proveedores/nuevo", true},
+	{"POST", "/proveedores/nuevo", true},
+	{"GET", "/proveedores/1", false},
+	{"POST", "/proveedores/1", true},
+	{"POST", "/proveedores/1/eliminar", true},
+	{"POST", "/proveedores/1/inactivar", true},
+	{"POST", "/proveedores/1/reactivar", true},
+
 	{"GET", "/cotizaciones", false},
 	{"GET", "/cotizaciones/nueva", false},
 	{"POST", "/cotizaciones/nueva", false},

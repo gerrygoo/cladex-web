@@ -111,7 +111,7 @@ func TiposList(types []store.QuoteType, families []store.Family, values store.Qu
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(t.Prefix)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 69, Col: 21}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 69, Col: 21}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -124,7 +124,7 @@ func TiposList(types []store.QuoteType, families []store.Family, values store.Qu
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(t.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 70, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 70, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -137,7 +137,7 @@ func TiposList(types []store.QuoteType, families []store.Family, values store.Qu
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(t.FamilyName)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 71, Col: 25}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 71, Col: 25}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -150,7 +150,7 @@ func TiposList(types []store.QuoteType, families []store.Family, values store.Qu
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(t.NextFolioText())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 72, Col: 30}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 72, Col: 30}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -163,7 +163,7 @@ func TiposList(types []store.QuoteType, families []store.Family, values store.Qu
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(letterheadLabel(t.Letterhead))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 73, Col: 42}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 73, Col: 42}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -176,7 +176,7 @@ func TiposList(types []store.QuoteType, families []store.Family, values store.Qu
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(tipoBehaviorText(t))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 74, Col: 32}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 74, Col: 32}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -189,7 +189,7 @@ func TiposList(types []store.QuoteType, families []store.Family, values store.Qu
 				var templ_7745c5c3_Var9 templ.SafeURL
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(tipoPath(t.ID)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 75, Col: 46}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 75, Col: 46}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -202,7 +202,7 @@ func TiposList(types []store.QuoteType, families []store.Family, values store.Qu
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(" " + t.Prefix)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 75, Col: 101}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 75, Col: 101}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -275,7 +275,7 @@ func TipoEdit(saved store.QuoteType, values store.QuoteType, families []store.Fa
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(saved.Prefix)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 92, Col: 33}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 92, Col: 33}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -296,7 +296,7 @@ func TipoEdit(saved store.QuoteType, values store.QuoteType, families []store.Fa
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(saved.NextFolioText())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 95, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 95, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -309,7 +309,7 @@ func TipoEdit(saved store.QuoteType, values store.QuoteType, families []store.Fa
 			var templ_7745c5c3_Var15 templ.SafeURL
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(tipoPath(saved.ID)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 97, Col: 60}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 97, Col: 60}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -367,7 +367,7 @@ func tipoFields(t store.QuoteType, families []store.Family, fieldErrors map[stri
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.Prefix)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 110, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 110, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 		if templ_7745c5c3_Err != nil {
@@ -396,7 +396,7 @@ func tipoFields(t store.QuoteType, families []store.Family, fieldErrors map[stri
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 115, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 115, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
 		if templ_7745c5c3_Err != nil {
@@ -414,7 +414,7 @@ func tipoFields(t store.QuoteType, families []store.Family, fieldErrors map[stri
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(strconv.FormatInt(f.ID, 10))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 123, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 123, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 			if templ_7745c5c3_Err != nil {
@@ -437,7 +437,7 @@ func tipoFields(t store.QuoteType, families []store.Family, fieldErrors map[stri
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(f.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 123, Col: 113}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 123, Col: 113}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -455,7 +455,7 @@ func tipoFields(t store.QuoteType, families []store.Family, fieldErrors map[stri
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(store.DeliveryTimeToken)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 128, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 128, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
@@ -468,7 +468,7 @@ func tipoFields(t store.QuoteType, families []store.Family, fieldErrors map[stri
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(store.DeliveryTimeToken)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 128, Col: 139}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 128, Col: 139}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
@@ -481,7 +481,7 @@ func tipoFields(t store.QuoteType, families []store.Family, fieldErrors map[stri
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(store.CurrencyToken)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 129, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 129, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -494,7 +494,7 @@ func tipoFields(t store.QuoteType, families []store.Family, fieldErrors map[stri
 		var templ_7745c5c3_Var24 string
 		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(store.CurrencyToken)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 129, Col: 124}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 129, Col: 124}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 		if templ_7745c5c3_Err != nil {
@@ -507,7 +507,7 @@ func tipoFields(t store.QuoteType, families []store.Family, fieldErrors map[stri
 		var templ_7745c5c3_Var25 string
 		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(t.Terms)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 132, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 132, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 		if templ_7745c5c3_Err != nil {
@@ -533,7 +533,7 @@ func tipoFields(t store.QuoteType, families []store.Family, fieldErrors map[stri
 			var templ_7745c5c3_Var26 string
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(l.Value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 138, Col: 27}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 138, Col: 27}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 			if templ_7745c5c3_Err != nil {
@@ -556,7 +556,7 @@ func tipoFields(t store.QuoteType, families []store.Family, fieldErrors map[stri
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(l.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/tipos.templ`, Line: 138, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `tipos.templ`, Line: 138, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {

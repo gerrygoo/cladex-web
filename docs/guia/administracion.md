@@ -1,7 +1,7 @@
 # Administración
 
 Solo para cuentas con rol **Administrador**. Estas opciones están en el menú **Catálogos**,
-debajo de Productos y Clientes: **Usuarios**, **Familias**, **Tipos de cotización**,
+debajo de Productos, Clientes y Proveedores: **Usuarios**, **Familias**, **Tipos de cotización**,
 **Unidades** y **Configuración del sistema**.
 
 En **Configuración del sistema** están los dos datos de los que salen los precios, además del costo de
@@ -174,6 +174,11 @@ producto pertenece a una. La serie de folio, los términos y cómo se ve el PDF 
 la familia sino de cada [tipo de cotización](#tipos-de-cotización). **QL** es una
 familia especial sin productos: la usa el tipo QL, que solo cotiza
 [líneas libres](cotizaciones.md#agregar-una-línea-libre).
+
+La lista muestra también el **Proveedor predeterminado** de cada familia, con un enlace a
+su ficha, o *Sin asignar*. Se asigna desde el proveedor, en
+[Familias que surte](proveedores.md#familias-que-surte); aquí es solo de consulta. QL
+dice *No aplica*: no tiene proveedor predeterminado.
 
 ### Crear una familia
 

@@ -194,7 +194,7 @@ func documentoSection(p DocumentosPage, sec store.DocumentSection, i int, admin 
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(SectionField(sec.ID, ""))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 103, Col: 64}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 103, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -217,7 +217,7 @@ func documentoSection(p DocumentosPage, sec store.DocumentSection, i int, admin 
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(sec.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 104, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 104, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -230,7 +230,7 @@ func documentoSection(p DocumentosPage, sec store.DocumentSection, i int, admin 
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(len(sec.Documents)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 104, Col: 92}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 104, Col: 92}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -262,7 +262,7 @@ func documentoSection(p DocumentosPage, sec store.DocumentSection, i int, admin 
 				var templ_7745c5c3_Var7 templ.SafeURL
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(documentPath(d)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 112, Col: 42}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 112, Col: 42}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -275,7 +275,7 @@ func documentoSection(p DocumentosPage, sec store.DocumentSection, i int, admin 
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(d.Title)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 112, Col: 85}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 112, Col: 85}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -288,7 +288,7 @@ func documentoSection(p DocumentosPage, sec store.DocumentSection, i int, admin 
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(" (se abre en otra pestaña)")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 112, Col: 148}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 112, Col: 148}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -301,7 +301,7 @@ func documentoSection(p DocumentosPage, sec store.DocumentSection, i int, admin 
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(" · " + documentKind(d.ContentType) + " · " + fileSizeText(d.Size) + " · ")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 113, Col: 92}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 113, Col: 92}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -314,7 +314,7 @@ func documentoSection(p DocumentosPage, sec store.DocumentSection, i int, admin 
 				var templ_7745c5c3_Var11 templ.SafeURL
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(documentPath(d) + "?descargar=1"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 114, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 114, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 				if templ_7745c5c3_Err != nil {
@@ -327,7 +327,7 @@ func documentoSection(p DocumentosPage, sec store.DocumentSection, i int, admin 
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(" " + d.Title)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 114, Col: 116}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 114, Col: 116}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {
@@ -345,7 +345,7 @@ func documentoSection(p DocumentosPage, sec store.DocumentSection, i int, admin 
 					var templ_7745c5c3_Var13 templ.SafeURL
 					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(documentPath(d) + "/eliminar"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 116, Col: 76}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 116, Col: 76}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 					if templ_7745c5c3_Err != nil {
@@ -358,7 +358,7 @@ func documentoSection(p DocumentosPage, sec store.DocumentSection, i int, admin 
 					var templ_7745c5c3_Var14 string
 					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(" " + d.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 117, Col: 140}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 117, Col: 140}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 					if templ_7745c5c3_Err != nil {
@@ -437,7 +437,7 @@ func documentoEdit(p DocumentosPage, d store.OfficialDocument) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(" " + d.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 135, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 135, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -450,7 +450,7 @@ func documentoEdit(p DocumentosPage, d store.OfficialDocument) templ.Component {
 		var templ_7745c5c3_Var17 templ.SafeURL
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(documentPath(d) + "/editar"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 136, Col: 69}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 136, Col: 69}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -463,7 +463,7 @@ func documentoEdit(p DocumentosPage, d store.OfficialDocument) templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.editValue(titleKey, d.Title))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 139, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 139, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
 		if templ_7745c5c3_Err != nil {
@@ -505,7 +505,7 @@ func documentoEdit(p DocumentosPage, d store.OfficialDocument) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(strconv.FormatInt(sec.ID, 10))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 146, Col: 51}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 146, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 			if templ_7745c5c3_Err != nil {
@@ -528,7 +528,7 @@ func documentoEdit(p DocumentosPage, d store.OfficialDocument) templ.Component {
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(sec.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 146, Col: 119}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 146, Col: 119}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -554,7 +554,7 @@ func documentoEdit(p DocumentosPage, d store.OfficialDocument) templ.Component {
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(" " + d.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 151, Col: 93}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 151, Col: 93}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
@@ -609,7 +609,7 @@ func seccionEdit(p DocumentosPage, sec store.DocumentSection, i int) templ.Compo
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(" " + sec.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 161, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 161, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -622,7 +622,7 @@ func seccionEdit(p DocumentosPage, sec store.DocumentSection, i int) templ.Compo
 		var templ_7745c5c3_Var24 templ.SafeURL
 		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(sectionPath(sec) + "/editar"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 162, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 162, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 		if templ_7745c5c3_Err != nil {
@@ -635,7 +635,7 @@ func seccionEdit(p DocumentosPage, sec store.DocumentSection, i int) templ.Compo
 		var templ_7745c5c3_Var25 string
 		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.editValue(nameKey, sec.Name))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 165, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 165, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var25)
 		if templ_7745c5c3_Err != nil {
@@ -669,7 +669,7 @@ func seccionEdit(p DocumentosPage, sec store.DocumentSection, i int) templ.Compo
 			var templ_7745c5c3_Var26 templ.SafeURL
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(sectionPath(sec) + "/mover"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 171, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 171, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 			if templ_7745c5c3_Err != nil {
@@ -687,7 +687,7 @@ func seccionEdit(p DocumentosPage, sec store.DocumentSection, i int) templ.Compo
 				var templ_7745c5c3_Var27 string
 				templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(" " + sec.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 174, Col: 106}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 174, Col: 106}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 				if templ_7745c5c3_Err != nil {
@@ -706,7 +706,7 @@ func seccionEdit(p DocumentosPage, sec store.DocumentSection, i int) templ.Compo
 				var templ_7745c5c3_Var28 string
 				templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(" " + sec.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 177, Col: 105}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 177, Col: 105}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 				if templ_7745c5c3_Err != nil {
@@ -730,7 +730,7 @@ func seccionEdit(p DocumentosPage, sec store.DocumentSection, i int) templ.Compo
 			var templ_7745c5c3_Var29 templ.SafeURL
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(sectionPath(sec) + "/eliminar"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 182, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 182, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {
@@ -743,7 +743,7 @@ func seccionEdit(p DocumentosPage, sec store.DocumentSection, i int) templ.Compo
 			var templ_7745c5c3_Var30 string
 			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.ResolveAttributeValue("¿Eliminar la sección «" + sec.Name + "»?")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 183, Col: 102}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 183, Col: 102}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var30)
 			if templ_7745c5c3_Err != nil {
@@ -756,7 +756,7 @@ func seccionEdit(p DocumentosPage, sec store.DocumentSection, i int) templ.Compo
 			var templ_7745c5c3_Var31 string
 			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(" " + sec.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 183, Col: 168}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 183, Col: 168}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 			if templ_7745c5c3_Err != nil {
@@ -834,7 +834,7 @@ func documentoUpload(sections []store.DocumentSection, values DocumentoFormValue
 		var templ_7745c5c3_Var33 string
 		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.ResolveAttributeValue(values.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 202, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 202, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var33)
 		if templ_7745c5c3_Err != nil {
@@ -876,7 +876,7 @@ func documentoUpload(sections []store.DocumentSection, values DocumentoFormValue
 			var templ_7745c5c3_Var34 string
 			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.ResolveAttributeValue(strconv.FormatInt(sec.ID, 10))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 209, Col: 51}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 209, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var34)
 			if templ_7745c5c3_Err != nil {
@@ -899,7 +899,7 @@ func documentoUpload(sections []store.DocumentSection, values DocumentoFormValue
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(sec.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 209, Col: 126}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 209, Col: 126}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 			if templ_7745c5c3_Err != nil {
@@ -917,7 +917,7 @@ func documentoUpload(sections []store.DocumentSection, values DocumentoFormValue
 		var templ_7745c5c3_Var36 string
 		templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.ResolveAttributeValue(values.NewSection)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/documentos.templ`, Line: 215, Col: 69}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `documentos.templ`, Line: 215, Col: 69}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var36)
 		if templ_7745c5c3_Err != nil {

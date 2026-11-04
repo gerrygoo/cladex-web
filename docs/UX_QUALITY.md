@@ -234,6 +234,8 @@ measurements. The numbers point into the issue log._
 | Product form | `/productos/{id}` | ✅ | ✅ | ✅ | — | ✅ | ✅ |
 | Customers list | `/clientes` | ✅ | ✅ | ⚠️ 7 | — | ✅ | ✅ |
 | Customer form | `/clientes/{id}` | ✅ | ✅ | ✅ | — | ✅ | ✅ |
+| Suppliers list | `/proveedores` | — | — | — | — | — | — |
+| Supplier form / page | `/proveedores/{id}` | — | — | — | — | — | — |
 | Users (admin) | `/usuarios` | ✅ | ✅ | ⚠️ 7 | — | ✅ | ✅ |
 | Settings (admin) | `/ajustes` | ✅ | ✅ | ✅ | — | ✅ | ✅ |
 | Units (admin) | `/unidades` | ✅ | ✅ | ✅ | — | ✅ | ✅ |

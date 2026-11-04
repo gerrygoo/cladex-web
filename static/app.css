@@ -687,6 +687,32 @@ span.badge-cerrado {
   background: color-mix(in srgb, var(--success) 8%, var(--bg));
 }
 
+/* A supplier's state (issue #64). */
+span.badge-activo {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 8%, var(--bg));
+}
+
+span.badge-inactivo {
+  color: var(--text-muted);
+}
+
+/* A supplier's Marcar como inactivo / Reactivar and Eliminar: one row, each its own form. */
+div.supplier-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+div.supplier-state-actions form > button[type="submit"] {
+  margin-top: 0;
+}
+
+/* One contact of a supplier, inside the Contactos fieldset. */
+fieldset.contact {
+  margin-top: 0.75rem;
+}
+
 /* A prospecto that counts for the forecast; the words carry it, the colour only helps */
 strong.forecast {
   color: var(--primary);
