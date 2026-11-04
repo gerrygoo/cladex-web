@@ -1,0 +1,448 @@
+package views
+
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// POStatusBadge shows an O.C.'s status as a pill.
+templ POStatusBadge(status string) {
+	<span class={ "badge", "badge-oc-" + status }>{ POStatusLabel(status) }</span>
+}
+
+// ProjectPOSection is the proyecto page's "Orden de compra al proveedor" (issue #65):
+// its O.C.s, and the button that generates one.
+templ ProjectPOSection(p store.Project, s ProjectPOs) {
+	if s.Show {
+		<section id="oc-proveedor">
+			<h2>Orden de compra al proveedor</h2>
+			if len(s.Orders) > 0 {
+				<div class="table-scroll">
+					<table>
+						<thead>
+							<tr>
+								<th scope="col">Número</th>
+								<th scope="col">Proveedor</th>
+								<th scope="col">Estado</th>
+								<th scope="col" class="num">Total</th>
+								<th scope="col">PDF</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, o := range s.Orders {
+								<tr>
+									<td><a href={ templ.URL(POPath(p.Folio, o.ID, "")) }>{ o.Label() }</a></td>
+									<td>
+										if o.SupplierName != "" {
+											{ o.SupplierName }
+										} else {
+											Sin proveedor
+										}
+									</td>
+									<td>
+										@POStatusBadge(o.Status)
+									</td>
+									<td class="num">{ o.Total.String() }</td>
+									<td>
+										<a href={ templ.URL(POPDFPath(p.Folio, o.ID, false)) } target="_blank" rel="noopener">
+											Ver PDF<span class="visually-hidden">{ " de " + o.Label() + " (se abre en otra pestaña)" }</span>
+										</a>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			} else {
+				<p>Este proyecto todavía no tiene orden de compra al proveedor.</p>
+			}
+			if s.CanGenerate {
+				<form method="post" action={ templ.URL("/proyectos/" + p.Folio + "/ordenes-de-compra") } class="stage-form">
+					<p>Se arma con las partidas de la cotización vigente, a costo sin margen.</p>
+					<button type="submit">
+						if s.Another {
+							Generar otra orden de compra
+						} else {
+							Generar orden de compra
+						}
+					</button>
+				</form>
+			} else if s.Hint != "" {
+				<p>{ s.Hint }</p>
+			}
+		</section>
+	}
+}
+
+// PurchaseOrderView is an O.C.'s page: a borrador's form, or a confirmed (or replaced)
+// O.C.'s summary with its PDF and, for an admin, "Crear revisión".
+templ PurchaseOrderView(p PurchaseOrderPage, user *NavUser) {
+	@Layout(p.title(), user) {
+		<div class="page-title">
+			<h1>{ p.title() }</h1>
+			@HelpLink(HelpOrdenCompra)
+		</div>
+		<p>
+			{ "Proyecto " }
+			<a href={ templ.URL(projectPath(p.Project.Folio) + "#oc-proveedor") }>{ p.Project.Folio }</a>
+			{ " · " + p.Project.CustomerName + " · Vendedor: " + p.Project.UserName }
+		</p>
+		@Flash(p.SuccessMsg)
+		@FormError(p.ErrorMsg)
+		if p.Download != "" {
+			<p>
+				Si la descarga no empezó sola,
+				<a href={ templ.URL(p.Download) } data-auto-download download>descarga el PDF aquí</a>.
+			</p>
+		}
+		<dl class="quote-info">
+			<dt>Estado</dt>
+			<dd>
+				@POStatusBadge(p.PO.Status)
+				if p.PO.ReplacedByNumber != "" {
+					{ " · reemplazada por " + p.PO.ReplacedByNumber }
+				}
+			</dd>
+			if p.PO.SupersedesNumber != "" {
+				<dt>Revisa a</dt>
+				<dd>{ p.PO.SupersedesNumber }</dd>
+				<dt>Motivo de la revisión</dt>
+				<dd class="comment-body">{ p.PO.RevisionReason }</dd>
+			}
+			if p.PO.ConfirmedAt != "" {
+				<dt>Confirmada</dt>
+				<dd>
+					@Timestamp(p.PO.ConfirmedAt)
+					{ " · " + p.PO.ConfirmedByName }
+				</dd>
+			}
+			<dt>Generada</dt>
+			<dd>
+				@Timestamp(p.PO.CreatedAt)
+				{ " · " + p.PO.CreatedByName }
+			</dd>
+		</dl>
+		if p.Editable {
+			@poDraftForm(p)
+		} else {
+			@poSummary(p)
+		}
+	}
+}
+
+// poSummary is what an O.C. says, read-only: a confirmed or replaced one, or a borrador
+// the viewer can't edit.
+templ poSummary(p PurchaseOrderPage) {
+	<p>
+		<a href={ templ.URL(POPDFPath(p.Project.Folio, p.PO.ID, false)) } target="_blank" rel="noopener">Ver PDF<span class="visually-hidden"> (se abre en otra pestaña)</span></a>
+		if p.PO.Status != store.POBorrador {
+			{ " · " }
+			<a href={ templ.URL(POPDFPath(p.Project.Folio, p.PO.ID, true)) } download>Descargar PDF</a>
+		}
+	</p>
+	<h2>Proveedor</h2>
+	<p>
+		if p.PO.SupplierName != "" {
+			{ p.PO.SupplierName }
+		} else {
+			Sin proveedor
+		}
+	</p>
+	<h2>Dirección de entrega</h2>
+	<dl class="quote-info">
+		<dt>Domicilio</dt>
+		<dd>{ orDash(p.PO.DeliveryAddress) }</dd>
+		<dt>Referencias</dt>
+		<dd>{ orDash(p.PO.DeliveryReferences) }</dd>
+	</dl>
+	<h2>Partidas</h2>
+	@poLinesTable(p, false)
+	<h2>Condiciones</h2>
+	<ul>
+		for _, c := range p.Conditions {
+			<li>{ c }</li>
+		}
+	</ul>
+	if p.PO.Status == store.POBorrador {
+		<p>Solo el vendedor del proyecto o un administrador edita este borrador.</p>
+	}
+	if p.PO.Status == store.POConfirmada && p.IsAdmin {
+		if p.PO.PendingRevisionID != 0 {
+			<p>
+				Ya hay una revisión en borrador:
+				<a href={ templ.URL(POPath(p.Project.Folio, p.PO.PendingRevisionID, "")) }>continúala aquí</a>.
+			</p>
+		} else {
+			<form method="post" action={ templ.URL(POPath(p.Project.Folio, p.PO.ID, "revision")) } class="stage-form">
+				<h2>Crear revisión</h2>
+				<p>Para corregir esta orden de compra. La revisión se abre como borrador con estos datos; al confirmarla recibe el número con -R y esta queda como Reemplazada.</p>
+				<label>
+					Motivo (obligatorio, queda en el historial del proyecto)
+					<textarea name="motivo" rows="2" maxlength="2000" required></textarea>
+				</label>
+				<button type="submit">Crear revisión</button>
+			</form>
+		}
+	}
+}
+
+// poLinesTable lists the partidas; on a borrador's form each has its checkbox.
+templ poLinesTable(p PurchaseOrderPage, choose bool) {
+	<div class="table-scroll">
+		<table>
+			<thead>
+				<tr>
+					if choose {
+						<th scope="col">Incluir</th>
+					}
+					<th scope="col">Partida</th>
+					<th scope="col">Descripción</th>
+					if p.ShowKg {
+						<th scope="col" class="num">Cantidad (m)</th>
+						<th scope="col" class="num">Kg por metro</th>
+						<th scope="col" class="num">Kg</th>
+						<th scope="col" class="num">Precio por kg</th>
+					} else {
+						<th scope="col" class="num">Cantidad</th>
+					}
+					<th scope="col" class="num">Precio unitario (costo)</th>
+					<th scope="col" class="num">Total</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, l := range p.Lines {
+					if choose || l.Checked {
+						<tr>
+							if choose {
+								<td>
+									if l.NoCost {
+										<input type="checkbox" disabled aria-label={ "Partida " + strconv.Itoa(l.QuoteLineNo) + ": sin costo en la cotización" }/>
+									} else {
+										<input type="checkbox" name="partida" value={ strconv.Itoa(l.QuoteLineNo) } checked?={ l.Checked } aria-label={ "Incluir la partida " + strconv.Itoa(l.QuoteLineNo) }/>
+									}
+								</td>
+							}
+							<td>{ strconv.Itoa(l.QuoteLineNo) }</td>
+							<td class="comment-body">
+								{ l.Description }
+								if l.NoCost {
+									<br/>
+									<small>Sin costo en la cotización: no se puede comprar desde aquí.</small>
+								}
+								if l.TakenBy != "" {
+									<br/>
+									<small>{ "Ya está en " + l.TakenBy + "." }</small>
+								}
+							</td>
+							<td class="num">{ l.Qty }</td>
+							if p.ShowKg {
+								<td class="num">{ l.KgPerUnit }</td>
+								<td class="num">{ l.Kg }</td>
+								<td class="num">{ l.PricePerKg }</td>
+							}
+							<td class="num">{ l.UnitPrice }</td>
+							<td class="num">{ l.Total }</td>
+						</tr>
+					}
+				}
+			</tbody>
+			<tfoot>
+				<tr>
+					<th scope="row" colspan={ strconv.Itoa(poTotalsSpan(p.ShowKg, choose)) } class="num">Subtotal</th>
+					<td class="num">{ p.Subtotal }</td>
+				</tr>
+				<tr>
+					<th scope="row" colspan={ strconv.Itoa(poTotalsSpan(p.ShowKg, choose)) } class="num">IVA 16%</th>
+					<td class="num">{ p.IVA }</td>
+				</tr>
+				<tr>
+					<th scope="row" colspan={ strconv.Itoa(poTotalsSpan(p.ShowKg, choose)) } class="num">Total</th>
+					<td class="num"><strong>{ p.Total }</strong></td>
+				</tr>
+			</tfoot>
+		</table>
+	</div>
+}
+
+func poTotalsSpan(kg, choose bool) int {
+	n := 4
+	if kg {
+		n = 7
+	}
+	if choose {
+		n++
+	}
+	return n
+}
+
+// poDraftForm is a borrador's form: supplier, partidas, dirección de entrega and
+// condiciones, saved with "Guardar borrador", previewed with "Ver PDF" and, by an admin,
+// confirmed with "Confirmar y descargar".
+templ poDraftForm(p PurchaseOrderPage) {
+	<form method="post" action={ templ.URL(POPath(p.Project.Folio, p.PO.ID, "")) } data-po-form>
+		<h2>Proveedor</h2>
+		<label>
+			Proveedor (obligatorio para confirmar)
+			<select name="proveedor" id="proveedor" { errAttrs(p.Errors, "proveedor")... }>
+				<option value="">Elige…</option>
+				for _, o := range p.Suppliers {
+					if p.supplierOffered(o) {
+						<option value={ strconv.FormatInt(o.ID, 10) } data-credit-days={ creditDaysAttr(o) } selected?={ p.Values.SupplierID == strconv.FormatInt(o.ID, 10) }>
+							{ o.Name + " — " + o.LegalName }
+						</option>
+					}
+				}
+			</select>
+		</label>
+		@FieldError(p.Errors, "proveedor")
+		if p.FreeLines {
+			if p.IsAdmin {
+				@poNewSupplier(p)
+			} else {
+				<p>Si el proveedor no está en la lista, pide a un administrador que lo dé de alta.</p>
+			}
+		}
+		<h2>Partidas</h2>
+		<p>
+			Las partidas de la cotización vigente, con su costo sin margen (el de la cotización, no el del catálogo de hoy).
+			if p.FreeLines {
+				Marca las que van en esta orden de compra.
+			}
+			Los totales se actualizan al guardar.
+		</p>
+		@FieldError(p.Errors, "partidas")
+		@poLinesTable(p, true)
+		<h2>Dirección de entrega</h2>
+		<label>
+			Domicilio (obligatorio para confirmar)
+			<textarea name="domicilio" id="domicilio" rows="2" maxlength="500" { errAttrs(p.Errors, "domicilio")... }>{ p.Values.DeliveryAddress }</textarea>
+		</label>
+		@FieldError(p.Errors, "domicilio")
+		<label>
+			Referencias (opcional)
+			<textarea name="referencias" rows="2" maxlength="500">{ p.Values.DeliveryReferences }</textarea>
+		</label>
+		<h2>Condiciones</h2>
+		<label>
+			Moneda
+			<select name="moneda">
+				for _, c := range store.POCurrencies {
+					<option value={ c } selected?={ p.Values.Currency == c }>{ c }</option>
+				}
+			</select>
+		</label>
+		<label>
+			Forma de pago
+			<select name="forma_pago" { errAttrs(p.Errors, "forma_pago")... }>
+				for _, f := range store.POPaymentForms {
+					<option value={ f.Code } selected?={ p.Values.PaymentForm == f.Code }>{ f.Description }</option>
+				}
+			</select>
+		</label>
+		@FieldError(p.Errors, "forma_pago")
+		<div data-po-credit hidden?={ p.Values.PaymentForm != store.POPayCredit }>
+			<label>
+				Días de crédito
+				<input type="text" name="dias_credito" id="dias_credito" value={ p.Values.CreditDays } inputmode="numeric" maxlength="4" { errAttrs(p.Errors, "dias_credito")... }/>
+			</label>
+			@FieldError(p.Errors, "dias_credito")
+		</div>
+		<div data-po-other hidden?={ p.Values.PaymentForm != store.POPayOther }>
+			<label>
+				Forma de pago, como saldrá en la orden
+				<input type="text" name="forma_pago_otra" id="forma_pago_otra" value={ p.Values.PaymentOther } maxlength="300" placeholder="p. ej. 50% anticipo y 50% contra entrega." { errAttrs(p.Errors, "forma_pago_otra")... }/>
+			</label>
+			@FieldError(p.Errors, "forma_pago_otra")
+		</div>
+		<p>Siempre salen también: «La mercancía se recibe sujeta a revisión de cantidad y calidad.» y «Favor de emitir el CFDI con los datos de facturación indicados en esta orden.»</p>
+		<h2>Datos de facturación</h2>
+		<dl class="quote-info">
+			<dt>Razón social</dt>
+			<dd>{ orDash(p.Billing.Name) }</dd>
+			<dt>RFC</dt>
+			<dd>{ orDash(p.Billing.RFC) }</dd>
+			<dt>Régimen fiscal</dt>
+			<dd>{ orDash(p.Billing.Regime) }</dd>
+			<dt>Domicilio fiscal</dt>
+			<dd>{ orDash(p.Billing.Address) }</dd>
+			<dt>Uso de CFDI</dt>
+			<dd>{ orDash(p.Billing.CFDIUse) }</dd>
+		</dl>
+		<p>
+			Son los de Cladex y se cambian en Configuración del sistema.
+			if p.Billing.Missing {
+				<strong>Faltan datos: la orden no se puede confirmar hasta completarlos.</strong>
+			}
+		</p>
+		<div class="form-actions">
+			if p.IsAdmin {
+				<button type="submit" class="primary" formaction={ templ.URL(POPath(p.Project.Folio, p.PO.ID, "confirmar")) } data-confirm="¿Confirmar la orden de compra? Se le asigna su número con la fecha de hoy y ya no se puede editar.">Confirmar y descargar</button>
+				<button type="submit">Guardar borrador</button>
+			} else {
+				<button type="submit" class="primary">Guardar borrador</button>
+			}
+			<button type="submit" formaction={ templ.URL(POPath(p.Project.Folio, p.PO.ID, "ver-pdf")) } formtarget="_blank">Ver PDF<span class="visually-hidden"> (se abre en otra pestaña)</span></button>
+		</div>
+		if !p.IsAdmin {
+			<p>Un administrador confirma la orden de compra y la descarga para mandarla al proveedor.</p>
+		}
+	</form>
+	<form method="post" action={ templ.URL(POPath(p.Project.Folio, p.PO.ID, "eliminar")) } class="stage-form">
+		<button type="submit" class="danger" data-confirm="¿Eliminar este borrador de orden de compra? No se puede deshacer.">Eliminar borrador</button>
+	</form>
+}
+
+// poNewSupplier gives a QL borrador's admin a supplier of their own without leaving
+// the page (issue #65): its fields post with the rest of the form, through their own
+// button, which saves the borrador, adds the supplier and picks it.
+templ poNewSupplier(p PurchaseOrderPage) {
+	<details class="po-new-supplier" open?={ p.NewSupplierOpen } id="proveedor-nuevo">
+		<summary>Dar de alta un proveedor nuevo</summary>
+		if len(p.Similar) > 0 {
+			<div class="notice warning" role="alert" tabindex="-1">
+				<p><strong>Este proveedor podría estar duplicado.</strong> Encontramos proveedores parecidos ya dados de alta:</p>
+				<ul>
+					for _, s := range p.Similar {
+						<li>{ s.Name + " — RFC: " + s.RFC + " — Razón social: " + s.LegalName }</li>
+					}
+				</ul>
+				<p>Elige uno de la lista de arriba, o confirma que es otro.</p>
+				<label>
+					<input type="checkbox" name={ poField("confirmar") } value="1"/>
+					Es un proveedor distinto: darlo de alta de todos modos
+				</label>
+			</div>
+		}
+		<p>Con sus datos fiscales; lo demás (contactos, datos bancarios) se completa después en Proveedores.</p>
+		@poSupplierField(p, "name", "Nombre comercial", p.NewSupplier.Name)
+		@poSupplierField(p, "rfc", "RFC", p.NewSupplier.RFC)
+		@poSupplierField(p, "legal_name", "Razón social", p.NewSupplier.LegalName)
+		@poSupplierField(p, "street", "Calle", p.NewSupplier.Street)
+		@poSupplierField(p, "ext_number", "Número", p.NewSupplier.ExtNumber)
+		@poSupplierField(p, "neighborhood", "Colonia", p.NewSupplier.Neighborhood)
+		@poSupplierField(p, "municipality", "Municipio o alcaldía", p.NewSupplier.Municipality)
+		@poSupplierField(p, "state", "Estado", p.NewSupplier.State)
+		@poSupplierField(p, "postal_code", "Código postal", p.NewSupplier.PostalCode)
+		<label>
+			Régimen fiscal (opcional)
+			<select name={ poField("tax_regime") } { errAttrs(p.NewSupplierErrors, poField("tax_regime"))... }>
+				<option value="">— Sin definir —</option>
+				for _, c := range store.TaxRegimes {
+					<option value={ c.Code } selected?={ c.Code == p.NewSupplier.TaxRegime }>{ c.Code + " - " + c.Description }</option>
+				}
+			</select>
+		</label>
+		@FieldError(p.NewSupplierErrors, poField("tax_regime"))
+		@poSupplierField(p, "credit_days", "Días de crédito (opcional)", p.NewSupplier.CreditDays)
+		<button type="submit" formaction={ templ.URL(POPath(p.Project.Folio, p.PO.ID, "proveedor-nuevo")) }>Dar de alta y elegir</button>
+	</details>
+}
+
+templ poSupplierField(p PurchaseOrderPage, field, label, value string) {
+	<label>
+		{ label }
+		<input type="text" name={ poField(field) } id={ poField(field) } value={ value } { errAttrs(p.NewSupplierErrors, poField(field))... }/>
+	</label>
+	@FieldError(p.NewSupplierErrors, poField(field))
+}

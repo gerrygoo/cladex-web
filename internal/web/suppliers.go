@@ -38,33 +38,40 @@ type ProveedorForm struct {
 }
 
 func parseProveedorForm(r *http.Request) ProveedorForm {
+	return parseProveedorFields(r, "")
+}
+
+// parseProveedorFields reads the supplier form's fields named with prefix: "" on
+// the supplier's own form, "nuevo_" where an orden de compra adds one (issue #65).
+func parseProveedorFields(r *http.Request, prefix string) ProveedorForm {
+	get := func(name string) string { return r.FormValue(prefix + name) }
 	v := views.SupplierFormValues{
-		Name:         strings.TrimSpace(r.FormValue("name")),
-		RFC:          strings.ToUpper(strings.ReplaceAll(strings.Join(strings.Fields(r.FormValue("rfc")), ""), "-", "")),
-		LegalName:    strings.TrimSpace(r.FormValue("legal_name")),
-		Street:       strings.TrimSpace(r.FormValue("street")),
-		ExtNumber:    strings.TrimSpace(r.FormValue("ext_number")),
-		Neighborhood: strings.TrimSpace(r.FormValue("neighborhood")),
-		Municipality: strings.TrimSpace(r.FormValue("municipality")),
-		State:        strings.TrimSpace(r.FormValue("state")),
-		PostalCode:   strings.TrimSpace(r.FormValue("postal_code")),
-		TaxRegime:    strings.TrimSpace(r.FormValue("tax_regime")),
-		Notes:        strings.TrimSpace(r.FormValue("notes")),
-		CreditDays:   strings.TrimSpace(r.FormValue("credit_days")),
-		Currency:     strings.TrimSpace(r.FormValue("currency")),
-		PaymentTerms: strings.TrimSpace(r.FormValue("payment_terms")),
-		LeadTime:     strings.TrimSpace(r.FormValue("lead_time")),
-		Bank:         strings.TrimSpace(r.FormValue("bank")),
-		CLABE:        strings.Join(strings.Fields(r.FormValue("clabe")), ""),
-		Beneficiary:  strings.TrimSpace(r.FormValue("beneficiary")),
+		Name:         strings.TrimSpace(get("name")),
+		RFC:          strings.ToUpper(strings.ReplaceAll(strings.Join(strings.Fields(get("rfc")), ""), "-", "")),
+		LegalName:    strings.TrimSpace(get("legal_name")),
+		Street:       strings.TrimSpace(get("street")),
+		ExtNumber:    strings.TrimSpace(get("ext_number")),
+		Neighborhood: strings.TrimSpace(get("neighborhood")),
+		Municipality: strings.TrimSpace(get("municipality")),
+		State:        strings.TrimSpace(get("state")),
+		PostalCode:   strings.TrimSpace(get("postal_code")),
+		TaxRegime:    strings.TrimSpace(get("tax_regime")),
+		Notes:        strings.TrimSpace(get("notes")),
+		CreditDays:   strings.TrimSpace(get("credit_days")),
+		Currency:     strings.TrimSpace(get("currency")),
+		PaymentTerms: strings.TrimSpace(get("payment_terms")),
+		LeadTime:     strings.TrimSpace(get("lead_time")),
+		Bank:         strings.TrimSpace(get("bank")),
+		CLABE:        strings.Join(strings.Fields(get("clabe")), ""),
+		Beneficiary:  strings.TrimSpace(get("beneficiary")),
 		FamilyIDs:    map[int64]bool{},
-		Confirmed:    r.FormValue("confirmar") == "1",
+		Confirmed:    get("confirmar") == "1",
 	}
-	n, _ := strconv.Atoi(r.FormValue("contactos"))
+	n, _ := strconv.Atoi(get("contactos"))
 	n = min(max(n, 0), maxContactSlots)
 	for i := range n {
 		field := func(name string) string {
-			return strings.TrimSpace(r.FormValue("contacto-" + strconv.Itoa(i) + "-" + name))
+			return strings.TrimSpace(get("contacto-" + strconv.Itoa(i) + "-" + name))
 		}
 		v.Contacts = append(v.Contacts, views.SupplierContactValues{
 			ID:         field("id"),
@@ -76,7 +83,7 @@ func parseProveedorForm(r *http.Request) ProveedorForm {
 			Remove:     field("quitar") == "1",
 		})
 	}
-	for _, s := range r.Form["familia"] {
+	for _, s := range r.Form[prefix+"familia"] {
 		if id, err := strconv.ParseInt(s, 10, 64); err == nil {
 			v.FamilyIDs[id] = true
 		}
@@ -337,7 +344,8 @@ func (sp *Suppliers) loadSupplier(w http.ResponseWriter, r *http.Request) *store
 }
 
 // Page renders GET /proveedores/{id}: the edit form for an admin, the read-only page for
-// a vendedor. ?eliminar=bloqueado follows a delete that its familias prevented.
+// a vendedor. ?eliminar=bloqueado follows a delete that its familias or its órdenes de
+// compra prevented.
 func (sp *Suppliers) Page(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	sup := sp.loadSupplier(w, r)
@@ -384,6 +392,10 @@ func (sp *Suppliers) Page(w http.ResponseWriter, r *http.Request) {
 			if o.SupplierID == sup.ID {
 				page.InUse = append(page.InUse, o.Name)
 			}
+		}
+		if page.InUseOrders, err = sp.store.SupplierPurchaseOrders(ctx, sup.ID); err != nil {
+			serverError(w, r, err)
+			return
 		}
 	}
 	sp.renderForm(w, r, status, page)

@@ -34,6 +34,7 @@ const (
 	HelpFacturas           HelpTopic = "/ayuda/facturas"
 	HelpFactura            HelpTopic = "/ayuda/facturas#timbrar-una-factura"
 	HelpProveedores        HelpTopic = "/ayuda/proveedores"
+	HelpOrdenCompra        HelpTopic = "/ayuda/ordenes-de-compra"
 
 	// Admin-only screens link to the admin-only guide page.
 	HelpAjustes    HelpTopic = "/ayuda/administracion#márgenes"
@@ -74,6 +75,7 @@ var HelpTopics = map[HelpTopic]bool{
 	HelpFacturas:           false,
 	HelpFactura:            false,
 	HelpProveedores:        false,
+	HelpOrdenCompra:        false,
 	HelpAjustes:            true,
 	HelpMateriales:         true,
 	HelpUsuarios:           true,

@@ -48,6 +48,7 @@ var pageDefs = []pageDef{
 	{"proveedores", "proveedores.md", "Proveedores", false},
 	{"cotizaciones", "cotizaciones.md", "Cotizaciones", false},
 	{"proyectos", "proyectos.md", "Proyectos", false},
+	{"ordenes-de-compra", "ordenes-de-compra.md", "Órdenes de compra a proveedor", false},
 	{"productos", "productos.md", "Productos", false},
 	{"facturas", "facturas.md", "Facturas", false},
 	{"documentos", "documentos.md", "Documentos oficiales", false},

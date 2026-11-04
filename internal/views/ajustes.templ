@@ -29,7 +29,7 @@ func marginPath(o store.MarginOption, action string) string {
 // edited, made default, retired or restored by its own small form, then the materials
 // and their prices.
 // errorMsg is a refused margin or material action.
-templ Ajustes(margins []store.MarginOption, materials []store.Material, units []store.Unit, facturacion facturoporti.Status, emisor store.Emisor, emisorErrs map[string]string, successMsg string, errorMsg string, user *NavUser) {
+templ Ajustes(margins []store.MarginOption, materials []store.Material, units []store.Unit, facturacion facturoporti.Status, emisor store.Emisor, emisorErrs map[string]string, poBilling store.POBilling, poErrs map[string]string, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Configuración del sistema", user) {
 		<div class="page-title">
 			<h1>Configuración del sistema</h1>
@@ -228,6 +228,31 @@ templ Ajustes(margins []store.MarginOption, materials []store.Material, units []
 			</label>
 			@FieldError(emisorErrs, "serie_pago")
 			<button type="submit">Guardar emisor</button>
+		</form>
+		<h3 id="ordenes-de-compra">Datos de facturación en órdenes de compra</h3>
+		<p>Lo que las órdenes de compra a proveedor piden en su factura. El RFC y el régimen fiscal son los del emisor, arriba.</p>
+		<form method="post" action="/ajustes/ordenes-de-compra">
+			<label>
+				Razón social (con el régimen de capital, p. ej. CLADEX S.A. de C.V.)
+				<input type="text" name="oc_nombre" value={ poBilling.Name } required { errAttrs(poErrs, "oc_nombre")... }/>
+			</label>
+			@FieldError(poErrs, "oc_nombre")
+			<label>
+				Domicilio fiscal
+				<input type="text" name="oc_domicilio" value={ poBilling.Address } required { errAttrs(poErrs, "oc_domicilio")... }/>
+			</label>
+			@FieldError(poErrs, "oc_domicilio")
+			<label>
+				Uso de CFDI
+				<select name="oc_uso" required { errAttrs(poErrs, "oc_uso")... }>
+					<option value="">Elige…</option>
+					for _, c := range store.CFDIUses {
+						<option value={ c.Code } selected?={ c.Code == poBilling.CFDIUse }>{ c.Code } - { c.Description }</option>
+					}
+				</select>
+			</label>
+			@FieldError(poErrs, "oc_uso")
+			<button type="submit">Guardar datos de facturación</button>
 		</form>
 	}
 }

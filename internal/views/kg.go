@@ -20,7 +20,18 @@ func KgPerUnitText(l QuoteLineView) string {
 	if l.KgPerUnit == nil {
 		return ""
 	}
-	return groupedDecimal(money.RoundHalfUp(int64(*l.KgPerUnit), 100), 4)
+	return KgPerMetreText(*l.KgPerUnit)
+}
+
+// KgPerMetreText is a weight per metre with 4 decimals, e.g. "0.3896".
+func KgPerMetreText(kg money.Micros) string {
+	return groupedDecimal(money.RoundHalfUp(int64(kg), 100), 4)
+}
+
+// KgTotalText is qty × kg per metre with 2 decimals, e.g. "43.25" for 111 m of 0.3896.
+func KgTotalText(qty money.Milli, kg money.Micros) string {
+	// Milli (1e-3) × Micros (1e-6) is 1e-9; hundredths are 1e-2.
+	return groupedDecimal(money.RoundHalfUp(int64(qty)*int64(kg), 10_000_000), 2)
 }
 
 // KgText is a line's total weight, quantity × kg per metre, with 2 decimals, empty
@@ -29,8 +40,7 @@ func KgText(l QuoteLineView) string {
 	if l.KgPerUnit == nil || l.Error != "" {
 		return ""
 	}
-	// Milli (1e-3) × Micros (1e-6) is 1e-9; hundredths are 1e-2.
-	return groupedDecimal(money.RoundHalfUp(int64(l.QtyMilli)*int64(*l.KgPerUnit), 10_000_000), 2)
+	return KgTotalText(l.QtyMilli, *l.KgPerUnit)
 }
 
 // groupedDecimal formats v, a count of 10^-places units, with thousands separators,

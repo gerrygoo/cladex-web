@@ -86,6 +86,15 @@ var appRoutes = []route{
 	{"GET", "/cotizaciones/QL0001/proveedor/1", false},
 	{"POST", "/cotizaciones/QL0001/proveedor/1/eliminar", false},
 	{"POST", "/proyectos/QL0001/proveedor", false},
+	{"POST", "/proyectos/QA0001/ordenes-de-compra", false},
+	{"GET", "/proyectos/QA0001/ordenes-de-compra/1", false},
+	{"POST", "/proyectos/QA0001/ordenes-de-compra/1", false},
+	{"POST", "/proyectos/QA0001/ordenes-de-compra/1/ver-pdf", false},
+	{"GET", "/proyectos/QA0001/ordenes-de-compra/1/pdf", false},
+	{"POST", "/proyectos/QA0001/ordenes-de-compra/1/eliminar", false},
+	{"POST", "/proyectos/QA0001/ordenes-de-compra/1/confirmar", true},
+	{"POST", "/proyectos/QA0001/ordenes-de-compra/1/revision", true},
+	{"POST", "/proyectos/QA0001/ordenes-de-compra/1/proveedor-nuevo", true},
 
 	{"GET", "/usuarios", true},
 	{"POST", "/usuarios/1/rol", true},
@@ -100,6 +109,7 @@ var appRoutes = []route{
 	{"POST", "/ajustes/margenes/1/restaurar", true},
 	{"POST", "/ajustes/materiales", true},
 	{"POST", "/ajustes/materiales/1", true},
+	{"POST", "/ajustes/ordenes-de-compra", true},
 
 	{"GET", "/unidades", true},
 	{"POST", "/unidades", true},

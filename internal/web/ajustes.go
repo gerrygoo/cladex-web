@@ -34,6 +34,8 @@ func (s *Settings) Page(w http.ResponseWriter, r *http.Request) {
 		successMsg = "Material guardado."
 	case r.URL.Query().Get("emisor") == "1":
 		successMsg = "Emisor guardado."
+	case r.URL.Query().Get("oc") == "1":
+		successMsg = "Datos de facturación de las órdenes de compra guardados."
 	}
 	s.render(w, r, successMsg, "")
 }
@@ -50,7 +52,7 @@ func (s *Settings) Emisor(w http.ResponseWriter, r *http.Request) {
 		SeriePago:    strings.ToUpper(strings.TrimSpace(r.FormValue("serie_pago"))),
 	}
 	if errs := e.Errors(); len(errs) > 0 {
-		s.renderWith(w, r, "", "", &e, errs)
+		s.renderWith(w, r, "", "", &e, errs, nil, nil)
 		return
 	}
 	user, _ := UserFromContext(ctx)
@@ -64,11 +66,33 @@ func (s *Settings) Emisor(w http.ResponseWriter, r *http.Request) {
 // render draws /ajustes. errorMsg is a refused margin or material action's message,
 // rendered with 422.
 func (s *Settings) render(w http.ResponseWriter, r *http.Request, successMsg, errorMsg string) {
-	s.renderWith(w, r, successMsg, errorMsg, nil, nil)
+	s.renderWith(w, r, successMsg, errorMsg, nil, nil, nil, nil)
 }
 
-// renderWith is render with the emisor form's state when it was refused.
-func (s *Settings) renderWith(w http.ResponseWriter, r *http.Request, successMsg, errorMsg string, emisor *store.Emisor, emisorErrs map[string]string) {
+// POBilling handles POST /ajustes/ordenes-de-compra: the razón social, domicilio fiscal
+// and uso de CFDI an orden de compra a proveedor prints (issue #65).
+func (s *Settings) POBilling(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	b := store.POBilling{
+		Name:    strings.TrimSpace(r.FormValue("oc_nombre")),
+		Address: strings.TrimSpace(r.FormValue("oc_domicilio")),
+		CFDIUse: r.FormValue("oc_uso"),
+	}
+	if errs := b.Errors(); len(errs) > 0 {
+		s.renderWith(w, r, "", "", nil, nil, &b, errs)
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	if err := s.store.SetPOBilling(ctx, b, user.ID); err != nil {
+		serverError(w, r, err)
+		return
+	}
+	http.Redirect(w, r, "/ajustes?oc=1#ordenes-de-compra", http.StatusSeeOther)
+}
+
+// renderWith is render with the emisor's or the O.C. billing form's state when it was
+// refused.
+func (s *Settings) renderWith(w http.ResponseWriter, r *http.Request, successMsg, errorMsg string, emisor *store.Emisor, emisorErrs map[string]string, poBilling *store.POBilling, poErrs map[string]string) {
 	ctx := r.Context()
 	if emisor == nil {
 		e, err := s.store.EmisorSettings(ctx)
@@ -77,6 +101,14 @@ func (s *Settings) renderWith(w http.ResponseWriter, r *http.Request, successMsg
 			return
 		}
 		emisor = &e
+	}
+	if poBilling == nil {
+		b, err := s.store.POBillingSettings(ctx)
+		if err != nil {
+			serverError(w, r, err)
+			return
+		}
+		poBilling = &b
 	}
 	margins, err := s.store.ListMarginOptions(ctx)
 	if err != nil {
@@ -93,11 +125,11 @@ func (s *Settings) renderWith(w http.ResponseWriter, r *http.Request, successMsg
 		serverError(w, r, err)
 		return
 	}
-	if errorMsg != "" || len(emisorErrs) > 0 {
+	if errorMsg != "" || len(emisorErrs) > 0 || len(poErrs) > 0 {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 	}
 	authUser, _ := UserFromContext(ctx)
-	views.Ajustes(margins, materials, units, s.facturacion, *emisor, emisorErrs, successMsg, errorMsg, navUserView(authUser)).Render(ctx, w)
+	views.Ajustes(margins, materials, units, s.facturacion, *emisor, emisorErrs, *poBilling, poErrs, successMsg, errorMsg, navUserView(authUser)).Render(ctx, w)
 }
 
 // parseMarginPercent reads a margin as the percentage an admin types ("12.34", "12.34%")

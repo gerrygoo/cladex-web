@@ -563,6 +563,9 @@ func (s *Store) DeletePurchaseOrderDraft(ctx context.Context, id int64) error {
 	return tx.Commit()
 }
 
+// InMexicoCity is t in México City, where Cladex is: an O.C.'s date is that day there.
+func InMexicoCity(t time.Time) time.Time { return t.In(mexicoCity) }
+
 // PONumber is the number confirming po on day (any time zone; the México City day
 // counts) would give it, with the seq it takes: OC-<proyecto>-<DDMMAA>, plus -seq from
 // the proyecto's second O.C. on (QL), plus -Rn on a revision, which keeps the number,
@@ -771,6 +774,40 @@ func (s *Store) SupplierByName(ctx context.Context, name string) (*int64, error)
 		return nil, nil
 	}
 	return &ids[0], nil
+}
+
+// POSupplierOption is a supplier as an O.C.'s supplier list offers it, with the días de
+// crédito the Crédito forma de pago starts from.
+type POSupplierOption struct {
+	ID         int64
+	Name       string
+	LegalName  string
+	CreditDays *int64
+	Inactive   bool
+}
+
+// POSupplierOptions lists every supplier by nombre comercial, inactive ones included
+// (the form only offers those to an O.C. that already has one).
+func (s *Store) POSupplierOptions(ctx context.Context) ([]POSupplierOption, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, name, legal_name, credit_days, inactive FROM suppliers ORDER BY name COLLATE NOCASE, id`)
+	if err != nil {
+		return nil, fmt.Errorf("store: supplier options: %w", err)
+	}
+	defer rows.Close()
+	var out []POSupplierOption
+	for rows.Next() {
+		var o POSupplierOption
+		var credit sql.NullInt64
+		if err := rows.Scan(&o.ID, &o.Name, &o.LegalName, &credit, &o.Inactive); err != nil {
+			return nil, fmt.Errorf("store: supplier options: %w", err)
+		}
+		if credit.Valid {
+			o.CreditDays = &credit.Int64
+		}
+		out = append(out, o)
+	}
+	return out, rows.Err()
 }
 
 // SupplierPurchaseOrders names the O.C.s made out to the supplier: their numbers, or

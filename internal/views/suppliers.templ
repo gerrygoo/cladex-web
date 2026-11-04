@@ -160,8 +160,10 @@ type SupplierFormPage struct {
 	// SavedName is the supplier's name as stored, for the heading; Inactive its state.
 	SavedName string
 	Inactive  bool
-	// InUse names the familias that kept a delete from going through.
-	InUse      []string
+	// InUse names the familias that kept a delete from going through, InUseOrders the
+	// órdenes de compra (issue #65).
+	InUse       []string
+	InUseOrders []string
 	SuccessMsg string
 	History    []CustomerHistoryEntry
 }
@@ -212,11 +214,16 @@ templ SupplierForm(p SupplierFormPage, user *NavUser) {
 			}
 		</div>
 		@Flash(p.SuccessMsg)
-		if len(p.InUse) > 0 {
+		if len(p.InUse) > 0 || len(p.InUseOrders) > 0 {
 			<div class="notice warning" id="no-se-puede-eliminar" role="alert" tabindex="-1">
 				<p>
 					<strong>{ "No se puede eliminar a " + p.SavedName + "." }</strong>
-					{ " Es el proveedor predeterminado de: " + strings.Join(p.InUse, ", ") + ". Quítale esas familias en «Familias que surte» y guarda para poder eliminarlo, o márcalo como inactivo." }
+					if len(p.InUse) > 0 {
+						{ " Es el proveedor predeterminado de: " + strings.Join(p.InUse, ", ") + ". Quítale esas familias en «Familias que surte» y guarda para poder eliminarlo, o márcalo como inactivo." }
+					}
+					if len(p.InUseOrders) > 0 {
+						{ " Tiene órdenes de compra: " + strings.Join(p.InUseOrders, ", ") + ". Un proveedor con órdenes de compra no se puede eliminar; márcalo como inactivo." }
+					}
 				</p>
 				if !p.Inactive {
 					<form method="post" action={ templ.URL(supplierPath(p.ID) + "/inactivar") }>

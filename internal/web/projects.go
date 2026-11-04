@@ -125,7 +125,12 @@ func (p *Projects) Page(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	views.ProjectPage(*project, today(r), quotes, files, receipt, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user), supplier, panel).Render(ctx, w)
+	pos, err := projectPOs(ctx, p.store, user, project, current)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	views.ProjectPage(*project, today(r), quotes, files, receipt, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user), supplier, panel, pos).Render(ctx, w)
 }
 
 // Etapa handles POST /proyectos/{folio}/etapa: moves the proyecto one stage along the
@@ -610,7 +615,7 @@ func (p *Projects) adminPanel(ctx context.Context, user *store.AuthenticatedUser
 		Users:   users,
 		What:    "proyecto",
 		DeleteWarning: "Borra el proyecto con todas sus cotizaciones y revisiones, su historial, " +
-			"la orden de compra y las facturas sin timbrar. No se puede deshacer.",
+			"la orden de compra, sus órdenes de compra al proveedor y las facturas sin timbrar. No se puede deshacer.",
 	}
 	for _, f := range facturas {
 		if !f.Editable() {

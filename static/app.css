@@ -687,6 +687,25 @@ span.badge-cerrado {
   background: color-mix(in srgb, var(--success) 8%, var(--bg));
 }
 
+/* An orden de compra a proveedor's state (issue #65). */
+span.badge-oc-borrador {
+  color: var(--text);
+}
+
+span.badge-oc-confirmada {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 8%, var(--bg));
+}
+
+span.badge-oc-reemplazada {
+  color: var(--text-muted);
+}
+
+span.badge-oc-cancelada {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--bg));
+}
+
 /* A supplier's state (issue #64). */
 span.badge-activo {
   color: var(--success);

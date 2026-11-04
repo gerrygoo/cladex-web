@@ -25,9 +25,9 @@ func TestEnvironmentBanner(t *testing.T) {
 
 func TestAjustesFacturacion(t *testing.T) {
 	user := &NavUser{Username: "gerry", IsAdmin: true}
-	off := render(t, Ajustes(nil, nil, nil, facturoporti.Status{Sandbox: true, Problem: "no está configurada"}, store.Emisor{SerieFactura: "F"}, nil, "", "", user))
+	off := render(t, Ajustes(nil, nil, nil, facturoporti.Status{Sandbox: true, Problem: "no está configurada"}, store.Emisor{SerieFactura: "F"}, nil, store.POBilling{}, nil, "", "", user))
 	assertContains(t, off, "<h2>Facturación</h2>", "Pruebas (los timbres no son válidos)", "Apagada: no está configurada")
 	on := render(t, Ajustes(nil, nil, nil, facturoporti.Status{Enabled: true, RFC: "EKU9003173C9", Number: "30001000000500003416",
-		Expires: time.Date(2027, 5, 18, 0, 0, 0, 0, time.UTC)}, store.Emisor{RFC: "EKU9003173C9"}, nil, "", "", user))
+		Expires: time.Date(2027, 5, 18, 0, 0, 0, 0, time.UTC)}, store.Emisor{RFC: "EKU9003173C9"}, nil, store.POBilling{}, nil, "", "", user))
 	assertContains(t, on, "Producción", "Lista para timbrar", "RFC EKU9003173C9 · No. 30001000000500003416 · vence el 2027-05-18")
 }

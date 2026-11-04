@@ -50,6 +50,8 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	quotes.watermark = build.Env.Watermark()
 	projects := NewProjects(db)
 	projects.fact = fact
+	purchaseOrders := NewPurchaseOrders(db)
+	purchaseOrders.watermark = build.Env.Watermark()
 	facturas := NewFacturas(db, fact, logger)
 	users := NewUsers(db)
 	settings := NewSettings(db)
@@ -150,6 +152,19 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /proyectos/{folio}/perder", authed(projects.Perder))
 	mux.Handle("POST /proyectos/{folio}/reabrir", authed(projects.Reabrir))
 
+	// Órdenes de compra a proveedor (issue #65): the proyecto's vendedor or an admin
+	// generates and edits a borrador (checked in the handlers); only an admin confirms one,
+	// opens a revision, or adds a supplier from it.
+	mux.Handle("POST /proyectos/{folio}/ordenes-de-compra", authed(purchaseOrders.Generar))
+	mux.Handle("GET /proyectos/{folio}/ordenes-de-compra/{id}", authed(purchaseOrders.Page))
+	mux.Handle("POST /proyectos/{folio}/ordenes-de-compra/{id}", authed(purchaseOrders.Guardar))
+	mux.Handle("POST /proyectos/{folio}/ordenes-de-compra/{id}/ver-pdf", authed(purchaseOrders.VerPDF))
+	mux.Handle("GET /proyectos/{folio}/ordenes-de-compra/{id}/pdf", authed(purchaseOrders.PDF))
+	mux.Handle("POST /proyectos/{folio}/ordenes-de-compra/{id}/eliminar", authed(purchaseOrders.Eliminar))
+	mux.Handle("POST /proyectos/{folio}/ordenes-de-compra/{id}/confirmar", admin(purchaseOrders.Confirmar))
+	mux.Handle("POST /proyectos/{folio}/ordenes-de-compra/{id}/revision", admin(purchaseOrders.Revision))
+	mux.Handle("POST /proyectos/{folio}/ordenes-de-compra/{id}/proveedor-nuevo", admin(purchaseOrders.ProveedorNuevo))
+
 	mux.Handle("GET /facturas", authed(facturas.List))
 	mux.Handle("GET /facturas/{id}", authed(facturas.Page))
 	mux.Handle("GET /facturas/{id}/xml", authed(facturas.XML))
@@ -185,6 +200,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /ajustes/margenes/{id}/retirar", admin(settings.RetirarMargen))
 	mux.Handle("POST /ajustes/margenes/{id}/restaurar", admin(settings.RestaurarMargen))
 	mux.Handle("POST /ajustes/emisor", admin(settings.Emisor))
+	mux.Handle("POST /ajustes/ordenes-de-compra", admin(settings.POBilling))
 	mux.Handle("POST /ajustes/materiales", admin(settings.CreateMaterial))
 	mux.Handle("POST /ajustes/materiales/{id}", admin(settings.UpdateMaterial))
 

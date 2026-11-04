@@ -407,6 +407,29 @@
     field.focus();
   });
 
+  // An orden de compra's Forma de pago (issue #65): Días de crédito shows only with
+  // Crédito and the free text only with Otra (the server renders them so for the saved
+  // choice). Choosing Crédito, or another supplier while on Crédito, fills an empty Días
+  // de crédito with the supplier's.
+  document.addEventListener("change", function (e) {
+    var form = e.target.closest && e.target.closest("form[data-po-form]");
+    if (!form || (e.target.name !== "forma_pago" && e.target.name !== "proveedor")) return;
+    var payment = form.querySelector("[name=forma_pago]").value;
+    form.querySelector("[data-po-credit]").hidden = payment !== "credito";
+    form.querySelector("[data-po-other]").hidden = payment !== "otra";
+    var days = form.querySelector("[name=dias_credito]");
+    var option = form.querySelector("[name=proveedor]").selectedOptions[0];
+    if (payment === "credito" && days.value === "" && option && option.dataset.creditDays) {
+      days.value = option.dataset.creditDays;
+    }
+  });
+
+  // Right after an orden de compra is confirmed, its page starts the PDF's download.
+  document.addEventListener("DOMContentLoaded", function () {
+    var link = document.querySelector("a[data-auto-download]");
+    if (link) link.click();
+  });
+
   // A supplier's contacts (issue #64): the server renders a few empty contact slots.
   // Show only the first empty one, and "Agregar otro contacto" opens the next, its name
   // field focused. Without JS every slot shows and empty ones are ignored on save.
