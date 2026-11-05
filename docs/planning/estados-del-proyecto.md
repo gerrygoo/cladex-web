@@ -91,6 +91,12 @@ rate** (an O.C.'s moneda is MXN or USD, printed in its conditions, nothing conve
 - Real stamping + per-factura manual mode.
 - SAT codes are per SKU (#62, covering #54).
 - Supplier per familia; no exchange rate.
+- Deleting a proyecto stays a cascade (2026-11-05): it removes its supplier O.C.s,
+  confirmed ones included, as the guide already says. No block for now. Only a
+  stamped (or stamping) factura blocks the delete. Revisit if confirmed O.C.s start
+  getting sent to suppliers from proyectos that later get deleted by mistake.
+- Vendedores don't create suppliers inline from a QL O.C. (2026-11-05, "not yet"):
+  a missing supplier goes through an admin on Proveedores.
 
 ## Open (asked 2026-11-03)
 
