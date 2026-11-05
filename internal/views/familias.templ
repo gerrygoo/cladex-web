@@ -6,55 +6,65 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-templ FamiliasList(families []store.Family, name string, fieldErrors map[string]string, successMsg string, user *NavUser) {
-	@Layout("Familias", user) {
+// FamiliaGroup is one familia on the familias page with the quote types that quote it.
+type FamiliaGroup struct {
+	Family store.Family
+	Types  []store.QuoteType
+}
+
+// GroupTiposByFamilia puts each quote type under its familia (quote_types.family_id),
+// keeping both in the order given. Types without a familia, or with one not in
+// families, come back apart, for the page's last group.
+func GroupTiposByFamilia(families []store.Family, types []store.QuoteType) ([]FamiliaGroup, []store.QuoteType) {
+	groups := make([]FamiliaGroup, len(families))
+	index := make(map[int64]int, len(families))
+	for i, f := range families {
+		groups[i].Family = f
+		index[f.ID] = i
+	}
+	var orphans []store.QuoteType
+	for _, t := range types {
+		if t.FamilyID != nil {
+			if i, ok := index[*t.FamilyID]; ok {
+				groups[i].Types = append(groups[i].Types, t)
+				continue
+			}
+		}
+		orphans = append(orphans, t)
+	}
+	return groups, orphans
+}
+
+// familiaPath is a familia's edit page.
+func familiaPath(id int64) string {
+	return "/familias/" + strconv.FormatInt(id, 10)
+}
+
+// nuevoTipoPath is the new quote type form with familia familyID already chosen.
+func nuevoTipoPath(familyID int64) string {
+	return "/tipos-de-cotizacion/nuevo?familia=" + strconv.FormatInt(familyID, 10)
+}
+
+// FamiliasList is the admin's familias and quote types page (issue #56): each familia
+// with its facts and, under it, the quote types that quote it.
+templ FamiliasList(groups []FamiliaGroup, orphans []store.QuoteType, name string, fieldErrors map[string]string, successMsg string, user *NavUser) {
+	@Layout("Familias y tipos de cotización", user) {
 		<div class="page-title">
-			<h1>Familias</h1>
+			<h1>Familias y tipos de cotización</h1>
 			@HelpLink(HelpFamilias)
 		</div>
 		@Flash(successMsg)
-		<p>Una familia es una línea de producto del catálogo. La serie de folio, los términos y cómo se ve el PDF son de cada <a href="/tipos-de-cotizacion">tipo de cotización</a>.</p>
-		<div class="table-scroll">
-			<table>
-				<thead>
-					<tr>
-						<th>Familia</th>
-						<th>Productos</th>
-						<th>Clave SAT</th>
-						<th>Tipos de cotización</th>
-						<th>Proveedor predeterminado</th>
-						<th><span class="visually-hidden">Acciones</span></th>
-					</tr>
-				</thead>
-				<tbody>
-					for _, f := range families {
-						<tr>
-							<td>{ f.Name }</td>
-							<td>
-								if f.FreeLinesOnly {
-									Solo líneas libres
-								} else {
-									De catálogo
-								}
-							</td>
-							<td>{ f.SATProductCode }</td>
-							<td>{ f.QuoteTypes }</td>
-							<td>
-								// Set from the supplier's form (issue #64); QL never has one.
-								if f.FreeLinesOnly {
-									No aplica
-								} else if f.DefaultSupplierID != 0 {
-									<a href={ templ.URL(supplierPath(f.DefaultSupplierID)) }>{ f.DefaultSupplierName }</a>
-								} else {
-									Sin asignar
-								}
-							</td>
-							<td><a href={ templ.URL("/familias/" + strconv.FormatInt(f.ID, 10)) }>Editar<span class="visually-hidden">{ " " + f.Name }</span></a></td>
-						</tr>
-					}
-				</tbody>
-			</table>
-		</div>
+		<p>Una familia es una línea de producto del catálogo. Debajo de cada una están sus tipos de cotización: cada tipo tiene su serie de folio, sus términos y condiciones y cómo se ve su PDF. Al crear una cotización se elige su tipo.</p>
+		for _, g := range groups {
+			@familiaSection(g)
+		}
+		if len(orphans) > 0 {
+			<section aria-labelledby="tipos-sin-familia">
+				<h2 id="tipos-sin-familia">Tipos sin familia</h2>
+				<p>Estos tipos de cotización no tienen una familia de productos. Para darles una, edítalos.</p>
+				@tiposTable(orphans, "Tipos de cotización sin familia")
+			</section>
+		}
 		<h2>Nueva familia</h2>
 		<form method="post" action="/familias">
 			<label>
@@ -64,8 +74,84 @@ templ FamiliasList(families []store.Family, name string, fieldErrors map[string]
 			@FieldError(fieldErrors, "name")
 			<button type="submit" class="primary">Crear familia</button>
 		</form>
-		<p class="hint">Para cotizar sus productos con una serie propia, después crea un <a href="/tipos-de-cotizacion">tipo de cotización</a> de esta familia.</p>
+		<p class="hint">Para cotizar sus productos con una serie propia, después usa «Nuevo tipo de cotización para esta familia» debajo de la familia nueva.</p>
 	}
+}
+
+// familiaSection is one familia: its facts and edit link, then its quote types and the
+// link to add one with the familia already chosen.
+templ familiaSection(g FamiliaGroup) {
+	{{ id := "familia-" + strconv.FormatInt(g.Family.ID, 10) }}
+	<section aria-labelledby={ id }>
+		<h2 id={ id }>{ g.Family.Name }</h2>
+		<dl class="quote-info">
+			<dt>Productos</dt>
+			<dd>
+				if g.Family.FreeLinesOnly {
+					Solo líneas libres
+				} else {
+					De catálogo
+				}
+			</dd>
+			<dt>Clave SAT</dt>
+			<dd>
+				if g.Family.SATProductCode != "" {
+					{ g.Family.SATProductCode }
+				} else {
+					Sin clave
+				}
+			</dd>
+			<dt>Proveedor predeterminado</dt>
+			<dd>
+				// Set from the supplier's form (issue #64); QL never has one.
+				if g.Family.FreeLinesOnly {
+					No aplica
+				} else if g.Family.DefaultSupplierID != 0 {
+					<a href={ templ.URL(supplierPath(g.Family.DefaultSupplierID)) }>{ g.Family.DefaultSupplierName }</a>
+				} else {
+					Sin asignar
+				}
+			</dd>
+		</dl>
+		<p><a href={ templ.URL(familiaPath(g.Family.ID)) }>Editar familia<span class="visually-hidden">{ " " + g.Family.Name }</span></a></p>
+		if len(g.Types) > 0 {
+			@tiposTable(g.Types, "Tipos de cotización de "+g.Family.Name)
+		} else {
+			<p>Todavía no tiene tipo de cotización.</p>
+		}
+		<p><a href={ templ.URL(nuevoTipoPath(g.Family.ID)) }>Nuevo tipo de cotización para esta familia<span class="visually-hidden">{ " (" + g.Family.Name + ")" }</span></a></p>
+	</section>
+}
+
+// tiposTable lists quote types with what sets each apart and its edit link.
+templ tiposTable(types []store.QuoteType, caption string) {
+	<div class="table-scroll">
+		<table>
+			<caption class="visually-hidden">{ caption }</caption>
+			<thead>
+				<tr>
+					<th>Serie</th>
+					<th>Nombre</th>
+					<th>Siguiente folio</th>
+					<th>Membrete</th>
+					<th>Además</th>
+					<th><span class="visually-hidden">Acciones</span></th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, t := range types {
+					<tr>
+						<td>{ t.Prefix }</td>
+						<td>{ t.Name }</td>
+						<td>{ t.NextFolioText() }</td>
+						<td>{ letterheadLabel(t.Letterhead) }</td>
+						<td>{ tipoBehaviorText(t) }</td>
+						<td><a href={ templ.URL(tipoPath(t.ID)) }>Editar tipo<span class="visually-hidden">{ " " + t.Prefix }</span></a></td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
 }
 
 // FamiliaEdit is the familia's edit form. savedName is its name as stored, for the
@@ -74,9 +160,9 @@ templ FamiliaEdit(savedName string, f store.Family, fieldErrors map[string]strin
 	@Layout("Editar "+savedName, user) {
 		<div class="page-title">
 			<h1>Editar familia { savedName }</h1>
-			@HelpLink(HelpFamilias)
+			@HelpLink(HelpFamiliaEditar)
 		</div>
-		<form method="post" action={ templ.URL("/familias/" + strconv.FormatInt(f.ID, 10)) }>
+		<form method="post" action={ templ.URL(familiaPath(f.ID)) }>
 			<label>
 				Nombre
 				<input type="text" name="name" value={ f.Name } required { errAttrs(fieldErrors, "name")... }/>

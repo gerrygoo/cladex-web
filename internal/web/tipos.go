@@ -11,10 +11,11 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
 
-// Tipos holds the admin-only /tipos-de-cotizacion handlers: list, create and edit the
-// quote types (docs/planning/tipos-de-cotizacion.md). A type's prefix can change at any
-// time; folios already handed out keep the prefix they were printed with. Types are
-// never deleted: quotes reference them.
+// Tipos holds the admin-only /tipos-de-cotizacion handlers: the new-type form and
+// creating and editing the quote types (docs/planning/tipos-de-cotizacion.md). They are
+// listed under their familias on the familias page (issue #56), where a save lands. A
+// type's prefix can change at any time; folios already handed out keep the prefix they
+// were printed with. Types are never deleted: quotes reference them.
 type Tipos struct {
 	store *store.Store
 }
@@ -23,26 +24,24 @@ func NewTipos(s *store.Store) *Tipos {
 	return &Tipos{store: s}
 }
 
-const tiposPath = "/tipos-de-cotizacion"
-
+// List sends the old quote types list (bookmarks, links) to the familias page, which
+// lists every type under its familia since issue #56.
 func (t *Tipos) List(w http.ResponseWriter, r *http.Request) {
-	successMsg := ""
-	switch r.URL.Query().Get("guardado") {
-	case "creado":
-		successMsg = "Tipo de cotización creado."
-	case "editado":
-		successMsg = "Tipo de cotización guardado."
-	}
-	t.renderList(w, r, store.QuoteType{}, nil, successMsg, http.StatusOK)
+	http.Redirect(w, r, familiasPath, http.StatusMovedPermanently)
 }
 
-func (t *Tipos) renderList(w http.ResponseWriter, r *http.Request, values store.QuoteType, errs map[string]string, successMsg string, status int) {
-	ctx := r.Context()
-	types, err := t.store.ListQuoteTypes(ctx)
-	if err != nil {
-		serverError(w, r, err)
-		return
+// NewPage shows the new-type form. ?familia=<id>, from a familia's "Nuevo tipo de
+// cotización para esta familia" link, chooses that familia; an unknown one chooses none.
+func (t *Tipos) NewPage(w http.ResponseWriter, r *http.Request) {
+	var values store.QuoteType
+	if id, err := strconv.ParseInt(r.URL.Query().Get("familia"), 10, 64); err == nil && id > 0 {
+		values.FamilyID = &id
 	}
+	t.renderNew(w, r, values, nil, http.StatusOK)
+}
+
+func (t *Tipos) renderNew(w http.ResponseWriter, r *http.Request, values store.QuoteType, errs map[string]string, status int) {
+	ctx := r.Context()
 	families, err := t.store.ListAllFamilies(ctx)
 	if err != nil {
 		serverError(w, r, err)
@@ -50,7 +49,7 @@ func (t *Tipos) renderList(w http.ResponseWriter, r *http.Request, values store.
 	}
 	user, _ := UserFromContext(ctx)
 	w.WriteHeader(status)
-	views.TiposList(types, families, values, errs, successMsg, navUserView(user)).Render(ctx, w)
+	views.TipoNew(values, families, errs, navUserView(user)).Render(ctx, w)
 }
 
 // parseTipoForm reads the type form onto a QuoteType. The prefix is upper-cased and the
@@ -93,7 +92,7 @@ func (t *Tipos) Create(w http.ResponseWriter, r *http.Request) {
 	values := parseTipoForm(r)
 	_, err := t.store.CreateQuoteType(r.Context(), values)
 	if err == nil {
-		http.Redirect(w, r, tiposPath+"?guardado=creado", http.StatusSeeOther)
+		http.Redirect(w, r, familiasPath+"?guardado=tipo-creado", http.StatusSeeOther)
 		return
 	}
 	errs, ok := tipoErrors(err)
@@ -101,7 +100,7 @@ func (t *Tipos) Create(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	t.renderList(w, r, values, errs, "", http.StatusUnprocessableEntity)
+	t.renderNew(w, r, values, errs, http.StatusUnprocessableEntity)
 }
 
 // loadTipoOrNotFound finds the type named by the {id} path value, writing a 404 and
@@ -154,7 +153,7 @@ func (t *Tipos) Update(w http.ResponseWriter, r *http.Request) {
 	err := t.store.UpdateQuoteType(r.Context(), values)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, tiposPath+"?guardado=editado", http.StatusSeeOther)
+		http.Redirect(w, r, familiasPath+"?guardado=tipo-editado", http.StatusSeeOther)
 		return
 	case errors.Is(err, sql.ErrNoRows):
 		http.NotFound(w, r)

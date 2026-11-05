@@ -20,7 +20,7 @@ parte de este manual que la explica.
 | [Productos](productos.md) | Buscar, dar de alta y editar productos; cómo se calcula cada precio; conversiones de unidades |
 | [Documentos oficiales](documentos.md) | Ver y descargar fichas técnicas, presentaciones y material de capacitación |
 :::admin
-| [Administración](administracion.md) | Márgenes; materiales; usuarios; unidades; familias y series (solo administradores) |
+| [Administración](administracion.md) | Márgenes; materiales; usuarios; unidades; familias y tipos de cotización (solo administradores) |
 :::
 | [Glosario](glosario.md) | Qué significa cada término: folio, serie, estados, margen… |
 

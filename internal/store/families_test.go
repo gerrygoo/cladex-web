@@ -104,8 +104,8 @@ func TestFreeLinesOnlyFamilyIsNotAProductFamily(t *testing.T) {
 		t.Fatalf("ListFamilies = %s; QL, which holds no products, must be left out", got)
 	}
 	all, _ := s.ListAllFamilies(ctx)
-	if len(all) != 5 || all[0].QuoteTypes == "" {
-		t.Fatalf("ListAllFamilies = %+v; want 5 familias, each seeded one with its type", all)
+	if len(all) != 5 {
+		t.Fatalf("ListAllFamilies = %+v; want 5 familias", all)
 	}
 }
 

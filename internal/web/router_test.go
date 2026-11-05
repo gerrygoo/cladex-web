@@ -118,6 +118,11 @@ var appRoutes = []route{
 	{"POST", "/familias", true},
 	{"GET", "/familias/1", true},
 	{"POST", "/familias/1", true},
+	{"GET", "/tipos-de-cotizacion", true},
+	{"POST", "/tipos-de-cotizacion", true},
+	{"GET", "/tipos-de-cotizacion/nuevo", true},
+	{"GET", "/tipos-de-cotizacion/1", true},
+	{"POST", "/tipos-de-cotizacion/1", true},
 
 	{"GET", "/documentos", false},
 	{"GET", "/documentos/1", false},

@@ -8,10 +8,9 @@ import (
 	"strings"
 )
 
-// Family is a product_families row: a catalog category. QuoteTypes are the prefixes of
-// the quote types that quote it (quote_types.family_id), ", "-separated, for the
-// familias list. FreeLinesOnly marks the one familia that holds no catalog products
-// (QL), which the product form leaves out.
+// Family is a product_families row: a catalog category. FreeLinesOnly marks the one
+// familia that holds no catalog products (QL), which the product form leaves out. The
+// quote types that quote it point at it by quote_types.family_id.
 type Family struct {
 	ID            int64
 	Name          string
@@ -19,7 +18,6 @@ type Family struct {
 	// SATProductCode is the SAT's c_ClaveProdServ a factura's lines from this familia's
 	// quote types start with; "" when not set.
 	SATProductCode string
-	QuoteTypes     string
 	// DefaultSupplierID and DefaultSupplierName are the familia's default supplier
 	// (issue #64), set from the supplier's form; 0 and "" when it has none.
 	DefaultSupplierID   int64
@@ -31,8 +29,6 @@ type Family struct {
 func (s *Store) ListAllFamilies(ctx context.Context) ([]Family, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT f.id, f.name, f.free_lines_only, COALESCE(f.sat_product_code, ''),
-			COALESCE((SELECT group_concat(prefix, ', ') FROM
-				(SELECT prefix FROM quote_types t WHERE t.family_id = f.id ORDER BY t.id)), ''),
 			COALESCE(sup.id, 0), COALESCE(sup.name, '')
 		FROM product_families f
 		LEFT JOIN suppliers sup ON sup.id = f.default_supplier_id
@@ -45,7 +41,7 @@ func (s *Store) ListAllFamilies(ctx context.Context) ([]Family, error) {
 	var families []Family
 	for rows.Next() {
 		var f Family
-		if err := rows.Scan(&f.ID, &f.Name, &f.FreeLinesOnly, &f.SATProductCode, &f.QuoteTypes,
+		if err := rows.Scan(&f.ID, &f.Name, &f.FreeLinesOnly, &f.SATProductCode,
 			&f.DefaultSupplierID, &f.DefaultSupplierName); err != nil {
 			return nil, fmt.Errorf("store: list all families: %w", err)
 		}

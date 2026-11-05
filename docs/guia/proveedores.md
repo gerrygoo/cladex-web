@@ -70,7 +70,7 @@ es de otro proveedor dice *(ahora: …)*.
   **Regresar a editar** no se guarda nada.
 - Al desmarcar una familia, se queda sin asignar.
 
-En **Catálogos** → [Familias](administracion.md#familias) se ve el proveedor
+En **Catálogos** → [Familias y tipos de cotización](administracion.md#familias-y-tipos-de-cotización) se ve el proveedor
 predeterminado de cada familia, o *Sin asignar*.
 
 ## Editar un proveedor

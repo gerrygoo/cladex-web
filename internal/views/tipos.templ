@@ -42,46 +42,19 @@ func letterheadLabel(v string) string {
 	return v
 }
 
-templ TiposList(types []store.QuoteType, families []store.Family, values store.QuoteType, fieldErrors map[string]string, successMsg string, user *NavUser) {
-	@Layout("Tipos de cotización", user) {
+// TipoNew is the new quote type form. values holds what it shows: the familia picked
+// from the familias page, or what was typed after an error.
+templ TipoNew(values store.QuoteType, families []store.Family, fieldErrors map[string]string, user *NavUser) {
+	@Layout("Nuevo tipo de cotización", user) {
 		<div class="page-title">
-			<h1>Tipos de cotización</h1>
-			@HelpLink(HelpTipos)
+			<h1>Nuevo tipo de cotización</h1>
+			@HelpLink(HelpTipoNuevo)
 		</div>
-		@Flash(successMsg)
 		<p>Cada tipo tiene su serie de folio, sus términos y condiciones y cómo se ve su PDF. Al crear una cotización se elige su tipo.</p>
-		<div class="table-scroll">
-			<table>
-				<thead>
-					<tr>
-						<th>Serie</th>
-						<th>Nombre</th>
-						<th>Familia</th>
-						<th>Siguiente folio</th>
-						<th>Membrete</th>
-						<th>Además</th>
-						<th><span class="visually-hidden">Acciones</span></th>
-					</tr>
-				</thead>
-				<tbody>
-					for _, t := range types {
-						<tr>
-							<td>{ t.Prefix }</td>
-							<td>{ t.Name }</td>
-							<td>{ t.FamilyName }</td>
-							<td>{ t.NextFolioText() }</td>
-							<td>{ letterheadLabel(t.Letterhead) }</td>
-							<td>{ tipoBehaviorText(t) }</td>
-							<td><a href={ templ.URL(tipoPath(t.ID)) }>Editar<span class="visually-hidden">{ " " + t.Prefix }</span></a></td>
-						</tr>
-					}
-				</tbody>
-			</table>
-		</div>
-		<h2>Nuevo tipo de cotización</h2>
 		<form method="post" action="/tipos-de-cotizacion">
 			@tipoFields(values, families, fieldErrors, true)
 			<button type="submit" class="primary">Crear tipo</button>
+			<a href="/familias">Cancelar</a>
 		</form>
 	}
 }
@@ -90,14 +63,14 @@ templ TipoEdit(saved store.QuoteType, values store.QuoteType, families []store.F
 	@Layout("Editar "+saved.Prefix, user) {
 		<div class="page-title">
 			<h1>Editar tipo { saved.Prefix }</h1>
-			@HelpLink(HelpTipos)
+			@HelpLink(HelpTipoEditar)
 		</div>
 		<p>La siguiente cotización de este tipo será la <strong>{ saved.NextFolioText() }</strong>. Si cambias la serie, las cotizaciones que ya tienen folio lo conservan y la numeración sigue con la serie nueva.</p>
 		<p>Los cambios se usan en los borradores y en las cotizaciones que se emitan de ahora en adelante; las ya emitidas conservan los términos y el PDF con que salieron.</p>
 		<form method="post" action={ templ.URL(tipoPath(saved.ID)) }>
 			@tipoFields(values, families, fieldErrors, false)
 			<button type="submit" class="primary">Guardar</button>
-			<a href="/tipos-de-cotizacion">Cancelar</a>
+			<a href="/familias">Cancelar</a>
 		</form>
 	}
 }

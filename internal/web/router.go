@@ -214,6 +214,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /familias/{id}", admin(familias.Update))
 	mux.Handle("GET /tipos-de-cotizacion", admin(tipos.List))
 	mux.Handle("POST /tipos-de-cotizacion", admin(tipos.Create))
+	mux.Handle("GET /tipos-de-cotizacion/nuevo", admin(tipos.NewPage))
 	mux.Handle("GET /tipos-de-cotizacion/{id}", admin(tipos.EditPage))
 	mux.Handle("POST /tipos-de-cotizacion/{id}", admin(tipos.Update))
 

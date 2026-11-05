@@ -38,7 +38,7 @@ func TestFamiliasCreate(t *testing.T) {
 		t.Fatalf("Create = %d %q; body = %s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
 	}
 	all, _ := a.store.ListAllFamilies(t.Context())
-	if last := all[len(all)-1]; last.Name != "Fire Blanket" || last.QuoteTypes != "" || last.FreeLinesOnly {
+	if last := all[len(all)-1]; last.Name != "Fire Blanket" || last.FreeLinesOnly {
 		t.Fatalf("new familia = %+v", last)
 	}
 
@@ -116,7 +116,7 @@ func TestFamiliasRename(t *testing.T) {
 		t.Fatalf("rename = %d %q; body = %s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
 	}
 	body := doForm(t, a, adminID, f.List, "GET", "/familias", nil, nil, false).Body.String()
-	if !strings.Contains(body, "<td>CCS</td>") || strings.Contains(body, "CCS &amp; AC") {
+	if !strings.Contains(body, ">CCS</h2>") || strings.Contains(body, ">CCS &amp; AC</h2>") {
 		t.Errorf("list after the rename doesn't show CCS alone")
 	}
 	if all, _ := a.store.ListAllFamilies(t.Context()); len(all) != 4 {

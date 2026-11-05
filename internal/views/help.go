@@ -37,12 +37,14 @@ const (
 	HelpOrdenCompra        HelpTopic = "/ayuda/ordenes-de-compra"
 
 	// Admin-only screens link to the admin-only guide page.
-	HelpAjustes    HelpTopic = "/ayuda/administracion#márgenes"
-	HelpMateriales HelpTopic = "/ayuda/administracion#materiales"
-	HelpUsuarios   HelpTopic = "/ayuda/administracion#cambiar-el-rol-de-un-usuario"
-	HelpUnidades   HelpTopic = "/ayuda/administracion#unidades"
-	HelpFamilias   HelpTopic = "/ayuda/administracion#familias"
-	HelpTipos      HelpTopic = "/ayuda/administracion#tipos-de-cotización"
+	HelpAjustes       HelpTopic = "/ayuda/administracion#márgenes"
+	HelpMateriales    HelpTopic = "/ayuda/administracion#materiales"
+	HelpUsuarios      HelpTopic = "/ayuda/administracion#cambiar-el-rol-de-un-usuario"
+	HelpUnidades      HelpTopic = "/ayuda/administracion#unidades"
+	HelpFamilias      HelpTopic = "/ayuda/administracion#familias-y-tipos-de-cotización"
+	HelpFamiliaEditar HelpTopic = "/ayuda/administracion#editar-una-familia"
+	HelpTipoNuevo     HelpTopic = "/ayuda/administracion#crear-un-tipo-de-cotización"
+	HelpTipoEditar    HelpTopic = "/ayuda/administracion#cambiar-un-tipo-de-cotización"
 
 	// Only admins open a supplier's form; its sections are admin-only in the guide.
 	HelpProveedorNuevo  HelpTopic = "/ayuda/proveedores#dar-de-alta-un-proveedor"
@@ -81,7 +83,9 @@ var HelpTopics = map[HelpTopic]bool{
 	HelpUsuarios:           true,
 	HelpUnidades:           true,
 	HelpFamilias:           true,
-	HelpTipos:              true,
+	HelpFamiliaEditar:      true,
+	HelpTipoNuevo:          true,
+	HelpTipoEditar:         true,
 	HelpProveedorNuevo:     true,
 	HelpProveedorEditar:    true,
 }

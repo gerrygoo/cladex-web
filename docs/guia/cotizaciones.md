@@ -36,7 +36,7 @@ El flujo completo, de principio a fin:
      el catálogo y no tienen SKU).
 
    Un administrador puede agregar tipos o cambiar su serie (ver
-   [Tipos de cotización](administracion.md#tipos-de-cotización)); la lista siempre
+   [Familias y tipos de cotización](administracion.md#familias-y-tipos-de-cotización)); la lista siempre
    muestra los que existen.
 4. Haz clic en **Crear cotización**.
 

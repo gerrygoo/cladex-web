@@ -25,14 +25,14 @@ La línea de producto a la que pertenece cada producto del catálogo: CCA, CCS &
 ABASTILUM. El buscador de la cotización filtra por la familia de su
 [[tipo de cotización]]. **QL** es una familia especial sin productos: solo sirve para
 cotizar líneas libres. Los administradores crean familias nuevas en
-[Familias](administracion.md#familias).
+[Familias y tipos de cotización](administracion.md#crear-una-familia).
 
 ## Tipo de cotización
 
 La clase de cotización que se elige al crearla: define su [[serie]] de folio, sus
 *Términos y condiciones* y cómo se ve su PDF, p. ej. *QA — Cable CCA*. No limita qué
-productos lleva la cotización. Los administradores los manejan en
-[Tipos de cotización](administracion.md#tipos-de-cotización).
+productos lleva la cotización. Los administradores los manejan, debajo de su familia, en
+[Familias y tipos de cotización](administracion.md#familias-y-tipos-de-cotización).
 
 ## SKU
 

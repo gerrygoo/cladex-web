@@ -13,13 +13,17 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
 
-// Familias holds the dependencies for the admin-only /familias handlers: list and
-// create the product familias (catalog categories), and rename one or set its SAT code.
-// How a quote is numbered and printed lives on its quote type (/tipos-de-cotizacion).
-// Familias are never deleted here: products reference them.
+// Familias holds the dependencies for the admin-only /familias handlers: the familias
+// and quote types page (issue #56), which lists each product familia (catalog category)
+// with its quote types under it; creating a familia; and renaming one or setting its SAT
+// code. Quote types are created and edited by Tipos, which comes back here. Familias are
+// never deleted here: products reference them.
 type Familias struct {
 	store *store.Store
 }
+
+// familiasPath is the familias and quote types page.
+const familiasPath = "/familias"
 
 func NewFamilias(s *store.Store) *Familias {
 	return &Familias{store: s}
@@ -38,6 +42,10 @@ func (f *Familias) List(w http.ResponseWriter, r *http.Request) {
 		successMsg = "Familia creada."
 	case "editada":
 		successMsg = "Familia guardada."
+	case "tipo-creado":
+		successMsg = "Tipo de cotización creado."
+	case "tipo-editado":
+		successMsg = "Tipo de cotización guardado."
 	}
 	f.renderList(w, r, "", nil, successMsg, http.StatusOK)
 }
@@ -49,9 +57,15 @@ func (f *Familias) renderList(w http.ResponseWriter, r *http.Request, name strin
 		serverError(w, r, err)
 		return
 	}
+	types, err := f.store.ListQuoteTypes(ctx)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	groups, orphans := views.GroupTiposByFamilia(families, types)
 	user, _ := UserFromContext(ctx)
 	w.WriteHeader(status)
-	views.FamiliasList(families, name, errs, successMsg, navUserView(user)).Render(ctx, w)
+	views.FamiliasList(groups, orphans, name, errs, successMsg, navUserView(user)).Render(ctx, w)
 }
 
 func (f *Familias) Create(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +77,7 @@ func (f *Familias) Create(w http.ResponseWriter, r *http.Request) {
 		_, err := f.store.CreateFamily(r.Context(), name)
 		switch {
 		case err == nil:
-			http.Redirect(w, r, "/familias?guardado=creada", http.StatusSeeOther)
+			http.Redirect(w, r, familiasPath+"?guardado=creada", http.StatusSeeOther)
 			return
 		case errors.Is(err, store.ErrDuplicateFamilyName):
 			errs["name"] = "Ya existe una familia con este nombre."
@@ -125,7 +139,7 @@ func (f *Familias) Update(w http.ResponseWriter, r *http.Request) {
 		err := f.store.UpdateFamily(r.Context(), fam.ID, name, satCode)
 		switch {
 		case err == nil:
-			http.Redirect(w, r, "/familias?guardado=editada", http.StatusSeeOther)
+			http.Redirect(w, r, familiasPath+"?guardado=editada", http.StatusSeeOther)
 			return
 		case errors.Is(err, store.ErrDuplicateFamilyName):
 			errs["name"] = "Ya existe una familia con este nombre."

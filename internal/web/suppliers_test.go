@@ -222,7 +222,7 @@ func TestSuppliersDuplicateAndReassign(t *testing.T) {
 	for _, want := range []string{
 		`<a href="/proveedores/` + itoa(created.ID) + `">Cable Anti Robo S.A. de C.V.</a>`,
 		`<a href="/proveedores/` + itoa(supplierByRFC(t, a.store, "CAR191126QX6").ID) + `">Cable Anti Robo</a>`,
-		"No aplica", "<th>Proveedor predeterminado</th>",
+		"No aplica", "<dt>Proveedor predeterminado</dt>",
 	} {
 		if !strings.Contains(fam, want) {
 			t.Errorf("/familias lacks %q", want)

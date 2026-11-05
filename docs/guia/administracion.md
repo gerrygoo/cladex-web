@@ -1,7 +1,7 @@
 # Administración
 
 Solo para cuentas con rol **Administrador**. Estas opciones están en el menú **Catálogos**,
-debajo de Productos, Clientes y Proveedores: **Usuarios**, **Familias**, **Tipos de cotización**,
+debajo de Productos, Clientes y Proveedores: **Usuarios**, **Familias y tipos de cotización**,
 **Unidades** y **Configuración del sistema**.
 
 En **Configuración del sistema** están los dos datos de los que salen los precios, además del costo de
@@ -182,30 +182,43 @@ lista es la **clave de unidad SAT** de cada una (p. ej. `MTR`), que tiene que ex
 el catálogo del SAT. La usan las facturas de los productos que aún no tienen su propia
 [clave de unidad](productos.md#datos-para-facturar-sat).
 
-## Familias
+## Familias y tipos de cotización
 
 Una [[familia]] es una línea de producto del catálogo (CCA, CCS & AC, ABASTILUM…): cada
-producto pertenece a una. La serie de folio, los términos y cómo se ve el PDF no son de
-la familia sino de cada [tipo de cotización](#tipos-de-cotización). **QL** es una
-familia especial sin productos: la usa el tipo QL, que solo cotiza
-[líneas libres](cotizaciones.md#agregar-una-línea-libre).
+producto pertenece a una. Un [[tipo de cotización]] es una clase de cotización: su
+[[serie]] de folio (QA, QS, QI…), su numeración, sus *Términos y condiciones* y cómo se
+ve su PDF. Al [crear una cotización](cotizaciones.md#crear-una-cotización) se elige su
+tipo, y el buscador de productos de esa cotización muestra la familia del tipo.
 
-La lista muestra también el **Proveedor predeterminado** de cada familia, con un enlace a
-su ficha, o *Sin asignar*. Se asigna desde el proveedor, en
-[Familias que surte](proveedores.md#familias-que-surte); aquí es solo de consulta. QL
-dice *No aplica*: no tiene proveedor predeterminado.
+Los dos están en una sola página: en el menú **Catálogos**, elige **Familias y tipos de
+cotización**. Cada familia aparece con:
+
+- **Productos**: *De catálogo*, o *Solo líneas libres* para **QL**, una familia especial
+  sin productos: la usa el tipo QL, que solo cotiza
+  [líneas libres](cotizaciones.md#agregar-una-línea-libre).
+- Su **Clave SAT**, o *Sin clave*.
+- Su **Proveedor predeterminado**, con un enlace a su ficha, o *Sin asignar*. Se asigna
+  desde el proveedor, en [Familias que surte](proveedores.md#familias-que-surte); aquí es
+  solo de consulta. QL dice *No aplica*: no tiene proveedor predeterminado.
+- Debajo, la tabla de sus **tipos de cotización**: serie, nombre, siguiente folio,
+  membrete y lo que hace diferente cada uno, con su enlace **Editar tipo**.
+
+Si algún tipo de cotización no tiene familia, aparece al final, en **Tipos sin
+familia**.
+
+Las familias y los tipos de cotización no se eliminan desde la app.
 
 ### Crear una familia
 
-1. En el menú **Catálogos**, elige **Familias**. Arriba ves la lista actual, con los
-   tipos de cotización de cada una.
-2. En **Nueva familia**, escribe el **Nombre** y haz clic en **Crear familia**.
-3. Para cotizar sus productos con una serie propia, crea después un
-   [tipo de cotización](#crear-un-tipo-de-cotización) de esa familia.
+1. En **Familias y tipos de cotización**, baja a **Nueva familia**.
+2. Escribe el **Nombre** y haz clic en **Crear familia**. Aparece en la página, todavía
+   sin tipo de cotización.
+3. Para cotizar sus productos con una serie propia, crea después su
+   [tipo de cotización](#crear-un-tipo-de-cotización).
 
 ### Editar una familia
 
-En **Familias**, haz clic en **Editar** en la fila de la familia. Ahí puedes cambiar:
+Haz clic en **Editar familia**, debajo de sus datos. Ahí puedes cambiar:
 
 - El **Nombre**, p. ej. de `CCS & AC` a `CCS`. Sus productos y sus tipos de cotización
   siguen siendo los mismos y muestran el nombre nuevo, igual que los borradores. Las
@@ -215,12 +228,10 @@ En **Familias**, haz clic en **Editar** en la fila de la familia. Ahí puedes ca
   la usan las líneas libres y los productos que aún no tienen clave propia. En cada
   factura se puede cambiar. Confírmala con el contador.
 
-Haz clic en **Guardar**. Las familias no se eliminan desde la app.
+Haz clic en **Guardar**. El nombre de un tipo de cotización (p. ej. *Cable CCS & AC*) es
+aparte: se cambia [en el tipo](#cambiar-un-tipo-de-cotización).
 
-El nombre de un [tipo de cotización](#tipos-de-cotización) (p. ej. *Cable CCS & AC*) es
-aparte: se cambia en **Tipos de cotización**.
-
-Mensajes de error:
+Mensajes de error de las familias:
 
 | Mensaje | Qué hacer |
 |---|---|
@@ -229,30 +240,23 @@ Mensajes de error:
 | *La clave SAT son 8 dígitos, p. ej. 26121600.* | Escribe solo los 8 dígitos. |
 | *La clave SAT 12345678 no existe en el catálogo del SAT.* | Revisa la clave con el contador. |
 
-## Tipos de cotización
-
-Un [[tipo de cotización]] es una clase de cotización: su [[serie]] de folio (QA, QS,
-QI…), su numeración, sus *Términos y condiciones* y cómo se ve su PDF. Al
-[crear una cotización](cotizaciones.md#crear-una-cotización) se elige su tipo. Están
-en el menú **Catálogos**, **Tipos de cotización**; la lista muestra el siguiente folio
-de cada uno.
-
 ### Crear un tipo de cotización
 
-1. En **Tipos de cotización**, ve a **Nuevo tipo de cotización**.
+1. En **Familias y tipos de cotización**, debajo de la familia, haz clic en **Nuevo tipo
+   de cotización para esta familia**. Se abre el formulario con esa familia ya elegida
+   en **Familia de sus productos**; el buscador de productos de sus cotizaciones la
+   muestra, y sus facturas toman su clave SAT.
 2. En **Serie**, escribe una Q seguida de 1 a 5 letras (p. ej. `QCCA`). Es el prefijo de
    sus folios (`QCCA0001`).
 3. Opcional: el **Nombre** aparece junto a la serie al elegir el tipo (p. ej.
    *QCCA — Cable CCA*).
-4. En **Familia de sus productos**, elige la familia que cotiza. El buscador de productos
-   de sus cotizaciones la muestra, y sus facturas toman su clave SAT.
-5. En **Términos y condiciones**, escribe un término por línea; se imprimen en el PDF.
+4. En **Términos y condiciones**, escribe un término por línea; se imprimen en el PDF.
    Si quieres que cada cotización pida un tiempo de entrega, escribe
    `{tiempo_de_entrega}` donde debe ir, p. ej. `Tiempo de entrega: {tiempo_de_entrega}`.
    El vendedor tendrá que escribirlo antes de [emitir](cotizaciones.md#tiempo-de-entrega).
    Igual con `{moneda}`: el vendedor elige MXN o USD y el texto pasa a *pesos mexicanos
    (MXN)* o *dólares americanos (USD)*, p. ej. `Precios en {moneda}, no incluyen IVA`.
-6. Elige el **Membrete del PDF** y marca lo que aplique:
+5. Elige el **Membrete del PDF** y marca lo que aplique:
    - *Solo líneas libres*: sin productos de catálogo, como QL. No se puede cambiar
      después.
    - *Precio por kg*: el costo de sus productos es por kilo y se cotizan por metro, como
@@ -260,13 +264,18 @@ de cada uno.
    - *"Otro margen" como precio por kg del cobre*, como QS.
    - *PDF sin la dirección de Cladex*.
    - *Al final de la lista de cotizaciones*.
-7. Haz clic en **Crear tipo**. Aparece de inmediato en **Nueva cotización**.
+6. Haz clic en **Crear tipo**. Aparece de inmediato debajo de su familia y en **Nueva
+   cotización**.
+
+Una familia puede tener más de un tipo de cotización: repite estos pasos desde la misma
+familia.
 
 ### Cambiar un tipo de cotización
 
-1. En **Tipos de cotización**, haz clic en **Editar** en su fila. Arriba dice cuál será
-   su siguiente folio.
-2. Cambia lo que necesites y haz clic en **Guardar**.
+1. En **Familias y tipos de cotización**, haz clic en **Editar tipo** en su fila, debajo
+   de su familia. Arriba dice cuál será su siguiente folio.
+2. Cambia lo que necesites y haz clic en **Guardar**. Ahí también se le cambia la
+   familia en **Familia de sus productos**.
 
 Puedes cambiar su **serie**, p. ej. de `QA` a `QCCA`:
 
@@ -285,12 +294,9 @@ el PDF con que se emitieron.
 > esas líneas para que se sigan pidiendo. Los tipos de solo líneas libres (como QL) además
 > piden una [vigencia](cotizaciones.md#moneda-y-vigencia-en-ql) escrita a mano.
 
-Los tipos de cotización no se eliminan desde la app.
-
-Mensajes de error:
+Mensajes de error de los tipos de cotización:
 
 | Mensaje | Qué hacer |
 |---|---|
 | *La serie es una Q seguida de 1 a 5 letras, p. ej. QCCA.* | Escribe algo como `QCCA`, sin números ni espacios. |
 | *Esa serie ya la tiene o la usó otro tipo de cotización; elige otra.* | Elige otra serie. |
-
