@@ -196,7 +196,6 @@ cotización**. Cada familia aparece con:
 - **Productos**: *De catálogo*, o *Solo líneas libres* para **QL**, una familia especial
   sin productos: la usa el tipo QL, que solo cotiza
   [líneas libres](cotizaciones.md#agregar-una-línea-libre).
-- Su **Clave SAT**, o *Sin clave*.
 - Su **Proveedor predeterminado**, con un enlace a su ficha, o *Sin asignar*. Se asigna
   desde el proveedor, en [Familias que surte](proveedores.md#familias-que-surte); aquí es
   solo de consulta. QL dice *No aplica*: no tiene proveedor predeterminado.
@@ -223,10 +222,11 @@ Haz clic en **Editar familia**, debajo de sus datos. Ahí puedes cambiar:
 - El **Nombre**, p. ej. de `CCS & AC` a `CCS`. Sus productos y sus tipos de cotización
   siguen siendo los mismos y muestran el nombre nuevo, igual que los borradores. Las
   cotizaciones ya emitidas no cambian: su PDF no lleva el nombre de la familia.
-- La **Clave de producto SAT** (8 dígitos, p. ej. `26121600`). Cada producto lleva la
-  suya en sus [Datos para facturar](productos.md#datos-para-facturar-sat); la de la familia
-  la usan las líneas libres y los productos que aún no tienen clave propia. En cada
-  factura se puede cambiar. Confírmala con el contador.
+- La **Clave de producto SAT de respaldo** (8 dígitos, p. ej. `26121600`), opcional. La
+  clave SAT va en cada producto, en sus
+  [Datos para facturar](productos.md#datos-para-facturar-sat); la de la familia solo la
+  usan las líneas libres y los productos que todavía no tienen la suya. En cada factura
+  se puede cambiar. Confírmala con el contador.
 
 Haz clic en **Guardar**. El nombre de un tipo de cotización (p. ej. *Cable CCS & AC*) es
 aparte: se cambia [en el tipo](#cambiar-un-tipo-de-cotización).
@@ -245,7 +245,7 @@ Mensajes de error de las familias:
 1. En **Familias y tipos de cotización**, debajo de la familia, haz clic en **Nuevo tipo
    de cotización para esta familia**. Se abre el formulario con esa familia ya elegida
    en **Familia de sus productos**; el buscador de productos de sus cotizaciones la
-   muestra, y sus facturas toman su clave SAT.
+   muestra.
 2. En **Serie**, escribe una Q seguida de 1 a 5 letras (p. ej. `QCCA`). Es el prefijo de
    sus folios (`QCCA0001`).
 3. Opcional: el **Nombre** aparece junto a la serie al elegir el tipo (p. ej.

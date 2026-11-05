@@ -93,14 +93,6 @@ templ familiaSection(g FamiliaGroup) {
 					De catálogo
 				}
 			</dd>
-			<dt>Clave SAT</dt>
-			<dd>
-				if g.Family.SATProductCode != "" {
-					{ g.Family.SATProductCode }
-				} else {
-					Sin clave
-				}
-			</dd>
 			<dt>Proveedor predeterminado</dt>
 			<dd>
 				// Set from the supplier's form (issue #64); QL never has one.
@@ -170,11 +162,11 @@ templ FamiliaEdit(savedName string, f store.Family, fieldErrors map[string]strin
 			@FieldError(fieldErrors, "name")
 			<p class="hint">El nombre nuevo se ve en el catálogo, en los tipos de cotización y en los borradores. Las cotizaciones ya emitidas no cambian: su PDF no lleva el nombre de la familia.</p>
 			<label>
-				Clave de producto SAT para facturar (8 dígitos, opcional)
+				Clave de producto SAT de respaldo (8 dígitos, opcional)
 				<input type="text" name="sat_product_code" value={ f.SATProductCode } inputmode="numeric" maxlength="8" pattern="[0-9]{8}" placeholder="p. ej. 26121600" { errAttrs(fieldErrors, "sat_product_code")... }/>
 			</label>
 			@FieldError(fieldErrors, "sat_product_code")
-			<p class="hint">La usan de inicio las partidas de las facturas de esta familia cuyo producto no tiene su propia clave (en Productos, «Datos para facturar») y las líneas libres; en cada factura se puede cambiar. Confírmala con el contador.</p>
+			<p class="hint">La clave SAT va en cada producto (en Productos, «Datos para facturar»). Esta solo se usa de respaldo: la toman las partidas de esta familia cuyo producto todavía no tiene la suya, y las líneas libres; en cada factura se puede cambiar. Confírmala con el contador.</p>
 			<button type="submit" class="primary">Guardar</button>
 			<a href="/familias">Cancelar</a>
 		</form>

@@ -149,7 +149,7 @@ func TestFamiliasPageGroupsTipos(t *testing.T) {
 	}
 	ex := section(body, groupID["Exceline"])
 	for _, want := range []string{"Todavía no tiene tipo de cotización.", `href="/tipos-de-cotizacion/nuevo?familia=` + fam + `"`,
-		`href="/familias/` + fam + `"`, "Sin clave", "Sin asignar"} {
+		`href="/familias/` + fam + `"`, "Sin asignar"} {
 		if !strings.Contains(ex, want) {
 			t.Errorf("Exceline's group lacks %q", want)
 		}
