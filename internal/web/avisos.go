@@ -34,13 +34,18 @@ func normalizeWhatsApp(raw string) (string, bool) {
 }
 
 // parseContactForm reads the Avisos form, shared by Mi cuenta and an admin's edit of
-// another user. Errors key by the input's name.
-func parseContactForm(r *http.Request) (store.UserContact, map[string]string) {
+// another user. Errors key by the input's name. Only an admin turns avisos on or off: for
+// anyone else, saved carries the toggles as they are, and the form's are ignored. Their
+// clearing an address still turns its avisos off (SetUserContact).
+func parseContactForm(r *http.Request, saved *store.UserContact) (store.UserContact, map[string]string) {
 	c := store.UserContact{
 		Email:          strings.TrimSpace(r.FormValue("email")),
 		WhatsApp:       strings.TrimSpace(r.FormValue("whatsapp")),
 		NotifyEmail:    r.FormValue("notify_email") == "1",
 		NotifyWhatsApp: r.FormValue("notify_whatsapp") == "1",
+	}
+	if saved != nil {
+		c.NotifyEmail, c.NotifyWhatsApp = saved.NotifyEmail, saved.NotifyWhatsApp
 	}
 	errs := map[string]string{}
 	if c.Email != "" {
@@ -56,6 +61,9 @@ func parseContactForm(r *http.Request) (store.UserContact, map[string]string) {
 			c.WhatsApp = n
 		}
 	}
+	if saved != nil {
+		return c, errs
+	}
 	if c.NotifyEmail && c.Email == "" {
 		errs["email"] = "Escribe el correo para recibir avisos por correo."
 	}
@@ -69,7 +77,16 @@ func parseContactForm(r *http.Request) (store.UserContact, map[string]string) {
 func (a *Auth) MiCuentaAvisos(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user, _ := UserFromContext(ctx)
-	c, errs := parseContactForm(r)
+	var saved *store.UserContact
+	if user.Role != "admin" {
+		s, err := a.store.UserContactByID(ctx, user.ID)
+		if err != nil {
+			serverError(w, r, err)
+			return
+		}
+		saved = &s
+	}
+	c, errs := parseContactForm(r, saved)
 	if len(errs) > 0 {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		views.MiCuenta(views.MiCuentaView{Contact: c, ContactErrors: errs}, navUserView(user)).Render(ctx, w)
@@ -90,7 +107,7 @@ func (u *Users) AvisosPage(w http.ResponseWriter, r *http.Request) {
 
 // Avisos handles POST /usuarios/{id}/avisos.
 func (u *Users) Avisos(w http.ResponseWriter, r *http.Request) {
-	c, errs := parseContactForm(r)
+	c, errs := parseContactForm(r, nil)
 	if len(errs) > 0 {
 		u.renderAvisos(w, r, &c, errs)
 		return

@@ -153,7 +153,7 @@ func MiCuenta(m MiCuentaView, user *NavUser) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = ContactForm("/mi-cuenta/avisos", m.Contact, m.ContactErrors).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = ContactForm("/mi-cuenta/avisos", m.Contact, m.ContactErrors, user.IsAdmin).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -37,11 +37,14 @@ adelante.
 1. Haz clic en tu nombre de usuario, arriba a la derecha. Se abre **Mi cuenta**.
 2. En **Avisos**, escribe tu **Correo** y, si quieres, tu número de **WhatsApp** (los 10
    dígitos, p. ej. `33 1234 5678`; si no es de México, con `+` y la lada del país).
-3. En **Recibir avisos por**, marca **Correo**, **WhatsApp** o los dos.
-4. Haz clic en **Guardar avisos**. Verás *Avisos guardados.*
+3. Haz clic en **Guardar avisos**. Verás *Avisos guardados.*
 
-Si no marcas ninguno, no recibes avisos. Un administrador también puede cambiar tus avisos
-desde **Usuarios**.
+Debajo dice si recibes avisos por correo, por WhatsApp o no recibes. **Solo un
+administrador puede cambiar qué avisos recibes**, desde **Usuarios → Avisos**. Si borras tu
+correo o tu número, dejas de recibir avisos por ese medio.
+
+**Si eres administrador**, en tu **Mi cuenta** también aparece **Recibir avisos por**:
+marca **Correo**, **WhatsApp** o los dos, y haz clic en **Guardar avisos**.
 
 ## Cerrar sesión
 

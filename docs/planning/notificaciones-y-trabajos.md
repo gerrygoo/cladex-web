@@ -164,6 +164,18 @@ with a fake for tests and local dev (it logs and records instead of sending).
 - Clients use the customer's `email` and `phone` already on file, plus the WhatsApp
   opt-in.
 
+**Decided 2026-11-08 (Gerry):**
+
+- **Which events notify whom comes from Emilio** before any real trigger is wired (N3 and
+  later wait on that issue). The seguimiento reminder in §3 is a proposal until then.
+- **Every trigger has its own per-user toggle, off by default**, so a user gets only the
+  avisos someone chose for them. With the channel toggles that makes a setting per user,
+  kind and channel; it lands with the first trigger (a table keyed by user and kind, or
+  columns, decided then).
+- **Only admins change toggles**, channel and per-trigger alike, on **Usuarios → Avisos**
+  (and their own Mi cuenta). A user still edits their own email and WhatsApp, sees what
+  they get, and clearing an address turns its channel off.
+
 ### Dashboard
 
 Admin-only, under Ajustes:
@@ -255,7 +267,7 @@ Where N1 and N2 differ from the text above (2026-10-26):
 - **A manual retry of a failed job** gives it its 5 attempts again.
 - **No attachment column yet**: it comes with its first use, the factura resend (N5).
 - The users' contact fields are edited on **Mi cuenta → Avisos** and, by an admin, on
-  **Usuarios → Avisos**; Trabajos has an "Encolar trabajo de prueba" to check the runner.
+  **Usuarios → Avisos**; since 2026-11-08 only an admin turns a channel on or off; Trabajos has an "Encolar trabajo de prueba" to check the runner.
 
 ## 5. Not in this work
 

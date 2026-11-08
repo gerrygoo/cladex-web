@@ -7,8 +7,9 @@ import (
 )
 
 // ContactForm is the Avisos form: a user's email and WhatsApp, and which of them to be
-// notified on. It posts to action.
-templ ContactForm(action string, c store.UserContact, errs map[string]string) {
+// notified on. It posts to action. Only an admin turns avisos on or off (canToggle); anyone
+// else sees which ones they get.
+templ ContactForm(action string, c store.UserContact, errs map[string]string, canToggle bool) {
 	<form method="post" action={ templ.URL(action) }>
 		<label>
 			Correo
@@ -20,17 +21,33 @@ templ ContactForm(action string, c store.UserContact, errs map[string]string) {
 			<input type="tel" name="whatsapp" value={ c.WhatsApp } autocomplete="tel" placeholder="p. ej. 33 1234 5678" { errAttrs(errs, "whatsapp")... }/>
 		</label>
 		@FieldError(errs, "whatsapp")
-		<fieldset>
-			<legend>Recibir avisos por</legend>
-			<label>
-				<input type="checkbox" name="notify_email" value="1" checked?={ c.NotifyEmail }/>
-				Correo
-			</label>
-			<label>
-				<input type="checkbox" name="notify_whatsapp" value="1" checked?={ c.NotifyWhatsApp }/>
-				WhatsApp
-			</label>
-		</fieldset>
+		if canToggle {
+			<fieldset>
+				<legend>Recibir avisos por</legend>
+				<label>
+					<input type="checkbox" name="notify_email" value="1" checked?={ c.NotifyEmail }/>
+					Correo
+				</label>
+				<label>
+					<input type="checkbox" name="notify_whatsapp" value="1" checked?={ c.NotifyWhatsApp }/>
+					WhatsApp
+				</label>
+			</fieldset>
+		} else {
+			<p>
+				switch {
+					case c.NotifyEmail && c.NotifyWhatsApp:
+						Recibes avisos por correo y por WhatsApp.
+					case c.NotifyEmail:
+						Recibes avisos por correo.
+					case c.NotifyWhatsApp:
+						Recibes avisos por WhatsApp.
+					default:
+						No recibes avisos.
+				}
+				Solo un administrador puede cambiar qué avisos recibes.
+			</p>
+		}
 		<button type="submit" class="primary">Guardar avisos</button>
 	</form>
 }
@@ -44,7 +61,7 @@ templ UsuarioAvisos(target store.User, c store.UserContact, errs map[string]stri
 		</div>
 		<p><a href="/usuarios">← Usuarios</a></p>
 		@Flash(successMsg)
-		<p>Dónde la app le avisa a { target.Username }, por ejemplo, cuando vence el seguimiento de un proyecto. Cada quien también lo puede cambiar en su Mi cuenta.</p>
-		@ContactForm("/usuarios/"+strconv.FormatInt(target.ID, 10)+"/avisos", c, errs)
+		<p>Dónde la app le avisa a { target.Username }, por ejemplo, cuando vence el seguimiento de un proyecto. Cada quien puede cambiar su correo y su WhatsApp en Mi cuenta; qué avisos recibe, solo un administrador.</p>
+		@ContactForm("/usuarios/"+strconv.FormatInt(target.ID, 10)+"/avisos", c, errs, true)
 	}
 }
