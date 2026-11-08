@@ -137,8 +137,9 @@ with a fake for tests and local dev (it logs and records instead of sending).
 
 - **Email provider** is picked by config (`EMAIL_PROVIDER=resend|smtp`), and the same
   `notifications` rows work with either. Resend is recommended for anything to clients,
-  since bounces are visible. Sending from a subdomain (`avisos.cladex.com.mx`) keeps any
-  reputation problems away from the team's own mailboxes.
+  since bounces are visible. Sending from a subdomain (`avisos.cladex.com.mx`) would keep any
+  reputation problems away from the team's own mailboxes; in the end (2026-11-08) the root
+  domain was verified in Resend and the sender is `noreply@cladex.com.mx`.
 - **WhatsApp templates are part of the code.** Each kind maps to a template name,
   language and its parameters, and the template text is mirrored in the repo so a
   review shows what people will receive. A template Meta hasn't approved fails as

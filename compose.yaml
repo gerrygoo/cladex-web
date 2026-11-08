@@ -36,7 +36,7 @@ x-cladex-env: &cladex-env
   # Email notifications (internal/notify). The API key is the resend_api_key secret; until
   # it's there, email is off and Configuración del sistema says so.
   EMAIL_PROVIDER: "resend"
-  EMAIL_FROM: "Cladex <avisos@avisos.cladex.com.mx>"
+  EMAIL_FROM: "Cladex <noreply@cladex.com.mx>"
 
 services:
   cladex-blue:
@@ -99,7 +99,7 @@ services:
       # Staging only notifies the addresses and numbers listed here, comma-separated; the
       # rest are recorded as cancelled. Empty, it sends nothing to anyone.
       EMAIL_PROVIDER: "resend"
-      EMAIL_FROM: "Cladex pruebas <avisos@avisos.cladex.com.mx>"
+      EMAIL_FROM: "Cladex pruebas <noreply@cladex.com.mx>"
       NOTIFY_ALLOW: ""
       # Plain HTTP on the LAN: a Secure cookie would never come back.
       COOKIE_SECURE: "false"

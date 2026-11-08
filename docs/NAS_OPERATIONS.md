@@ -235,16 +235,19 @@ read-only at `/run/secrets`:
 | Variable | Value |
 |---|---|
 | `EMAIL_PROVIDER` | `resend`, `smtp`, or `fake` (logs instead of sending, for local dev); unset turns email off |
-| `EMAIL_FROM` | The sender, `Cladex <avisos@avisos.cladex.com.mx>` |
+| `EMAIL_FROM` | The sender, `Cladex <noreply@cladex.com.mx>` |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME` | Only for `smtp`: e.g. `smtpout.secureserver.net`, `465` (or `587` with STARTTLS), the mailbox address (defaults to `EMAIL_FROM`'s) |
 | `NOTIFY_ALLOW` | Outside production, the only addresses and numbers that get anything, comma-separated |
 
 Setting up Resend, once:
 
-1. Create the Resend account and add the domain `avisos.cladex.com.mx`. Sending from a
-   subdomain keeps any reputation problem away from the team's own mailboxes.
-2. Add the DNS records Resend shows (SPF/MX on `send.avisos…`, the DKIM `TXT`) in
-   GoDaddy's DNS for `cladex.com.mx`, and wait for Resend to mark the domain verified.
+1. Create the Resend account and add the domain `cladex.com.mx` (verified 2026-11-08).
+   The plan was a subdomain (`avisos.cladex.com.mx`) to keep any reputation problem away
+   from the team's mailboxes; the root domain was verified instead, so the sender is
+   `noreply@cladex.com.mx`. The root's DMARC is `p=quarantine`, and Resend's DKIM aligns.
+2. Add the DNS records Resend shows in GoDaddy's DNS for `cladex.com.mx` (the DKIM `TXT`
+   at `resend._domainkey`, the `send` record for SPF and bounces), and wait for Resend to
+   mark the domain verified. They don't touch the team mailbox's MX, SPF or DMARC.
 3. Create an API key with **sending access** only, and put it in `secrets/resend_api_key`
    (ownership and mode as above). Staging can use the same key: it only sends to
    `NOTIFY_ALLOW`.

@@ -72,7 +72,7 @@ const (
 // Load reads the notification settings:
 //
 //   - EMAIL_PROVIDER: resend, smtp or fake (logs instead of sending); unset, email is off.
-//   - EMAIL_FROM: the sender, e.g. "Cladex <avisos@avisos.cladex.com.mx>".
+//   - EMAIL_FROM: the sender, e.g. "Cladex <noreply@cladex.com.mx>".
 //   - Resend: its API key in the resend_api_key secret.
 //   - SMTP: SMTP_HOST, SMTP_PORT (465, implicit TLS, or 587, STARTTLS; default 465),
 //     SMTP_USERNAME (default: EMAIL_FROM's address), and the smtp_password secret.
