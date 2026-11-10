@@ -104,6 +104,10 @@ var appRoutes = []route{
 	{"POST", "/proyectos/QA0001/ordenes-de-compra/1/confirmar", true},
 	{"POST", "/proyectos/QA0001/ordenes-de-compra/1/revision", true},
 	{"POST", "/proyectos/QA0001/ordenes-de-compra/1/proveedor-nuevo", true},
+	{"POST", "/proyectos/QA0001/ordenes-de-compra/1/cancelar", true},
+	{"POST", "/proyectos/QA0001/ordenes-de-compra/1/entregar", false},
+	{"POST", "/proyectos/QA0001/ordenes-de-compra/1/comprobante-entrega", false},
+	{"POST", "/proyectos/QA0001/ordenes-de-compra/1/deshacer-entrega", true},
 
 	{"GET", "/usuarios", true},
 	{"POST", "/usuarios/1/rol", true},

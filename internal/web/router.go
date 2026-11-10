@@ -180,6 +180,10 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /proyectos/{folio}/ordenes-de-compra/{id}/confirmar", admin(purchaseOrders.Confirmar))
 	mux.Handle("POST /proyectos/{folio}/ordenes-de-compra/{id}/revision", admin(purchaseOrders.Revision))
 	mux.Handle("POST /proyectos/{folio}/ordenes-de-compra/{id}/proveedor-nuevo", admin(purchaseOrders.ProveedorNuevo))
+	mux.Handle("POST /proyectos/{folio}/ordenes-de-compra/{id}/cancelar", admin(purchaseOrders.Cancelar))
+	mux.Handle("POST /proyectos/{folio}/ordenes-de-compra/{id}/entregar", authed(purchaseOrders.Entregar))
+	mux.Handle("POST /proyectos/{folio}/ordenes-de-compra/{id}/comprobante-entrega", authed(purchaseOrders.ComprobanteEntrega))
+	mux.Handle("POST /proyectos/{folio}/ordenes-de-compra/{id}/deshacer-entrega", admin(purchaseOrders.DeshacerEntrega))
 
 	mux.Handle("GET /facturas", authed(facturas.List))
 	mux.Handle("GET /facturas/{id}", authed(facturas.Page))

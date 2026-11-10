@@ -461,7 +461,7 @@ func TestProjectReads(t *testing.T) {
 		// QS0001 kept its 90 but is past prospecto, so the probability filter skips it.
 		{"probability filter", "", "folio", "asc", Filters{"probabilidad": {"90"}}, "QA0002"},
 		{"probability filter, two steps", "", "folio", "asc", Filters{"probabilidad": {"50", "90"}}, "QA0001,QA0002"},
-		// Nothing is Cerrado · Ganado before #66 can mark a delivery; the filters still run.
+		// None is Cerrado · Ganado here (TestDeliveries has one); the filter still runs.
 		{"Cerrado · Ganado filter", "", "folio", "asc", Filters{"etapa": {"cerrado"}}, ""},
 		{"cobro filter, en curso only", "", "folio", "asc", Filters{"cobro": {"pendiente"}}, "QS0001"},
 	} {
@@ -1092,7 +1092,7 @@ func TestProjectStates(t *testing.T) {
 	if got.Cobro != CobroPagado || got.Paid != 11600 || got.LastPaidOn != "2026-10-15" {
 		t.Errorf("paid = %+v", got)
 	}
-	// Facturada and pagado, but nothing can be entregado before #66: not closed yet.
+	// Facturada and pagado, but its O.C. isn't delivered: not closed yet (TestDeliveries closes one).
 	if got.Cerrado {
 		t.Error("closed without being delivered")
 	}

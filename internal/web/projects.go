@@ -136,8 +136,13 @@ func (p *Projects) Page(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
+	entrega, err := projectEntrega(ctx, p.store, user, project, pos.Orders)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
 	cobro := views.ProjectCobro{Payments: payments, CanRecord: canEditPO(user, project), CanDelete: user != nil && user.Role == store.RoleAdmin}
-	views.ProjectPage(*project, today(r), quotes, files, receipt, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user), supplier, panel, pos, cobro).Render(ctx, w)
+	views.ProjectPage(*project, today(r), quotes, files, receipt, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user), supplier, panel, pos, entrega, cobro).Render(ctx, w)
 }
 
 // Cancelar handles POST /proyectos/{folio}/cancelar (admin): marks the proyecto cancelado
@@ -741,7 +746,10 @@ func (p *Projects) adminPanel(ctx context.Context, user *store.AuthenticatedUser
 		case stamped:
 			act.Blocked = "No se puede cancelar: tiene una factura vigente. Primero cancela la factura."
 		case confirmedPO:
-			act.Blocked = "No se puede cancelar: tiene una orden de compra al proveedor confirmada. Primero cancélala."
+			act.Blocked = "No se puede cancelar: tiene una orden de compra al proveedor confirmada. Primero cancélala desde su página."
+			if project.States.Entrega == store.EntregaEntregado {
+				act.Blocked = "No se puede cancelar: sus órdenes de compra al proveedor ya están entregadas."
+			}
 		}
 		panel.StageActions = append(panel.StageActions, act)
 	}

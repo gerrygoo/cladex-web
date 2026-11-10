@@ -1,7 +1,8 @@
 # Estados del proyecto: facturación, entrega y cobro
 
 **Decided 2026-11-03, refined 2026-11-10 (see [Decisions 2026-11-10](#decisions-2026-11-10)); groundwork built
-2026-11-10 (see [Built 2026-11-10](#built-2026-11-10-groundwork)).** Replaces the single post-O.C. line of stages
+2026-11-10 (see [Built 2026-11-10](#built-2026-11-10-groundwork)), then #67 Cobro and #66
+Entrega the same day.** Replaces the single post-O.C. line of stages
 (`oc_recibida → facturado → en_entrega → cerrado`, `internal/store/projects.go`
 `ProjectFlow`) with three independent states, as Emilio's issues ask: #63 (Facturas),
 #66 (Estado de facturación y de entrega) and #67 (Estado de cobro). The questions still
@@ -186,7 +187,7 @@ Reactivar, Deshacer O.C. recibida.
 
 Choices made beyond the issues (smallest sensible, recorded here):
 
-- **Cerrado · Ganado can't happen yet.** `entregado` needs #66's delivery records, so the
+- **Cerrado · Ganado can't happen yet** (until #66, built below). `entregado` needs #66's delivery records, so the
   view never says it; the seam is the `entrega` CASE in the view. Proyectos that were
   `en_entrega` or `cerrado` before 0041 are en curso now (QA0037 in production: facturada
   by its typed folio, pagado by its migrated payment, Entrega from its supplier O.C.). #66
@@ -233,3 +234,65 @@ The typed "Registrar pago completado" form, the Estado de pago badge and
   never deleted).
 - **The Cobro section also shows on a cancelled proyecto with payments** (read-only), so
   an admin can still delete one; Registrar pago is en curso only.
+
+## Built 2026-11-10: #66 Entrega
+
+Migration `0042_entregas.sql`:
+
+- `deliveries` (proyecto, the O.C.'s `seq`, the `purchase_order_id` that was vigente when
+  marked, `delivered_on`, nullable `file_id` into `project_files` of kind `entrega`,
+  created by/at, undone by/at with `undo_reason`), audited, at most one in force per
+  proyecto and seq (partial unique index).
+- `purchase_orders` gains `cancel_reason`, `cancelled_by`, `cancelled_at` (status
+  `cancelada`, reserved since 0034), in the audit trigger.
+- `project_states.entrega`: `sin_oc` without a confirmed O.C.; `entregado` when every
+  confirmed O.C. has a delivery in force for its seq; else `en_proceso`. `cerrado` reads it
+  unchanged, so **Cerrado · Ganado is reachable**; the list already hides it by default and
+  the Etapa filter shows it.
+- Marked **exclusive** only because replacing a view is `DROP VIEW` (which
+  `TestBreakingMigrationsAreExclusive` flags); the previous build would run against it.
+- **Legacy deliveries:** a proyecto whose last stage before 0041 was `en_entrega` or
+  `cerrado` (its newest `projects` audit row at or before 0041's `applied_at`) gets a
+  delivery for each confirmed supplier O.C.: dated the México City day (UTC-6) of the audit
+  row that last moved it to `en_entrega` (else to `cerrado`), by that row's actor (else its
+  vendedor), no comprobante, logged as the system. A proyecto that went to `en_entrega` and
+  back isn't seeded. In production that should be exactly QA0037 (cerrado, one confirmed
+  O.C., facturada by its typed folio and pagado by its migrated payment), which becomes
+  Cerrado · Ganado again. Nothing matches, nothing is written.
+
+`store.MarkDelivered` / `AddDeliveryFile` / `UndoDelivery` / `CancelPurchaseOrder`
+(`internal/store/deliveries.go`), under the O.C.:
+`POST /proyectos/{folio}/ordenes-de-compra/{id}/entregar` and `/comprobante-entrega` (the
+proyecto's vendedor or an admin), `/deshacer-entrega` and `/cancelar` (admin, motivo
+required). The summary's Estado de entrega shows "En proceso de entrega · OC-…" (link to the
+vigente revision) or "· 1 de 2 entregadas", and "Entregado · [fecha] · Ver comprobante".
+The **Entrega** section (en curso, with at least one confirmed O.C.) has one block per
+confirmed O.C. with its state, who marked it, the comprobante and the actions. History
+lines: "Marcado como entregado el [fecha] por [usuario] (con comprobante): orden de compra
+OC-…", "Comprobante de entrega agregado por …", "Se regresó la orden de compra OC-… a En
+proceso de entrega." and "Se canceló la orden de compra OC-…", the last two with "Motivo:".
+
+Choices made beyond the issue (smallest sensible, recorded here):
+
+- **Delivery belongs to the O.C., keyed by its seq**, which its revisions keep. A revision
+  confirmed after the delivery stays delivered (it corrects the paperwork: price, address);
+  `purchase_order_id` records which revision was vigente when it was marked. If a revision
+  changes what is delivered, an admin undoes the delivery.
+- **Undo keeps the row** (soft, like a deleted payment) and the comprobante file; the O.C.
+  can be marked again, as a new row.
+- **The comprobante is added once**: no replacing it (undo and mark again if it was wrong).
+- **Cancelling an O.C. is on the O.C.'s page** (next to Crear revisión), not in Entrega;
+  the Entrega section holds the delivery actions only. It discards a revision of that O.C.
+  still in borrador. It can't be undone. On QA/QS/QI/QALC "Generar orden de compra"
+  comes back; the new O.C. takes the next seq (OC-…-2, with its own date).
+- **Blockers needed no change:** Cancelar proyecto and Deshacer O.C. recibida count
+  `status = 'confirmada'` only, so a cancelled O.C. is already inactive; the admin panel
+  reads `ps.entrega != 'sin_oc'`, which goes back to sin_oc once every O.C. is cancelled. A
+  delivered O.C. still blocks them (undo the delivery, then cancel the O.C.).
+- **"Entregado · [fecha]"** uses the newest delivery day; "Ver comprobante" only with exactly
+  one confirmed O.C. that has one. Marking needs the proyecto en curso; the date has no lower
+  bound (not checked against the O.C.'s confirmation, since the legacy ones predate theirs).
+- **The Entrega section sits between Orden de compra al proveedor and Cobro**, in the
+  summary's order (facturación, entrega, cobro), rather than "al final" as the issue says.
+- `static/app.js`'s Sí/No file toggle is shared: `data-comprobante-form` /
+  `data-comprobante-file` on both Registrar pago and Marcar como entregado.

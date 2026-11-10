@@ -8,8 +8,8 @@ mandarla al proveedor. La app no manda correos: el PDF se envía por fuera.
 
 | Quién | Qué puede hacer |
 |---|---|
-| El vendedor del proyecto | Generar, editar, ver y eliminar el borrador |
-| Un administrador | Todo lo anterior, y además confirmar y descargar, crear revisiones y dar de alta un proveedor desde la orden (QL) |
+| El vendedor del proyecto | Generar, editar, ver y eliminar el borrador, y [marcar la entrega](proyectos.md#marcar-la-entrega) de una orden confirmada |
+| Un administrador | Todo lo anterior, y además confirmar y descargar, crear revisiones, cancelar una orden confirmada, regresar una entrega a En proceso y dar de alta un proveedor desde la orden (QL) |
 | Cualquier otro usuario | Ver las órdenes y sus PDF |
 
 El PDF nunca muestra el precio de venta ni el margen.
@@ -22,7 +22,10 @@ El PDF nunca muestra el precio de venta ni el margen.
 2. Haz clic en **Generar orden de compra**. Se abre el borrador con todo precargado.
 
 La sección lista todas las órdenes del proyecto con su **Número**, **Proveedor**,
-**Estado** (*Borrador*, *Confirmada* o *Reemplazada*), **Total** y **Ver PDF**.
+**Estado** (*Borrador*, *Confirmada*, *Reemplazada* o *Cancelada*), **Total** y **Ver PDF**.
+Cada orden confirmada aparece también en la sección **Entrega**, donde se
+[marca como entregada](proyectos.md#marcar-la-entrega); su página dice su **Estado de
+entrega**.
 
 En **QA, QS, QI y QALC** el proyecto lleva una sola orden de compra: una vez generada, el
 botón ya no aparece (una orden confirmada se corrige con una
@@ -147,7 +150,34 @@ dice la de la revisión. La anterior queda como **Reemplazada** y se puede segui
 consultando y descargando. Mientras la revisión es borrador, la original sigue
 **Confirmada**; si eliminas el borrador de la revisión, no cambia nada.
 
-Cancelar una orden confirmada (sin reemplazarla) todavía no se puede hacer desde la app.
+Una revisión no cambia la entrega: si la orden ya estaba entregada, la revisión confirmada
+sigue entregada.
+:::
+
+## Cancelar una orden confirmada
+
+Para no comprarle a ese proveedor (por ejemplo, para cambiar de proveedor), un
+administrador cancela la orden. No se corrige: para corregirla se usa una
+[revisión](#corregir-una-orden-confirmada).
+
+:::admin
+1. Abre la orden confirmada (su número en la sección del proyecto).
+2. En **Cancelar orden de compra**, escribe el **Motivo** (obligatorio) y haz clic en
+   **Cancelar orden de compra**, y confirma.
+3. Verás *"Orden de compra cancelada."* La orden queda como **Cancelada**, con quién la
+   canceló, cuándo y el **Motivo de la cancelación**, y en el historial del proyecto queda
+   *"Se canceló la orden de compra OC-…"* con el motivo.
+
+- Una orden cancelada se sigue consultando y descargando, pero ya no cuenta: sus partidas
+  quedan libres para otra orden (en QA, QS, QI y QALC vuelve a aparecer **Generar orden de
+  compra**; la nueva lleva el siguiente sufijo, p. ej. **OC-QA0037-051126-2**), y si el
+  proyecto no tiene otra orden confirmada su [[estado de entrega]] regresa a *Sin emitir
+  O.C.*
+- Una orden **entregada** no se puede cancelar: su página dice *"No se puede cancelar: ya
+  está entregada."* Si se marcó por error, primero
+  [regrésala a En proceso de entrega](proyectos.md#marcar-la-entrega).
+- Si la orden tenía una revisión en borrador, esa revisión se elimina con ella.
+- No se puede deshacer.
 :::
 
 ## Varias órdenes en QL

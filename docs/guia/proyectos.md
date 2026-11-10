@@ -23,15 +23,12 @@ facturar, o al revés):
 | Estado | Valores | Cambia con |
 |---|---|---|
 | [[Estado de facturación]] | Pendiente, Pendiente complemento de pago, Facturada | la factura y, si es P.P.D., sus comprobantes de pago |
-| [[Estado de entrega]] | Sin emitir O.C., En proceso de entrega, Entregado | la [orden de compra al proveedor](ordenes-de-compra.md) confirmada |
+| [[Estado de entrega]] | Sin emitir O.C., En proceso de entrega, Entregado | las [órdenes de compra al proveedor](ordenes-de-compra.md) confirmadas y su [entrega](#marcar-la-entrega) |
 | [[Estado de cobro]] | Pendiente de pago, Pago parcial, Pagado | los pagos del cliente que se registran |
 
 Cuando los tres están completos (*Facturada*, *Entregado* y *Pagado*), el proyecto queda
 **Cerrado · Ganado**. Si después algo deja de cumplirse (por ejemplo, se cancela su factura
 o se borra un pago registrado por error), regresa solo a **En curso**.
-
-> Todavía no se puede marcar un proyecto como *Entregado*: llega en una próxima versión.
-> Mientras tanto ningún proyecto llega a Cerrado · Ganado.
 
 ## Buscar un proyecto
 
@@ -87,9 +84,10 @@ Debajo del folio y del cliente verás este resumen:
 
 Más abajo están **Seguimiento y comentarios** (la probabilidad, las fechas o, desde que se
 recibe, la orden de compra, el comentario y, justo debajo, el historial), **Facturación**,
-**Orden de compra al proveedor** (ver [Órdenes de compra a proveedor](ordenes-de-compra.md))
-y **Cobro** (desde que se recibe la orden) y **Cotizaciones** (la vigente y las que fueron
-revisadas, cada una con su enlace).
+**Orden de compra al proveedor** (ver [Órdenes de compra a proveedor](ordenes-de-compra.md)),
+**Entrega** (desde que se confirma una orden de compra al proveedor) y **Cobro** (desde que
+se recibe la orden) y **Cotizaciones** (la vigente y las que fueron revisadas, cada una con
+su enlace).
 
 En un proyecto **QL**, antes de **Cotizaciones** está también la **Cotización del
 proveedor**: el proveedor, su número de cotización y los archivos, los mismos que en la
@@ -222,6 +220,48 @@ registrada: …"* con el folio, la fecha y el método.
 - ¿Te equivocaste en un folio? Anota la corrección en un comentario: por ahora la factura
   registrada a mano no se puede cambiar.
 
+### Marcar la entrega
+
+La entrega se marca **por cada orden de compra al proveedor** confirmada, en la sección
+**Entrega** del proyecto en curso. La sección aparece en cuanto un administrador confirma la
+primera [orden de compra al proveedor](ordenes-de-compra.md#confirmar-y-descargar); mientras
+no hay ninguna confirmada (*Sin emitir O.C.*), no aparece. Pueden marcarla el vendedor del
+proyecto y los administradores.
+
+1. Abre el proyecto y baja a **Entrega**. Cada orden aparece con su número (con enlace),
+   el proveedor y su **Estado de entrega**: *En proceso de entrega* o *Entregado*.
+2. En la orden que llegó, haz clic en **Marcar como entregado**.
+3. Revisa la **Fecha de entrega**: viene con la de hoy y no puede ser futura.
+4. En **¿Quieres subir un comprobante de entrega?**, deja **No**, o elige **Sí** y adjunta el
+   **Comprobante de entrega** (PDF, JPG o PNG de hasta 10 MB, como el archivo de la O.C.).
+   Con **Sí**, el archivo es obligatorio.
+5. Haz clic en **Guardar**.
+
+La orden queda *Entregado* con su fecha, **Marcó** (quién y cuándo) y el **Comprobante**
+(con enlace, o *Sin comprobante*). En el historial queda *"Marcado como entregado el
+[fecha] por [usuario]: orden de compra OC-…"*, con *"con comprobante"* si se subió.
+
+- **Subir el comprobante después.** Si se marcó sin comprobante, en la orden aparece
+  **Subir comprobante de entrega**: adjunta el archivo y haz clic en **Guardar**. En el
+  historial queda *"Comprobante de entrega agregado por [usuario]: orden de compra OC-…"*.
+  Una vez subido, ya no se cambia.
+- **Varias órdenes (QL).** El proyecto queda *Entregado* cuando **todas** sus órdenes
+  confirmadas lo están. Mientras falte alguna, el resumen dice, por ejemplo, *"En proceso
+  de entrega · 1 de 2 entregadas"*.
+- **Revisiones.** La entrega es de la orden, no de una revisión: si después se confirma
+  una revisión (-R1), sigue entregada, y el enlace del resumen lleva a la revisión vigente.
+- Una orden [cancelada](ordenes-de-compra.md#cancelar-una-orden-confirmada) ya no cuenta.
+  Si no queda ninguna otra confirmada, la entrega regresa a *Sin emitir O.C.*
+
+:::admin
+**Regresar a En proceso de entrega.** Si una orden se marcó como entregada por error, en
+su bloque de **Entrega** haz clic en **Regresar a En proceso de entrega**, escribe el
+**Motivo** (obligatorio), haz clic en **Regresar a En proceso** y confirma. En el historial
+queda *"Se regresó la orden de compra OC-… a En proceso de entrega."* con el motivo. Su
+comprobante, si tenía, se conserva con los archivos del proyecto, y la orden se puede
+volver a marcar.
+:::
+
 ### Registrar un pago
 
 Cada pago del cliente (un anticipo, una parte, el total) se registra en la sección
@@ -266,7 +306,11 @@ se escoge: cada uno sale de lo que está registrado.
   *Facturada*. Si se cancela la factura, regresa a *Pendiente*.
 - **Estado de entrega**: *Sin emitir O.C.* hasta que un administrador confirma la
   [orden de compra al proveedor](ordenes-de-compra.md); entonces *En proceso de entrega*,
-  con el número de la orden y su enlace.
+  con el número de la orden y su enlace (con varias órdenes, *"En proceso de entrega · 1 de
+  2 entregadas"*). Cuando todas están [marcadas como entregadas](#marcar-la-entrega),
+  *Entregado*, con la fecha de la última entrega y, si el proyecto tiene una sola orden con
+  comprobante, **Ver comprobante**. Si se cancelan todas sus órdenes, regresa a *Sin emitir
+  O.C.*
 - **Estado de cobro**: *Pendiente de pago* sin pagos; *Pago parcial · Pagado $X de $Y ·
   Saldo $Z* mientras no cubren el total con IVA; *Pagado*, con la fecha del último pago,
   cuando lo cubren. Ver [Registrar un pago](#registrar-un-pago).
@@ -360,7 +404,9 @@ proyecto. Las dos cosas piden un **Motivo**, que queda en el historial.
 [[cancelado|Cancelado]]: la página muestra **Proyecto cancelado** con el motivo, cuándo se
 canceló y en qué etapa estaba, y en el historial queda *"Se canceló."* con el motivo. No se
 puede cancelar mientras tenga una factura vigente o una orden de compra al proveedor
-confirmada: primero hay que cancelar esas; la sección lo dice en lugar del botón.
+confirmada: primero hay que cancelar esas (ver [Cancelar una orden
+confirmada](ordenes-de-compra.md#cancelar-una-orden-confirmada)); la sección lo dice en
+lugar del botón. Las órdenes ya canceladas no lo impiden.
 
 **Reactivar.** En la página del proyecto cancelado, escribe el **Motivo** y haz clic en
 **Reactivar como …**: regresa a la etapa en que estaba, y en el historial queda *"Se
@@ -372,7 +418,7 @@ El proyecto regresa a prospecto en **Inminente 90%**, sin el número ni la fecha
 (quedan en el historial: *"Se deshizo la O.C. recibida (O.C. …)."*), y su cotización se
 puede volver a revisar. Los archivos de la orden se conservan. No se puede si el proyecto
 ya tiene factura (timbrada o registrada a mano) o una orden de compra al proveedor
-confirmada.
+confirmada (las canceladas no cuentan).
 :::
 
 ## Reasignar o eliminar un proyecto

@@ -224,13 +224,14 @@
     });
   });
 
-  // "Registrar pago" (#67): the comprobante's file field shows, and is required, only
-  // with "¿Quieres subir un comprobante de pago?" answered Sí. The server checks it too.
+  // "Registrar pago" (#67) and "Marcar como entregado" (#66): the comprobante's file
+  // field shows, and is required, only with "¿Quieres subir un comprobante…?" answered Sí.
+  // The server checks it too.
   document.addEventListener("change", function (e) {
-    var form = e.target.closest && e.target.closest("[data-payment-form]");
+    var form = e.target.closest && e.target.closest("[data-comprobante-form]");
     if (!form || e.target.name !== "comprobante") return;
     var yes = e.target.value === "si";
-    var field = form.querySelector("[data-payment-file]");
+    var field = form.querySelector("[data-comprobante-file]");
     field.hidden = !yes;
     field.querySelector("input").required = yes;
   });

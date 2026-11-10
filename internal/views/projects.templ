@@ -116,9 +116,9 @@ templ ProjectsTableBody(projects []store.Project, today string) {
 
 // ProjectPage is a proyecto: where it stands (its stage and, once en curso, its Estado
 // de facturación, de entrega and de cobro), its follow-up and history, its factura,
-// supplier O.C.s and payments (Cobro), every quote it has had, and the admin's tools at
-// the bottom.
-templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []store.ProjectFile, receipt store.OCReceipt, comments []store.ProjectComment, commentsLV ListView, facturas []store.Comprobante, factEnabled bool, user *NavUser, supplier SupplierQuoteView, adminPanel *AdminPanel, pos ProjectPOs, cobro ProjectCobro) {
+// supplier O.C.s, their delivery (Entrega) and payments (Cobro), every quote it has had,
+// and the admin's tools at the bottom.
+templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []store.ProjectFile, receipt store.OCReceipt, comments []store.ProjectComment, commentsLV ListView, facturas []store.Comprobante, factEnabled bool, user *NavUser, supplier SupplierQuoteView, adminPanel *AdminPanel, pos ProjectPOs, entrega ProjectEntrega, cobro ProjectCobro) {
 	@Layout("Proyecto "+p.Folio, user) {
 		<div class="page-title">
 			<h1>Proyecto { p.Folio }</h1>
@@ -198,13 +198,7 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 				<dd>{ store.FacturacionLabels[p.States.Facturacion] }</dd>
 				<dt>Estado de entrega</dt>
 				<dd>
-					{ store.EntregaLabels[p.States.Entrega] }
-					if p.States.Entrega == store.EntregaEnProceso {
-						for _, o := range confirmedPOs(pos.Orders) {
-							{ " · " }
-							<a href={ templ.URL(POPath(p.Folio, o.ID, "")) }>{ o.Number }</a>
-						}
-					}
+					@EntregaState(p, entrega)
 				</dd>
 				<dt>Estado de cobro</dt>
 				<dd>{ cobroText(p) }</dd>
@@ -329,6 +323,9 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 			</section>
 		}
 		@ProjectPOSection(p, pos)
+		if p.Status == store.StageEnCurso && len(entrega.Orders) > 0 {
+			@ProjectEntregaSection(p, entrega, today)
+		}
 		if p.Status == store.StageEnCurso || len(cobro.Payments) > 0 {
 			@ProjectCobroSection(p, cobro, today)
 		}
@@ -448,7 +445,7 @@ templ ProjectCobroSection(p store.Project, c ProjectCobro, today string) {
 			if c.CanRecord {
 				<details class="disclosure" id="registrar-pago">
 					<summary>Registrar pago</summary>
-					<form method="post" action={ templ.URL(projectPath(p.Folio) + "/pagos") } enctype="multipart/form-data" class="stage-form" data-payment-form>
+					<form method="post" action={ templ.URL(projectPath(p.Folio) + "/pagos") } enctype="multipart/form-data" class="stage-form" data-comprobante-form>
 						<div class="followup-dates">
 							<label>
 								Fecha de pago
@@ -470,7 +467,7 @@ templ ProjectCobroSection(p store.Project, c ProjectCobro, today string) {
 								No
 							</label>
 						</fieldset>
-						<label data-payment-file hidden>
+						<label data-comprobante-file hidden>
 							Comprobante de pago (PDF, JPG o PNG de hasta 10 MB)
 							<input type="file" name="archivo" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"/>
 						</label>

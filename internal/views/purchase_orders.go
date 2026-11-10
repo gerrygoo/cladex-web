@@ -100,6 +100,8 @@ type PurchaseOrderPage struct {
 	NewSupplierOpen   bool
 	// Download is the PDF to save right after confirming, "" otherwise.
 	Download string
+	// Delivery is the O.C.'s delivery in force (#66), nil while it isn't delivered.
+	Delivery *store.Delivery
 }
 
 // POStatusLabel is how a status reads.

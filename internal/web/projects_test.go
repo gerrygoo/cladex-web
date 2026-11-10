@@ -1148,7 +1148,7 @@ func TestProjectsCobro(t *testing.T) {
 	for _, want := range []string{"<dt>Estado de cobro</dt><dd>Pendiente de pago</dd>", "<h2>Cobro</h2>", "Todavía no hay pagos registrados.",
 		"<dt>Total del proyecto (con IVA)</dt><dd>" + total.String() + "</dd>", "<dt>Pagado</dt><dd>$0.00</dd>", "<dt>Saldo pendiente</dt><dd>" + total.String() + "</dd>",
 		"<summary>Registrar pago</summary>", `name="monto" value="` + value(total) + `" min="0.01" max="` + value(total) + `"`, `max="` + time.Now().UTC().Format("2006-01-02")[:4],
-		"¿Quieres subir un comprobante de pago?", `name="comprobante" value="no" checked`, "<label data-payment-file hidden>"} {
+		"¿Quieres subir un comprobante de pago?", `name="comprobante" value="no" checked`, "<label data-comprobante-file hidden>"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("en curso page missing %q", want)
 		}

@@ -20,8 +20,8 @@ import (
 // Confirming numbers it and freezes its PDF; a confirmed O.C. is corrected by a
 // revision, which replaces it once confirmed.
 
-// Purchase order statuses, as stored in purchase_orders.status. POCancelada is reserved
-// in the schema; nothing sets it yet.
+// Purchase order statuses, as stored in purchase_orders.status. An admin cancels a
+// confirmed O.C. (CancelPurchaseOrder, #66); a cancelled one counts for nothing.
 const (
 	POBorrador    = "borrador"
 	POConfirmada  = "confirmada"
@@ -97,6 +97,11 @@ type PurchaseOrder struct {
 	// and PDFSHA256 its hash; both empty on a borrador.
 	Document  string
 	PDFSHA256 string
+	// CancelReason, CancelledByName and CancelledAt say why, by whom and when a cancelada
+	// O.C. was cancelled; empty on any other.
+	CancelReason    string
+	CancelledByName string
+	CancelledAt     string
 }
 
 // Label is how the O.C. is named on screen: its number, or "Borrador" plus what it
@@ -152,13 +157,15 @@ const poSelectCols = `
 	po.currency, po.payment_form, po.credit_days, po.payment_other,
 	po.subtotal, po.iva, po.total, COALESCE(po.revision_reason, ''),
 	po.created_by, cu.name, po.created_at, COALESCE(fu.name, ''), COALESCE(po.confirmed_at, ''),
-	COALESCE(po.document, ''), COALESCE(po.pdf_sha256, '')`
+	COALESCE(po.document, ''), COALESCE(po.pdf_sha256, ''),
+	COALESCE(po.cancel_reason, ''), COALESCE(xu.name, ''), COALESCE(po.cancelled_at, '')`
 
 const poFrom = `
 	FROM purchase_orders po
 	JOIN projects p ON p.id = po.project_id
 	JOIN users cu ON cu.id = po.created_by
 	LEFT JOIN users fu ON fu.id = po.confirmed_by
+	LEFT JOIN users xu ON xu.id = po.cancelled_by
 	LEFT JOIN suppliers s ON s.id = po.supplier_id`
 
 func scanPO(row interface{ Scan(...any) error }) (*PurchaseOrder, error) {
@@ -171,7 +178,7 @@ func scanPO(row interface{ Scan(...any) error }) (*PurchaseOrder, error) {
 		&po.Currency, &po.PaymentForm, &credit, &po.PaymentOther,
 		&po.Subtotal, &po.IVA, &po.Total, &po.RevisionReason,
 		&po.CreatedBy, &po.CreatedByName, &po.CreatedAt, &po.ConfirmedByName, &po.ConfirmedAt,
-		&po.Document, &po.PDFSHA256)
+		&po.Document, &po.PDFSHA256, &po.CancelReason, &po.CancelledByName, &po.CancelledAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

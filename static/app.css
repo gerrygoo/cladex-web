@@ -1834,3 +1834,14 @@ ul.completados-list .comment-meta {
   display: block;
   color: var(--success);
 }
+
+/* One supplier O.C. in the proyecto's Entrega section (#66): its delivery and actions. */
+article.entrega-oc {
+  margin-block: 1rem 1.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--rule);
+}
+
+article.entrega-oc h3 {
+  margin-block: 0 0.5rem;
+}

@@ -142,8 +142,10 @@ con sus comprobantes de pago, o una factura registrada a mano.
 ## Estado de entrega
 
 Si ya se le pidió al proveedor y se entregó. **Sin emitir O.C.**: todavía no se confirma la
-orden de compra al proveedor. **En proceso de entrega**: ya está confirmada.
-**Entregado**: se marcó como entregado (llega en una próxima versión).
+orden de compra al proveedor (o se cancelaron todas). **En proceso de entrega**: hay al
+menos una confirmada que falta marcar como entregada. **Entregado**: todas las órdenes
+confirmadas se marcaron como entregadas, cada una con su fecha y, si se subió, su
+comprobante de entrega.
 
 ## Estado de cobro
 

@@ -197,15 +197,3 @@ func SellerMargin(v store.SellerRow) string {
 	}
 	return marginPercentText(int64(v.Profit), int64(v.Pipeline)) + " · " + v.Profit.String()
 }
-
-// confirmedPOs are the supplier O.C.s in force: the confirmed ones (a revision replaces
-// the one it corrects), which put a proyecto's Estado de entrega in proceso.
-func confirmedPOs(orders []store.PurchaseOrder) []store.PurchaseOrder {
-	var out []store.PurchaseOrder
-	for _, o := range orders {
-		if o.Status == store.POConfirmada {
-			out = append(out, o)
-		}
-	}
-	return out
-}

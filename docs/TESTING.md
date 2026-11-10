@@ -108,7 +108,12 @@ groundwork for the three states (2026-11-10) replaced the stage-move tests:
 `TestAdminStageChanges` and `TestMigration0041` in the store; `TestProjectsTypedFactura`
 and the admin half of `TestProjectsFollowUp` (Deshacer O.C., Cancelar, Reactivar) in the
 web layer. #67 Cobro added `TestPayments` in the store and `TestProjectsCobro`, which walks
-the issue's acceptance criteria through the handlers (multipart, with the comprobante).
+the issue's acceptance criteria through the handlers (multipart, with the comprobante). #66
+Entrega added `TestDeliveries` (per-O.C. delivery, the comprobante added later, undo,
+cancelling a supplier O.C., a revision after delivery, Cerrado · Ganado) and
+`TestMigration0042` (the old flow's en_entrega/cerrado proyectos seeded from the audit log)
+in the store, and `TestEntrega` in the web layer, which also pins what `proyectos.md`
+("Marcar la entrega") and `ordenes-de-compra.md` ("Cancelar una orden confirmada") quote.
 
 ## Tracked gaps
 
@@ -173,7 +178,8 @@ per guide page:
   the QALC kg columns, the conditions' texts, the numbers with -2 and -R1, the new
   supplier from a QL O.C. and the Configuración del sistema block. The cost and rounding
   rules, numbering and the delete rules are in `internal/store/purchase_orders_test.go`,
-  the PDF's layout in `internal/pdf/purchase_order_test.go`.
+  the PDF's layout in `internal/pdf/purchase_order_test.go`. Cancelling a confirmed O.C.
+  and its Estado de entrega (#66) are `TestEntrega` in `internal/web/entregas_test.go`.
 - **dashboard.md** — pinned by `internal/web/dashboard_test.go` (issues #72 and #70):
   Mis pendientes' list, order, priorities, *Escribe qué tienes pendiente.*, Completados and
   Reabrir, and that no one else, admins included, sees or touches a user's pendientes

@@ -117,6 +117,27 @@ templ PurchaseOrderView(p PurchaseOrderPage, user *NavUser) {
 					{ " · " + p.PO.ConfirmedByName }
 				</dd>
 			}
+			if p.PO.Status == store.POCancelada {
+				<dt>Cancelada</dt>
+				<dd>
+					@Timestamp(p.PO.CancelledAt)
+					{ " · " + p.PO.CancelledByName }
+				</dd>
+				<dt>Motivo de la cancelación</dt>
+				<dd class="comment-body">{ p.PO.CancelReason }</dd>
+			}
+			if p.PO.Status == store.POConfirmada {
+				<dt>Estado de entrega</dt>
+				<dd>
+					if p.Delivery != nil {
+						{ store.EntregaLabels[store.EntregaEntregado] + " · " + dateText(p.Delivery.DeliveredOn) }
+					} else {
+						{ store.EntregaLabels[store.EntregaEnProceso] }
+					}
+					{ " · " }
+					<a href={ templ.URL(projectPath(p.Project.Folio) + "#entrega") }>ver la entrega</a>
+				</dd>
+			}
 			<dt>Generada</dt>
 			<dd>
 				@Timestamp(p.PO.CreatedAt)
@@ -182,6 +203,24 @@ templ poSummary(p PurchaseOrderPage) {
 					<textarea name="motivo" rows="2" maxlength="2000" required></textarea>
 				</label>
 				<button type="submit">Crear revisión</button>
+			</form>
+		}
+		<h2>Cancelar orden de compra</h2>
+		if p.Delivery != nil {
+			<p>No se puede cancelar: ya está entregada. Si se marcó por error, primero regrésala a En proceso de entrega en la sección Entrega del proyecto.</p>
+		} else {
+			<form method="post" action={ templ.URL(POPath(p.Project.Folio, p.PO.ID, "cancelar")) } class="stage-form">
+				<p>
+					Para no comprarle a este proveedor (por ejemplo, para cambiar de proveedor). La orden queda como Cancelada y deja de contar para el Estado de entrega; sus partidas quedan libres para otra orden.
+					if p.PO.PendingRevisionID != 0 {
+						{ " Su revisión en borrador se elimina." }
+					}
+				</p>
+				<label>
+					Motivo (obligatorio, queda en el historial del proyecto)
+					<textarea name="motivo" rows="2" maxlength="2000" required></textarea>
+				</label>
+				<button type="submit" class="danger" data-confirm={ "¿Cancelar la orden de compra " + p.PO.Number + "? No se puede deshacer." }>Cancelar orden de compra</button>
 			</form>
 		}
 	}

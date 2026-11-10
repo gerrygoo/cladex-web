@@ -201,6 +201,8 @@ func (h *PurchaseOrders) Page(w http.ResponseWriter, r *http.Request) {
 		page.SuccessMsg = "Proveedor dado de alta y elegido."
 	case q.Get("revision") == "1":
 		page.SuccessMsg = "Revisión creada. Corrige lo que haga falta y confírmala."
+	case q.Get("cancelada") == "1":
+		page.SuccessMsg = "Orden de compra cancelada."
 	}
 	h.render(w, r, http.StatusOK, page)
 }
@@ -231,8 +233,14 @@ func (h *PurchaseOrders) page(ctx context.Context, project *store.Project, po *s
 	if quote == nil {
 		return views.PurchaseOrderPage{}, fmt.Errorf("purchase order %d: quote %d missing", po.ID, po.QuoteID)
 	}
+	var delivery *store.Delivery
+	if po.Status == store.POConfirmada {
+		if delivery, err = h.store.DeliveryOf(ctx, *po); err != nil {
+			return views.PurchaseOrderPage{}, err
+		}
+	}
 	page := views.PurchaseOrderPage{
-		Project: *project, PO: *po,
+		Project: *project, PO: *po, Delivery: delivery,
 		Editable:  po.Status == store.POBorrador && canEditPO(user, project),
 		IsAdmin:   user != nil && user.Role == store.RoleAdmin,
 		FreeLines: quote.SeriesFreeLines,

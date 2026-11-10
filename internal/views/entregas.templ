@@ -1,0 +1,170 @@
+package views
+
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// ProjectEntrega is the proyecto page's Estado de entrega and Entrega section (#66): its
+// supplier O.C.s in force (the confirmed ones, each the vigente revision of its O.C.) with
+// their delivery, and who may mark one (the proyecto's vendedor and the admins) and take
+// one back to En proceso de entrega (the admins).
+type ProjectEntrega struct {
+	Orders  []EntregaOrder
+	CanMark bool
+	IsAdmin bool
+}
+
+// EntregaOrder is one supplier O.C. in force and its delivery, nil while it is in
+// process.
+type EntregaOrder struct {
+	PO       store.PurchaseOrder
+	Delivery *store.Delivery
+}
+
+// delivered counts the O.C.s with their delivery.
+func (e ProjectEntrega) delivered() int {
+	n := 0
+	for _, o := range e.Orders {
+		if o.Delivery != nil {
+			n++
+		}
+	}
+	return n
+}
+
+// lastDelivery is the newest delivery day, for "Entregado · [fecha]".
+func (e ProjectEntrega) lastDelivery() string {
+	last := ""
+	for _, o := range e.Orders {
+		if o.Delivery != nil && o.Delivery.DeliveredOn > last {
+			last = o.Delivery.DeliveredOn
+		}
+	}
+	return last
+}
+
+func deliveryPath(folio string, po store.PurchaseOrder, action string) string {
+	return POPath(folio, po.ID, action)
+}
+
+// EntregaState is the Estado de entrega in the proyecto's summary: Sin emitir O.C.; En
+// proceso de entrega with the O.C.'s number and link (the vigente revision), or with how
+// many are delivered when there are several; Entregado with the last delivery's day and,
+// with one O.C. whose comprobante was uploaded, "Ver comprobante".
+templ EntregaState(p store.Project, e ProjectEntrega) {
+	switch {
+		case p.States.Entrega == store.EntregaEnProceso && len(e.Orders) == 1:
+			{ store.EntregaLabels[p.States.Entrega] + " · " }<a href={ templ.URL(POPath(p.Folio, e.Orders[0].PO.ID, "")) }>{ e.Orders[0].PO.Number }</a>
+		case p.States.Entrega == store.EntregaEnProceso:
+			{ store.EntregaLabels[p.States.Entrega] + " · " + strconv.Itoa(e.delivered()) + " de " + strconv.Itoa(len(e.Orders)) + " entregadas" }
+		case p.States.Entrega == store.EntregaEntregado && len(e.Orders) == 1 && e.Orders[0].Delivery != nil && e.Orders[0].Delivery.FileID != 0:
+			{ store.EntregaLabels[p.States.Entrega] + " · " + dateText(e.lastDelivery()) + " · " }<a href={ templ.URL(projectFilePath(p.Folio, e.Orders[0].Delivery.FileID)) }>Ver comprobante</a>
+		case p.States.Entrega == store.EntregaEntregado:
+			{ store.EntregaLabels[p.States.Entrega] + " · " + dateText(e.lastDelivery()) }
+		default:
+			{ store.EntregaLabels[p.States.Entrega] }
+	}
+}
+
+// ProjectEntregaSection is the Entrega section of an en curso proyecto with confirmed
+// supplier O.C.s: one block per O.C., in process or delivered. In process, "Marcar como
+// entregado" opens the form (Fecha de entrega, by default today and never later, and
+// whether to upload the comprobante, which static/app.js shows when Sí is picked).
+// Delivered, it shows the day, who marked it and the comprobante, or "Subir comprobante
+// de entrega" when there is none, and an admin can take it back to En proceso de entrega
+// with a motivo.
+templ ProjectEntregaSection(p store.Project, e ProjectEntrega, today string) {
+	<section id="entrega">
+		<h2>Entrega</h2>
+		for _, o := range e.Orders {
+			<article class="entrega-oc" id={ "entrega-" + strconv.FormatInt(o.PO.ID, 10) }>
+				<h3>
+					<a href={ templ.URL(POPath(p.Folio, o.PO.ID, "")) }>{ o.PO.Number }</a>
+					if o.PO.SupplierName != "" {
+						{ " · " + o.PO.SupplierName }
+					}
+				</h3>
+				<dl class="quote-info">
+					<dt>Estado de entrega</dt>
+					if o.Delivery == nil {
+						<dd>{ store.EntregaLabels[store.EntregaEnProceso] }</dd>
+					} else {
+						<dd>{ store.EntregaLabels[store.EntregaEntregado] + " · " + dateText(o.Delivery.DeliveredOn) }</dd>
+						<dt>Marcó</dt>
+						<dd>
+							{ o.Delivery.CreatedByName + " · " }
+							@Timestamp(o.Delivery.CreatedAt)
+						</dd>
+						<dt>Comprobante</dt>
+						<dd>
+							if o.Delivery.FileID != 0 {
+								<a href={ templ.URL(projectFilePath(p.Folio, o.Delivery.FileID)) }>{ o.Delivery.FileName }</a>
+							} else {
+								Sin comprobante
+							}
+						</dd>
+					}
+				</dl>
+				if o.Delivery == nil {
+					if e.CanMark {
+						<details class="disclosure">
+							<summary>Marcar como entregado<span class="visually-hidden">{ " " + o.PO.Number }</span></summary>
+							<form method="post" action={ templ.URL(deliveryPath(p.Folio, o.PO, "entregar")) } enctype="multipart/form-data" class="stage-form" data-comprobante-form>
+								<label>
+									Fecha de entrega
+									<input type="date" name="fecha" value={ today } max={ today } required/>
+								</label>
+								<fieldset class="probability">
+									<legend>¿Quieres subir un comprobante de entrega?</legend>
+									<label>
+										<input type="radio" name="comprobante" value="si"/>
+										Sí
+									</label>
+									<label>
+										<input type="radio" name="comprobante" value="no" checked/>
+										No
+									</label>
+								</fieldset>
+								<label data-comprobante-file hidden>
+									Comprobante de entrega (PDF, JPG o PNG de hasta 10 MB)
+									<input type="file" name="archivo" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"/>
+								</label>
+								<button type="submit" class="primary">Guardar</button>
+							</form>
+						</details>
+					} else {
+						<p class="hint">El vendedor del proyecto o un administrador marca la entrega.</p>
+					}
+				} else {
+					if o.Delivery.FileID == 0 && e.CanMark {
+						<details class="disclosure">
+							<summary>Subir comprobante de entrega<span class="visually-hidden">{ " de " + o.PO.Number }</span></summary>
+							<form method="post" action={ templ.URL(deliveryPath(p.Folio, o.PO, "comprobante-entrega")) } enctype="multipart/form-data" class="stage-form">
+								<label>
+									Comprobante de entrega (PDF, JPG o PNG de hasta 10 MB)
+									<input type="file" name="archivo" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" required/>
+								</label>
+								<button type="submit" class="primary">Guardar</button>
+							</form>
+						</details>
+					}
+					if e.IsAdmin {
+						<details class="disclosure">
+							<summary>Regresar a En proceso de entrega<span class="visually-hidden">{ " " + o.PO.Number }</span></summary>
+							<form method="post" action={ templ.URL(deliveryPath(p.Folio, o.PO, "deshacer-entrega")) } class="stage-form">
+								<p>Si se marcó como entregado por error. La entrega marcada queda en el historial y su comprobante se conserva con los archivos del proyecto.</p>
+								<label>
+									Motivo
+									<textarea name="reason" rows="2" maxlength="2000" required></textarea>
+								</label>
+								<button type="submit" class="danger" data-confirm={ "¿Regresar " + o.PO.Number + " a En proceso de entrega?" }>Regresar a En proceso</button>
+							</form>
+						</details>
+					}
+				}
+			</article>
+		}
+	</section>
+}
