@@ -37,7 +37,7 @@ func stageHint(stage string) string {
 	return ""
 }
 
-templ ProjectsList(projects []store.Project, lv ListView, customers, owners []string, user *NavUser) {
+templ ProjectsList(projects []store.Project, today string, lv ListView, customers, owners []string, user *NavUser) {
 	@Layout("Proyectos", user) {
 		<div class="page-title">
 			<h1>Proyectos</h1>
@@ -72,23 +72,26 @@ templ ProjectsList(projects []store.Project, lv ListView, customers, owners []st
 						@columnHeader(lv, "Vendedor", "vendedor", choiceFilter(owners))
 						@columnHeader(lv, "Etapa", "etapa", projectStageFilter)
 						@columnHeader(lv, "Probabilidad", "probabilidad", projectProbabilityFilter)
+						@sortHeader(lv, "Próximo seguimiento", "seguimiento", false)
 						@columnHeader(lv, "Pago", "pago", projectPaymentFilter)
 						@columnHeader(lv, "Total", "total", numberFilter)
 						@columnHeader(lv, "Abierto", "fecha", dateFilter)
 					</tr>
 				</thead>
-				@ProjectsTableBody(projects)
+				@ProjectsTableBody(projects, today)
 			</table>
 		</div>
 		@listPager(lv, false)
 	}
 }
 
-templ ProjectsTableBody(projects []store.Project) {
+// ProjectsTableBody is the rows of the Proyectos list. today is the viewer's day, to
+// mark a prospecto whose next follow-up has already passed.
+templ ProjectsTableBody(projects []store.Project, today string) {
 	<tbody id="proyectos-tbody" data-announce={ countAnnouncement(len(projects), "proyecto", "proyectos") }>
 		if len(projects) == 0 {
 			<tr>
-				<td colspan="8">No se encontraron proyectos. Un proyecto se abre al emitir una cotización.</td>
+				<td colspan="9">No se encontraron proyectos. Un proyecto se abre al emitir una cotización.</td>
 			</tr>
 		}
 		for _, p := range projects {
@@ -106,6 +109,13 @@ templ ProjectsTableBody(projects []store.Project) {
 							<br/>
 							<strong class="forecast">{ forecastLabel }</strong>
 						}
+					}
+				</td>
+				<td>
+					// As on the proyecto's page, the follow-up date only means something
+					// while it is a prospecto (#61).
+					if p.Status == "prospecto" {
+						@dateWarningCell(p.NextFollowUpDate, FollowUpOverdue(p, today))
 					}
 				</td>
 				<td>

@@ -971,6 +971,9 @@ var projectSortColumns = []sortColumn{
 	{"vendedor", "u.name COLLATE NOCASE"},
 	{"etapa", projectStageOrder},
 	{"probabilidad", "p.probability"},
+	// Only a prospecto shows its next follow-up: those without a date come after the
+	// dated ones, and every other stage after them.
+	{"seguimiento", "CASE WHEN p.status = 'prospecto' THEN COALESCE(p.next_followup_date, '9999-12-30') ELSE '9999-12-31' END"},
 	{"total", "q.total"},
 	{"fecha", "p.created_at"},
 }

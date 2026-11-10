@@ -390,6 +390,23 @@ func TestProjectsList(t *testing.T) {
 
 	first := issueTestQuote(t, a, q, ana, customerID, costProductID)
 	second := issueTestQuote(t, a, q, ana, customerID, costProductID)
+	third := issueTestQuote(t, a, q, ana, customerID, costProductID)
+	fourth := issueTestQuote(t, a, q, ana, customerID, costProductID)
+	// Next follow-ups (#71): first's is past, third's ahead, fourth has none, and second's
+	// stops showing once its O.C. arrives.
+	setFollowUp := func(folio, day string) {
+		t.Helper()
+		pr, err := a.store.ProjectByFolio(context.Background(), folio)
+		if err != nil || pr == nil {
+			t.Fatalf("ProjectByFolio(%s): %v, %v", folio, pr, err)
+		}
+		if err := a.store.FollowUpProject(context.Background(), pr.ID, ana, store.FollowUp{NextFollowUp: &day}); err != nil {
+			t.Fatalf("FollowUpProject(%s): %v", folio, err)
+		}
+	}
+	setFollowUp(first, "2020-01-09")
+	setFollowUp(second, "2030-05-05")
+	setFollowUp(third, "2099-03-04")
 	project, _ := a.store.ProjectByFolio(context.Background(), second)
 	if err := a.store.SetProjectProbability(context.Background(), project.ID, ana, 90, ""); err != nil {
 		t.Fatalf("SetProjectProbability: %v", err)
@@ -408,6 +425,40 @@ func TestProjectsList(t *testing.T) {
 	// Past prospecto, the probability isn't shown.
 	if strings.Contains(body, "Inminente (90%)") {
 		t.Error("the list shows a probability for a proyecto past prospecto")
+	}
+	// The next follow-up shows for prospectos only, and a past one says it is overdue.
+	head := body[strings.Index(body, "<thead"):strings.Index(body, "</thead>")]
+	if !strings.Contains(head, "Próximo seguimiento") || strings.Index(head, "Próximo seguimiento") < strings.Index(head, "Probabilidad") {
+		t.Error("the list has no Próximo seguimiento column after Probabilidad")
+	}
+	for _, want := range []string{"09/01/2020", "04/03/2099", "Sin fecha"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("list missing follow-up %q", want)
+		}
+	}
+	if strings.Contains(body, "05/05/2030") {
+		t.Error("the list shows the follow-up date of a proyecto past prospecto")
+	}
+	if n := strings.Count(body, `<strong class="overdue">Vencido</strong>`); n != 1 {
+		t.Errorf("list marks %d follow-ups as overdue, want 1 (the past one)", n)
+	}
+	// Sorting by it: soonest first, prospectos without a date next, then other stages.
+	order := func(body string, folios ...string) bool {
+		last := -1
+		for _, f := range folios {
+			at := strings.Index(body, link(f))
+			if at < last {
+				return false
+			}
+			last = at
+		}
+		return true
+	}
+	if body := list("sort=seguimiento", false); !order(body, first, third, fourth, second) {
+		t.Error("sorting by Próximo seguimiento doesn't put the soonest first and other stages last")
+	}
+	if body := list("sort=seguimiento&dir=desc", false); !order(body, second, fourth, third, first) {
+		t.Error("sorting by Próximo seguimiento descending isn't the reverse")
 	}
 	if body := list("f.etapa=oc_recibida", false); strings.Contains(body, link(first)) || !strings.Contains(body, link(second)) {
 		t.Error("the stage filter doesn't narrow the list to O.C. recibida")

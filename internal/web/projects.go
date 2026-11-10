@@ -46,7 +46,7 @@ func (p *Projects) List(w http.ResponseWriter, r *http.Request) {
 	projects, pager := paginate(r, projects)
 	lv := views.ListView{Base: "/proyectos", Query: query, Sort: sortCol, Dir: dir, Filters: filters, Pager: pager}
 	if r.Header.Get("HX-Request") == "true" {
-		views.ProjectsTableBody(projects).Render(ctx, w)
+		views.ProjectsTableBody(projects, today(r)).Render(ctx, w)
 		views.ListPagerOOB(lv).Render(ctx, w)
 		return
 	}
@@ -56,7 +56,7 @@ func (p *Projects) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, _ := UserFromContext(ctx)
-	views.ProjectsList(projects, lv, customers, owners, navUserView(user)).Render(ctx, w)
+	views.ProjectsList(projects, today(r), lv, customers, owners, navUserView(user)).Render(ctx, w)
 }
 
 func (p *Projects) loadProjectOrNotFound(w http.ResponseWriter, r *http.Request) *store.Project {

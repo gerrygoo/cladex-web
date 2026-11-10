@@ -24,8 +24,8 @@ y sale de estas etapas.
 1. En el menú **Proyectos**, elige **Ver proyectos**.
 2. Escribe el folio o el nombre del cliente en *"Buscar por folio o cliente…"*.
 3. Para ordenar, haz clic en el encabezado **Proyecto**, **Cliente**, **Vendedor**,
-   **Etapa**, **Probabilidad**, **Total** o **Abierto**. Otro clic invierte el orden. Sin
-   ordenar, van del más reciente al más antiguo.
+   **Etapa**, **Probabilidad**, **Próximo seguimiento**, **Total** o **Abierto**. Otro clic
+   invierte el orden. Sin ordenar, van del más reciente al más antiguo.
 4. Para acotar más, [filtra por columna](README.md#filtrar-las-tablas) con el embudo de
    cada encabezado. Por ejemplo, en **Etapa** elige *Prospecto* y en **Probabilidad**
    elige *Alta* e *Inminente* para ver solo los [[relevante para pronóstico|relevantes para pronóstico]].
@@ -37,6 +37,11 @@ tiene el enlace.
 
 - La columna **Total** es el total de la cotización vigente del proyecto.
 - La columna **Probabilidad** solo se llena mientras el proyecto es prospecto.
+- La columna **Próximo seguimiento** también se llena solo mientras el proyecto es
+  prospecto: la fecha que anotaste, o *Sin fecha* si no tiene. Si esa fecha ya pasó,
+  dice *Vencido* debajo. Al ordenar por ella, primero van las fechas más cercanas, luego
+  los prospectos sin fecha y al final los proyectos en otras etapas. Esta columna no
+  tiene embudo de filtro.
 - Los borradores que nunca se emitieron no tienen proyecto, así que no aparecen aquí.
 
 ## Ver el detalle de un proyecto

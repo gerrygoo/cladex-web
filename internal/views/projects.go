@@ -140,6 +140,15 @@ func FollowUpWarning(p store.Project, today string) string {
 	return ""
 }
 
+// FollowUpOverdue is "Vencido" when a prospecto's next follow-up day is already past
+// (before today, the rule the seguimiento avisos use), for the Proyectos list.
+func FollowUpOverdue(p store.Project, today string) string {
+	if p.Status == "prospecto" && p.NextFollowUpDate != "" && p.NextFollowUpDate < today {
+		return "Vencido"
+	}
+	return ""
+}
+
 // OCWarning is "Vencida" when the expected purchase order day has passed.
 func OCWarning(p store.Project, today string) string {
 	if p.ExpectedOCDate != "" && p.ExpectedOCDate < today {
