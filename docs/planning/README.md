@@ -34,6 +34,7 @@ documentation of shipped behavior.
 | [Ciclo de vida: cotización → proyecto → cobro](ciclo-de-vida-cotizacion-a-cobro.md) | The 2026-10-05 whiteboard: quote states, post-issue project pipeline, and a proposed payment sub-status (PPD/PUE) |
 | [Hitos: proyectos y facturas](hitos-proyectos-y-facturas.md) | Implementation order for the two docs above: M4 proyectos, M5–M8 facturación, the decisions behind it and the questions still open for Emilio |
 | [Facturas: timbrado digital y envío](facturas-timbrado-y-envio.md) | CFDI stamping through an external PAC and delivery to recipients: states before/after each step, cancellation, tracking model, dependencies |
+| [Dashboard: Mis pendientes y Equipo](dashboard.md) | #72 and #70: the home page's pendientes, the admins' team view, and seguimiento periods derived from the audit log |
 | [Órdenes de compra a proveedores](ordenes-de-compra-a-proveedores.md) | Designed 2026-10-22, parked: tracking and generating Cladex's own O.C. to suppliers for what a proyecto needs |
 | [Notificaciones y trabajos en segundo plano](notificaciones-y-trabajos.md) | Designed 2026-10-23, N1 (runner) and N2 (email) built 2026-10-26: the SQLite job runner (#19) and WhatsApp + email notifications (#18), first used for the seguimiento reminder |
 | [Tipos de cotización](tipos-de-cotizacion.md) | Designed 2026-10-28 for #53, not started: split the quote series (numbering, terms, PDF and builder behavior) from the catalog familia, so prefixes are labels, not keys |

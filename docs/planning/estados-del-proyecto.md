@@ -1,6 +1,6 @@
 # Estados del proyecto: facturación, entrega y cobro
 
-**Decided 2026-11-03, not started.** Replaces the single post-O.C. line of stages
+**Decided 2026-11-03, refined 2026-11-10 (see [Decisions 2026-11-10](#decisions-2026-11-10)), not started.** Replaces the single post-O.C. line of stages
 (`oc_recibida → facturado → en_entrega → cerrado`, `internal/store/projects.go`
 `ProjectFlow`) with three independent states, as Emilio's issues ask: #63 (Facturas),
 #66 (Estado de facturación y de entrega) and #67 (Estado de cobro). The questions still
@@ -112,7 +112,44 @@ For Gerry: converting the proyectos already past `oc_recibida` in production
 (`facturado`/`en_entrega` → En curso, `cerrado` stays, their typed factura and payment
 carried into the new records). Count them before writing the migration.
 
-## Order
+## Decisions 2026-11-10
+
+Emilio answered on 11-06 (#63, #66, #67). Gerry decided:
+
+- **Cerrado is derived, not stored.** The `project_states` view adds `cerrado` (Facturada,
+  Entregado and Pagado all hold). A correction that breaks one reopens the proyecto with no
+  code. The stored stage becomes `prospecto / en_curso / perdido / cancelado`.
+  "Cerrado · Ganado" is the label, filterable.
+- **Cancelado** (new): admin only, with a motivo. It's blocked while there is a valid
+  factura or an active supplier O.C. Reactivating it, also admin only with a motivo,
+  restores the previous stage.
+- **Undoing O.C. recibida:** admin only, with a motivo, only with no factura and no
+  confirmed supplier O.C. The proyecto goes back to prospecto at Inminente 90%.
+- **Entrega is per supplier O.C.**, shown as "1 de 2 entregadas". The comprobante can be
+  added later, and an admin can undo Entregado. An admin can cancel a supplier O.C. with a
+  motivo, but not once it's delivered; with no other active O.C., Entrega goes back to Sin
+  emitir O.C.
+- **Facturación:**
+  - Parcialidades: several complementos per P.P.D. factura, each showing the saldo. What
+    was built 2026-10-20 handles only one, so this extends it.
+  - P.U.E. requires "ya se cobró" plus a date and records its payment.
+  - Cancelling a factura puts Facturación back to Pendiente until the replacement exists.
+  - Manual mode: XML required, PDF optional. It reads the UUID, date, total and RFC from
+    the XML and warns on a mismatch; complementos work the same way.
+- **Manual mode ships first and stays as the backup.** Real Facturoporti credentials are
+  coming, but the app must keep working without the PAC.
+- **Payments** (one table) link to their source: a P.U.E. factura, a complemento, or
+  manual. A complemento offers to **link an existing unlinked manual payment** instead of
+  creating a second one (double counting). Cancelling a factura **keeps** its payments;
+  refunds are out of scope.
+- **Asked Emilio (#63, 11-10):** how an anticipo paid before the factura is invoiced:
+  P.P.D. for the total plus a complemento, or a factura de anticipo plus a nota de crédito
+  (out of scope today).
+- **Order:** after the [Dashboard](dashboard.md). Then groundwork (stage migration,
+  payments, `project_states`, Cancelado, undo), #67 Cobro, #66 Entrega, #63 Facturas
+  (manual), and real stamping last.
+
+## Order (as of 2026-11-03)
 
 1. #62 + #54 SAT codes per SKU, #64 Proveedores (in progress).
 2. #65 supplier O.C.s (without cancellation until answered), #61 Recibir la O.C.
