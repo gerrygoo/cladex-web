@@ -26,7 +26,6 @@ func TestReplaySeguimientos(t *testing.T) {
 		status, next string
 		user         int64
 		deleted      bool
-		probability  int
 	}
 	type want struct {
 		day       string
