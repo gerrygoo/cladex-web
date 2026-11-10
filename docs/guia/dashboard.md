@@ -71,8 +71,9 @@ administradores, y no quedan en el historial de cambios. Quien administra el ser
 sus respaldos sí podría leer la base de datos, como pasa con cualquier sistema.
 
 Los seguimientos vencidos no son privados: son de tus proyectos, y los administradores
-los ven en **Equipo**. Un seguimiento se queda con quien tenía el proyecto
-cuando empezó a vencer, aunque después se reasigne.
+los ven en **Equipo**. Si un proyecto vencido se reasigna, su seguimiento pasa a los
+pendientes del nuevo responsable; en **Equipo** se sigue contando para quien lo tenía
+cuando empezó a vencer.
 
 Debajo de tus pendientes sigue la tabla [Vendedores](README.md#la-página-de-inicio).
 

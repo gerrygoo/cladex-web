@@ -75,7 +75,7 @@ func (d *Dashboard) render(w http.ResponseWriter, r *http.Request, m views.MisPe
 	for i := range periods {
 		p := &periods[i]
 		switch {
-		case p.UserID != user.ID:
+		case p.LastUserID != user.ID: // whoever owns it now (or did when it closed)
 		case p.Open():
 			m.Items = append(m.Items, views.PendienteItem{Period: p})
 		case !p.ClosedAt.Before(since):

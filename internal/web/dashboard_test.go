@@ -236,7 +236,7 @@ func TestEquipo(t *testing.T) {
 	createTestUser(t, f.a, "carla", "vendedor", "hunter2") // nothing to show
 	gerry := createTestUser(t, f.a, "gerry", "admin", "hunter2")
 	emsa, _ := f.a.store.CreateCustomer(ctx, store.Customer{Name: "EMSA"})
-	anas := f.prospecto(t, ana, emsa, mxDay(-7), 50, 1_000_00)   // 5 weekdays late
+	anas := f.prospecto(t, ana, emsa, mxDay(-7), 50, 1_000_00)    // 5 weekdays late
 	betos := f.prospecto(t, beto, emsa, mxDay(-14), 75, 2_000_00) // 10 weekdays late
 	if _, err := f.a.store.AddPendiente(ctx, ana, "Pendiente secreto de Ana", store.PriorityAlta); err != nil {
 		t.Fatal(err)

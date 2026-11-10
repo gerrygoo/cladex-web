@@ -73,6 +73,10 @@ type SeguimientoPeriod struct {
 	// probabilidad de cierre then.
 	UserID      int64
 	Probability int
+	// LastUserID is the owner when the period closed, or now while it is open: the person
+	// who can act on it, so Mis pendientes lists it under them (as the avisos do) while the
+	// Equipo stats count it for UserID.
+	LastUserID int64
 	// Day is the follow-up day D (YYYY-MM-DD).
 	Day string
 	// OpenedAt is the start of the first weekday after D (or, rarely, the moment D was set,
@@ -231,6 +235,7 @@ func replaySeguimientos(h projectTimeline, now time.Time, loc *time.Location) ([
 		if !p.Open() {
 			last = p.ClosedAt
 		}
+		p.LastUserID = stateAt(last).UserID
 		p.DaysLate = WeekdaysAfter(d, midnight(last, loc))
 		escalation := nthWeekdayAfter(d, 2).Add(12 * time.Hour)
 		stillOpen := (p.Open() && !now.Before(escalation)) || p.ClosedAt.After(escalation)

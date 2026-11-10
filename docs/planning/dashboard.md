@@ -131,9 +131,10 @@ that fit the code.
   proyecto's past periods are rebuilt as closing at the deletion (`cambio de etapa`) even
   if a comment had closed them earlier. Deleting is for proyectos created by mistake, so
   this is accepted; their periods show without a link.
-- **Reassignment.** As the rule says, a period stays with the owner when it opened: the
-  previous owner keeps it on Mis pendientes after a reassignment, while the avisos go to
-  the current owner. Anyone can close it by commenting.
+- **Reassignment** (Gerry's review, 2026-11-10). The Equipo stats count a period for its
+  owner when it opened, as the rule says. Mis pendientes lists it under `LastUserID`, the
+  owner now (or when it closed), the person who can act on it and the one the avisos go
+  to.
 
 **Mis pendientes (#72)**
 

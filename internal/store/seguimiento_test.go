@@ -35,6 +35,7 @@ func TestReplaySeguimientos(t *testing.T) {
 		daysLate  int
 		escalated bool
 		owner     int64
+		lastOwner int64 // 0: the same as owner
 		priority  string
 	}
 	cases := []struct {
@@ -173,13 +174,13 @@ func TestReplaySeguimientos(t *testing.T) {
 			days:    map[string]bool{"2026-11-11": true},
 		},
 		{
-			name: "reassigned while open: it stays its first owner's",
+			name: "reassigned while open: counted for its first owner, listed for the new one",
 			changes: []change{
 				{at: "2026-11-10 11:00", next: "2026-11-11"},
 				{at: "2026-11-12 09:00", next: "2026-11-11", user: beto},
 			},
 			now:     "2026-11-12 10:00",
-			periods: []want{{day: "2026-11-11", daysLate: 1, owner: ana, priority: PriorityMedia}},
+			periods: []want{{day: "2026-11-11", daysLate: 1, owner: ana, lastOwner: beto, priority: PriorityMedia}},
 			days:    map[string]bool{"2026-11-11": true},
 		},
 		{
@@ -255,6 +256,9 @@ func TestReplaySeguimientos(t *testing.T) {
 				if p.Day != w.day || p.Reason != w.reason || p.DaysLate != w.daysLate || p.Escalated() != w.escalated ||
 					p.UserID != w.owner || p.Priority() != w.priority || p.Folio != "QA0007" || p.ProjectID != 7 {
 					t.Errorf("period %d = %+v (priority %s), want %+v", i, p, p.Priority(), w)
+				}
+				if lo := w.lastOwner; lo == 0 && p.LastUserID != w.owner || lo != 0 && p.LastUserID != lo {
+					t.Errorf("period %d LastUserID = %d, want %+v", i, p.LastUserID, w)
 				}
 				if w.closed == "" && !p.Open() || w.closed != "" && !p.ClosedAt.Equal(mx(t, w.closed)) {
 					t.Errorf("period %d closed at %v, want %q", i, p.ClosedAt, w.closed)
