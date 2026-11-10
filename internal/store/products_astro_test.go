@@ -15,7 +15,7 @@ func openAstroSeed(t *testing.T, setup ...string) *Store {
 	t.Helper()
 	ctx := context.Background()
 	dsn := filepath.Join(t.TempDir(), "up.db")
-	old, err := Open(ctx, dsn, migrationsBefore(t, "0038"))
+	old, err := Open(ctx, dsn, migrationsBefore(t, "0039"))
 	if err != nil {
 		t.Fatalf("open at 0037: %v", err)
 	}
