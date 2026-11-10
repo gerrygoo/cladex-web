@@ -103,7 +103,7 @@ func newTeamSeed(t *testing.T) teamSeed {
 	comment("QA0003", beto, "2026-11-05 11:00")
 	audit("QA0004", "2026-10-30 11:00", state("QA0004", beto, 50, "prospecto", ""), state("QA0004", beto, 50, "prospecto", "2026-11-02"))
 	audit("QA0004", "2026-11-05 13:00", state("QA0004", beto, 50, "prospecto", "2026-11-02"), state("QA0004", beto, 50, "oc_recibida", "2026-11-02"))
-	if _, err := s.db.Exec(`UPDATE projects SET status = 'oc_recibida' WHERE folio = 'QA0004'`); err != nil {
+	if _, err := s.db.Exec(`UPDATE projects SET status = 'en_curso' WHERE folio = 'QA0004'`); err != nil {
 		t.Fatal(err)
 	}
 	audit("QA0005", "2026-11-05 11:00", state("QA0005", ggo, 75, "prospecto", ""), state("QA0005", ggo, 75, "prospecto", "2026-11-09"))

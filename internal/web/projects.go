@@ -133,46 +133,52 @@ func (p *Projects) Page(w http.ResponseWriter, r *http.Request) {
 	views.ProjectPage(*project, today(r), quotes, files, receipt, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user), supplier, panel, pos).Render(ctx, w)
 }
 
-// Etapa handles POST /proyectos/{folio}/etapa: moves the proyecto one stage along the
-// flow ("to" is the stage; the optional "note" is saved as a comment). Anyone signed in
-// can move a proyecto forward; going back a stage is for admins, since it undoes what a
-// salesperson reported. Anything but the stage right before or after the current one is
-// refused, as is a stale click on a proyecto that has since moved.
-func (p *Projects) Etapa(w http.ResponseWriter, r *http.Request) {
+// Cancelar handles POST /proyectos/{folio}/cancelar (admin): marks the proyecto cancelado
+// with a required "reason" ("Motivo"), from prospecto or en curso. A factura that may be
+// stamped or a confirmed supplier O.C. blocks it: those are cancelled first.
+func (p *Projects) Cancelar(w http.ResponseWriter, r *http.Request) {
+	p.adminStageChange(w, r, p.store.CancelProject, "este proyecto ya no se puede cancelar")
+}
+
+// Reactivar handles POST /proyectos/{folio}/reactivar (admin): brings a cancelled
+// proyecto back to the stage it was cancelled from, with a required "reason".
+func (p *Projects) Reactivar(w http.ResponseWriter, r *http.Request) {
+	p.adminStageChange(w, r, p.store.ReactivateProject, "este proyecto no está cancelado")
+}
+
+// DeshacerOC handles POST /proyectos/{folio}/deshacer-oc (admin): takes an en curso
+// proyecto back to prospecto at Inminente 90%, with a required "reason", while it has no
+// factura and no confirmed supplier O.C.
+func (p *Projects) DeshacerOC(w http.ResponseWriter, r *http.Request) {
+	p.adminStageChange(w, r, p.store.UndoReceiveOC, "la O.C. recibida solo se deshace en un proyecto En curso")
+}
+
+// adminStageChange runs one of the admin's changes of stage, all alike: a required
+// "reason" of up to 2000 characters, refused with a message that says what blocks it.
+// stale is the message for a proyecto that isn't in a stage the change applies to.
+func (p *Projects) adminStageChange(w http.ResponseWriter, r *http.Request, change func(ctx context.Context, projectID, userID int64, reason string) error, stale string) {
 	ctx := r.Context()
 	project := p.loadProjectOrNotFound(w, r)
 	if project == nil {
 		return
 	}
-	to := r.FormValue("to")
-	note := strings.TrimSpace(r.FormValue("note"))
-	if utf8.RuneCountInString(note) > maxCommentLen {
-		http.Error(w, "el comentario no puede pasar de 2000 caracteres", http.StatusBadRequest)
+	reason := strings.TrimSpace(r.FormValue("reason"))
+	if reason == "" || utf8.RuneCountInString(reason) > maxCommentLen {
+		http.Error(w, "escribe el motivo, de no más de 2000 caracteres", http.StatusBadRequest)
 		return
 	}
 	user, _ := UserFromContext(ctx)
-	if to != "" && to == store.PrevStage(project.Status) && user.Role != store.RoleAdmin {
-		http.Error(w, "solo un administrador puede regresar un proyecto de etapa", http.StatusForbidden)
-		return
-	}
-	if err := p.store.MoveProject(ctx, project.ID, user.ID, project.Status, to, note); err != nil {
-		if errors.Is(err, store.ErrBadTransition) {
-			// Say what is missing when the move is one of the gated steps.
-			switch {
-			case project.Status == "prospecto" && to == "oc_recibida":
-				http.Error(w, "primero captura la orden de compra del cliente", http.StatusConflict)
-				return
-			case project.Status == "oc_recibida" && (to == "facturado" || to == "en_entrega"):
-				http.Error(w, "primero registra la factura: sin factura el proyecto no se puede entregar", http.StatusConflict)
-				return
-			case project.Status == "en_entrega" && to == "cerrado" && !project.Paid():
-				http.Error(w, "primero registra el pago completado: un proyecto sin pagar no se puede cerrar", http.StatusConflict)
-				return
-			}
-			http.Error(w, "el proyecto no puede pasar a esa etapa", http.StatusConflict)
-			return
+	if err := change(ctx, project.ID, user.ID, reason); err != nil {
+		switch {
+		case errors.Is(err, store.ErrHasFactura):
+			http.Error(w, "este proyecto tiene una factura: primero hay que cancelarla", http.StatusConflict)
+		case errors.Is(err, store.ErrHasConfirmedPO):
+			http.Error(w, "este proyecto tiene una orden de compra al proveedor confirmada: primero hay que cancelarla", http.StatusConflict)
+		case errors.Is(err, store.ErrBadTransition):
+			http.Error(w, stale, http.StatusConflict)
+		default:
+			serverError(w, r, err)
 		}
-		serverError(w, r, err)
 		return
 	}
 	http.Redirect(w, r, "/proyectos/"+project.Folio+"#historial", http.StatusSeeOther)
@@ -305,8 +311,8 @@ func (p *Projects) Comentar(w http.ResponseWriter, r *http.Request) {
 }
 
 // Perder handles POST /proyectos/{folio}/perder: marks the proyecto lost with a required
-// "reason". Any signed-in user can, while it is a prospecto or has its purchase order
-// in; a proyecto already being delivered or closed can't be lost.
+// "reason". Any signed-in user can, while it is a prospecto; once en curso, a sale that
+// falls through is cancelled by an admin instead (Cancelar).
 func (p *Projects) Perder(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := p.loadProjectOrNotFound(w, r)
@@ -377,8 +383,8 @@ var ocFileTypes = map[string]bool{"application/pdf": true, "image/jpeg": true, "
 // OC handles POST /proyectos/{folio}/oc: records the client's purchase order —
 // "oc_numero" and "oc_fecha" (a day), both required, with the "archivo" (PDF, JPG or PNG
 // up to 10 MB) and an optional "note". On a prospecto this is what moves the proyecto to
-// O.C. recibida, and the file is required; on one already there it corrects the data, and
-// a new file is optional. The método de pago is not asked here: it belongs to the factura
+// en curso, and the file is required; on one already there it corrects the data (while
+// its facturación is pendiente), and a new file is optional. The método de pago is not asked here: it belongs to the factura
 // (issue #61). Any signed-in user can.
 func (p *Projects) OC(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -423,7 +429,7 @@ func (p *Projects) OC(w http.ResponseWriter, r *http.Request) {
 	user, _ := UserFromContext(ctx)
 	if err := p.store.ReceiveOC(ctx, project.ID, user.ID, oc, file, note); err != nil {
 		if errors.Is(err, store.ErrBadTransition) {
-			http.Error(w, "la orden de compra solo se captura en un prospecto con su cotización emitida, o se corrige mientras el proyecto está en O.C. recibida", http.StatusConflict)
+			http.Error(w, "la orden de compra solo se captura en un prospecto con su cotización emitida, o se corrige mientras el proyecto está En curso y sin factura", http.StatusConflict)
 			return
 		}
 		serverError(w, r, err)
@@ -531,9 +537,9 @@ func documentForm(r *http.Request) (store.Document, string) {
 }
 
 // Factura handles POST /proyectos/{folio}/factura: puts the purchase order's factura on
-// record ("folio", "fecha", "metodo_pago" PUE or PPD, optional "note") and moves the
-// proyecto from O.C. recibida to Facturado. A P.U.E. factura is the payment too; a P.P.D.
-// one is the factura de anticipo. Any signed-in user can.
+// record, typed in ("folio", "fecha", "metodo_pago" PUE or PPD, optional "note"), which
+// makes the proyecto's Estado de facturación Facturada. A P.P.D. one is the factura de
+// anticipo. Any signed-in user can, while the proyecto is en curso without a factura.
 func (p *Projects) Factura(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := p.loadProjectOrNotFound(w, r)
@@ -558,7 +564,7 @@ func (p *Projects) Factura(w http.ResponseWriter, r *http.Request) {
 	user, _ := UserFromContext(ctx)
 	if err := p.store.RecordInvoice(ctx, project.ID, user.ID, invoice, method, note); err != nil {
 		if errors.Is(err, store.ErrBadTransition) {
-			http.Error(w, "la factura solo se registra en un proyecto en O.C. recibida con su orden de compra capturada", http.StatusConflict)
+			http.Error(w, "la factura solo se registra en un proyecto En curso con su orden de compra capturada y sin otra factura", http.StatusConflict)
 			return
 		}
 		serverError(w, r, err)
@@ -569,7 +575,7 @@ func (p *Projects) Factura(w http.ResponseWriter, r *http.Request) {
 
 // Pago handles POST /proyectos/{folio}/pago: marks a P.P.D. proyecto that is facturado de
 // anticipo as pagado, with its comprobante de pago ("folio", "fecha", optional "note").
-// Any signed-in user can, while the proyecto is Facturado or En entrega.
+// Any signed-in user can, while the proyecto is en curso.
 func (p *Projects) Pago(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := p.loadProjectOrNotFound(w, r)
@@ -589,7 +595,7 @@ func (p *Projects) Pago(w http.ResponseWriter, r *http.Request) {
 	user, _ := UserFromContext(ctx)
 	if err := p.store.RecordPayment(ctx, project.ID, user.ID, receipt, note); err != nil {
 		if errors.Is(err, store.ErrBadTransition) {
-			http.Error(w, "el pago completado solo se registra en un proyecto facturado de anticipo que está en Facturado o En entrega", http.StatusConflict)
+			http.Error(w, "el pago completado solo se registra en un proyecto En curso facturado de anticipo", http.StatusConflict)
 			return
 		}
 		serverError(w, r, err)
@@ -617,10 +623,48 @@ func (p *Projects) adminPanel(ctx context.Context, user *store.AuthenticatedUser
 		DeleteWarning: "Borra el proyecto con todas sus cotizaciones y revisiones, su historial, " +
 			"la orden de compra, sus órdenes de compra al proveedor y las facturas sin timbrar. No se puede deshacer.",
 	}
+	stamped := false
 	for _, f := range facturas {
 		if !f.Editable() {
 			panel.BlockedReason = "No se puede eliminar: tiene una factura timbrada (o en proceso de timbrarse), que es un documento fiscal."
 		}
+		if f.Tipo == store.TipoFactura && !f.Editable() && f.Status != store.CompCancelada {
+			stamped = true
+		}
+	}
+	confirmedPO := project.States.Entrega != store.EntregaSinOC
+	base := "/proyectos/" + project.Folio
+	if project.Status == store.StageProspecto || project.Status == store.StageEnCurso {
+		act := views.StageAction{
+			Title:   "Cancelar proyecto",
+			Path:    base + "/cancelar",
+			Hint:    "Para un pedido que se cae. El proyecto queda Cancelado con el motivo, y se puede reactivar después en la etapa en que estaba.",
+			Button:  "Cancelar proyecto",
+			Confirm: "¿Cancelar este proyecto?",
+		}
+		switch {
+		case stamped:
+			act.Blocked = "No se puede cancelar: tiene una factura vigente. Primero cancela la factura."
+		case confirmedPO:
+			act.Blocked = "No se puede cancelar: tiene una orden de compra al proveedor confirmada. Primero cancélala."
+		}
+		panel.StageActions = append(panel.StageActions, act)
+	}
+	if project.Status == store.StageEnCurso {
+		act := views.StageAction{
+			Title:   "Deshacer O.C. recibida",
+			Path:    base + "/deshacer-oc",
+			Hint:    "Si la orden de compra se capturó por error (otro archivo u otro proyecto). El proyecto regresa a Prospecto en Inminente 90% y se borran el número y la fecha de la O.C.; quedan en el historial.",
+			Button:  "Deshacer O.C. recibida",
+			Confirm: "¿Deshacer la O.C. recibida y regresar el proyecto a Prospecto?",
+		}
+		switch {
+		case stamped || project.Invoice.Ref != "":
+			act.Blocked = "No se puede deshacer: el proyecto ya tiene factura."
+		case confirmedPO:
+			act.Blocked = "No se puede deshacer: tiene una orden de compra al proveedor confirmada."
+		}
+		panel.StageActions = append(panel.StageActions, act)
 	}
 	return panel, nil
 }

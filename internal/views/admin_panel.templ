@@ -17,6 +17,16 @@ type AdminPanel struct {
 	What          string // "proyecto" or "cotización", for the wording
 	DeleteWarning string // what deleting takes with it
 	BlockedReason string
+	// StageActions are a proyecto's admin changes of stage (Cancelar proyecto, Deshacer
+	// O.C. recibida), shown above the delete; none on a cotización.
+	StageActions []StageAction
+}
+
+// StageAction is one admin change of a proyecto's stage: a form posting to Path with a
+// required Motivo, its Hint above and its Button, which asks Confirm first. Blocked, when
+// set, says why it can't be done instead of the form.
+type StageAction struct {
+	Title, Path, Hint, Button, Confirm, Blocked string
 }
 
 templ AdminPanelSection(a *AdminPanel) {
@@ -34,6 +44,24 @@ templ AdminPanelSection(a *AdminPanel) {
 				</label>
 				<button type="submit">Reasignar</button>
 			</form>
+			for _, act := range a.StageActions {
+				<h3>{ act.Title }</h3>
+				if act.Blocked != "" {
+					<p class="hint">{ act.Blocked }</p>
+				} else {
+					<form method="post" action={ templ.URL(act.Path) } class="stage-form">
+						<p class="hint">{ act.Hint }</p>
+						<label>
+							Motivo
+							<textarea name="reason" rows="2" maxlength="2000" required></textarea>
+						</label>
+						<button type="submit" class="danger" data-confirm={ act.Confirm }>{ act.Button }</button>
+					</form>
+				}
+			}
+			if len(a.StageActions) > 0 {
+				<h3>Eliminar { a.What }</h3>
+			}
 			if a.BlockedReason != "" {
 				<p class="hint">{ a.BlockedReason }</p>
 			} else {

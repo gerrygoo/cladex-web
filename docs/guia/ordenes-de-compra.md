@@ -16,7 +16,7 @@ El PDF nunca muestra el precio de venta ni el margen.
 
 ## Generar la orden de compra
 
-1. Abre el proyecto. Desde que está en **O.C. recibida** (la orden del cliente ya se
+1. Abre el proyecto. Desde que está **En curso** (la orden del cliente ya se
    [recibió](proyectos.md#recibir-la-orden-de-compra-del-cliente)) aparece la sección
    **Orden de compra al proveedor**.
 2. Haz clic en **Generar orden de compra**. Se abre el borrador con todo precargado.

@@ -6,18 +6,32 @@ cotización hasta que se entrega y se cobra. Lleva el folio de la cotización qu
 abrió (`QA0012`) y sigue siendo el mismo aunque la cotización se
 [revise](cotizaciones.md#revisar-una-cotización-emitida) (`QA0012-R1`).
 
-Un proyecto avanza por estas etapas:
+Un proyecto está en una de estas etapas:
 
 | Etapa | Qué significa |
 |---|---|
 | [[prospecto]] | El cliente ya tiene la cotización y todavía no manda su orden de compra. |
-| [[O.C. recibida]] | El cliente mandó su orden de compra y [se capturaron sus datos](#recibir-la-orden-de-compra-del-cliente). |
-| [[facturado]] | Ya está [registrada su factura](#registrar-la-factura-y-el-pago). Sin factura no se entrega. |
-| [[en entrega]] | El pedido ya va en camino o se le entregó al cliente. |
-| [[cerrado]] | Ya se entregó y está pagado. Sin pago no se cierra. |
+| [[en curso]] | El cliente mandó su orden de compra (*Orden colocada 100%*) y [se capturaron sus datos](#recibir-la-orden-de-compra-del-cliente). |
+| [[Cerrado]] · Ganado | Ya está facturado, entregado y pagado. No se marca a mano: llega solo. |
+| [[perdido]] | El cliente no compró: se [marcó como perdido](#marcar-un-proyecto-como-perdido) mientras era prospecto. |
+| [[cancelado]] | El pedido se cayó después de recibir la orden de compra: lo [canceló un administrador](#cancelar-un-proyecto-o-deshacer-la-orden-de-compra). |
 
-Un proyecto que no se concreta se [marca como perdido](#marcar-un-proyecto-como-perdido)
-y sale de estas etapas.
+Mientras está en curso, el proyecto tiene tres estados que se calculan solos con lo que se
+registra en él, cada uno por su lado (un pedido puede estar entregado y pendiente de
+facturar, o al revés):
+
+| Estado | Valores | Cambia con |
+|---|---|---|
+| [[Estado de facturación]] | Pendiente, Pendiente complemento de pago, Facturada | la factura y, si es P.P.D., sus comprobantes de pago |
+| [[Estado de entrega]] | Sin emitir O.C., En proceso de entrega, Entregado | la [orden de compra al proveedor](ordenes-de-compra.md) confirmada |
+| [[Estado de cobro]] | Pendiente de pago, Pago parcial, Pagado | los pagos del cliente que se registran |
+
+Cuando los tres están completos (*Facturada*, *Entregado* y *Pagado*), el proyecto queda
+**Cerrado · Ganado**. Si después algo deja de cumplirse (por ejemplo, se cancela su factura
+o se borra un pago registrado por error), regresa solo a **En curso**.
+
+> Todavía no se puede marcar un proyecto como *Entregado*: llega en una próxima versión.
+> Mientras tanto ningún proyecto llega a Cerrado · Ganado.
 
 ## Buscar un proyecto
 
@@ -36,6 +50,10 @@ También llegas a un proyecto desde las listas de **Proyectos totales** y **Sin 
 tiene el enlace.
 
 - La columna **Total** es el total de la cotización vigente del proyecto.
+- La columna **Cobro** muestra el [[estado de cobro]] de los proyectos en curso. Se puede
+  filtrar con su embudo.
+- Los proyectos **Cerrado · Ganado** no aparecen en la lista. Para verlos, en el embudo de
+  **Etapa** elige *Cerrado · Ganado*. Si buscas uno por su folio o su cliente, sí aparece.
 - La columna **Probabilidad** solo se llena mientras el proyecto es prospecto.
 - La columna **Próximo seguimiento** también se llena solo mientras el proyecto es
   prospecto: la fecha que anotaste, o *Sin fecha* si no tiene. Si esa fecha ya pasó,
@@ -63,12 +81,15 @@ Debajo del folio y del cliente verás este resumen:
   entre precio): los de la cotización vigente, igual que en el
   [pronóstico](#revisar-el-pronóstico). No aparecen mientras la vigente es una revisión en
   borrador.
+- **Estado de facturación**, **Estado de entrega** y **Estado de cobro**: solo mientras el
+  proyecto está en curso. Se calculan solos; ver
+  [Los estados de un proyecto en curso](#los-estados-de-un-proyecto-en-curso).
 
 Más abajo están **Seguimiento y comentarios** (la probabilidad, las fechas o, desde que se
-recibe, la orden de compra, el comentario y, justo debajo, el historial), los botones para
-moverlo de etapa, **Facturación y pago** y **Orden de compra al proveedor** (desde que se
-recibe la orden; ver [Órdenes de compra a proveedor](ordenes-de-compra.md)) y
-**Cotizaciones** (la vigente y las que fueron revisadas, cada una con su enlace).
+recibe, la orden de compra, el comentario y, justo debajo, el historial), **Facturación y
+pago** y **Orden de compra al proveedor** (desde que se recibe la orden; ver
+[Órdenes de compra a proveedor](ordenes-de-compra.md)) y **Cotizaciones** (la vigente y las
+que fueron revisadas, cada una con su enlace).
 
 En un proyecto **QL**, antes de **Cotizaciones** está también la **Cotización del
 proveedor**: el proveedor, su número de cotización y los archivos, los mismos que en la
@@ -126,7 +147,7 @@ debajo tu nota.
 ### Recibir la orden de compra del cliente
 
 Cuando el cliente manda su orden de compra, el proyecto pasa de [[prospecto]] a
-[[O.C. recibida]] (**Orden colocada 100%**). Para eso hay que capturar los datos de la
+[[en curso]] (**Orden colocada 100%**). Para eso hay que capturar los datos de la
 orden. La sección **Recibir la orden de compra** solo aparece cuando la probabilidad está
 en **Inminente 90%**, justo debajo de **O.C. esperada** y **Próximo seguimiento**:
 
@@ -137,9 +158,10 @@ en **Inminente 90%**, justo debajo de **O.C. esperada** y **Próximo seguimiento
    otro día).
 4. En **Archivo de la O.C.**, adjunta la orden (obligatorio): un PDF, JPG o PNG de hasta
    10 MB.
-5. Haz clic en **Pasar a O.C. recibida**.
+5. Haz clic en **Pasar a En curso**.
 
-El proyecto queda en O.C. recibida. En **Seguimiento y comentarios**:
+El proyecto queda **En curso**, con sus tres estados al principio: facturación *Pendiente*,
+entrega *Sin emitir O.C.* y cobro *Pendiente de pago*. En **Seguimiento y comentarios**:
 
 - La **Probabilidad de cierre** queda fija en **Orden colocada 100%**: los demás pasos se
   ven, pero ya no se pueden elegir.
@@ -151,10 +173,10 @@ El proyecto queda en O.C. recibida. En **Seguimiento y comentarios**:
   de pago al proveedor"*): escríbelo y haz clic en **Guardar**. Ya no pide fecha de
   seguimiento.
 
-En el historial aparece *"Pasó a O.C. recibida."* con los datos de la orden.
+En el historial aparece *"Pasó a En curso."* con los datos de la orden.
 
-- El número, la fecha y el archivo son obligatorios para pasar a O.C. recibida. Después,
-  para corregir los datos, un archivo nuevo es opcional.
+- El número, la fecha y el archivo son obligatorios para pasar a En curso. Después, para
+  corregir los datos, un archivo nuevo es opcional.
 - El [[método de pago]] (P.U.E. o P.P.D.) ya no se pide aquí: se elige al
   [registrar la factura](#registrar-la-factura-y-el-pago). Si el proyecto ya tenía uno
   guardado de cuando se pedía con la orden, se conserva y viene elegido al facturar.
@@ -164,83 +186,64 @@ En el historial aparece *"Pasó a O.C. recibida."* con los datos de la orden.
   orden responde a esa cotización.
 - Si hay una revisión en borrador, en lugar del formulario verás *"primero emite la
   revisión"* con un enlace a ella. Emítela y vuelve al proyecto.
-- ¿Te equivocaste en un dato o llegó una orden corregida? Mientras el proyecto está en
-  O.C. recibida, haz clic en **Corregir la orden de compra**, debajo de **Orden de compra
+- ¿Te equivocaste en un dato o llegó una orden corregida? Mientras el proyecto no tenga
+  factura, haz clic en **Corregir la orden de compra**, debajo de **Orden de compra
   recibida**, y luego en **Guardar O.C.** Si adjuntas otro archivo, el anterior se
   conserva y el nuevo queda marcado como *el vigente*.
-- Cuando el proyecto pasa a Facturado, los datos de la orden ya no se pueden cambiar.
-- Un proyecto que ya estaba en O.C. recibida sin estos datos dice *"primero captura la
-  orden de compra del cliente"*: captúralos ahí mismo para poder continuar.
+- Con la factura registrada, los datos de la orden ya no se pueden cambiar.
+- ¿La orden se capturó en el proyecto equivocado, o no era una orden? Un administrador
+  puede [deshacerla](#cancelar-un-proyecto-o-deshacer-la-orden-de-compra).
+- Un proyecto que pasó a En curso antes de que se pidieran estos datos lo dice ahí mismo:
+  captúralos para poder facturarlo.
 
 ### Registrar la factura y el pago
 
 > Con la facturación configurada en el servidor, la factura y el comprobante de pago se
-> timbran desde la app y el proyecto avanza solo: ver [Facturas](facturas.md). Lo que sigue
-> es para registrar a mano una factura hecha fuera de la app.
+> timbran desde la app y el Estado de facturación cambia solo: ver [Facturas](facturas.md).
+> Lo que sigue es para registrar a mano una factura hecha fuera de la app.
 
-Las facturas se siguen emitiendo fuera de la app; aquí se anota su folio para que el
-proyecto pueda avanzar. Hay dos reglas: **sin factura no se entrega** y **sin pago no
-se cierra**. Todo se hace en la sección **Facturación y pago** del proyecto, que
-aparece al recibir la orden de compra y muestra el [[estado de pago]].
+Las facturas se siguen emitiendo fuera de la app; aquí se anota su folio. Todo se hace en
+la sección **Facturación y pago** del proyecto, que aparece al recibir la orden de compra y
+muestra el [[estado de pago]].
 
-1. Abre el proyecto, que está en [[O.C. recibida]].
+1. Abre el proyecto, que está [[en curso]].
 2. En **Registrar la factura**, elige el [[método de pago]] de la factura (obligatorio):
    **P.U.E.** (el cliente ya pagó) o **P.P.D.** (es la factura de anticipo y el pago se
    completa después). Si el proyecto ya tenía uno guardado, viene elegido; cámbialo si
    la factura dice otro.
 3. Escribe el **Folio de la factura** y revisa la **Fecha de la factura**.
-4. Haz clic en **Registrar factura y pasar a Facturado**.
+4. Haz clic en **Registrar factura**.
 
-El proyecto pasa a [[facturado]]. Qué sigue depende del método de pago:
+Su [[estado de facturación]] pasa a *Facturada*; la etapa no cambia. Además:
 
 - **P.U.E.**: su estado de pago queda en *Pagado*. No hay que registrar nada más.
-- **P.P.D.**: su estado de pago queda en *Facturado de anticipo*, y ya se puede entregar.
-  Cuando el cliente termine de pagar y se emita el comprobante de pago, vuelve al
-  proyecto (esté en Facturado o En entrega). En **Registrar pago completado**, escribe
-  el **Folio del comprobante de pago** y la **Fecha de pago**, y haz clic en
-  **Registrar pago completado**. El estado de pago queda en *Pagado*.
+- **P.P.D.**: su estado de pago queda en *Facturado de anticipo*. Cuando el cliente termine
+  de pagar y se emita el comprobante de pago, vuelve al proyecto. En **Registrar pago
+  completado**, escribe el **Folio del comprobante de pago** y la **Fecha de pago**, y haz
+  clic en **Registrar pago completado**. El estado de pago queda en *Pagado*.
 
 Desde ese momento, **Facturación y pago** muestra el **Método de pago** y la factura
 (en una P.P.D., la **Factura de anticipo**).
 
 - En el historial queda una línea por cada registro, con el folio y la fecha.
-- Una vez facturado, los datos de la orden de compra ya no se pueden cambiar.
-- En **Proyectos**, la columna **Pago** muestra el estado de pago y se puede filtrar.
-- ¿Te equivocaste en un folio? Pídele a un administrador que regrese el proyecto a
-  O.C. recibida y regístralo de nuevo.
-:::admin
-Al regresar un proyecto de Facturado a O.C. recibida se borran el folio de la factura y
-el estado de pago (quedan en el historial), para registrarlos de nuevo.
-:::
+- Una vez registrada la factura, los datos de la orden de compra ya no se pueden cambiar.
+- ¿Te equivocaste en un folio? Anota la corrección en un comentario: por ahora la factura
+  registrada a mano no se puede cambiar.
 
-### Pasar el proyecto a la siguiente etapa
+### Los estados de un proyecto en curso
 
-Después de facturar, el proyecto avanza con un botón:
+En el resumen del proyecto en curso, debajo de **Margen**, se ven sus tres estados. Ninguno
+se escoge: cada uno sale de lo que está registrado.
 
-| Para pasar a | Cuándo | Botón |
-|---|---|---|
-| [[en entrega]] | El pedido ya va en camino o se le entregó al cliente. | **Pasar a En entrega** |
-| [[cerrado]] | El pedido ya se entregó completo y el estado de pago es *Pagado*. | **Pasar a Cerrado** |
-
-1. Abre el proyecto.
-2. En **Etapa**, escribe en **Comentario** lo que pasó y los siguientes pasos
-   (opcional pero recomendado).
-3. Haz clic en el botón de la siguiente etapa.
-
-El proyecto queda en la etapa nueva y en el historial aparece una línea como
-*"Pasó a En entrega."* con tu nota, quién la escribió y cuándo.
-
-- Solo se avanza de una etapa a la siguiente, sin saltarse ninguna.
-- Si en lugar del botón **Pasar a Cerrado** ves *"primero registra el pago
-  completado"*, al proyecto le falta el pago: regístralo en **Facturación y pago**.
-- Cualquier usuario puede avanzar un proyecto. Si te equivocaste y lo pasaste de más,
-  pídele a un administrador que lo regrese.
-:::admin
-Un administrador ve además el botón **Regresar a …** para devolver el proyecto a la
-etapa anterior (queda un comentario *"Regresó a …"*). Un proyecto que regresa a
-prospecto conserva su probabilidad y los datos de la orden de compra, y su cotización
-se puede volver a revisar.
-:::
+- **Estado de facturación**: *Pendiente* hasta que hay factura. Con una factura P.U.E.
+  timbrada (o registrada a mano), *Facturada*. Con una P.P.D. timbrada, *Pendiente
+  complemento de pago* hasta que sus comprobantes de pago timbrados cubren el total; luego
+  *Facturada*. Si se cancela la factura, regresa a *Pendiente*.
+- **Estado de entrega**: *Sin emitir O.C.* hasta que un administrador confirma la
+  [orden de compra al proveedor](ordenes-de-compra.md); entonces *En proceso de entrega*,
+  con el número de la orden y su enlace.
+- **Estado de cobro**: *Pendiente de pago*, *Pago parcial* o *Pagado*, según los pagos
+  registrados contra el total con IVA del proyecto.
 
 ## Revisar el pronóstico
 
@@ -291,17 +294,16 @@ el proyecto desde su número y hazlo en **Seguimiento**.
 
 ## Marcar un proyecto como perdido
 
-Cuando el cliente ya no va a comprar. Se puede mientras el proyecto es [[prospecto]] o
-tiene la [[O.C. recibida]]; uno que ya está facturado, en entrega o cerrado no se puede perder.
+Cuando el cliente ya no va a comprar. Se puede mientras el proyecto es [[prospecto]]. Si el
+pedido se cae después de recibir la orden de compra, el proyecto no se pierde: un
+administrador lo [cancela](#cancelar-un-proyecto-o-deshacer-la-orden-de-compra).
 Perder el proyecto es lo mismo que perder su cotización: no hay que marcar nada en la
 cotización.
 
 1. Abre el proyecto.
-2. Si es prospecto, en **Probabilidad de cierre** elige **Perdida** y escribe el
-   **Motivo** (obligatorio): por qué se perdió. Si ya tiene la O.C. recibida, la
-   **Probabilidad de cierre** está fija en *Orden colocada 100%* y **Perdida** es lo
-   único que se puede elegir; elígela y escribe el motivo.
-3. Haz clic en **Guardar** (o en **Marcar como perdida**) y confirma si te lo pide.
+2. En **Probabilidad de cierre** elige **Perdida** y escribe el **Motivo** (obligatorio):
+   por qué se perdió.
+3. Haz clic en **Guardar**.
 
 Qué pasa al perderlo:
 
@@ -317,8 +319,35 @@ Qué pasa al perderlo:
 Si el proyecto revive, cualquier usuario puede reabrirlo con el botón **Reabrir como …**
 de la página del proyecto perdido, que lo regresa a la etapa en que estaba. Es obligatorio escribir un **Comentario**. Si estaba en
 prospecto, también elige con qué **Probabilidad de cierre** vuelve (Inicial a Inminente;
-trae la que tenía); uno que se perdió con la O.C. recibida vuelve a O.C. recibida. Queda
-un comentario *"Se reabrió como …"* y el motivo original se conserva en el historial.
+trae la que tenía); uno que se perdió ya en curso, antes de que existiera *Cancelado*,
+vuelve a En curso. Queda un comentario *"Se reabrió como …"* y el motivo original se
+conserva en el historial.
+
+## Cancelar un proyecto o deshacer la orden de compra
+
+Solo un administrador, desde la sección **Administración** al final de la página del
+proyecto. Las dos cosas piden un **Motivo**, que queda en el historial.
+
+:::admin
+**Cancelar proyecto.** Para un pedido que se cae (también un prospecto). Escribe el
+**Motivo**, haz clic en **Cancelar proyecto** y confirma. El proyecto queda
+[[cancelado|Cancelado]]: la página muestra **Proyecto cancelado** con el motivo, cuándo se
+canceló y en qué etapa estaba, y en el historial queda *"Se canceló."* con el motivo. No se
+puede cancelar mientras tenga una factura vigente o una orden de compra al proveedor
+confirmada: primero hay que cancelar esas; la sección lo dice en lugar del botón.
+
+**Reactivar.** En la página del proyecto cancelado, escribe el **Motivo** y haz clic en
+**Reactivar como …**: regresa a la etapa en que estaba, y en el historial queda *"Se
+reactivó como …"*.
+
+**Deshacer O.C. recibida.** Para una orden de compra capturada por error (otro archivo u
+otro proyecto). Escribe el **Motivo**, haz clic en **Deshacer O.C. recibida** y confirma.
+El proyecto regresa a prospecto en **Inminente 90%**, sin el número ni la fecha de la orden
+(quedan en el historial: *"Se deshizo la O.C. recibida (O.C. …)."*), y su cotización se
+puede volver a revisar. Los archivos de la orden se conservan. No se puede si el proyecto
+ya tiene factura (timbrada o registrada a mano) o una orden de compra al proveedor
+confirmada.
+:::
 
 ## Reasignar o eliminar un proyecto
 

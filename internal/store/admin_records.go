@@ -20,8 +20,8 @@ var ErrNotDeletable = errors.New("store: quote can't be deleted on its own")
 const deletableComprobanteStatuses = `'borrador', 'lista', 'rechazada'`
 
 // DeleteProject removes a proyecto with everything that hangs from it: its comprobantes
-// (only unstamped ones; otherwise ErrHasStampedInvoice and nothing is touched), the
-// purchase order files, its órdenes de compra a proveedor (any state) and every quote it
+// (only unstamped ones; otherwise ErrHasStampedInvoice and nothing is touched), its
+// payments, its files (the purchase order's, the comprobantes de pago), its órdenes de compra a proveedor (any state) and every quote it
 // ever had, with their lines, comments and supplier quotes. No foreign key cascades, so the order here is the dependency order.
 // Folios are not reused: folio_sequences only counts up. Notifications are never deleted:
 // those still por enviar about it are cancelled, and all of them lose the link.
@@ -47,6 +47,7 @@ func (s *Store) DeleteProject(ctx context.Context, projectID int64) error {
 		return fmt.Errorf("store: delete project %d: notifications: %w", projectID, err)
 	}
 	steps := []struct{ what, query string }{
+		{"payments", `DELETE FROM payments WHERE project_id = ?1`},
 		{"comprobante conceptos", `DELETE FROM comprobante_conceptos WHERE comprobante_id IN (SELECT id FROM comprobantes WHERE project_id = ?1)`},
 		{"comprobante events", `DELETE FROM comprobante_events WHERE comprobante_id IN (SELECT id FROM comprobantes WHERE project_id = ?1)`},
 		{"comprobante links", `UPDATE comprobantes SET related_id = NULL WHERE project_id = ?1`},

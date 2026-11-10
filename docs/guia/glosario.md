@@ -56,20 +56,21 @@ Al emitirla se abre su [[proyecto]], que es el que avanza por etapas:
 <div class="estados">
   <span class="estado">prospecto</span>
   <span class="flecha">OC →</span>
-  <span class="estado">O.C. recibida</span>
-  <span class="flecha">Factura →</span>
-  <span class="estado">facturado</span>
-  <span class="flecha">Entrega →</span>
-  <span class="estado">en entrega</span>
-  <span class="flecha">Pagado →</span>
-  <span class="estado">cerrado</span>
+  <span class="estado">en curso</span>
+  <span class="flecha">Facturado, entregado y pagado →</span>
+  <span class="estado">cerrado · ganado</span>
 </div>
 
-Un proyecto que no se concreta se marca como [[perdido]]. La etapa se ve y se cambia en
-la [página del proyecto](proyectos.md). Mientras el proyecto es prospecto, si el cliente pide cambios,
-[Revisar](cotizaciones.md#revisar-una-cotización-emitida) crea una nueva cotización
-(`QA0012-R1`) en borrador y la original pasa a **revisada**; el proyecto sigue siendo el
-mismo. Cómo mover un proyecto de etapa: [darle seguimiento](proyectos.md#dar-seguimiento-a-un-proyecto).
+Un prospecto que no se concreta se marca como [[perdido]]; un proyecto en curso cuyo pedido
+se cae, como [[cancelado]]. Mientras está en curso, el proyecto tiene tres estados que se
+calculan solos: [[estado de facturación]], [[estado de entrega]] y [[estado de cobro]].
+Cuando los tres están completos queda **Cerrado · Ganado**, sin que nadie lo marque.
+
+La etapa se ve en la [página del proyecto](proyectos.md). Mientras el proyecto es
+prospecto, si el cliente pide cambios, [Revisar](cotizaciones.md#revisar-una-cotización-emitida)
+crea una nueva cotización (`QA0012-R1`) en borrador y la original pasa a **revisada**; el
+proyecto sigue siendo el mismo. Cómo darle seguimiento:
+[darle seguimiento](proyectos.md#dar-seguimiento-a-un-proyecto).
 
 ## Borrador
 
@@ -114,7 +115,14 @@ por cerrar, cuándo se espera la orden de compra y cuánto suma. Está en el men
 ## O.C. recibida
 
 El cliente ya mandó su orden de compra y el proyecto tiene su número, su fecha y su
-archivo. Desde este momento la cotización del proyecto ya no se puede revisar.
+archivo: el proyecto pasa a [[en curso]] (*Orden colocada 100%*). Desde este momento la
+cotización del proyecto ya no se puede revisar.
+
+## En curso
+
+Un proyecto con la orden de compra del cliente recibida (*Orden colocada 100%*). Mientras
+está en curso se siguen su [[estado de facturación]], su [[estado de entrega]] y su
+[[estado de cobro]]; cuando los tres están completos queda [[cerrado|Cerrado · Ganado]].
 
 ## Método de pago
 
@@ -124,31 +132,48 @@ completa después). Se elige al registrar la factura, o en su borrador si se tim
 la app. Los proyectos que lo eligieron al recibir la orden de compra, cuando ahí se pedía,
 lo conservan como opción inicial.
 
-## Facturado
+## Estado de facturación
 
-La factura de la orden de compra ya está registrada en el proyecto (si es
-P.P.D., la factura de anticipo). Es lo que permite entregar: sin factura no se entrega.
+Si un proyecto en curso ya se facturó. **Pendiente**: no tiene factura (o se canceló).
+**Pendiente complemento de pago**: tiene una factura P.P.D. timbrada a la que le faltan
+comprobantes de pago que cubran su total. **Facturada**: factura P.U.E. timbrada, P.P.D.
+con sus comprobantes de pago, o una factura registrada a mano.
+
+## Estado de entrega
+
+Si ya se le pidió al proveedor y se entregó. **Sin emitir O.C.**: todavía no se confirma la
+orden de compra al proveedor. **En proceso de entrega**: ya está confirmada.
+**Entregado**: se marcó como entregado (llega en una próxima versión).
+
+## Estado de cobro
+
+Cuánto ha pagado el cliente, contra el total con IVA del proyecto. **Pendiente de pago**: no
+hay pagos registrados. **Pago parcial**: los pagos no cubren el total. **Pagado**: lo
+cubren.
 
 ## Estado de pago
 
-En qué va el cobro de un proyecto. **Sin tramitar**: todavía no se registra su factura.
-**Facturado de anticipo**: factura P.P.D. (de anticipo) registrada, falta completar el
-pago. **Pagado**: ya se cobró. Un proyecto solo se puede cerrar si está pagado.
-
-## En entrega
-
-El pedido ya va en camino o se le entregó al cliente. Un proyecto con factura P.P.D.
-puede estar en entrega sin haberse pagado todavía.
+Cómo se anotaba el cobro antes del [[estado de cobro]], a mano con la factura.
+**Sin tramitar**: todavía no se registra su factura. **Facturado de anticipo**: factura
+P.P.D. (de anticipo) registrada, falta completar el pago. **Pagado**: ya se cobró.
 
 ## Cerrado
 
-Un proyecto que ya se entregó y está pagado.
+**Cerrado · Ganado**: un proyecto en curso que ya está facturado, entregado y pagado. Llega
+solo, y si algo deja de cumplirse (se cancela su factura, se borra un pago) regresa a en
+curso. No aparece en la lista de proyectos salvo que la filtres por esa etapa.
 
 ## Perdido
 
-Un proyecto que no se concretó: el cliente ya no va a comprar. Se marca con un motivo,
+Un prospecto que no se concretó: el cliente ya no va a comprar. Se marca con un motivo,
 sale de las etapas activas y ya no cuenta para el pronóstico. Cualquier usuario
 puede reabrirlo.
+
+## Cancelado
+
+Un proyecto cuyo pedido se cayó, casi siempre después de recibir la orden de compra. Solo
+un administrador lo cancela, con un motivo, y solo si no tiene factura vigente ni orden de
+compra al proveedor confirmada. También lo reactiva, y regresa a la etapa en que estaba.
 
 ## Revisada
 

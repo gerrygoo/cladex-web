@@ -472,11 +472,13 @@ Decisions taken while building, beyond §1–§8:
   draft (the customer's email by default). There is no resend: that waits for #18.
 - **The PDF is rendered from the stored XML** on demand (deterministic, with the SAT
   verification QR), never stored. Facturoporti's own PDF is not kept.
-- **Proyecto gates (M6.4)**: stamping a factura moves the proyecto to Facturado in the same
-  transaction (P.U.E.: pagado; P.P.D.: facturado de anticipo); stamping its pago leaves it
-  pagado; a replacement updates the proyecto's factura reference. If the proyecto moved by
-  hand meanwhile, the stamp is still recorded and the history says the proyecto wasn't
-  moved. While facturación is off (no secrets), the typed folio forms stay.
+- **Proyecto gates (M6.4)**: ~~stamping a factura moves the proyecto to Facturado~~.
+  Superseded 2026-11-10 by [estados-del-proyecto.md](estados-del-proyecto.md): stamping
+  moves no stage. The proyecto's Estado de facturación is derived from its comprobantes
+  (the `project_states` view), and the stamp only writes a line in the proyecto's history
+  ("Factura F-12 timbrada · Folio fiscal …", "Comprobante de pago P-3 timbrado …",
+  "Factura sustituida por F-13 …"). A factura draft needs the proyecto en curso. While
+  facturación is off (no secrets), the typed folio forms stay.
 - **Cancellation doesn't move the proyecto back**; an admin does that by hand if needed.
   The SAT won't cancel a factura with a stamped pago until the pago is cancelled.
 - **Admin-only** actions; anyone signed in sees and downloads.

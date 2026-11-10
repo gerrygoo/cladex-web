@@ -67,7 +67,7 @@ func TestOverdueAgreesWithSeguimientoPeriods(t *testing.T) {
 	commentedBefore := prospecto(day(-14), "prospecto", day(-15).Add(10*time.Hour))
 	prospecto(day(0), "prospecto") // due today: not late yet
 	prospecto(day(3), "prospecto")
-	prospecto(day(-7), "oc_recibida")
+	prospecto(day(-7), "en_curso")
 
 	fromAvisos, err := New(s, &fakeJobs{}, "", nil).overdue(ctx, today)
 	if err != nil {

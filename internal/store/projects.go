@@ -17,15 +17,21 @@ import (
 // revisions (QA0105-R1...). Its current quote is the one quote of the proyecto that is
 // not revisada. See migrations/0016_projects.sql.
 
-// ProjectFlow is the order a proyecto follows: the client has the quote and it is being
-// followed up (prospecto), the client's purchase order arrived (oc_recibida), its
-// factura is on record (facturado), the goods are on their way or delivered
-// (en_entrega), and it was delivered and collected (cerrado). A proyecto moves one step
-// at a time, and three of the steps are gated: only ReceiveOC enters oc_recibida, only
-// RecordInvoice enters facturado, so nothing is delivered without a factura, and cerrado
-// needs the proyecto to be pagado. perdido is not a step: a proyecto is marked lost from
-// prospecto or oc_recibida (LoseProject) and only an admin's reopen brings it back.
-var ProjectFlow = []string{"prospecto", "oc_recibida", "facturado", "en_entrega", "cerrado"}
+// Stages a proyecto is in (projects.status, migrations/0041_project_states.sql). A
+// proyecto is a prospecto while the client has the quote, en curso once the client's
+// purchase order is received (ReceiveOC, the only way in), and perdido or cancelado when
+// it doesn't happen. Once en curso, three states derived from its records say where it
+// stands — facturación, entrega and cobro (ProjectStates) — and when all three are
+// complete it is Cerrado · Ganado, which is never stored either (StageCerrado).
+const (
+	StageProspecto = "prospecto"
+	StageEnCurso   = "en_curso"
+	StagePerdido   = "perdido"
+	StageCancelado = "cancelado"
+	// StageCerrado is how an en curso proyecto whose three states are complete is shown
+	// and filtered (Project.Stage); no row stores it.
+	StageCerrado = "cerrado"
+)
 
 // StatusLabels are the words users see for each quote status.
 var StatusLabels = map[string]string{
@@ -36,38 +42,11 @@ var StatusLabels = map[string]string{
 
 // StageLabels are the words users see for each proyecto stage.
 var StageLabels = map[string]string{
-	"prospecto":   "Prospecto",
-	"oc_recibida": "O.C. recibida",
-	"facturado":   "Facturado",
-	"en_entrega":  "En entrega",
-	"cerrado":     "Cerrado",
-	"perdido":     "Perdido",
-}
-
-func flowIndex(stage string) int {
-	for i, st := range ProjectFlow {
-		if st == stage {
-			return i
-		}
-	}
-	return -1
-}
-
-// NextStage is the stage after stage in the flow, or "" when there is none (a stage that
-// isn't in the flow, or the last one).
-func NextStage(stage string) string {
-	if i := flowIndex(stage); i >= 0 && i+1 < len(ProjectFlow) {
-		return ProjectFlow[i+1]
-	}
-	return ""
-}
-
-// PrevStage is the stage before stage in the flow, or "" when there is none.
-func PrevStage(stage string) string {
-	if i := flowIndex(stage); i > 0 {
-		return ProjectFlow[i-1]
-	}
-	return ""
+	StageProspecto: "Prospecto",
+	StageEnCurso:   "En curso",
+	StageCerrado:   "Cerrado · Ganado",
+	StagePerdido:   "Perdido",
+	StageCancelado: "Cancelado",
 }
 
 // ProbabilityStep is one of the fixed values a prospecto's probabilidad de cierre takes.
@@ -80,7 +59,7 @@ type ProbabilityStep struct {
 // ProbabilitySteps are the probabilidad de cierre choices, lowest first. A new proyecto
 // starts at the first. There is no 0 or 100 in the data: receiving the purchase order ends
 // the guess. The follow-up form shows "Orden colocada 100%" and "Perdida" after these as
-// labels for oc_recibida and perdido, not as values to store.
+// labels for en_curso and perdido, not as values to store.
 var ProbabilitySteps = []ProbabilityStep{
 	{10, "Inicial"}, {25, "Baja"}, {50, "Media"}, {75, "Alta"}, {90, "Inminente"},
 }
@@ -110,76 +89,10 @@ func ForecastRelevant(stage string, probability int) bool {
 	return stage == "prospecto" && probability >= ForecastThreshold
 }
 
-// ErrBadTransition is returned by MoveProject when the proyecto isn't in the stage the
-// move starts from, the target isn't the stage right before or after it, it is a step
-// forward that belongs to ReceiveOC or RecordInvoice, or it is closing a proyecto that
-// isn't pagado. It is also
-// what SetProjectProbability returns for a proyecto that is no longer a prospecto or a
-// value that isn't a step.
+// ErrBadTransition is returned when a proyecto isn't in the stage an action needs (a
+// purchase order on a proyecto that is no longer a prospecto, a probability on one past
+// prospecto, reopening one that isn't perdido...) or the action's data isn't valid.
 var ErrBadTransition = errors.New("store: project can't move to that stage")
-
-// MoveProject moves a proyecto one stage along ProjectFlow, from `from` to `to` (either
-// the next stage or the previous one), and records it as a comment on its current quote
-// — "Pasó a O.C. recibida." plus the user's note, if any — so the history reads in one
-// place. The change is conditional on the proyecto still being in `from`, so two people
-// clicking at once can't skip a stage. Two steps forward aren't its to take, because they
-// need data: prospecto to oc_recibida is ReceiveOC's and oc_recibida to facturado is
-// RecordInvoice's. Closing (en_entrega to cerrado) needs the proyecto to be pagado.
-// Going back from facturado to oc_recibida undoes the factura: its folio and the payment
-// state are cleared and stay only in the history. Whether the user may go backwards is
-// the caller's decision.
-func (s *Store) MoveProject(ctx context.Context, projectID, userID int64, from, to, note string) error {
-	if NextStage(from) != to && PrevStage(from) != to || to == "" ||
-		from == "prospecto" && to == "oc_recibida" || from == "oc_recibida" && to == "facturado" {
-		return ErrBadTransition
-	}
-	verb := "Pasó a"
-	if flowIndex(to) < flowIndex(from) {
-		verb = "Regresó a"
-	}
-	body := fmt.Sprintf("%s %s.", verb, StageLabels[to])
-	if note = strings.TrimSpace(note); note != "" {
-		body += "\n" + note
-	}
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("store: move project %d: %w", projectID, err)
-	}
-	defer tx.Rollback()
-	if err := stampActor(ctx, tx); err != nil {
-		return fmt.Errorf("store: move project %d: %w", projectID, err)
-	}
-	quoteID, _, err := currentQuote(ctx, tx, projectID)
-	if err != nil {
-		return fmt.Errorf("store: move project %d: %w", projectID, err)
-	}
-	if quoteID == 0 {
-		return ErrBadTransition
-	}
-	set, guard := "", ""
-	switch {
-	case from == "en_entrega" && to == "cerrado":
-		guard = ` AND payment_status = 'pagado'`
-	case from == "facturado" && to == "oc_recibida":
-		set = `, invoice_ref = NULL, invoice_date = NULL, payment_status = NULL, payment_ref = NULL, paid_at = NULL`
-	}
-	res, err := tx.ExecContext(ctx, `UPDATE projects SET status = ?`+set+` WHERE id = ? AND status = ?`+guard, to, projectID, from)
-	if err != nil {
-		return fmt.Errorf("store: move project %d: %w", projectID, err)
-	}
-	if n, _ := res.RowsAffected(); n != 1 {
-		return ErrBadTransition
-	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`, quoteID, userID, body); err != nil {
-		return fmt.Errorf("store: move project %d: comment: %w", projectID, err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: move project %d: %w", projectID, err)
-	}
-	return nil
-}
 
 // PaymentMethods are the métodos de pago a proyecto's factura can have, and
 // PaymentMethodLabels how users read them. The método is chosen when the factura is
@@ -233,10 +146,11 @@ type ProjectFile struct {
 }
 
 // ReceiveOC records the client's purchase order on a proyecto, with its file if one is
-// given. On a prospecto it is what moves the proyecto to oc_recibida, the only way in:
-// that needs all of oc and an issued current quote (a revision still in borrador has to
-// be issued first). On a proyecto already in oc_recibida it corrects the data. Either
-// way the history gets one comment saying what happened, ending with the user's note.
+// given. On a prospecto it is what moves the proyecto to en curso, the only way in: that
+// needs all of oc and an issued current quote (a revision still in borrador has to be
+// issued first). On a proyecto already en curso it corrects the data, while its
+// facturación is still pendiente (a factura answers to the order it bills). Either way
+// the history gets one comment saying what happened, ending with the user's note.
 // Anything else is ErrBadTransition.
 func (s *Store) ReceiveOC(ctx context.Context, projectID, userID int64, oc OC, file *NewFile, note string) error {
 	oc.Number = strings.TrimSpace(oc.Number)
@@ -251,15 +165,16 @@ func (s *Store) ReceiveOC(ctx context.Context, projectID, userID int64, oc OC, f
 	if err := stampActor(ctx, tx); err != nil {
 		return fmt.Errorf("store: receive OC of project %d: %w", projectID, err)
 	}
-	var status string
+	var status, facturacion string
 	var old OC
 	err = tx.QueryRowContext(ctx, `
-		SELECT status, COALESCE(oc_number, ''), COALESCE(oc_date, '')
-		FROM projects WHERE id = ?`, projectID).Scan(&status, &old.Number, &old.Date)
+		SELECT p.status, COALESCE(p.oc_number, ''), COALESCE(p.oc_date, ''), ps.facturacion
+		FROM projects p JOIN project_states ps ON ps.project_id = p.id
+		WHERE p.id = ?`, projectID).Scan(&status, &old.Number, &old.Date, &facturacion)
 	if err != nil && err != sql.ErrNoRows {
 		return fmt.Errorf("store: receive OC of project %d: %w", projectID, err)
 	}
-	if err == sql.ErrNoRows || status != "prospecto" && status != "oc_recibida" {
+	if err == sql.ErrNoRows || status != StageProspecto && (status != StageEnCurso || facturacion != FacturacionPendiente) {
 		return ErrBadTransition
 	}
 	quoteID, quoteStatus, err := currentQuote(ctx, tx, projectID)
@@ -272,23 +187,20 @@ func (s *Store) ReceiveOC(ctx context.Context, projectID, userID int64, oc OC, f
 
 	var changes []string
 	switch {
-	case status == "prospecto":
-		changes = append(changes, "Pasó a "+StageLabels["oc_recibida"]+".", "O.C. "+oc.text())
+	case status == StageProspecto:
+		changes = append(changes, "Pasó a "+StageLabels[StageEnCurso]+".", "O.C. "+oc.text())
 	case old != oc:
 		changes = append(changes, "O.C. actualizada: "+oc.text())
 	}
-	if status == "prospecto" || old != oc {
+	if status == StageProspecto || old != oc {
 		if _, err := tx.ExecContext(ctx, `
-			UPDATE projects SET status = 'oc_recibida', oc_number = ?, oc_date = ?
+			UPDATE projects SET status = 'en_curso', oc_number = ?, oc_date = ?
 			WHERE id = ?`, oc.Number, oc.Date, projectID); err != nil {
 			return fmt.Errorf("store: receive OC of project %d: %w", projectID, err)
 		}
 	}
 	if file != nil {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO project_files (project_id, kind, filename, content_type, size, data, uploaded_by)
-			VALUES (?, 'oc', ?, ?, ?, ?, ?)`,
-			projectID, strings.TrimSpace(file.Filename), file.ContentType, len(file.Data), file.Data, userID); err != nil {
+		if _, err := insertProjectFile(ctx, tx, projectID, userID, "oc", file); err != nil {
 			return fmt.Errorf("store: receive OC of project %d: file: %w", projectID, err)
 		}
 		changes = append(changes, "Archivo de la O.C.: "+strings.TrimSpace(file.Filename))
@@ -297,9 +209,7 @@ func (s *Store) ReceiveOC(ctx context.Context, projectID, userID int64, oc OC, f
 		changes = append(changes, note)
 	}
 	if len(changes) > 0 {
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`,
-			quoteID, userID, strings.Join(changes, "\n")); err != nil {
+		if err := addProjectComment(ctx, tx, quoteID, userID, strings.Join(changes, "\n")); err != nil {
 			return fmt.Errorf("store: receive OC of project %d: comment: %w", projectID, err)
 		}
 	}
@@ -307,6 +217,26 @@ func (s *Store) ReceiveOC(ctx context.Context, projectID, userID int64, oc OC, f
 		return fmt.Errorf("store: receive OC of project %d: %w", projectID, err)
 	}
 	return nil
+}
+
+// insertProjectFile attaches a file of kind ('oc', 'pago' or 'entrega') to a proyecto and
+// returns its id.
+func insertProjectFile(ctx context.Context, tx *sql.Tx, projectID, userID int64, kind string, file *NewFile) (int64, error) {
+	res, err := tx.ExecContext(ctx, `
+		INSERT INTO project_files (project_id, kind, filename, content_type, size, data, uploaded_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		projectID, kind, strings.TrimSpace(file.Filename), file.ContentType, len(file.Data), file.Data, userID)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// addProjectComment writes one entry of a proyecto's history: a comment on its current
+// quote (quoteID), so the history reads in one place.
+func addProjectComment(ctx context.Context, tx *sql.Tx, quoteID, userID int64, body string) error {
+	_, err := tx.ExecContext(ctx, `INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`, quoteID, userID, body)
+	return err
 }
 
 // ListProjectFiles returns a proyecto's files of one kind, newest first, without their
@@ -350,8 +280,9 @@ func (s *Store) ProjectFileData(ctx context.Context, projectID, fileID int64) (*
 }
 
 // OCReceipt is who put a proyecto's purchase order on record and when (a UTC
-// timestamp): the user whose write moved it from prospecto to oc_recibida, as the audit
-// log has it, the latest such move if it was reopened. A proyecto received before the
+// timestamp): the user whose write moved it from prospecto to en curso (oc_recibida
+// before migration 0041), as the audit log has it, the latest such move if it was
+// reopened or its O.C. undone. A proyecto received before the
 // log kept it, or by a write no user is attributed to, falls back to who uploaded its
 // first purchase order file. Both are empty when neither is known.
 type OCReceipt struct {
@@ -366,7 +297,7 @@ func (s *Store) ProjectOCReceipt(ctx context.Context, projectID int64) (OCReceip
 		SELECT COALESCE(u.name, ''), a.at FROM audit_log a LEFT JOIN users u ON u.id = a.actor_id
 		WHERE a.table_name = 'projects' AND a.row_key = CAST(? AS TEXT) AND a.op = 'update'
 			AND json_extract(a.old_values, '$.status') = 'prospecto'
-			AND json_extract(a.new_values, '$.status') = 'oc_recibida'
+			AND json_extract(a.new_values, '$.status') IN ('en_curso', 'oc_recibida')
 		ORDER BY a.id DESC LIMIT 1`, projectID).Scan(&r.UserName, &r.At)
 	if err != nil && err != sql.ErrNoRows {
 		return r, fmt.Errorf("store: OC receipt of project %d: %w", projectID, err)
@@ -383,10 +314,9 @@ func (s *Store) ProjectOCReceipt(ctx context.Context, projectID int64) (OCReceip
 	return r, nil
 }
 
-// Payment states. A proyecto's payment state is separate from its stage: empty until the
-// purchase order's factura is on record, then facturado de anticipo for a P.P.D. order
-// still to be collected, and pagado. Until facturas are issued from the app these are
-// kept by hand, with the folios typed in.
+// Payment states, as they were kept by hand before payments were recorded one by one
+// (#67): empty until the purchase order's factura is on record, then facturado de
+// anticipo for a P.P.D. order still to be collected, and pagado.
 const (
 	PaymentAdvanceInvoiced = "facturado_anticipo"
 	PaymentPaid            = "pagado"
@@ -415,13 +345,14 @@ func (d Document) valid() bool {
 	return err == nil
 }
 
-// RecordInvoice puts the purchase order's factura on record with its método de pago
-// (one of PaymentMethods, kept on the proyecto) and moves the proyecto from oc_recibida
-// to facturado, the only way in. What it means depends on that método. P.U.E.: the
-// client paid and the factura was issued, so the proyecto is pagado as of the factura's
-// day. P.P.D.: it is the factura de anticipo, and the proyecto is facturado de anticipo
-// until RecordPayment. The history gets one comment saying which, ending with the user's
-// note. A proyecto that isn't in oc_recibida with its purchase order on record, or a
+// RecordInvoice puts the purchase order's factura on record by hand, typed in, with its
+// método de pago (one of PaymentMethods, kept on the proyecto): the way to invoice while
+// facturación can't stamp, until #63's manual mode replaces it. It counts as facturada
+// for the proyecto's Estado de facturación; the stage doesn't change. P.U.E. means the
+// client paid, so the proyecto is pagado as of the factura's day; P.P.D. means it is the
+// factura de anticipo, facturado de anticipo until RecordPayment. The history gets one
+// comment saying which, ending with the user's note. A proyecto that isn't en curso with
+// its purchase order on record, one with a factura already (typed in or stamped), or a
 // método that isn't one, is ErrBadTransition.
 func (s *Store) RecordInvoice(ctx context.Context, projectID, userID int64, invoice Document, method, note string) error {
 	invoice.Ref = strings.TrimSpace(invoice.Ref)
@@ -436,26 +367,12 @@ func (s *Store) RecordInvoice(ctx context.Context, projectID, userID int64, invo
 	if err := stampActor(ctx, tx); err != nil {
 		return fmt.Errorf("store: record invoice of project %d: %w", projectID, err)
 	}
-	if err := recordInvoiceTx(ctx, tx, projectID, userID, invoice, method, note); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: record invoice of project %d: %w", projectID, err)
-	}
-	return nil
-}
-
-// recordInvoiceTx is RecordInvoice inside tx, which a stamped factura also goes through
-// with the método de pago it was stamped with.
-func recordInvoiceTx(ctx context.Context, tx *sql.Tx, projectID, userID int64, invoice Document, method, note string) error {
-	if PaymentMethodLabels[method] == "" {
-		return ErrBadTransition
-	}
-	var one int
-	err := tx.QueryRowContext(ctx, `
-		SELECT 1 FROM projects WHERE id = ? AND status = 'oc_recibida' AND oc_number IS NOT NULL`,
-		projectID).Scan(&one)
-	if err == sql.ErrNoRows {
+	var facturacion string
+	err = tx.QueryRowContext(ctx, `
+		SELECT ps.facturacion FROM projects p JOIN project_states ps ON ps.project_id = p.id
+		WHERE p.id = ? AND p.status = 'en_curso' AND p.oc_number IS NOT NULL`,
+		projectID).Scan(&facturacion)
+	if err == sql.ErrNoRows || err == nil && facturacion != FacturacionPendiente {
 		return ErrBadTransition
 	}
 	if err != nil {
@@ -469,33 +386,32 @@ func recordInvoiceTx(ctx context.Context, tx *sql.Tx, projectID, userID int64, i
 		return ErrBadTransition
 	}
 	status, paidAt := PaymentAdvanceInvoiced, any(nil)
-	what := "Factura de anticipo " + invoice.Ref + " · " + dayText(invoice.Date)
+	body := "Factura de anticipo " + invoice.Ref + " · " + dayText(invoice.Date)
 	if method == "PUE" {
 		status, paidAt = PaymentPaid, invoice.Date
-		what = "Pago recibido · factura " + invoice.Ref + " · " + dayText(invoice.Date)
+		body = "Pago recibido · factura " + invoice.Ref + " · " + dayText(invoice.Date)
 	}
 	if _, err := tx.ExecContext(ctx, `
-		UPDATE projects SET status = 'facturado', invoice_ref = ?, invoice_date = ?, payment_method = ?,
+		UPDATE projects SET invoice_ref = ?, invoice_date = ?, payment_method = ?,
 			payment_status = ?, paid_at = ?, payment_ref = NULL
 		WHERE id = ?`, invoice.Ref, invoice.Date, method, status, paidAt, projectID); err != nil {
 		return fmt.Errorf("store: record invoice of project %d: %w", projectID, err)
 	}
-	body := "Pasó a " + StageLabels["facturado"] + ".\n" + what
 	if note = strings.TrimSpace(note); note != "" {
 		body += "\n" + note
 	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`, quoteID, userID, body); err != nil {
+	if err := addProjectComment(ctx, tx, quoteID, userID, body); err != nil {
 		return fmt.Errorf("store: record invoice of project %d: comment: %w", projectID, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: record invoice of project %d: %w", projectID, err)
 	}
 	return nil
 }
 
-// RecordPayment marks a P.P.D. proyecto that is facturado de anticipo as pagado, with the
-// comprobante de pago issued when the payment was completed. It can happen while the
-// proyecto is facturado or already en entrega (a P.P.D. order is delivered before it is
-// collected), and it is what lets the proyecto be closed. The stage doesn't change.
-// Anything else is ErrBadTransition.
+// RecordPayment marks an en curso P.P.D. proyecto that is facturado de anticipo as
+// pagado, with the comprobante de pago issued when the payment was completed. The stage
+// doesn't change. Anything else is ErrBadTransition.
 func (s *Store) RecordPayment(ctx context.Context, projectID, userID int64, receipt Document, note string) error {
 	receipt.Ref = strings.TrimSpace(receipt.Ref)
 	if !receipt.valid() {
@@ -509,18 +425,6 @@ func (s *Store) RecordPayment(ctx context.Context, projectID, userID int64, rece
 	if err := stampActor(ctx, tx); err != nil {
 		return fmt.Errorf("store: record payment of project %d: %w", projectID, err)
 	}
-	if err := recordPaymentTx(ctx, tx, projectID, userID, receipt, note); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: record payment of project %d: %w", projectID, err)
-	}
-	return nil
-}
-
-// recordPaymentTx is RecordPayment inside tx, which a stamped comprobante de pago also
-// goes through.
-func recordPaymentTx(ctx context.Context, tx *sql.Tx, projectID, userID int64, receipt Document, note string) error {
 	quoteID, _, err := currentQuote(ctx, tx, projectID)
 	if err != nil {
 		return fmt.Errorf("store: record payment of project %d: %w", projectID, err)
@@ -530,7 +434,7 @@ func recordPaymentTx(ctx context.Context, tx *sql.Tx, projectID, userID int64, r
 	}
 	res, err := tx.ExecContext(ctx, `
 		UPDATE projects SET payment_status = ?, payment_ref = ?, paid_at = ?
-		WHERE id = ? AND payment_status = ? AND status IN ('facturado', 'en_entrega')`,
+		WHERE id = ? AND payment_status = ? AND status = 'en_curso'`,
 		PaymentPaid, receipt.Ref, receipt.Date, projectID, PaymentAdvanceInvoiced)
 	if err != nil {
 		return fmt.Errorf("store: record payment of project %d: %w", projectID, err)
@@ -542,9 +446,11 @@ func recordPaymentTx(ctx context.Context, tx *sql.Tx, projectID, userID int64, r
 	if note = strings.TrimSpace(note); note != "" {
 		body += "\n" + note
 	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`, quoteID, userID, body); err != nil {
+	if err := addProjectComment(ctx, tx, quoteID, userID, body); err != nil {
 		return fmt.Errorf("store: record payment of project %d: comment: %w", projectID, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: record payment of project %d: %w", projectID, err)
 	}
 	return nil
 }
@@ -662,19 +568,17 @@ func (s *Store) SetProjectProbability(ctx context.Context, projectID, userID int
 	return s.FollowUpProject(ctx, projectID, userID, FollowUp{Probability: &percent, Note: note})
 }
 
-// LostFromStages are the stages a proyecto can be marked lost from.
-var LostFromStages = []string{"prospecto", "oc_recibida"}
-
-// CanLose reports whether a proyecto in stage can be marked lost.
+// CanLose reports whether a proyecto in stage can be marked lost: only a prospecto. Once
+// en curso, a sale that falls through is cancelled by an admin instead (CancelProject).
 func CanLose(stage string) bool {
-	return stage == "prospecto" || stage == "oc_recibida"
+	return stage == StageProspecto
 }
 
-// LoseProject marks a proyecto lost, from `from` (one of LostFromStages), with the
-// reason, which is required. It records it as a comment on the current quote — "Se
-// perdió." plus the reason — and remembers the stage it was lost from. Like MoveProject
-// it is conditional on the proyecto still being in `from`. There is no lost status on a
-// quote: losing a quote and losing its proyecto are the same thing.
+// LoseProject marks a proyecto lost, from `from` (see CanLose), with the reason, which is
+// required. It records it as a comment on the current quote — "Se perdió." plus the
+// reason — and remembers the stage it was lost from. It is conditional on the proyecto
+// still being in `from`. There is no lost status on a quote: losing a quote and losing
+// its proyecto are the same thing.
 func (s *Store) LoseProject(ctx context.Context, projectID, userID int64, from, reason string) error {
 	reason = strings.TrimSpace(reason)
 	if !CanLose(from) || reason == "" {
@@ -705,9 +609,7 @@ func (s *Store) LoseProject(ctx context.Context, projectID, userID int64, from, 
 	if n, _ := res.RowsAffected(); n != 1 {
 		return ErrBadTransition
 	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`,
-		quoteID, userID, "Se perdió.\n"+reason); err != nil {
+	if err := addProjectComment(ctx, tx, quoteID, userID, "Se perdió.\n"+reason); err != nil {
 		return fmt.Errorf("store: lose project %d: comment: %w", projectID, err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -719,9 +621,9 @@ func (s *Store) LoseProject(ctx context.Context, projectID, userID int64, from, 
 // ReopenProject brings a lost proyecto back to the stage it was lost from and clears the
 // reason, which stays in the history as the comment LoseProject wrote. A proyecto lost
 // from prospecto can come back with a new probabilidad (one of ProbabilitySteps); nil
-// keeps the one it had, and it is ignored for one lost from oc_recibida, whose purchase
-// order is still on record. The reopening is a comment too, with the user's note if any.
-// Who may reopen is the caller's decision.
+// keeps the one it had, and it is ignored for one lost while en curso (before Cancelado
+// existed), whose purchase order is still on record. The reopening is a comment too, with
+// the user's note if any. Who may reopen is the caller's decision.
 func (s *Store) ReopenProject(ctx context.Context, projectID, userID int64, probability *int, note string) error {
 	if probability != nil && ProbabilityLabel(*probability) == "" {
 		return ErrBadTransition
@@ -757,7 +659,7 @@ func (s *Store) ReopenProject(ctx context.Context, projectID, userID int64, prob
 		return fmt.Errorf("store: reopen project %d: %w", projectID, err)
 	}
 	body := fmt.Sprintf("Se reabrió como %s.", StageLabels[back])
-	if back == "prospecto" && probability != nil && *probability != before {
+	if back == StageProspecto && probability != nil && *probability != before {
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE projects SET probability = ?, probability_updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 			WHERE id = ?`, *probability, projectID); err != nil {
@@ -768,14 +670,181 @@ func (s *Store) ReopenProject(ctx context.Context, projectID, userID int64, prob
 	if note = strings.TrimSpace(note); note != "" {
 		body += "\n" + note
 	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`, quoteID, userID, body); err != nil {
+	if err := addProjectComment(ctx, tx, quoteID, userID, body); err != nil {
 		return fmt.Errorf("store: reopen project %d: comment: %w", projectID, err)
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("store: reopen project %d: %w", projectID, err)
 	}
 	return nil
+}
+
+// Why an admin's change of stage is refused (CancelProject, UndoReceiveOC), besides
+// ErrBadTransition for a proyecto that isn't in a stage it applies to.
+var (
+	// ErrHasFactura: the proyecto has a factura that may be stamped (timbrada, being
+	// stamped, or with its cancellation pending), or, for UndoReceiveOC, one typed in.
+	ErrHasFactura = errors.New("store: project has a factura")
+	// ErrHasConfirmedPO: the proyecto has a confirmed supplier O.C.
+	ErrHasConfirmedPO = errors.New("store: project has a confirmed supplier purchase order")
+)
+
+// maybeStampedComprobante is the SQL condition for a comprobante that may be a real CFDI:
+// not one of deletableComprobanteStatuses, and not cancelled.
+const maybeStampedComprobante = `status NOT IN (` + deletableComprobanteStatuses + `, 'cancelada')`
+
+// stageBlockers checks what keeps an admin from taking an en curso proyecto out of its
+// stage: a factura that may be stamped (and, when typed counts, a typed-in invoice_ref)
+// and a confirmed supplier O.C.
+func stageBlockers(ctx context.Context, tx *sql.Tx, projectID int64, typed bool) error {
+	var factura, po int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT
+			(SELECT count(*) FROM comprobantes WHERE project_id = ?1 AND tipo = 'factura' AND `+maybeStampedComprobante+`)
+				+ (SELECT count(*) FROM projects WHERE id = ?1 AND ?2 AND COALESCE(invoice_ref, '') != ''),
+			(SELECT count(*) FROM purchase_orders WHERE project_id = ?1 AND status = 'confirmada')`,
+		projectID, typed).Scan(&factura, &po); err != nil {
+		return err
+	}
+	switch {
+	case factura > 0:
+		return ErrHasFactura
+	case po > 0:
+		return ErrHasConfirmedPO
+	}
+	return nil
+}
+
+// CancelProject marks a proyecto cancelado (Emilio's "pedido que se cae"), from
+// prospecto or en curso, with the reason, which is required. It remembers the stage it
+// came from, which ReactivateProject restores, and records it as a comment — "Se canceló."
+// plus the reason. A factura that may be stamped or a confirmed supplier O.C. blocks it
+// (ErrHasFactura, ErrHasConfirmedPO): those are cancelled first. Who may cancel (an
+// admin) is the caller's decision.
+func (s *Store) CancelProject(ctx context.Context, projectID, userID int64, reason string) error {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return ErrBadTransition
+	}
+	return s.inTx(ctx, "cancel project", func(tx *sql.Tx) error {
+		var status string
+		if err := tx.QueryRowContext(ctx, `SELECT status FROM projects WHERE id = ?`, projectID).Scan(&status); err != nil {
+			if err == sql.ErrNoRows {
+				return ErrBadTransition
+			}
+			return err
+		}
+		if status != StageProspecto && status != StageEnCurso {
+			return ErrBadTransition
+		}
+		if err := stageBlockers(ctx, tx, projectID, false); err != nil {
+			return err
+		}
+		quoteID, _, err := currentQuote(ctx, tx, projectID)
+		if err != nil {
+			return err
+		}
+		if quoteID == 0 {
+			return ErrBadTransition
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE projects SET status = 'cancelado', cancel_reason = ?, cancelled_from = ?,
+				cancelled_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+			WHERE id = ?`, reason, status, projectID); err != nil {
+			return err
+		}
+		return addProjectComment(ctx, tx, quoteID, userID, "Se canceló.\n"+reason)
+	})
+}
+
+// ReactivateProject brings a cancelled proyecto back to the stage it was cancelled from,
+// with the reason, which is required, in the comment that records it ("Se reactivó como
+// En curso."). The cancellation's reason stays in the history. Who may reactivate (an
+// admin) is the caller's decision.
+func (s *Store) ReactivateProject(ctx context.Context, projectID, userID int64, reason string) error {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return ErrBadTransition
+	}
+	return s.inTx(ctx, "reactivate project", func(tx *sql.Tx) error {
+		var back string
+		err := tx.QueryRowContext(ctx, `SELECT cancelled_from FROM projects WHERE id = ? AND status = 'cancelado'`, projectID).Scan(&back)
+		if err == sql.ErrNoRows {
+			return ErrBadTransition
+		}
+		if err != nil {
+			return err
+		}
+		quoteID, _, err := currentQuote(ctx, tx, projectID)
+		if err != nil {
+			return err
+		}
+		if quoteID == 0 {
+			return ErrBadTransition
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE projects SET status = ?, cancel_reason = NULL, cancelled_from = NULL, cancelled_at = NULL
+			WHERE id = ?`, back, projectID); err != nil {
+			return err
+		}
+		return addProjectComment(ctx, tx, quoteID, userID, "Se reactivó como "+StageLabels[back]+".\n"+reason)
+	})
+}
+
+// UndoReceiveOC takes an en curso proyecto back to prospecto at Inminente 90%, for a
+// purchase order received by mistake (the wrong file, or the wrong proyecto), with the
+// reason, which is required. The order's number and date are cleared and stay in the
+// history comment ("Se deshizo la O.C. recibida (O.C. 4411 · 07/10/2026)."); its files
+// stay as they are, the newest in force if the order is received again. A factura blocks
+// it, stamped or typed in (ErrHasFactura), and so does a confirmed supplier O.C.
+// (ErrHasConfirmedPO). A factura draft never stamped is deleted with it, since it bills
+// the order being undone. Who may undo (an admin) is the caller's decision.
+func (s *Store) UndoReceiveOC(ctx context.Context, projectID, userID int64, reason string) error {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return ErrBadTransition
+	}
+	return s.inTx(ctx, "undo receive OC", func(tx *sql.Tx) error {
+		var oc OC
+		err := tx.QueryRowContext(ctx, `
+			SELECT COALESCE(oc_number, ''), COALESCE(oc_date, '') FROM projects WHERE id = ? AND status = 'en_curso'`,
+			projectID).Scan(&oc.Number, &oc.Date)
+		if err == sql.ErrNoRows {
+			return ErrBadTransition
+		}
+		if err != nil {
+			return err
+		}
+		if err := stageBlockers(ctx, tx, projectID, true); err != nil {
+			return err
+		}
+		quoteID, _, err := currentQuote(ctx, tx, projectID)
+		if err != nil {
+			return err
+		}
+		if quoteID == 0 {
+			return ErrBadTransition
+		}
+		for _, q := range []string{
+			`DELETE FROM comprobante_conceptos WHERE comprobante_id IN (SELECT id FROM comprobantes WHERE project_id = ?1 AND status IN (` + deletableComprobanteStatuses + `))`,
+			`DELETE FROM comprobante_events WHERE comprobante_id IN (SELECT id FROM comprobantes WHERE project_id = ?1 AND status IN (` + deletableComprobanteStatuses + `))`,
+			`DELETE FROM comprobantes WHERE project_id = ?1 AND status IN (` + deletableComprobanteStatuses + `)`,
+			`UPDATE projects SET status = 'prospecto', probability = ` + fmt.Sprint(ReceiveOCProbability) + `,
+				probability_updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), oc_number = NULL, oc_date = NULL
+			WHERE id = ?1`,
+		} {
+			if _, err := tx.ExecContext(ctx, q, projectID); err != nil {
+				return err
+			}
+		}
+		what := "Se deshizo la O.C. recibida."
+		if oc.Number != "" {
+			what = "Se deshizo la O.C. recibida (O.C. " + oc.text() + ")."
+		}
+		body := what + "\nRegresó a " + StageLabels[StageProspecto] + " · " +
+			ProbabilityLabel(ReceiveOCProbability) + " " + fmt.Sprint(ReceiveOCProbability) + "%.\n" + reason
+		return addProjectComment(ctx, tx, quoteID, userID, body)
+	})
 }
 
 // currentQuote finds a proyecto's current quote, the one that is not revisada, and its
@@ -851,6 +920,76 @@ type Project struct {
 	Subtotal       money.Centavos
 	Profit         money.Centavos
 	LastMovementAt string
+	// CancelReason, CancelledFrom and CancelledAt say why, from which stage and when a
+	// cancelado proyecto was cancelled; they are empty on any other.
+	CancelReason  string
+	CancelledFrom string
+	CancelledAt   string
+	// States are its facturación, entrega and cobro (the project_states view). They are
+	// derived for every proyecto but only mean something once it is en curso.
+	States ProjectStates
+}
+
+// The values of the three states (ProjectStates).
+const (
+	FacturacionPendiente            = "pendiente"
+	FacturacionPendienteComplemento = "pendiente_complemento"
+	FacturacionFacturada            = "facturada"
+	EntregaSinOC                    = "sin_oc"
+	EntregaEnProceso                = "en_proceso"
+	EntregaEntregado                = "entregado"
+	CobroPendiente                  = "pendiente"
+	CobroParcial                    = "parcial"
+	CobroPagado                     = "pagado"
+)
+
+// FacturacionLabels, EntregaLabels and CobroLabels are the words users see for each
+// state, as #66 and #67 name them.
+var (
+	FacturacionLabels = map[string]string{
+		FacturacionPendiente:            "Pendiente",
+		FacturacionPendienteComplemento: "Pendiente complemento de pago",
+		FacturacionFacturada:            "Facturada",
+	}
+	EntregaLabels = map[string]string{
+		EntregaSinOC:     "Sin emitir O.C.",
+		EntregaEnProceso: "En proceso de entrega",
+		EntregaEntregado: "Entregado",
+	}
+	CobroLabels = map[string]string{
+		CobroPendiente: "Pendiente de pago",
+		CobroParcial:   "Pago parcial",
+		CobroPagado:    "Pagado",
+	}
+)
+
+// ProjectStates is where an en curso proyecto stands, as the project_states view derives
+// it from its records (migrations/0041_project_states.sql): Facturacion, Entrega and Cobro
+// (one of the constants above each), Paid the sum of its payments (centavos with IVA),
+// LastPaidOn the day of the newest one ("" with none), and Cerrado when it is en curso
+// and all three are complete.
+type ProjectStates struct {
+	Facturacion string
+	Entrega     string
+	Cobro       string
+	Paid        money.Centavos
+	LastPaidOn  string
+	Cerrado     bool
+}
+
+// Stage is the stage the proyecto shows and is filtered by: its stored stage, or
+// StageCerrado for an en curso proyecto whose three states are complete.
+func (p Project) Stage() string {
+	if p.Status == StageEnCurso && p.States.Cerrado {
+		return StageCerrado
+	}
+	return p.Status
+}
+
+// Balance is what the client still owes: the total with IVA less what was paid, never
+// below zero.
+func (p Project) Balance() money.Centavos {
+	return max(p.Total-p.States.Paid, 0)
 }
 
 // Cost is the current quote's cost before IVA: what is left of its price after the profit.
@@ -863,9 +1002,6 @@ func (p Project) MarginPercent() float64 {
 	}
 	return float64(p.Profit) * 100 / float64(p.Subtotal)
 }
-
-// Paid reports whether the proyecto has been collected, which closing it requires.
-func (p Project) Paid() bool { return p.PaymentStatus == PaymentPaid }
 
 // HasOC reports whether the client's purchase order is on record.
 func (p Project) HasOC() bool { return p.OC.Number != "" }
@@ -900,7 +1036,9 @@ var projectSelectCols = `
 	COALESCE(p.oc_number, ''), COALESCE(p.oc_date, ''), COALESCE(p.payment_method, ''),
 	COALESCE(p.invoice_ref, ''), COALESCE(p.invoice_date, ''), COALESCE(p.payment_status, ''),
 	COALESCE(p.payment_ref, ''), COALESCE(p.paid_at, ''),
-	q.subtotal, ` + quoteProfitSQL + `, COALESCE((` + projectLastComment("lc.created_at") + `), p.created_at)`
+	q.subtotal, ` + quoteProfitSQL + `, COALESCE((` + projectLastComment("lc.created_at") + `), p.created_at),
+	COALESCE(p.cancel_reason, ''), COALESCE(p.cancelled_from, ''), COALESCE(p.cancelled_at, ''),
+	ps.facturacion, ps.entrega, ps.cobro, ps.paid, ps.last_paid_on, ps.cerrado`
 
 // quoteProfitSQL is the current quote's profit before IVA, in centavos: its catalog lines'
 // total times the margin it was issued with (a fraction of the sale price), rounded half
@@ -926,7 +1064,8 @@ const projectFrom = `
 	FROM projects p
 	JOIN customers c ON c.id = p.customer_id
 	JOIN users u ON u.id = p.user_id
-	JOIN quotes q ON q.project_id = p.id AND q.status != 'revisada'`
+	JOIN quotes q ON q.project_id = p.id AND q.status != 'revisada'
+	JOIN project_states ps ON ps.project_id = p.id`
 
 func scanProject(row interface{ Scan(...any) error }) (*Project, error) {
 	var p Project
@@ -939,7 +1078,9 @@ func scanProject(row interface{ Scan(...any) error }) (*Project, error) {
 		&p.LastBody, &p.LastUserName, &p.LastAt,
 		&p.OC.Number, &p.OC.Date, &p.PaymentMethod,
 		&p.Invoice.Ref, &p.Invoice.Date, &p.PaymentStatus, &p.PaymentRef, &p.PaidAt,
-		&p.Subtotal, &p.Profit, &p.LastMovementAt)
+		&p.Subtotal, &p.Profit, &p.LastMovementAt,
+		&p.CancelReason, &p.CancelledFrom, &p.CancelledAt,
+		&p.States.Facturacion, &p.States.Entrega, &p.States.Cobro, &p.States.Paid, &p.States.LastPaidOn, &p.States.Cerrado)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -959,9 +1100,13 @@ func (s *Store) ProjectByFolio(ctx context.Context, folio string) (*Project, err
 	return p, nil
 }
 
+// projectStageSQL is the stage a proyecto shows (Project.Stage): its stored stage, or
+// 'cerrado' for an en curso one whose three states are complete.
+const projectStageSQL = `CASE WHEN p.status = 'en_curso' AND ps.cerrado THEN 'cerrado' ELSE p.status END`
+
 // projectStageOrder sorts by where a stage sits in the lifecycle rather than by its name.
-const projectStageOrder = `CASE p.status WHEN 'prospecto' THEN 1 WHEN 'oc_recibida' THEN 2
-	WHEN 'facturado' THEN 3 WHEN 'en_entrega' THEN 4 WHEN 'cerrado' THEN 5 ELSE 6 END`
+const projectStageOrder = `CASE ` + projectStageSQL + ` WHEN 'prospecto' THEN 1 WHEN 'en_curso' THEN 2
+	WHEN 'cerrado' THEN 3 WHEN 'cancelado' THEN 4 ELSE 5 END`
 
 // projectSortColumns is the sortable-column whitelist for ListProjects. When sort
 // doesn't match a known column, ListProjects uses projectDefaultOrder instead.
@@ -982,13 +1127,14 @@ var projectSortColumns = []sortColumn{
 const projectDefaultOrder = `ORDER BY p.created_at DESC, p.id DESC`
 
 // projectFilterColumns are the per-column filters ListProjects accepts. The probability
-// filter only matches prospectos, the one stage where it means something.
+// filter only matches prospectos, the one stage where it means something, and the cobro
+// filter only proyectos en curso (Cerrado · Ganado included).
 var projectFilterColumns = []filterColumn{
 	{name: "folio", expr: "p.folio", kind: FilterText},
 	{name: "cliente", expr: "c.name", kind: FilterText},
 	{name: "vendedor", expr: "u.name", kind: FilterText},
-	{name: "etapa", expr: "p.status", kind: FilterEnum},
-	{name: "pago", expr: "CASE WHEN p.status IN ('facturado', 'en_entrega', 'cerrado') THEN COALESCE(p.payment_status, 'sin_tramitar') END", kind: FilterEnum},
+	{name: "etapa", expr: projectStageSQL, kind: FilterEnum},
+	{name: "cobro", expr: "CASE WHEN p.status = 'en_curso' THEN ps.cobro END", kind: FilterEnum},
 	{name: "probabilidad", expr: "CASE WHEN p.status = 'prospecto' THEN CAST(p.probability AS TEXT) END", kind: FilterEnum},
 	{name: "total", expr: "q.total", kind: FilterNumber, scale: 100},
 	{name: "fecha", expr: "p.created_at", kind: FilterDate},
@@ -996,7 +1142,9 @@ var projectFilterColumns = []filterColumn{
 
 // ListProjects returns proyectos, optionally filtered by a case-insensitive substring
 // match on folio or customer name and by per-column filters (see projectFilterColumns),
-// sorted per sort/dir (see projectSortColumns).
+// sorted per sort/dir (see projectSortColumns). The list is of the proyectos still being
+// worked: a Cerrado · Ganado one is left out unless the etapa filter asks for it or a
+// search is typed (looking a proyecto up by its folio finds it whatever its stage).
 func (s *Store) ListProjects(ctx context.Context, query, sort, dir string, filters Filters) ([]Project, error) {
 	like := "%" + escapeLike(query) + "%"
 	order := projectDefaultOrder
@@ -1007,6 +1155,9 @@ func (s *Store) ListProjects(ctx context.Context, query, sort, dir string, filte
 		}
 	}
 	extra, extraArgs := filterWhere(ctx, projectFilterColumns, filters)
+	if query == "" && len(filters["etapa"]) == 0 {
+		extra += ` AND NOT (p.status = 'en_curso' AND ps.cerrado)`
+	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+projectSelectCols+projectFrom+`
 		WHERE (? = '' OR p.folio LIKE ? ESCAPE '\' COLLATE NOCASE OR c.name LIKE ? ESCAPE '\' COLLATE NOCASE)`+extra+`

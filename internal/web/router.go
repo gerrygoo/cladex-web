@@ -151,7 +151,6 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 
 	mux.Handle("GET /proyectos", authed(projects.List))
 	mux.Handle("GET /proyectos/{folio}", authed(projects.Page))
-	mux.Handle("POST /proyectos/{folio}/etapa", authed(projects.Etapa))
 	mux.Handle("POST /proyectos/{folio}/seguimiento", authed(projects.Seguimiento))
 	mux.Handle("GET /pronostico", authed(projects.Pronostico))
 	mux.Handle("POST /proyectos/{folio}/comentarios", authed(projects.Comentar))
@@ -164,6 +163,9 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /proyectos/{folio}/eliminar", admin(projects.Eliminar))
 	mux.Handle("POST /proyectos/{folio}/perder", authed(projects.Perder))
 	mux.Handle("POST /proyectos/{folio}/reabrir", authed(projects.Reabrir))
+	mux.Handle("POST /proyectos/{folio}/cancelar", admin(projects.Cancelar))
+	mux.Handle("POST /proyectos/{folio}/reactivar", admin(projects.Reactivar))
+	mux.Handle("POST /proyectos/{folio}/deshacer-oc", admin(projects.DeshacerOC))
 
 	// Órdenes de compra a proveedor (issue #65): the proyecto's vendedor or an admin
 	// generates and edits a borrador (checked in the handlers); only an admin confirms one,

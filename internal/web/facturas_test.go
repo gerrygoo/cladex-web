@@ -174,9 +174,12 @@ func TestFacturacionEndToEnd(t *testing.T) {
 	}
 	c, _ = a.store.ComprobanteByID(ctx, c.ID)
 	project, _ := a.store.ProjectByFolio(ctx, folio)
-	if c.Status != store.CompTimbrada || c.UUID == "" || !c.EmailSent || project.Status != "facturado" ||
-		project.PaymentStatus != store.PaymentAdvanceInvoiced || project.Invoice.Ref != "F-1" {
-		t.Fatalf("after stamp: %s %s; project %s %s %q", c.Status, c.UUID, project.Status, project.PaymentStatus, project.Invoice.Ref)
+	// Stamping doesn't move the proyecto: its Estado de facturación follows the stamped
+	// factura (P.P.D.: waiting for its complemento), and its history says so.
+	if c.Status != store.CompTimbrada || c.UUID == "" || !c.EmailSent || project.Status != store.StageEnCurso ||
+		project.States.Facturacion != store.FacturacionPendienteComplemento || project.Invoice.Ref != "" ||
+		project.LastBody != "Factura F-1 timbrada · Folio fiscal "+c.UUID {
+		t.Fatalf("after stamp: %s %s; project %s %+v %q", c.Status, c.UUID, project.Status, project.States, project.LastBody)
 	}
 	events, _ := a.store.ListComprobanteEvents(ctx, c.ID)
 	var names []string
@@ -198,7 +201,8 @@ func TestFacturacionEndToEnd(t *testing.T) {
 		t.Errorf("XML = %d %s", rec.Code, rec.Header().Get("Content-Disposition"))
 	}
 
-	// The comprobante de pago: stamping it leaves the proyecto pagado.
+	// The comprobante de pago: once stamped, it covers the factura and the proyecto is
+	// Facturada.
 	rec = post(admin, f.Pago, "/facturas/"+id+"/pago", pv, nil)
 	pagoID := strings.TrimPrefix(rec.Header().Get("Location"), "/facturas/")
 	ppv := map[string]string{"id": pagoID}
@@ -213,8 +217,8 @@ func TestFacturacionEndToEnd(t *testing.T) {
 		t.Fatalf("Timbrar pago = %d %s", rec.Code, rec.Header().Get("Location"))
 	}
 	project, _ = a.store.ProjectByFolio(ctx, folio)
-	if project.PaymentStatus != store.PaymentPaid || project.PaymentRef != "P-1" {
-		t.Errorf("after pago: %s %q", project.PaymentStatus, project.PaymentRef)
+	if project.States.Facturacion != store.FacturacionFacturada || !strings.HasPrefix(project.LastBody, "Comprobante de pago P-1 timbrado · Folio fiscal ") {
+		t.Errorf("after pago: %+v %q", project.States, project.LastBody)
 	}
 	if rec := doForm(t, a, admin, f.PDF, "GET", "/facturas/"+pagoID+"/pdf", ppv, nil, false); rec.Code != http.StatusOK {
 		t.Errorf("pago PDF = %d", rec.Code)
@@ -247,8 +251,8 @@ func TestFacturacionEndToEnd(t *testing.T) {
 		t.Fatalf("replacement = %s %s", rep.Status, rep.SerieFolio())
 	}
 	project, _ = a.store.ProjectByFolio(ctx, folio)
-	if project.Invoice.Ref != "F-2" {
-		t.Errorf("project invoice ref = %q, want F-2", project.Invoice.Ref)
+	if !strings.HasPrefix(project.LastBody, "Factura sustituida por F-2 · Folio fiscal ") {
+		t.Errorf("project history = %q", project.LastBody)
 	}
 	if body := page(admin, id); !strings.Contains(body, "Sustituida por") || !strings.Contains(body, "01 - Comprobante emitido con errores con relación") {
 		t.Errorf("original page lacks the replacement and motivo 01")

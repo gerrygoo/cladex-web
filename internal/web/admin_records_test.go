@@ -116,7 +116,7 @@ func TestAdminDeleteAndReassign(t *testing.T) {
 	if rec := muxDo(t, a, mux, admin, "POST", "/proyectos/"+project.Folio+"/eliminar", url.Values{}); rec.Code != http.StatusConflict {
 		t.Errorf("eliminar with a stamped invoice = %d, want 409", rec.Code)
 	}
-	if body := muxDo(t, a, mux, admin, "GET", "/proyectos/"+project.Folio, nil).Body.String(); !strings.Contains(body, "factura timbrada") || strings.Contains(body, "Eliminar proyecto") {
+	if body := muxDo(t, a, mux, admin, "GET", "/proyectos/"+project.Folio, nil).Body.String(); !strings.Contains(body, "factura timbrada") || strings.Contains(body, ">Eliminar proyecto</button>") {
 		t.Errorf("a proyecto with a stamped invoice should explain why it can't be deleted instead of offering the button")
 	}
 	if _, err := raw.Exec(`DELETE FROM comprobantes`); err != nil {

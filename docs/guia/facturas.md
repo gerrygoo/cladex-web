@@ -32,7 +32,7 @@ social, régimen fiscal, código postal fiscal y uso de CFDI
 
 ## Crear una factura
 
-1. Abre el proyecto. Tiene que estar en **O.C. recibida**, con su orden de compra.
+1. Abre el proyecto. Tiene que estar **En curso**, con su orden de compra.
 2. En **Facturación y pago**, haz clic en **Crear factura**.
 
 La factura empieza como **borrador** con las partidas de la cotización emitida: cantidades,
@@ -65,8 +65,10 @@ Validada, la factura queda **lista para timbrar**, con su serie y folio (p. ej. 
 1. Revisa las partidas y el total.
 2. Haz clic en **Timbrar** y confirma.
 
-Si sale bien queda **timbrada**: ves su **folio fiscal (UUID)** y el proyecto pasa a
-**Facturado** solo (P.U.E.: queda pagado; P.P.D.: queda *Facturado de anticipo*). Para
+Si sale bien queda **timbrada**: ves su **folio fiscal (UUID)**, y el
+[Estado de facturación](proyectos.md#los-estados-de-un-proyecto-en-curso) del proyecto
+cambia solo (P.U.E.: *Facturada*; P.P.D.: *Pendiente complemento de pago*). La etapa del
+proyecto no cambia, y en su historial queda *"Factura … timbrada"* con el folio fiscal. Para
 cambiar algo antes de timbrar, usa **Regresar a borrador para corregir**.
 
 ### Si queda «Timbrado incierto»
@@ -98,7 +100,7 @@ Cuando el cliente termina de pagar una factura P.P.D.:
    total de la factura, en un solo pago.
 3. **Guardar y validar**, y luego **Timbrar**.
 
-Al timbrarlo, el proyecto queda **Pagado** y se puede cerrar.
+Al timbrarlo, el Estado de facturación del proyecto queda *Facturada*.
 
 ## Corregir una factura timbrada
 

@@ -135,7 +135,7 @@ func (f *Facturas) Crear(w http.ResponseWriter, r *http.Request) {
 	user, _ := UserFromContext(ctx)
 	id, err := f.store.CreateFacturaDraft(ctx, project.ID, user.ID)
 	if errors.Is(err, store.ErrComprobanteState) {
-		http.Error(w, "este proyecto ya tiene factura, o no está en O.C. recibida con su orden de compra", http.StatusConflict)
+		http.Error(w, "este proyecto ya tiene factura, o no está En curso con su orden de compra", http.StatusConflict)
 		return
 	}
 	if err != nil {

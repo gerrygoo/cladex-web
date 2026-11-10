@@ -69,8 +69,8 @@ el menú **Dashboard** → **Mis pendientes**, o haciendo clic en el logo.
 Debajo está la tabla **Vendedores**, con una fila fija para Emilio Flores, Rodolfo Flores y
 Gerardo Galván Rosillo (siempre las tres, aunque estén en ceros). Solo cuenta los
 **proyectos activos**: los [[prospecto|prospectos]] que siguen en seguimiento. Los que ya
-tienen la orden de compra recibida (*Orden colocada 100%*) y los
-[perdidos](proyectos.md#marcar-un-proyecto-como-perdido) no cuentan. Cada proyecto va con la
+tienen la orden de compra recibida (*Orden colocada 100%*), los
+[perdidos](proyectos.md#marcar-un-proyecto-como-perdido) y los cancelados no cuentan. Cada proyecto va con la
 persona que creó la cotización que lo abrió. Para
 [crear una cotización](cotizaciones.md#crear-una-cotización), usa el menú **Cotizaciones** →
 **Nueva cotización**.

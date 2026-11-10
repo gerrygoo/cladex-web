@@ -67,7 +67,7 @@ func TestSalesDashboard(t *testing.T) {
 	// one lost. rfm: one active at Inminente with no follow-up date and an O.C. date gone by.
 	insertProject(t, s, "QA0001", customerID, efs, "prospecto", 75, 1_000_00)
 	insertProject(t, s, "QA0002", customerID, efs, "prospecto", 10, 500_00)
-	insertProject(t, s, "QA0003", customerID, efs, "oc_recibida", 75, 9_000_00)
+	insertProject(t, s, "QA0003", customerID, efs, "en_curso", 75, 9_000_00)
 	insertProject(t, s, "QA0004", customerID, efs, "perdido", 10, 8_000_00)
 	insertProject(t, s, "QA0005", customerID, rfm, "prospecto", 90, 2_000_00)
 	insertProject(t, s, "QA0006", customerID, ggo, "prospecto", 90, 7_000_00)

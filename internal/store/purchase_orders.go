@@ -136,9 +136,10 @@ var (
 )
 
 // ProjectTakesPurchaseOrders reports whether a proyecto in stage has supplier O.C.s:
-// once the client's O.C. is received, and not when it was lost.
+// while it is en curso, once the client's O.C. is received; not while a prospecto, nor
+// once lost or cancelled.
 func ProjectTakesPurchaseOrders(stage string) bool {
-	return flowIndex(stage) >= flowIndex("oc_recibida")
+	return stage == StageEnCurso
 }
 
 const poSelectCols = `

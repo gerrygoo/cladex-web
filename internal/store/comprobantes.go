@@ -315,7 +315,7 @@ func activeFactura(ctx context.Context, tx *sql.Tx, projectID int64) (int64, err
 	return id, err
 }
 
-// CreateFacturaDraft starts the factura of a proyecto in O.C. recibida (with its purchase
+// CreateFacturaDraft starts the factura of a proyecto en curso (with its purchase
 // order on record) from its issued quote: its lines (amounts as quoted), the customer's
 // uso de CFDI and email, the proyecto's método de pago as the starting choice when it has
 // one (proyectos received before issue #61; otherwise it is chosen on the draft, and
@@ -345,7 +345,7 @@ func (s *Store) CreateFacturaDraft(ctx context.Context, projectID, userID int64)
 			JOIN quote_types t ON t.id = q.quote_type_id
 			LEFT JOIN product_families f ON f.id = t.family_id
 			WHERE p.id = ?`, projectID).Scan(&status, &ocNumber, &method, &use, &email, &quoteID, &currency, &familyCode, &kgPriced, &byWeight)
-		if err == sql.ErrNoRows || err == nil && (status != "oc_recibida" || ocNumber == "") {
+		if err == sql.ErrNoRows || err == nil && (status != StageEnCurso || ocNumber == "") {
 			return ErrComprobanteState
 		}
 		if err != nil {
@@ -720,11 +720,9 @@ type StampOutcome struct {
 }
 
 // FinishStamp records a stamp call's outcome. Stamped: the comprobante is timbrada, for
-// good, and its proyecto moves with it, in the same transaction: a factura records the
-// invoice (O.C. recibida → Facturado, as RecordInvoice), a replacement updates the
-// proyecto's factura reference, a pago records the payment (as RecordPayment). If the
-// proyecto can't move (someone moved it by hand meanwhile), the stamp is still recorded
-// and the history says so. Refused: rechazada, with the reason. Unknown: incierto.
+// good, and the proyecto's history says so in the same transaction; its stage doesn't
+// change, and its Estado de facturación follows from the comprobante being timbrada.
+// Refused: rechazada, with the reason. Unknown: incierto.
 func (s *Store) FinishStamp(ctx context.Context, id, userID int64, o StampOutcome, now time.Time) error {
 	return s.inTx(ctx, "finish stamp", func(tx *sql.Tx) error {
 		var status, tipo, serie string
@@ -750,7 +748,7 @@ func (s *Store) FinishStamp(ctx context.Context, id, userID int64, o StampOutcom
 			if err := addEvent(ctx, tx, id, userID, "stamp_succeeded", detail); err != nil {
 				return err
 			}
-			return projectAfterStamp(ctx, tx, id, userID, tipo, relatedID, projectID, fmt.Sprintf("%s-%d", serie, folio), o.UUID, now)
+			return projectAfterStamp(ctx, tx, userID, tipo, relatedID, projectID, fmt.Sprintf("%s-%d", serie, folio), o.UUID)
 		case "refused":
 			if _, err := tx.ExecContext(ctx, `UPDATE comprobantes SET status = 'rechazada', error = ?, updated_at = ? WHERE id = ?`,
 				o.Message, now.UTC().Format(time.RFC3339Nano), id); err != nil {
@@ -775,39 +773,24 @@ var mexicoCity = func() *time.Location {
 	return time.FixedZone("CST", -6*3600)
 }()
 
-func projectAfterStamp(ctx context.Context, tx *sql.Tx, id, userID int64, tipo string, relatedID, projectID int64, ref, uuid string, now time.Time) error {
-	day := now.In(mexicoCity).Format("2006-01-02")
-	doc := Document{Ref: ref, Date: day}
-	note := "Folio fiscal " + uuid
-	var err error
+// projectAfterStamp writes the stamp into the proyecto's history. The proyecto itself
+// doesn't move: its Estado de facturación is derived from its comprobantes (the
+// project_states view), so a stamped factura or complemento counts by being timbrada.
+func projectAfterStamp(ctx context.Context, tx *sql.Tx, userID int64, tipo string, relatedID, projectID int64, ref, uuid string) error {
+	quoteID, _, err := currentQuote(ctx, tx, projectID)
+	if err != nil || quoteID == 0 {
+		return err
+	}
+	var body string
 	switch {
 	case tipo == TipoPago:
-		err = recordPaymentTx(ctx, tx, projectID, userID, doc, note)
+		body = "Comprobante de pago " + ref + " timbrado"
 	case relatedID != 0:
-		var res sql.Result
-		res, err = tx.ExecContext(ctx, `UPDATE projects SET invoice_ref = ? WHERE id = ? AND invoice_ref IS NOT NULL`, ref, projectID)
-		if err == nil {
-			if n, _ := res.RowsAffected(); n == 1 {
-				var quoteID int64
-				if quoteID, _, err = currentQuote(ctx, tx, projectID); err == nil && quoteID != 0 {
-					_, err = tx.ExecContext(ctx, `INSERT INTO quote_comments (quote_id, user_id, body) VALUES (?, ?, ?)`,
-						quoteID, userID, "Factura sustituida por "+ref+" · "+note)
-				}
-			} else {
-				err = ErrBadTransition
-			}
-		}
+		body = "Factura sustituida por " + ref
 	default:
-		var method string
-		if err = tx.QueryRowContext(ctx, `SELECT COALESCE(metodo_pago, '') FROM comprobantes WHERE id = ?`, id).Scan(&method); err == nil {
-			err = recordInvoiceTx(ctx, tx, projectID, userID, doc, method, note)
-		}
+		body = "Factura " + ref + " timbrada"
 	}
-	if errors.Is(err, ErrBadTransition) {
-		// The stamp is real whatever the proyecto's state; say so instead of failing.
-		return addEvent(ctx, tx, id, userID, "project_not_moved", "el proyecto ya no estaba en la etapa esperada; actualízalo a mano")
-	}
-	return err
+	return addProjectComment(ctx, tx, quoteID, userID, body+" · Folio fiscal "+uuid)
 }
 
 // BeginCancel records a cancellation request before the call.

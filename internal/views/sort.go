@@ -203,13 +203,12 @@ var (
 	quoteStatusFilter = enumFilter(
 		FilterOption{store.QuoteBorrador, "Borrador"}, FilterOption{store.QuoteEmitida, "Emitida"}, FilterOption{store.QuoteRevisada, "Revisada"})
 	projectStageFilter = enumFilter(
-		FilterOption{"prospecto", "Prospecto"}, FilterOption{"oc_recibida", "O.C. recibida"},
-		FilterOption{"facturado", "Facturado"},
-		FilterOption{"en_entrega", "En entrega"}, FilterOption{"cerrado", "Cerrado"},
-		FilterOption{"perdido", "Perdido"})
-	projectPaymentFilter = enumFilter(
-		FilterOption{"sin_tramitar", "Sin tramitar"}, FilterOption{"facturado_anticipo", "Facturado de anticipo"},
-		FilterOption{"pagado", "Pagado"})
+		FilterOption{store.StageProspecto, "Prospecto"}, FilterOption{store.StageEnCurso, "En curso"},
+		FilterOption{store.StageCerrado, "Cerrado · Ganado"},
+		FilterOption{store.StagePerdido, "Perdido"}, FilterOption{store.StageCancelado, "Cancelado"})
+	projectCobroFilter = enumFilter(
+		FilterOption{store.CobroPendiente, "Pendiente de pago"}, FilterOption{store.CobroParcial, "Pago parcial"},
+		FilterOption{store.CobroPagado, "Pagado"})
 	projectProbabilityFilter = enumFilter(
 		FilterOption{"10", "Inicial"}, FilterOption{"25", "Baja"}, FilterOption{"50", "Media"},
 		FilterOption{"75", "Alta"}, FilterOption{"90", "Inminente"})

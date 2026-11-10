@@ -101,7 +101,13 @@ store and `TestProjectsPaymentGates` and `TestProjectsPUEIsPaidWhenInvoiced` in 
 layer, which walk both métodos de pago through the gated steps (since issue #61 the método
 is chosen with the factura, not the O.C.; `TestProjectsFollowUp` also pins the page order
 in Inminente and what a proyecto past prospecto hides). Those also pin the strings
-`docs/guia/proyectos.md` quotes, so they double as its guide-conformance tests.
+`docs/guia/proyectos.md` quotes, so they double as its guide-conformance tests. The
+groundwork for the three states (2026-11-10) replaced the stage-move tests:
+`TestReceiveOCStartsEnCurso`, `TestTypedInvoiceAndPayment`, `TestProjectStates` (the
+`project_states` view against hand-written comprobantes, supplier O.C.s and payments),
+`TestAdminStageChanges` and `TestMigration0041` in the store; `TestProjectsTypedFactura`
+and the admin half of `TestProjectsFollowUp` (Deshacer O.C., Cancelar, Reactivar) in the
+web layer.
 
 ## Tracked gaps
 
