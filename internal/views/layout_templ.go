@@ -77,45 +77,55 @@ func Layout(title string, user *NavUser) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if user != nil {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<nav class=\"app-nav\"><details class=\"nav-menu\"><summary>Dashboard</summary><ul><li><a href=\"/\">Mis pendientes</a></li></ul></details> <details class=\"nav-menu\"><summary>Cotizaciones</summary><ul><li><a href=\"/cotizaciones/nueva\">Nueva cotización</a></li><li><a href=\"/cotizaciones\">Ver cotizaciones</a></li></ul></details> <details class=\"nav-menu\"><summary>Proyectos</summary><ul><li><a href=\"/proyectos\">Ver proyectos</a></li><li><a href=\"/pronostico\">Pronóstico</a></li><li><a href=\"/facturas\">Facturas</a></li></ul></details><details class=\"nav-menu\"><summary>Catálogos</summary><ul><li><a href=\"/productos\">Productos</a></li><li><a href=\"/clientes\">Clientes</a></li><li><a href=\"/proveedores\">Proveedores</a></li>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<nav class=\"app-nav\"><details class=\"nav-menu\"><summary>Dashboard</summary><ul><li><a href=\"/\">Mis pendientes</a></li>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if user.IsAdmin {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<li><a href=\"/usuarios\">Usuarios</a></li><li><a href=\"/familias\">Familias y tipos de cotización</a></li><li><a href=\"/unidades\">Unidades</a></li><li><a href=\"/ajustes\">Configuración del sistema</a></li>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<li><a href=\"/dashboard/equipo\">Equipo</a></li>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</ul></details> <a href=\"/documentos\">Documentos oficiales</a></nav>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</ul></details> <details class=\"nav-menu\"><summary>Cotizaciones</summary><ul><li><a href=\"/cotizaciones/nueva\">Nueva cotización</a></li><li><a href=\"/cotizaciones\">Ver cotizaciones</a></li></ul></details> <details class=\"nav-menu\"><summary>Proyectos</summary><ul><li><a href=\"/proyectos\">Ver proyectos</a></li><li><a href=\"/pronostico\">Pronóstico</a></li><li><a href=\"/facturas\">Facturas</a></li></ul></details><details class=\"nav-menu\"><summary>Catálogos</summary><ul><li><a href=\"/productos\">Productos</a></li><li><a href=\"/clientes\">Clientes</a></li><li><a href=\"/proveedores\">Proveedores</a></li>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if user.IsAdmin {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<li><a href=\"/usuarios\">Usuarios</a></li><li><a href=\"/familias\">Familias y tipos de cotización</a></li><li><a href=\"/unidades\">Unidades</a></li><li><a href=\"/ajustes\">Configuración del sistema</a></li>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</ul></details> <a href=\"/documentos\">Documentos oficiales</a></nav>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if user != nil {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div class=\"nav-user\"><a href=\"/ayuda\">Manual de usuario</a> <a href=\"/mi-cuenta\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<div class=\"nav-user\"><a href=\"/ayuda\">Manual de usuario</a> <a href=\"/mi-cuenta\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(user.Username)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layout.templ`, Line: 87, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/layout.templ`, Line: 90, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</a></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</a></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</header><main class=\"app-main\" id=\"contenido\" tabindex=\"-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</header><main class=\"app-main\" id=\"contenido\" tabindex=\"-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -123,7 +133,7 @@ func Layout(title string, user *NavUser) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</main><div id=\"live-status\" class=\"visually-hidden\" role=\"status\"></div></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</main><div id=\"live-status\" class=\"visually-hidden\" role=\"status\"></div></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

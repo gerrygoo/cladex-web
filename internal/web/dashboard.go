@@ -219,3 +219,81 @@ func (d *Dashboard) Reabrir(w http.ResponseWriter, r *http.Request) {
 	user, _ := UserFromContext(r.Context())
 	pendienteDone(w, r, d.store.ReopenPendiente(r.Context(), user.ID, id), "reabierto")
 }
+
+// Equipo handles GET /dashboard/equipo (admin, issue #70): each person's seguimiento in a
+// period ("periodo" semana, mes, the default, or rango with "desde" and "hasta"), for some
+// people (the Persona column filter) and from a probabilidad mínima ("prob").
+func (d *Dashboard) Equipo(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := r.URL.Query()
+	now := d.now()
+	e := views.Equipo{Periodo: q.Get("periodo")}
+	if e.Periodo != "semana" && e.Periodo != "rango" {
+		e.Periodo = "mes"
+	}
+	e.Desde, e.Hasta, e.Error = equipoRange(e.Periodo, q.Get("desde"), q.Get("hasta"), now)
+	if e.Error != "" {
+		e.Periodo = "mes"
+		e.Desde, e.Hasta, _ = equipoRange("mes", "", "", now)
+	}
+	if p, err := strconv.Atoi(q.Get("prob")); err == nil && store.ProbabilityLabel(p) != "" {
+		e.MinProb = p
+	}
+	e.LV = views.ListView{Base: "/dashboard/equipo", Filters: store.Filters{}, Keep: url.Values{"periodo": {e.Periodo}}}
+	if e.Periodo == "rango" {
+		e.LV.Keep.Set("desde", e.Desde)
+		e.LV.Keep.Set("hasta", e.Hasta)
+	}
+	if e.MinProb > 0 {
+		e.LV.Keep.Set("prob", strconv.Itoa(e.MinProb))
+	}
+	f := store.TeamFilter{From: e.Desde, To: e.Hasta, MinProbability: e.MinProb}
+	if names := filterParams(r)["persona.is"]; len(names) > 0 {
+		e.LV.Filters["persona.is"] = names
+		users, err := d.store.ActiveUsers(ctx)
+		if err != nil {
+			serverError(w, r, err)
+			return
+		}
+		for _, u := range users {
+			for _, n := range names {
+				if strings.EqualFold(u.Username, n) {
+					f.Users = append(f.Users, u.ID)
+				}
+			}
+		}
+		if len(f.Users) == 0 {
+			f.Users = []int64{-1} // nobody chosen exists any more: show nobody
+		}
+	}
+	team, err := d.store.TeamDashboard(ctx, f, now)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	e.Team = team
+	user, _ := UserFromContext(ctx)
+	views.EquipoPage(e, navUserView(user)).Render(ctx, w)
+}
+
+// equipoRange is the days (YYYY-MM-DD, Mexico City) a periodo covers: this week, Monday
+// to Sunday; this month; or desde to hasta. A rango without both days, or backwards, is
+// an error message.
+func equipoRange(periodo, desde, hasta string, now time.Time) (from, to, errMsg string) {
+	today := store.InMexicoCity(now)
+	day := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, today.Location())
+	switch periodo {
+	case "semana":
+		monday := day.AddDate(0, 0, -((int(day.Weekday()) + 6) % 7))
+		return monday.Format("2006-01-02"), monday.AddDate(0, 0, 6).Format("2006-01-02"), ""
+	case "rango":
+		a, errA := time.Parse("2006-01-02", desde)
+		b, errB := time.Parse("2006-01-02", hasta)
+		if errA != nil || errB != nil || b.Before(a) {
+			return "", "", "Para un rango, elige el día Desde y el día Hasta, el primero antes del segundo."
+		}
+		return desde, hasta, ""
+	}
+	first := time.Date(day.Year(), day.Month(), 1, 0, 0, 0, 0, day.Location())
+	return first.Format("2006-01-02"), first.AddDate(0, 1, -1).Format("2006-01-02"), ""
+}

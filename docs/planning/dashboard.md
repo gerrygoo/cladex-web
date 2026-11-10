@@ -1,6 +1,6 @@
 # Dashboard: Mis pendientes y Equipo (#72, #70)
 
-**Decided 2026-11-10 (Gerry). #72 built 2026-11-10** (see *Implementation notes*). A **Dashboard** tab with two views:
+**Decided 2026-11-10 (Gerry). Both built 2026-11-10** (see *Implementation notes*). A **Dashboard** tab with two views:
 **Mis pendientes** (#72), everyone's home page, and **Equipo** (#70), admins only. Built
 before facturación, entrega y cobro ([estados-del-proyecto.md](estados-del-proyecto.md)).
 
@@ -145,3 +145,31 @@ that fit the code.
 - Every write is `WHERE id = ? AND user_id = ?`; anyone else's id, or one in the wrong
   state (completing a completed one), is a 404. `TestMisPendientes` and `TestPendientes`
   check it as an admin guessing ids.
+
+**Equipo (`store.TeamDashboard`, `internal/store/team.go`; #70)**
+
+- **Periodo.** *Esta semana* is Monday to Sunday, *este mes* the calendar month, both in
+  Mexico City; a *rango* missing a day or backwards falls back to the month with a
+  message. Picking a Desde or Hasta day switches the select to *Rango de fechas* (app.js).
+- **Persona** is the people table's column funnel (the shared `columnHeader` choice filter,
+  `f.persona.is=<username>`), so it reads like every other filtered list; Periodo and
+  Probabilidad mínima are a form above it, as on Notificaciones.
+- **Who is listed:** active users (not `ggo`) who own a prospecto now, have a period open
+  now or overlapping the range, or have a follow-up day in the range.
+- **Probabilidad mínima** uses each proyecto's probability now for proyectos and what is
+  overdue now, the probability a period opened with for periods (escalations, lateness)
+  and the one at the due day for the ranking's follow-up days. Avisos count when their
+  proyecto is at or above it now (an aviso about a deleted proyecto then drops out).
+- **Avisos recibidos** counts distinct (proyecto, round), so an aviso sent by email and by
+  WhatsApp in the same round is one, and leaves out `cancelada`.
+- **Escalated in the range** goes by the day of the 12:00 escalation.
+- **Average lateness** counts every period closed in the range, whatever closed it
+  (comment, new date or stage change), with its days late as the period rule counts them.
+- **Ranking:** seguimientos a tiempo = follow-up days in the range that came due by now and
+  never opened a period, over all such days. Ties go to the lower average lateness;
+  someone with no period resolved in the range has no average and goes after someone with
+  one; people with no follow-up day due go last; then by name.
+- **Overdue list and totals** follow the Persona and Probabilidad filters, never the
+  period. Valor and utilidad are the current quote's subtotal and profit before IVA (the
+  Pronóstico's figures).
+- **Último comentario** is the person's newest comment on any proyecto, whatever the range.

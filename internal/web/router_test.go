@@ -30,6 +30,7 @@ var appRoutes = []route{
 	{"POST", "/pendientes/1/prioridad", false},
 	{"POST", "/pendientes/1/completar", false},
 	{"POST", "/pendientes/1/reabrir", false},
+	{"GET", "/dashboard/equipo", true},
 	{"GET", "/mi-cuenta", false},
 	{"POST", "/mi-cuenta", false},
 	{"POST", "/mi-cuenta/avisos", false},

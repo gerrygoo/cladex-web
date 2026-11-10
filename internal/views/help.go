@@ -49,6 +49,7 @@ const (
 	HelpTipoEditar     HelpTopic = "/ayuda/administracion#cambiar-un-tipo-de-cotización"
 	HelpTrabajos       HelpTopic = "/ayuda/administracion#trabajos-en-segundo-plano"
 	HelpNotificaciones HelpTopic = "/ayuda/administracion#notificaciones"
+	HelpEquipo         HelpTopic = "/ayuda/dashboard#equipo"
 
 	// Only admins open a supplier's form; its sections are admin-only in the guide.
 	HelpProveedorNuevo  HelpTopic = "/ayuda/proveedores#dar-de-alta-un-proveedor"
@@ -96,6 +97,7 @@ var HelpTopics = map[HelpTopic]bool{
 	HelpProveedorEditar:    true,
 	HelpTrabajos:           true,
 	HelpNotificaciones:     true,
+	HelpEquipo:             true,
 }
 
 func quoteHelpTopic(status string) HelpTopic {

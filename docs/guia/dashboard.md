@@ -2,6 +2,10 @@
 
 El menú **Dashboard** reúne lo que tienes que hacer. **Mis pendientes** es la pantalla
 que ves al entrar a la app.
+:::admin
+Los administradores también tienen **Equipo**, con el seguimiento de cada quien
+([ver abajo](#equipo)).
+:::
 
 ## Mis pendientes
 
@@ -66,8 +70,68 @@ Si completaste uno libre por error, haz clic en **Reabrir** y regresa a la lista
 administradores, y no quedan en el historial de cambios. Quien administra el servidor o
 sus respaldos sí podría leer la base de datos, como pasa con cualquier sistema.
 
-Los seguimientos vencidos no son privados: son de tus proyectos, que el equipo también
-ve. Un seguimiento se queda con quien tenía el proyecto
+Los seguimientos vencidos no son privados: son de tus proyectos, y los administradores
+los ven en **Equipo**. Un seguimiento se queda con quien tenía el proyecto
 cuando empezó a vencer, aunque después se reasigne.
 
 Debajo de tus pendientes sigue la tabla [Vendedores](README.md#la-página-de-inicio).
+
+:::admin
+## Equipo
+
+Solo para administradores: **Dashboard** → **Equipo** muestra qué tan al día está cada
+quien con el seguimiento de sus proyectos, y cuánto dinero hay en proyectos con el
+seguimiento vencido. Usa la misma regla que [Mis pendientes](#mis-pendientes) y que los
+avisos: un seguimiento vence si pasa su día sin comentario, nueva fecha ni cambio de
+etapa, y su atraso se cuenta en días hábiles.
+
+### Filtros
+
+Arriba eliges y haces clic en **Aplicar**:
+
+- **Periodo**: *Esta semana* (de lunes a domingo), *Este mes* (el que ves al entrar) o
+  *Rango de fechas*, con los días **Desde (rango)** y **Hasta (rango)** (al cambiar uno, el
+  periodo pasa solo a *Rango de fechas*). Debajo dice qué días abarca.
+- **Probabilidad mínima**: por ejemplo *Alta 75% o más*, para ver solo esos proyectos y sus
+  seguimientos. *Todas* no filtra.
+
+Para ver a una o varias personas, usa el embudo de la columna **Persona**
+([cómo](README.md#filtrar-las-tablas)).
+
+**El periodo aplica al historial**: avisos recibidos, escalados, atraso promedio y
+seguimientos a tiempo. **Lo vencido es siempre lo de hoy**: *Vencidos hoy*, los montos y la
+lista de proyectos vencidos no dependen del periodo.
+
+### Seguimiento por persona
+
+Una fila por cada persona activa que tiene prospectos o tuvo seguimientos en el periodo,
+ordenadas por **Lugar**:
+
+1. **Seguimientos a tiempo**: de los días de seguimiento del periodo que ya llegaron,
+   cuántos se atendieron antes de vencer (por ejemplo, *67% (2 de 3)*). Es lo que decide el
+   lugar; si dos personas empatan, va primero quien tiene menos atraso promedio.
+2. **Proyectos activos**: sus prospectos de hoy.
+3. **Vencidos hoy**, **Valor vencido (sin IVA)** y **Utilidad vencida**: sus proyectos con
+   el seguimiento vencido hoy y lo que suman, sin IVA, igual que en el pronóstico.
+4. **Avisos recibidos**: los avisos de seguimiento vencido que la app le mandó en el
+   periodo (uno por proyecto y envío, aunque llegue por correo y por WhatsApp; los
+   cancelados no cuentan).
+5. **Escalados al equipo**: sus seguimientos que llegaron al segundo día hábil sin
+   atenderse a las 12:00, cuando se avisa al equipo.
+6. **Atraso promedio**: los días hábiles de atraso, en promedio, de sus seguimientos
+   vencidos que se cerraron en el periodo. *—* si no se cerró ninguno.
+7. **Último comentario**: la fecha de su comentario más reciente en cualquier proyecto.
+
+La fila **Equipo**, al final, suma todo.
+
+### Proyectos vencidos hoy
+
+Todos los proyectos con el seguimiento vencido hoy, del más atrasado al menos: folio (haz
+clic para abrirlo), cliente, persona, probabilidad, día de seguimiento, **Atraso**, valor y
+utilidad sin IVA, con el total abajo.
+
+Al final, **Ver el historial de avisos** abre las
+[notificaciones](administracion.md#notificaciones) de seguimiento vencido.
+
+Los pendientes libres de cada quien no aparecen aquí ni en ninguna otra pantalla.
+:::

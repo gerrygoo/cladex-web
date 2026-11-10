@@ -178,6 +178,14 @@
     if (box) box.hidden = true;
   });
 
+  // Equipo: picking a Desde or Hasta day switches Periodo to "Rango de fechas", so the
+  // days typed are the ones applied. Without JS the user picks the option themselves.
+  document.addEventListener("change", function (e) {
+    if (!e.target.matches || !e.target.matches("[data-sets-periodo]")) return;
+    var periodo = e.target.form && e.target.form.elements.periodo;
+    if (periodo) periodo.value = "rango";
+  });
+
   // "Agregar pendiente" (Mis pendientes) shows the hidden new row and starts the user on
   // its first text field, keeping the link under the pointer as the row pushes it down.
   // Without JS it is a plain link that reloads the page with the row shown.

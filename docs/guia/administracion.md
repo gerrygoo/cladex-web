@@ -20,6 +20,9 @@ Efecto de cualquier cambio en Configuración del sistema:
 Todos los precios son en pesos mexicanos. Si un proveedor te cobra en dólares, captura
 el costo ya convertido a pesos.
 
+Para ver qué tan al día está cada quien con sus seguimientos, ve a **Dashboard** →
+[**Equipo**](dashboard.md#equipo).
+
 ## Márgenes
 
 Los [[margen|márgenes]] son una lista de opciones con nombre (p. ej. *Estándar (12.34%)*).

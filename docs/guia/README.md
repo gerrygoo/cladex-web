@@ -53,6 +53,8 @@ parte de este manual que la explica.
 | Ver y descargar Documentos oficiales | ✓ | ✓ |
 | Subir, editar y eliminar Documentos oficiales y sus secciones | — | ✓ |
 | Usuarios, Familias, Unidades, Configuración del sistema | — | ✓ |
+| Dashboard → Mis pendientes (los propios) | ✓ | ✓ |
+| Dashboard → Equipo | — | ✓ |
 
 Si en el menú **Catálogos** solo ves **Productos**, **Clientes** y **Proveedores**, tu cuenta es de vendedor.
 Si intentas algo que solo puede hacer un administrador, la app lo bloquea con *"No tienes

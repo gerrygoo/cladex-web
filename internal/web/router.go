@@ -250,6 +250,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /pendientes/{id}/prioridad", authed(dashboard.Prioridad))
 	mux.Handle("POST /pendientes/{id}/completar", authed(dashboard.Completar))
 	mux.Handle("POST /pendientes/{id}/reabrir", authed(dashboard.Reabrir))
+	mux.Handle("GET /dashboard/equipo", admin(dashboard.Equipo))
 
 	// Outermost first: the access log has to see the status the CSRF check produces, and
 	// its panic recovery has to cover everything below it.

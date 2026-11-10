@@ -3,7 +3,9 @@ package web
 import (
 	"context"
 	"database/sql"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"path/filepath"
 	"strconv"
@@ -224,4 +226,106 @@ func TestMisPendientesSeguimientoCompletes(t *testing.T) {
 		t.Error("an attended seguimiento is still on the list")
 	}
 	assertContains(t, body, `<a href="/proyectos/`+folio+`">`+folio+`</a>`, "Completado con un comentario el ")
+}
+
+func TestEquipo(t *testing.T) {
+	f := newDashboardFixture(t)
+	ctx := context.Background()
+	ana := createTestUser(t, f.a, "ana", "vendedor", "hunter2")
+	beto := createTestUser(t, f.a, "beto", "vendedor", "hunter2")
+	createTestUser(t, f.a, "carla", "vendedor", "hunter2") // nothing to show
+	gerry := createTestUser(t, f.a, "gerry", "admin", "hunter2")
+	emsa, _ := f.a.store.CreateCustomer(ctx, store.Customer{Name: "EMSA"})
+	anas := f.prospecto(t, ana, emsa, mxDay(-7), 50, 1_000_00)   // 5 weekdays late
+	betos := f.prospecto(t, beto, emsa, mxDay(-14), 75, 2_000_00) // 10 weekdays late
+	if _, err := f.a.store.AddPendiente(ctx, ana, "Pendiente secreto de Ana", store.PriorityAlta); err != nil {
+		t.Fatal(err)
+	}
+	equipo := func(user int64, query string) *http.Response {
+		t.Helper()
+		req := httptest.NewRequest("GET", "/dashboard/equipo"+query, nil)
+		req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: mustSessionToken(t, f.a, user)})
+		rec := httptest.NewRecorder()
+		f.a.RequireAuth(f.a.RequireAdmin(http.HandlerFunc(f.d.Equipo))).ServeHTTP(rec, req)
+		return rec.Result()
+	}
+	read := func(res *http.Response) string {
+		t.Helper()
+		var b strings.Builder
+		if _, err := io.Copy(&b, res.Body); err != nil {
+			t.Fatal(err)
+		}
+		return b.String()
+	}
+
+	// Only admins.
+	if res := equipo(ana, ""); res.StatusCode != http.StatusForbidden {
+		t.Errorf("a vendedor gets %d, want 403", res.StatusCode)
+	}
+	if body := doForm(t, f.a, ana, f.d.MisPendientes, "GET", "/", nil, nil, false).Body.String(); strings.Contains(body, `href="/dashboard/equipo"`) {
+		t.Error("a vendedor's menu links to Equipo")
+	}
+	if body := doForm(t, f.a, gerry, f.d.MisPendientes, "GET", "/", nil, nil, false).Body.String(); !strings.Contains(body, `<li><a href="/dashboard/equipo">Equipo</a></li>`) {
+		t.Error("an admin's Dashboard menu lacks Equipo")
+	}
+
+	res := equipo(gerry, "")
+	body := read(res)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("admin gets %d: %s", res.StatusCode, body)
+	}
+	assertContains(t, body, "<h1>Equipo</h1>", `<option value="mes" selected>Este mes</option>`, "Seguimiento por persona",
+		`<th scope="row">ana</th>`, `<th scope="row">beto</th>`, "Proyectos vencidos hoy",
+		`<a href="/proyectos/`+betos+`">`+betos+`</a>`, "10 días hábiles", "5 días hábiles", "$3,000.00",
+		`<a href="/ajustes/notificaciones?tipo=seguimiento_vencido">Ver el historial de avisos</a>`, `<th scope="row">Equipo</th>`)
+	if strings.Index(body, `href="/proyectos/`+betos+`"`) > strings.Index(body, `href="/proyectos/`+anas+`"`) {
+		t.Error("the most days late should come first")
+	}
+	for _, gone := range []string{`<th scope="row">carla</th>`, `<th scope="row">gerry</th>`, "Pendiente secreto"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("Equipo shows %q", gone)
+		}
+	}
+
+	// Probabilidad mínima Alta: Ana's Media proyecto drops out.
+	body = read(equipo(gerry, "?prob=75"))
+	assertContains(t, body, `<option value="75" selected>Alta 75% o más</option>`, `href="/proyectos/`+betos+`"`, "$2,000.00")
+	if strings.Contains(body, `href="/proyectos/`+anas+`"`) {
+		t.Error("prob=75 still lists a Media proyecto")
+	}
+
+	// Persona: only Beto's line and proyectos, with both still to choose from.
+	body = read(equipo(gerry, "?f.persona.is=beto"))
+	assertContains(t, body, `<th scope="row">beto</th>`, `value="ana"`, "Filtros activos en la tabla.")
+	if strings.Contains(body, `<th scope="row">ana</th>`) || strings.Contains(body, `href="/proyectos/`+anas+`"`) {
+		t.Error("the Persona filter still shows Ana")
+	}
+
+	// This week, and a range: the overdue ones are today's either way.
+	body = read(equipo(gerry, "?periodo=semana"))
+	assertContains(t, body, `<option value="semana" selected>Esta semana</option>`, `href="/proyectos/`+anas+`"`)
+	from, to := mxDay(-30).Format("2006-01-02"), mxDay(0).Format("2006-01-02")
+	body = read(equipo(gerry, "?periodo=rango&desde="+from+"&hasta="+to))
+	assertContains(t, body, `<option value="rango" selected>Rango de fechas</option>`, `value="`+from+`"`)
+	body = read(equipo(gerry, "?periodo=rango&desde="+to+"&hasta="+from))
+	assertContains(t, body, "Para un rango, elige el día Desde y el día Hasta, el primero antes del segundo.",
+		`<option value="mes" selected>Este mes</option>`)
+}
+
+func TestEquipoRange(t *testing.T) {
+	now := time.Date(2026, 11, 12, 15, 0, 0, 0, time.UTC) // Thursday in Mexico City
+	for _, c := range []struct{ periodo, desde, hasta, from, to string }{
+		{"mes", "", "", "2026-11-01", "2026-11-30"},
+		{"semana", "", "", "2026-11-09", "2026-11-15"},
+		{"rango", "2026-10-01", "2026-10-15", "2026-10-01", "2026-10-15"},
+	} {
+		from, to, msg := equipoRange(c.periodo, c.desde, c.hasta, now)
+		if from != c.from || to != c.to || msg != "" {
+			t.Errorf("equipoRange(%s) = %s, %s, %q", c.periodo, from, to, msg)
+		}
+	}
+	// Sunday belongs to the week that started on Monday.
+	if from, to, _ := equipoRange("semana", "", "", time.Date(2026, 11, 15, 20, 0, 0, 0, time.UTC)); from != "2026-11-09" || to != "2026-11-15" {
+		t.Errorf("Sunday's week = %s to %s", from, to)
+	}
 }

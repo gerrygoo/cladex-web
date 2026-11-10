@@ -45,6 +45,9 @@ templ Layout(title string, user *NavUser) {
 								<summary>Dashboard</summary>
 								<ul>
 									<li><a href="/">Mis pendientes</a></li>
+									if user.IsAdmin {
+										<li><a href="/dashboard/equipo">Equipo</a></li>
+									}
 								</ul>
 							</details>
 							<details class="nav-menu">

@@ -171,6 +171,8 @@ per guide page:
   Mis pendientes' list, order, priorities, *Escribe qué tienes pendiente.*, Completados and
   Reabrir, and that no one else, admins included, sees or touches a user's pendientes
   libres; the words for how a seguimiento was completed in `internal/views/dashboard_test.go`.
+  `TestEquipo` pins Equipo's filters, its lists and that only admins reach it; its metrics
+  on a seeded month are `TestTeamDashboard` in the store.
   The seguimiento rule itself is `TestReplaySeguimientos` in the store, and
   `TestOverdueAgreesWithSeguimientoPeriods` (internal/avisos) holds the avisos to it.
 - **cotizaciones.md** — `Selecciona un cliente.` / `Selecciona una serie de folio.`, the

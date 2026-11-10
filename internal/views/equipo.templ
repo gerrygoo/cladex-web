@@ -1,0 +1,172 @@
+package views
+
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// EquipoPage is Dashboard → Equipo (issue #70; docs/planning/dashboard.md), for admins.
+templ EquipoPage(e Equipo, user *NavUser) {
+	@Layout("Equipo", user) {
+		<div class="page-title">
+			<h1>Equipo</h1>
+			@HelpLink(HelpEquipo)
+		</div>
+		<p>Qué tan al día está cada quien con el seguimiento de sus proyectos. El periodo aplica al historial (avisos, escalados, atraso promedio y seguimientos a tiempo); los proyectos vencidos y sus montos son siempre los de hoy.</p>
+		<form method="get" action="/dashboard/equipo" class="filters">
+			for _, v := range e.LV.Filters["persona.is"] {
+				<input type="hidden" name="f.persona.is" value={ v }/>
+			}
+			<label>
+				Periodo
+				<select name="periodo">
+					for _, p := range equipoPeriods {
+						<option value={ p.Value } selected?={ p.Value == e.Periodo }>{ p.Label }</option>
+					}
+				</select>
+			</label>
+			<label>
+				Desde (rango)
+				<input type="date" name="desde" value={ e.Desde } data-sets-periodo/>
+			</label>
+			<label>
+				Hasta (rango)
+				<input type="date" name="hasta" value={ e.Hasta } data-sets-periodo/>
+			</label>
+			<label>
+				Probabilidad mínima
+				<select name="prob">
+					<option value="">Todas</option>
+					for _, st := range store.ProbabilitySteps[1:] {
+						<option value={ strconv.Itoa(st.Percent) } selected?={ st.Percent == e.MinProb }>{ minProbabilityLabel(st.Percent) }</option>
+					}
+				</select>
+			</label>
+			<button type="submit" class="primary">Aplicar</button>
+		</form>
+		@FormError(e.Error)
+		<p class="hint">Periodo: del { dateText(e.Desde) } al { dateText(e.Hasta) }.</p>
+		<div class="section-title">
+			<h2>Seguimiento por persona</h2>
+		</div>
+		@listActiveFilters(e.LV)
+		if len(e.Team.Members) == 0 {
+			<p>Nadie tiene prospectos ni seguimientos en este periodo.</p>
+		} else {
+			<div class="table-scroll">
+				<table class="team-table">
+					<thead>
+						<tr>
+							<th scope="col" class="num">Lugar</th>
+							@columnHeader(e.LV, "Persona", "persona", personaFilter(e.Team.People))
+							<th scope="col" class="num">Seguimientos a tiempo</th>
+							<th scope="col" class="num">Proyectos activos</th>
+							<th scope="col" class="num">Vencidos hoy</th>
+							<th scope="col" class="num">Valor vencido (sin IVA)</th>
+							<th scope="col" class="num">Utilidad vencida</th>
+							<th scope="col" class="num">Avisos recibidos</th>
+							<th scope="col" class="num">Escalados al equipo</th>
+							<th scope="col" class="num">Atraso promedio</th>
+							<th scope="col">Último comentario</th>
+						</tr>
+					</thead>
+					<tbody>
+						for i, m := range e.Team.Members {
+							<tr>
+								<td class="num">{ strconv.Itoa(i + 1) }</td>
+								<th scope="row">{ m.Name }</th>
+								<td class="num">{ onTimeText(m) }</td>
+								<td class="num">{ strconv.Itoa(m.Active) }</td>
+								<td class="num">{ strconv.Itoa(m.Overdue) }</td>
+								<td class="num">{ m.OverdueValue.String() }</td>
+								<td class="num">{ m.OverdueProfit.String() }</td>
+								<td class="num">{ strconv.Itoa(m.Avisos) }</td>
+								<td class="num">{ strconv.Itoa(m.Escalated) }</td>
+								<td class="num">{ averageLateText(m) }</td>
+								<td>
+									if m.LastComment == "" {
+										Sin comentarios
+									} else {
+										@Timestamp(m.LastComment)
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+					<tfoot>
+						{{ t := e.Team.Totals }}
+						<tr>
+							<td></td>
+							<th scope="row">Equipo</th>
+							<td class="num">{ onTimeText(t) }</td>
+							<td class="num">{ strconv.Itoa(t.Active) }</td>
+							<td class="num">{ strconv.Itoa(t.Overdue) }</td>
+							<td class="num">{ t.OverdueValue.String() }</td>
+							<td class="num">{ t.OverdueProfit.String() }</td>
+							<td class="num">{ strconv.Itoa(t.Avisos) }</td>
+							<td class="num">{ strconv.Itoa(t.Escalated) }</td>
+							<td class="num">{ averageLateText(t) }</td>
+							<td></td>
+						</tr>
+					</tfoot>
+				</table>
+			</div>
+			<p><small>El lugar va por seguimientos a tiempo: los días de seguimiento del periodo que se atendieron antes de vencer, de todos los que ya llegaron. Si empatan, va primero quien tiene menos atraso promedio. El atraso promedio cuenta los días hábiles de los seguimientos vencidos que se cerraron en el periodo.</small></p>
+		}
+		<div class="section-title">
+			<h2>Proyectos vencidos hoy</h2>
+		</div>
+		if len(e.Team.Overdue) == 0 {
+			<p>Ningún proyecto tiene el seguimiento vencido.</p>
+		} else {
+			<div class="table-scroll">
+				<table class="team-overdue-table">
+					<thead>
+						<tr>
+							<th scope="col">No. de proyecto</th>
+							<th scope="col">Cliente</th>
+							<th scope="col">Persona</th>
+							<th scope="col">Probabilidad de cierre</th>
+							<th scope="col">Seguimiento</th>
+							<th scope="col" class="num">Atraso</th>
+							<th scope="col" class="num">Valor (sin IVA)</th>
+							<th scope="col" class="num">Utilidad</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, o := range e.Team.Overdue {
+							<tr>
+								<th scope="row"><a href={ templ.URL(projectPath(o.Folio)) }>{ o.Folio }</a></th>
+								<td>{ o.Customer }</td>
+								<td>{ o.UserName }</td>
+								<td>{ probabilityText(o.Probability) }</td>
+								<td>{ dateText(o.Day) }</td>
+								<td class="num">{ daysLateText(o.DaysLate) }</td>
+								<td class="num">{ o.Value.String() }</td>
+								<td class="num">{ o.Profit.String() }</td>
+							</tr>
+						}
+					</tbody>
+					<tfoot>
+						<tr>
+							<th scope="row">Total</th>
+							<td colspan="5">{ countAnnouncementPlain(len(e.Team.Overdue), "proyecto vencido", "proyectos vencidos") }</td>
+							<td class="num">{ e.Team.Totals.OverdueValue.String() }</td>
+							<td class="num">{ e.Team.Totals.OverdueProfit.String() }</td>
+						</tr>
+					</tfoot>
+				</table>
+			</div>
+		}
+		<p><a href="/ajustes/notificaciones?tipo=seguimiento_vencido">Ver el historial de avisos</a></p>
+	}
+}
+
+// countAnnouncementPlain is n with its noun: "1 proyecto vencido", "3 proyectos vencidos".
+func countAnnouncementPlain(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+	return strconv.Itoa(n) + " " + many
+}
