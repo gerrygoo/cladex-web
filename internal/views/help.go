@@ -11,6 +11,7 @@ type HelpTopic string
 
 const (
 	HelpInicio             HelpTopic = "/ayuda#la-página-de-inicio"
+	HelpMisPendientes      HelpTopic = "/ayuda/dashboard#mis-pendientes"
 	HelpMiCuenta           HelpTopic = "/ayuda/acceso#cambiar-tu-contraseña"
 	HelpAvisos             HelpTopic = "/ayuda/acceso#recibir-avisos"
 	HelpClientes           HelpTopic = "/ayuda/clientes"
@@ -57,6 +58,7 @@ const (
 // HelpTopics lists every topic with whether it is only linked from admin screens.
 var HelpTopics = map[HelpTopic]bool{
 	HelpInicio:             false,
+	HelpMisPendientes:      false,
 	HelpMiCuenta:           false,
 	HelpAvisos:             false,
 	HelpClientes:           false,

@@ -11,6 +11,7 @@ parte de este manual que la explica.
 | Página | Qué cubre |
 |---|---|
 | [Acceso y cuenta](acceso.md) | Iniciar sesión, cambiar tu contraseña, cerrar sesión |
+| [Dashboard](dashboard.md) | Mis pendientes: tus seguimientos vencidos y tus pendientes, con su prioridad; lo que completaste |
 | [Clientes](clientes.md) | Dar de alta, buscar, editar y eliminar clientes |
 | [Proveedores](proveedores.md) | Consultar proveedores, sus contactos y las familias que surten; darlos de alta y editarlos (administradores) |
 | [Cotizaciones](cotizaciones.md) | Crear una cotización, agregar productos por SKU, líneas libres, guardar, emitir, descargar el PDF, revisar |
@@ -59,7 +60,11 @@ permiso para hacer esto. Solo un administrador puede hacerlo."*
 
 ## La página de inicio
 
-Al entrar ves la tabla **Vendedores**, con una fila fija para Emilio Flores, Rodolfo Flores y
+Al entrar ves [Mis pendientes](dashboard.md#mis-pendientes): tus seguimientos vencidos y
+los pendientes que tú anotas, con lo que completaste a un lado. También llegas ahí desde
+el menú **Dashboard** → **Mis pendientes**, o haciendo clic en el logo.
+
+Debajo está la tabla **Vendedores**, con una fila fija para Emilio Flores, Rodolfo Flores y
 Gerardo Galván Rosillo (siempre las tres, aunque estén en ceros). Solo cuenta los
 **proyectos activos**: los [[prospecto|prospectos]] que siguen en seguimiento. Los que ya
 tienen la orden de compra recibida (*Orden colocada 100%*) y los

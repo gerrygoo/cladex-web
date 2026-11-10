@@ -1,0 +1,188 @@
+package views
+
+import "github.com/gerrygoo/cladex-web/internal/store"
+
+// MisPendientesPage is the home page (issue #72; docs/planning/dashboard.md).
+templ MisPendientesPage(m MisPendientes, user *NavUser) {
+	@Layout("Mis pendientes", user) {
+		<div class="page-title">
+			<h1>Mis pendientes</h1>
+			@HelpLink(HelpMisPendientes)
+		</div>
+		@MisPendientesSection(m)
+		@SalesSection(m.Sales)
+		@buildFooter(m.Built, m.Now, m.BuildSHA)
+	}
+}
+
+// MisPendientesSection is the list and Completados. The forms inside post with htmx and
+// swap just this section (the attributes below are inherited); without JS they post and
+// reload the page.
+templ MisPendientesSection(m MisPendientes) {
+	<div
+		id="mis-pendientes"
+		class="pendientes-layout"
+		tabindex="-1"
+		hx-target="this"
+		hx-select="#mis-pendientes"
+		hx-swap="outerHTML"
+		if m.Announce != "" {
+			data-announce={ m.Announce }
+		}
+	>
+		<section class="pendientes-list" aria-labelledby="pendientes-titulo">
+			<h2 id="pendientes-titulo" class="visually-hidden">Lista de pendientes</h2>
+			<p class="hint">Los seguimientos vencidos de tus proyectos aparecen solos y se completan solos al comentar el proyecto, ponerle una nueva fecha o cambiarlo de etapa. Tus pendientes libres solo los ves tú.</p>
+			{{ lv := ListView{Base: "/", Sort: "prioridad", Dir: m.Dir} }}
+			<div class="table-scroll">
+				<table class="pendientes-table">
+					<thead>
+						<tr>
+							@sortHeader(lv, "Prioridad", "prioridad", false)
+							<th scope="col">Pendiente</th>
+							<th scope="col">Fecha</th>
+							<th scope="col">Atraso</th>
+							<th scope="col"><span class="visually-hidden">Acciones</span></th>
+						</tr>
+					</thead>
+					<tbody>
+						if len(m.Items) == 0 && !m.Adding {
+							<tr>
+								<td colspan="5">No tienes pendientes.</td>
+							</tr>
+						}
+						for _, it := range m.Items {
+							if it.Period != nil {
+								@seguimientoRow(*it.Period)
+							} else {
+								@pendienteRow(*it.Pendiente, m.Dir)
+							}
+						}
+						@newPendienteRow(m)
+					</tbody>
+				</table>
+			</div>
+			<form id="nuevo-pendiente-form" method="post" action="/pendientes" hx-post="/pendientes">
+				<input type="hidden" name="orden" value={ m.Dir }/>
+			</form>
+			<p class="pendientes-actions">
+				<a class="button" href="/?agregar=1#nuevo-pendiente" data-reveal="nuevo-pendiente">Agregar pendiente</a>
+			</p>
+		</section>
+		<section class="completados" aria-labelledby="completados-titulo">
+			<h2 id="completados-titulo">Completados</h2>
+			<p class="hint">Lo que sacaste en los últimos 30 días.</p>
+			if len(m.Done) == 0 {
+				<p>Nada todavía.</p>
+			} else {
+				<ul class="completados-list">
+					for _, d := range m.Done {
+						<li>
+							if d.Period != nil {
+								<span class="completado-mark" aria-hidden="true">✓</span>
+								<span>
+									Seguimiento de
+									if d.Period.Deleted {
+										{ d.Period.Folio }
+									} else {
+										<a href={ templ.URL(projectPath(d.Period.Folio)) }>{ d.Period.Folio }</a>
+									}
+									{ " · " + d.Period.CustomerName }
+									<small class="comment-meta">Completado { closedReasonText(d.Period.Reason) } el { mxTimeText(d.At) }</small>
+								</span>
+							} else {
+								<span class="completado-mark" aria-hidden="true">✓</span>
+								<span>
+									{ d.Pendiente.Body }
+									<small class="comment-meta">Completado el { mxTimeText(d.At) }</small>
+								</span>
+								<form method="post" action={ templ.URL(pendientePath(d.Pendiente.ID, "reabrir")) } hx-post={ pendientePath(d.Pendiente.ID, "reabrir") }>
+									<input type="hidden" name="orden" value={ m.Dir }/>
+									<button type="submit" id={ pendienteIDField("reabrir", d.Pendiente.ID) } aria-label={ "Reabrir: " + d.Pendiente.Body }>Reabrir</button>
+								</form>
+							}
+						</li>
+					}
+				</ul>
+			}
+		</section>
+	</div>
+}
+
+templ seguimientoRow(p store.SeguimientoPeriod) {
+	<tr>
+		<td><span class={ priorityClass(p.Priority()) }>{ priorityText(p.Priority()) }</span></td>
+		<td>
+			Seguimiento de <a href={ templ.URL(projectPath(p.Folio)) }>{ p.Folio }</a>{ " · " + p.CustomerName }
+		</td>
+		<td>{ dateText(p.Day) }</td>
+		<td>{ daysLateText(p.DaysLate) }</td>
+		<td><small class="hint">Automático</small></td>
+	</tr>
+}
+
+templ pendienteRow(p store.Pendiente, dir string) {
+	<tr>
+		<td>
+			<form method="post" action={ templ.URL(pendientePath(p.ID, "prioridad")) } class="priority-form">
+				<input type="hidden" name="orden" value={ dir }/>
+				<select
+					name="prioridad"
+					id={ pendienteIDField("prioridad", p.ID) }
+					class={ priorityClass(p.Priority) }
+					aria-label={ "Prioridad de: " + p.Body }
+					hx-post={ pendientePath(p.ID, "prioridad") }
+					hx-trigger="change"
+					hx-include="closest form"
+				>
+					for _, pr := range store.Priorities {
+						<option value={ pr.Key } selected?={ pr.Key == p.Priority }>{ pr.Label }</option>
+					}
+				</select>
+				<noscript><button type="submit">Guardar</button></noscript>
+			</form>
+		</td>
+		<td class="pendiente-body">{ p.Body }</td>
+		<td>{ mxDayText(p.CreatedAt) }</td>
+		<td>—</td>
+		<td class="actions">
+			<form method="post" action={ templ.URL(pendientePath(p.ID, "completar")) } hx-post={ pendientePath(p.ID, "completar") }>
+				<input type="hidden" name="orden" value={ dir }/>
+				<button type="submit" id={ pendienteIDField("completar", p.ID) } aria-label={ "Completar: " + p.Body }>Completar</button>
+			</form>
+		</td>
+	</tr>
+}
+
+// newPendienteRow is the line "Agregar pendiente" opens at the bottom of the list. Its
+// fields belong to #nuevo-pendiente-form, outside the table, since a form can't wrap a row.
+templ newPendienteRow(m MisPendientes) {
+	<tr id="nuevo-pendiente" class="new-row" hidden?={ !m.Adding }>
+		<td>
+			<select name="prioridad" form="nuevo-pendiente-form" id="nuevo-prioridad" aria-label="Prioridad del pendiente nuevo">
+				for _, pr := range store.Priorities {
+					<option value={ pr.Key } selected?={ pr.Key == m.Priority || (m.Priority == "" && pr.Key == store.PriorityMedia) }>{ pr.Label }</option>
+				}
+			</select>
+		</td>
+		<td>
+			<input
+				type="text"
+				name="descripcion"
+				form="nuevo-pendiente-form"
+				id="nuevo-descripcion"
+				value={ m.Body }
+				maxlength="500"
+				placeholder="Descripción"
+				aria-label="Descripción del pendiente nuevo"
+				{ errAttrs(m.Errors, "descripcion")... }
+			/>
+			@FieldError(m.Errors, "descripcion")
+		</td>
+		<td>{ dateText(m.Today) }</td>
+		<td>—</td>
+		<td class="actions">
+			<button type="submit" form="nuevo-pendiente-form" id="nuevo-guardar" class="primary">Guardar pendiente</button>
+		</td>
+	</tr>
+}

@@ -10,14 +10,12 @@ import (
 // forecastLabel marks a prospecto that counts for the forecast (store.ForecastRelevant).
 const forecastLabel = "Relevante para pronóstico"
 
-templ Home(built, now time.Time, buildSHA string, d *store.Dashboard, user *NavUser) {
-	@Layout("Inicio", user) {
-		// The logo in the header already says where you are; the h1 stays for screen
-		// readers and the heading outline, and the first section heading carries the help.
-		<h1 class="visually-hidden">Inicio</h1>
-		<div class="page-title">
-			<h2>Vendedores</h2>
-			@HelpLink(HelpInicio)
+// SalesSection is the Vendedores table, below Mis pendientes on the home page.
+templ SalesSection(d *store.Dashboard) {
+	<section class="sales-section" aria-labelledby="vendedores-titulo">
+		<div class="section-title">
+			<h2 id="vendedores-titulo">Vendedores</h2>
+			@SectionHelpLink(HelpInicio, "Vendedores")
 		</div>
 		<p><small>Solo proyectos activos: los que siguen en seguimiento, sin orden de compra recibida y sin estar perdidos. Ordenados por monto sin seguimiento. Un proyecto está sin seguimiento si no tiene fecha de próximo seguimiento o esa fecha es hoy o ya pasó.</small></p>
 		<div class="table-scroll">
@@ -58,18 +56,22 @@ templ Home(built, now time.Time, buildSHA string, d *store.Dashboard, user *NavU
 				</tbody>
 			</table>
 		</div>
-		<footer class="build-footer">
-			<small title={ "commit " + buildSHA }>
-				if built.IsZero() {
-					Compilación local (dev)
-				} else {
-					Compilado el
-					@Timestamp(isoTime(built))
-					({ BuildAge(built, now) })
-				}
-			</small>
-		</footer>
-	}
+	</section>
+}
+
+// buildFooter says when the running version was built.
+templ buildFooter(built, now time.Time, buildSHA string) {
+	<footer class="build-footer">
+		<small title={ "commit " + buildSHA }>
+			if built.IsZero() {
+				Compilación local (dev)
+			} else {
+				Compilado el
+				@Timestamp(isoTime(built))
+				({ BuildAge(built, now) })
+			}
+		</small>
+	</footer>
 }
 
 // folioList is a count that opens the list of its proyectos, biggest first: folio

@@ -26,6 +26,10 @@ type route struct {
 
 var appRoutes = []route{
 	{"GET", "/", false},
+	{"POST", "/pendientes", false},
+	{"POST", "/pendientes/1/prioridad", false},
+	{"POST", "/pendientes/1/completar", false},
+	{"POST", "/pendientes/1/reabrir", false},
 	{"GET", "/mi-cuenta", false},
 	{"POST", "/mi-cuenta", false},
 	{"POST", "/mi-cuenta/avisos", false},

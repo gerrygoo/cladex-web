@@ -63,15 +63,15 @@ func New(s *store.Store, j Enqueuer, baseURL string, logger *slog.Logger) *Servi
 	return &Service{store: s, jobs: j, logger: logger, baseURL: strings.TrimRight(baseURL, "/"), loc: MexicoCity(), now: time.Now}
 }
 
-// MexicoCity is the rounds' time zone. Mexico has kept UTC-6 all year since 2022.
-func MexicoCity() *time.Location {
-	if l, err := time.LoadLocation("America/Mexico_City"); err == nil {
-		return l
-	}
-	return time.FixedZone("CST", -6*60*60)
-}
+// MexicoCity is the rounds' time zone, the one the store counts seguimiento days in.
+func MexicoCity() *time.Location { return store.MexicoCity() }
 
-func weekday(t time.Time) bool { return t.Weekday() != time.Saturday && t.Weekday() != time.Sunday }
+// weekday and weekdaysAfter are the store's, so the avisos and the seguimiento periods
+// (store.SeguimientoPeriods, Mis pendientes and Equipo) count days the same way.
+var (
+	weekday       = store.IsWeekday
+	weekdaysAfter = store.WeekdaysAfter
+)
 
 // nextSlot is the first round time after t, in loc.
 func nextSlot(t time.Time, loc *time.Location) time.Time {
@@ -141,17 +141,6 @@ func (s *Service) Handle(ctx context.Context, job store.Job) (string, error) {
 	return fmt.Sprintf("%d avisos en cola.", len(ns)), nil
 }
 
-// weekdaysAfter counts the weekdays after day d up to and including today.
-func weekdaysAfter(d, today time.Time) int {
-	n := 0
-	for t := d.AddDate(0, 0, 1); !t.After(today); t = t.AddDate(0, 0, 1) {
-		if weekday(t) {
-			n++
-		}
-	}
-	return n
-}
-
 // ownerDue and escalationDue say whether a round at hour h on weekday n after D sends to
 // the owner and to the team.
 func ownerDue(n, h int) bool {
@@ -165,7 +154,7 @@ func (s *Service) round(ctx context.Context, slot time.Time) ([]store.NewNotific
 	if !weekday(today) {
 		return nil, nil
 	}
-	projects, err := s.store.ProspectosFollowUpBefore(ctx, today.Format("2006-01-02"))
+	projects, err := s.overdue(ctx, today)
 	if err != nil {
 		return nil, err
 	}
@@ -184,13 +173,7 @@ func (s *Service) round(ctx context.Context, slot time.Time) ([]store.NewNotific
 
 	var out []store.NewNotification
 	for _, p := range projects {
-		d, err := time.ParseInLocation("2006-01-02", p.NextFollowUpDate, s.loc)
-		if err != nil {
-			continue
-		}
-		if s.attendedSince(p, d) {
-			continue
-		}
+		d, _ := time.ParseInLocation("2006-01-02", p.NextFollowUpDate, s.loc)
 		n := weekdaysAfter(d, today)
 		if r, ok := ownerByID[p.UserID]; ok && ownerDue(n, slot.Hour()) {
 			subject, text, html := s.ownerMessage(r, p, d, n)
@@ -202,6 +185,25 @@ func (s *Service) round(ctx context.Context, slot time.Time) ([]store.NewNotific
 				out = append(out, emailTo(store.AvisoSeguimientoEscalado, r, p, subject, text, html)...)
 			}
 		}
+	}
+	return out, nil
+}
+
+// overdue returns the prospectos whose seguimiento day is before today with nothing on
+// their history since it began: the ones a round on today avisa about. On a weekday it is
+// the same set as store.SeguimientoPeriods' open periods (a test holds them to it).
+func (s *Service) overdue(ctx context.Context, today time.Time) ([]store.Project, error) {
+	projects, err := s.store.ProspectosFollowUpBefore(ctx, today.Format("2006-01-02"))
+	if err != nil {
+		return nil, err
+	}
+	var out []store.Project
+	for _, p := range projects {
+		d, err := time.ParseInLocation("2006-01-02", p.NextFollowUpDate, s.loc)
+		if err != nil || s.attendedSince(p, d) {
+			continue
+		}
+		out = append(out, p)
 	}
 	return out, nil
 }

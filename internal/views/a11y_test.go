@@ -5,7 +5,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gerrygoo/cladex-web/internal/pricing"
@@ -128,8 +127,9 @@ func TestNavGroupsTablesAndLeavesLogoutToMiCuenta(t *testing.T) {
 	assertContains(t, vendedor,
 		`<ul><li><a href="/productos">Productos</a></li><li><a href="/clientes">Clientes</a></li><li><a href="/proveedores">Proveedores</a></li></ul></details>`)
 
-	home := render(t, Home(time.Time{}, time.Time{}, "", &store.Dashboard{}, &NavUser{Username: "ana"}))
-	assertContains(t, home, `<h1 class="visually-hidden">Inicio</h1>`)
+	home := render(t, MisPendientesPage(MisPendientes{Sales: &store.Dashboard{}}, &NavUser{Username: "ana"}))
+	assertContains(t, home, `<h1>Mis pendientes</h1>`,
+		`<details class="nav-menu"><summary>Dashboard</summary><ul><li><a href="/">Mis pendientes</a></li></ul></details>`)
 	if strings.Count(home, `href="/cotizaciones/nueva"`) != 1 {
 		t.Error("Inicio should reach Nueva cotización only through the nav menu")
 	}

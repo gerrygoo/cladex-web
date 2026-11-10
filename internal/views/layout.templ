@@ -42,6 +42,12 @@ templ Layout(title string, user *NavUser) {
 							// native <details>: it opens and closes without JS; static/app.js only
 							// closes it on Escape or a click elsewhere.
 							<details class="nav-menu">
+								<summary>Dashboard</summary>
+								<ul>
+									<li><a href="/">Mis pendientes</a></li>
+								</ul>
+							</details>
+							<details class="nav-menu">
 								<summary>Cotizaciones</summary>
 								<ul>
 									<li><a href="/cotizaciones/nueva">Nueva cotización</a></li>

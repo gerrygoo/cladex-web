@@ -1,6 +1,6 @@
 # Dashboard: Mis pendientes y Equipo (#72, #70)
 
-**Decided 2026-11-10 (Gerry), not started.** A **Dashboard** tab with two views:
+**Decided 2026-11-10 (Gerry). #72 built 2026-11-10** (see *Implementation notes*). A **Dashboard** tab with two views:
 **Mis pendientes** (#72), everyone's home page, and **Equipo** (#70), admins only. Built
 before facturación, entrega y cobro ([estados-del-proyecto.md](estados-del-proyecto.md)).
 
@@ -105,3 +105,43 @@ account (`ggo`) is excluded, as in `DashboardSellers`.
 2. **#70:** the Equipo view on the same function.
 
 Each one is its own commit, test-covered, with `docs/guia` updated.
+
+## Implementation notes
+
+Choices made while building, where the rules above left room. Each is the smallest one
+that fit the code.
+
+**Periods (`store.SeguimientoPeriods`, `internal/store/seguimiento.go`; #72)**
+
+- **Where the rules live.** `store.MexicoCity`, `store.IsWeekday` and
+  `store.WeekdaysAfter` are the one copy; `internal/avisos` uses them. The avisos' own
+  query is `avisos.Service.overdue`, and `TestOverdueAgreesWithSeguimientoPeriods` holds it
+  to the open periods on the real clock.
+- **Opening time** is the start of the first weekday after D, or the moment D was set if
+  that is later (a day set in the past, which in the app always comes with a comment, so
+  it doesn't open). Only history up to `now` counts.
+- **A comment and a new date in the same save** (a follow-up writes both) close the
+  period as `nueva fecha`: the audit row is written before the comment, and the rule
+  takes the first event.
+- **A day replaced before it came** (D changed before the start of D) is not a follow-up
+  day at all: no period, and it doesn't count for the ranking.
+- **Proyectos older than the audit trail** (moved over by 0016 without triggers) start
+  from the values their first audited change replaced.
+- **Deleted proyectos.** `DeleteProject` deletes their comments too, so a deleted
+  proyecto's past periods are rebuilt as closing at the deletion (`cambio de etapa`) even
+  if a comment had closed them earlier. Deleting is for proyectos created by mistake, so
+  this is accepted; their periods show without a link.
+- **Reassignment.** As the rule says, a period stays with the owner when it opened: the
+  previous owner keeps it on Mis pendientes after a reassignment, while the avisos go to
+  the current owner. Anyone can close it by commenting.
+
+**Mis pendientes (#72)**
+
+- **Completados** is the last 30 × 24 hours, by closing time, newest first.
+- A pendiente's description is at most 500 characters, typed in one line.
+- The priority order is the list's `sort=prioridad&dir=asc|desc` (the shared sortable
+  header); desc is the default. Within a priority, "oldest first" is a seguimiento's
+  opening time and a pendiente's creation time.
+- Every write is `WHERE id = ? AND user_id = ?`; anyone else's id, or one in the wrong
+  state (completing a completed one), is a 404. `TestMisPendientes` and `TestPendientes`
+  check it as an admin guessing ids.

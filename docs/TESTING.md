@@ -167,6 +167,12 @@ per guide page:
   supplier from a QL O.C. and the Configuración del sistema block. The cost and rounding
   rules, numbering and the delete rules are in `internal/store/purchase_orders_test.go`,
   the PDF's layout in `internal/pdf/purchase_order_test.go`.
+- **dashboard.md** — pinned by `internal/web/dashboard_test.go` (issues #72 and #70):
+  Mis pendientes' list, order, priorities, *Escribe qué tienes pendiente.*, Completados and
+  Reabrir, and that no one else, admins included, sees or touches a user's pendientes
+  libres; the words for how a seguimiento was completed in `internal/views/dashboard_test.go`.
+  The seguimiento rule itself is `TestReplaySeguimientos` in the store, and
+  `TestOverdueAgreesWithSeguimientoPeriods` (internal/avisos) holds the avisos to it.
 - **cotizaciones.md** — `Selecciona un cliente.` / `Selecciona una serie de folio.`, the
   three line-level errors, `Borrador guardado.`, `Cotización emitida.`, `Producto no encontrado.` on a draft whose product was deleted (and that
   such a draft refuses to save), the 30-day vigencia, that an empty quote does not issue,

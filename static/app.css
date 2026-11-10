@@ -1717,3 +1717,120 @@ pre.notification-body {
   border: 1px solid var(--rule);
   border-radius: var(--radius);
 }
+
+/* ==== Dashboard: Mis pendientes (issue #72) ============================= */
+
+/* The list, with Completados beside it while there is room. */
+div.pendientes-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem 2rem;
+}
+
+@media (min-width: 64rem) {
+  div.pendientes-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
+  }
+}
+
+div.pendientes-layout:focus {
+  outline: none;
+}
+
+section.pendientes-list > p.hint {
+  margin-top: 0;
+}
+
+/* A priority, in words and in its colour: baja azul, media amarillo, alta naranja, muy
+   alta rojo. Each is at least 6:1 on the page in both schemes (docs/UX_QUALITY.md); the
+   dark ones are lighter tones of the same hues, not mixes towards cream, which would
+   make the yellow and the orange look alike. */
+.prioridad {
+  font-weight: 600;
+}
+
+.prioridad-baja {
+  color: light-dark(#1f5a9e, #8fb8ff);
+}
+
+.prioridad-media {
+  color: light-dark(#6b5a00, #e8c547);
+}
+
+.prioridad-alta {
+  color: light-dark(#9a4100, #ffa057);
+}
+
+.prioridad-muy_alta {
+  color: light-dark(var(--c-danger), #ff8a80);
+}
+
+table.pendientes-table td {
+  vertical-align: middle;
+}
+
+table.pendientes-table td.pendiente-body {
+  min-width: 14rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+table.pendientes-table form {
+  margin: 0;
+}
+
+table.pendientes-table select {
+  width: auto;
+  margin-top: 0;
+}
+
+table.pendientes-table tr.new-row input[type="text"] {
+  width: 100%;
+  min-width: 14rem;
+  margin-top: 0;
+}
+
+p.pendientes-actions {
+  margin: 0.75rem 0 0;
+}
+
+/* Completados: what the user got done, in green. */
+section.completados h2 {
+  margin-top: 0;
+}
+
+ul.completados-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+ul.completados-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.6rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+  border-left: 4px solid var(--success);
+  background: color-mix(in srgb, var(--success) 8%, var(--bg));
+  overflow-wrap: anywhere;
+}
+
+ul.completados-list li > span:not(.completado-mark) {
+  flex: 1 1 12rem;
+}
+
+ul.completados-list li form {
+  margin: 0;
+}
+
+span.completado-mark {
+  color: var(--success);
+  font-weight: 700;
+}
+
+ul.completados-list .comment-meta {
+  display: block;
+  color: var(--success);
+}

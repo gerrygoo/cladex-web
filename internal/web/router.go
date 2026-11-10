@@ -72,6 +72,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	help := NewHelp(guide)
 	trabajos := NewTrabajos(db, runner)
 	notificaciones := NewNotificaciones(db, runner, build.Notificaciones)
+	dashboard := NewDashboard(db, build)
 
 	static, err := newStaticHandler(staticFS)
 	if err != nil {
@@ -243,15 +244,12 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("GET /ayuda", authed(help.Page))
 	mux.Handle("GET /ayuda/{pagina}", authed(help.Page))
 
-	mux.Handle("GET /{$}", authed(func(w http.ResponseWriter, r *http.Request) {
-		dash, err := db.SalesDashboard(r.Context(), today(r))
-		if err != nil {
-			serverError(w, r, err)
-			return
-		}
-		user, _ := UserFromContext(r.Context())
-		views.Home(build.Time, time.Now(), build.SHA, dash, navUserView(user)).Render(r.Context(), w)
-	}))
+	// The Dashboard tab (docs/planning/dashboard.md): Mis pendientes is the home page.
+	mux.Handle("GET /{$}", authed(dashboard.MisPendientes))
+	mux.Handle("POST /pendientes", authed(dashboard.AgregarPendiente))
+	mux.Handle("POST /pendientes/{id}/prioridad", authed(dashboard.Prioridad))
+	mux.Handle("POST /pendientes/{id}/completar", authed(dashboard.Completar))
+	mux.Handle("POST /pendientes/{id}/reabrir", authed(dashboard.Reabrir))
 
 	// Outermost first: the access log has to see the status the CSRF check produces, and
 	// its panic recovery has to cover everything below it.

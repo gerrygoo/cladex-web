@@ -3,7 +3,6 @@ package views
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
@@ -68,8 +67,8 @@ func TestHomeSellerTable(t *testing.T) {
 		{Name: "Emilio Flores", Projects: []store.DashboardProject{{Folio: "QA0007", Customer: "Pruebas", Amount: 400_00}, {Folio: "QA0003", Customer: "Zasa", Amount: 1_100_00}}, Pipeline: 1_500_00, Profit: 270_00, Untracked: []store.DashboardProject{{Folio: "QA0007", Customer: "Pruebas", Amount: 400_00}, {Folio: "QA0002", Customer: "Zasa", Amount: 100_00}}, UntrackedAmount: 500_00},
 		{Name: "Rodolfo Flores"},
 	}}
-	home := render(t, Home(time.Time{}, time.Time{}, "", d, &NavUser{Username: "ana"}))
-	assertContains(t, home, "<h2>Vendedores</h2>", "Monto sin seguimiento", "O.C. vencidas",
+	home := render(t, SalesSection(d))
+	assertContains(t, home, `<h2 id="vendedores-titulo">Vendedores</h2>`, "Monto sin seguimiento", "O.C. vencidas",
 		"18.0% · $270.00", ">—<", `<a href="/proyectos/QA0007">QA0007</a> · Pruebas · $400.00`, "Pipeline total (sin IVA)", "Monto sin seguimiento (sin IVA)", `<details class="folio-list">`)
 	for _, gone := range []string{"Proyectos por etapa", "Perdidos"} {
 		if strings.Contains(home, gone) {

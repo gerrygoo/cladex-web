@@ -178,6 +178,23 @@
     if (box) box.hidden = true;
   });
 
+  // "Agregar pendiente" (Mis pendientes) shows the hidden new row and starts the user on
+  // its first text field, keeping the link under the pointer as the row pushes it down.
+  // Without JS it is a plain link that reloads the page with the row shown.
+  document.addEventListener("click", function (e) {
+    var link = e.target.closest && e.target.closest("[data-reveal]");
+    if (!link) return;
+    var row = document.getElementById(link.dataset.reveal);
+    if (!row) return;
+    e.preventDefault();
+    var top = link.getBoundingClientRect().top;
+    row.hidden = false;
+    var moved = link.getBoundingClientRect().top - top;
+    if (Math.abs(moved) > 1) window.scrollBy(0, moved);
+    var field = row.querySelector("input[type=text], textarea");
+    if (field) field.focus();
+  });
+
   // The follow-up form's "Perdida" radio swaps the dates, the step to receive the
   // purchase order and the comment for the Motivo of the loss, and O.C. esperada only
   // shows with Inminente 90%. The server renders the fields as they are for the saved
