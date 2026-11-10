@@ -115,9 +115,10 @@ templ ProjectsTableBody(projects []store.Project, today string) {
 }
 
 // ProjectPage is a proyecto: where it stands (its stage and, once en curso, its Estado
-// de facturación, de entrega and de cobro), its follow-up and history, its factura and
-// supplier O.C.s, every quote it has had, and the admin's tools at the bottom.
-templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []store.ProjectFile, receipt store.OCReceipt, comments []store.ProjectComment, commentsLV ListView, facturas []store.Comprobante, factEnabled bool, user *NavUser, supplier SupplierQuoteView, adminPanel *AdminPanel, pos ProjectPOs) {
+// de facturación, de entrega and de cobro), its follow-up and history, its factura,
+// supplier O.C.s and payments (Cobro), every quote it has had, and the admin's tools at
+// the bottom.
+templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []store.ProjectFile, receipt store.OCReceipt, comments []store.ProjectComment, commentsLV ListView, facturas []store.Comprobante, factEnabled bool, user *NavUser, supplier SupplierQuoteView, adminPanel *AdminPanel, pos ProjectPOs, cobro ProjectCobro) {
 	@Layout("Proyecto "+p.Folio, user) {
 		<div class="page-title">
 			<h1>Proyecto { p.Folio }</h1>
@@ -206,9 +207,7 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 					}
 				</dd>
 				<dt>Estado de cobro</dt>
-				<dd>
-					@cobroState(p)
-				</dd>
+				<dd>{ cobroText(p) }</dd>
 			}
 		</dl>
 		if p.Status == store.StagePerdido {
@@ -269,30 +268,18 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 		}
 		@followUpAndComments(p, today, files, receipt, comments, commentsLV)
 		if p.Status == store.StageEnCurso && p.HasOC() || p.Invoice.Ref != "" || len(facturas) > 0 {
-			<section id="pago">
-				<h2>Facturación y pago</h2>
-				<dl class="quote-info">
-					if p.Invoice.Ref != "" && p.PaymentMethod != "" {
-						<dt>Método de pago</dt>
-						<dd>{ paymentMethodText(p.PaymentMethod) }</dd>
-					}
-					<dt>Estado de pago</dt>
-					<dd>
-						<span class={ "badge", "badge-pago-" + paymentBadge(p.PaymentStatus) }>{ store.PaymentStatusLabels[p.PaymentStatus] }</span>
-					</dd>
-					if p.Invoice.Ref != "" {
-						<dt>{ invoiceLabel(p.PaymentMethod) }</dt>
+			<section id="facturacion">
+				<h2>Facturación</h2>
+				if p.Invoice.Ref != "" {
+					<dl class="quote-info">
+						if p.PaymentMethod != "" {
+							<dt>Método de pago</dt>
+							<dd>{ paymentMethodText(p.PaymentMethod) }</dd>
+						}
+						<dt>Factura</dt>
 						<dd>{ p.Invoice.Ref + " · " + dateText(p.Invoice.Date) }</dd>
-					}
-					if p.PaymentRef != "" {
-						<dt>Comprobante de pago</dt>
-						<dd>{ p.PaymentRef }</dd>
-					}
-					if p.PaidAt != "" {
-						<dt>Pagado el</dt>
-						<dd>{ dateText(p.PaidAt) }</dd>
-					}
-				</dl>
+					</dl>
+				}
 				@ProjectFacturas(facturas)
 				if p.Status == store.StageEnCurso {
 					if factEnabled {
@@ -320,7 +307,7 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 									</label>
 								}
 							</fieldset>
-							<p class="hint">P.U.E.: el cliente ya pagó. P.P.D.: es la factura de anticipo y el pago completado se registra después.</p>
+							<p class="hint">P.U.E.: el cliente ya pagó. P.P.D.: paga en parcialidades o después. Los pagos se registran aparte, en Cobro.</p>
 							<div class="followup-dates">
 								<label>
 									Folio de la factura
@@ -337,31 +324,14 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 							</label>
 							<button type="submit" class="primary">Registrar factura</button>
 						</form>
-					} else if p.PaymentStatus == store.PaymentAdvanceInvoiced && !hasStampedFactura(facturas) {
-						<form method="post" action={ templ.URL(projectPath(p.Folio) + "/pago") } class="stage-form">
-							<h3>Registrar pago completado</h3>
-							<p>Cuando el cliente termine de pagar y se emita el comprobante de pago, regístralo aquí.</p>
-							<div class="followup-dates">
-								<label>
-									Folio del comprobante de pago
-									<input type="text" name="folio" maxlength="100" required/>
-								</label>
-								<label>
-									Fecha de pago
-									<input type="date" name="fecha" value={ today } required/>
-								</label>
-							</div>
-							<label>
-								Comentario (opcional)
-								<textarea name="note" rows="2" maxlength="2000"></textarea>
-							</label>
-							<button type="submit" class="primary">Registrar pago completado</button>
-						</form>
 					}
 				}
 			</section>
 		}
 		@ProjectPOSection(p, pos)
+		if p.Status == store.StageEnCurso || len(cobro.Payments) > 0 {
+			@ProjectCobroSection(p, cobro, today)
+		}
 		@SupplierQuoteSection(supplier, false)
 		@SupplierQuoteForm(supplier)
 		<h2>Cotizaciones</h2>
@@ -398,9 +368,120 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 	}
 }
 
-// cobroState is a proyecto's Estado de cobro as its summary shows it.
-templ cobroState(p store.Project) {
-	{ store.CobroLabels[p.States.Cobro] }
+// ProjectCobro is the proyecto page's Cobro section (#67): its payments, and who may
+// record one (the proyecto's vendedor and the admins) and delete one (the admins).
+type ProjectCobro struct {
+	Payments  []store.Payment
+	CanRecord bool
+	CanDelete bool
+}
+
+// ProjectCobroSection lists the client's payments with the total with IVA, what is paid
+// and what is left, and, while something is left, "Registrar pago": a disclosure that
+// opens the form (the day, by default today and never later; the amount, by default the
+// saldo; and whether to upload the comprobante, which static/app.js shows when Sí is
+// picked). An admin deletes a payment from its row, with a motivo.
+templ ProjectCobroSection(p store.Project, c ProjectCobro, today string) {
+	<section id="cobro">
+		<h2>Cobro</h2>
+		if len(c.Payments) == 0 {
+			<p>Todavía no hay pagos registrados.</p>
+		} else {
+			<div class="table-scroll">
+				<table>
+					<thead>
+						<tr>
+							<th scope="col">Fecha de pago</th>
+							<th scope="col" class="num">Monto</th>
+							<th scope="col">Comprobante</th>
+							<th scope="col">Registró</th>
+							if c.CanDelete {
+								<th scope="col">Eliminar</th>
+							}
+						</tr>
+					</thead>
+					<tbody>
+						for _, pm := range c.Payments {
+							<tr>
+								<td>{ dateText(pm.PaidOn) }</td>
+								<td class="num">{ pm.Amount.String() }</td>
+								<td>
+									if pm.FileID != 0 {
+										<a href={ templ.URL(projectFilePath(p.Folio, pm.FileID)) }>{ pm.FileName }</a>
+									} else {
+										Sin comprobante
+									}
+								</td>
+								<td>
+									{ pm.CreatedByName + " · " }
+									@Timestamp(pm.CreatedAt)
+								</td>
+								if c.CanDelete {
+									<td>
+										<details class="disclosure">
+											<summary>Eliminar<span class="visually-hidden">{ " el pago de " + pm.Amount.String() + " del " + dateText(pm.PaidOn) }</span></summary>
+											<form method="post" action={ templ.URL(projectPath(p.Folio) + "/pagos/" + strconv.FormatInt(pm.ID, 10) + "/eliminar") } class="stage-form">
+												<label>
+													Motivo
+													<textarea name="reason" rows="2" maxlength="2000" required></textarea>
+												</label>
+												<button type="submit" class="danger" data-confirm={ "¿Eliminar el pago de " + pm.Amount.String() + " del " + dateText(pm.PaidOn) + "?" }>Eliminar pago</button>
+											</form>
+										</details>
+									</td>
+								}
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		<dl class="quote-info">
+			<dt>Total del proyecto (con IVA)</dt>
+			<dd>{ p.Total.String() }</dd>
+			<dt>Pagado</dt>
+			<dd>{ p.States.Paid.String() }</dd>
+			<dt>Saldo pendiente</dt>
+			<dd>{ p.Balance().String() }</dd>
+		</dl>
+		if p.Status == store.StageEnCurso && p.Balance() > 0 {
+			if c.CanRecord {
+				<details class="disclosure" id="registrar-pago">
+					<summary>Registrar pago</summary>
+					<form method="post" action={ templ.URL(projectPath(p.Folio) + "/pagos") } enctype="multipart/form-data" class="stage-form" data-payment-form>
+						<div class="followup-dates">
+							<label>
+								Fecha de pago
+								<input type="date" name="fecha" value={ today } max={ today } required/>
+							</label>
+							<label>
+								Monto (con IVA)
+								<input type="number" name="monto" value={ centavosValue(p.Balance()) } min="0.01" max={ centavosValue(p.Balance()) } step="0.01" inputmode="decimal" required/>
+							</label>
+						</div>
+						<fieldset class="probability">
+							<legend>¿Quieres subir un comprobante de pago?</legend>
+							<label>
+								<input type="radio" name="comprobante" value="si"/>
+								Sí
+							</label>
+							<label>
+								<input type="radio" name="comprobante" value="no" checked/>
+								No
+							</label>
+						</fieldset>
+						<label data-payment-file hidden>
+							Comprobante de pago (PDF, JPG o PNG de hasta 10 MB)
+							<input type="file" name="archivo" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"/>
+						</label>
+						<button type="submit" class="primary">Guardar</button>
+					</form>
+				</details>
+			} else {
+				<p class="hint">El vendedor del proyecto o un administrador registra los pagos.</p>
+			}
+		}
+	</section>
 }
 
 // followUpAndComments is the proyecto's one place to write (issue #22): a prospecto's

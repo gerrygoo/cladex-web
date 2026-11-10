@@ -210,3 +210,26 @@ Choices made beyond the issues (smallest sensible, recorded here):
 - **A typed factura with a wrong folio can't be corrected** any more (before, an admin sent
   the proyecto back to O.C. recibida). The guide says to note the correction in a comment;
   #63's manual mode replaces the typed form.
+
+## Built 2026-11-10: #67 Cobro
+
+`store.RecordPayment` / `DeletePayment` / `ListPayments` (`internal/store/payments.go`),
+`POST /proyectos/{folio}/pagos` (the proyecto's vendedor or an admin) and
+`POST /proyectos/{folio}/pagos/{id}/eliminar` (admin, motivo required). The summary shows
+the Estado de cobro under Estado de entrega; the **Cobro** section, after the supplier
+O.C.s, has the payments table, Total con IVA / Pagado / Saldo pendiente and "Registrar
+pago" (a disclosure with Fecha, Monto, ¿Quieres subir un comprobante de pago? Sí/No). The
+comprobante is a `project_files` row of kind `pago`, downloaded like the O.C.'s file.
+
+The typed "Registrar pago completado" form, the Estado de pago badge and
+`payment_status` are gone from the app (the columns stay, unread). The section is
+**Facturación** now. Beyond the issue:
+
+- **A typed or stamped factura records no payment**, P.U.E. included: #63 adds "ya se
+  cobró" plus a date for P.U.E. and the complemento's automatic payment. Until then every
+  payment goes through Registrar pago.
+- **The amount must have at most two decimals**; `$` and thousands commas are accepted.
+- **A deleted payment's comprobante stays** with the proyecto's files (project_files are
+  never deleted).
+- **The Cobro section also shows on a cancelled proyecto with payments** (read-only), so
+  an admin can still delete one; Registrar pago is en curso only.

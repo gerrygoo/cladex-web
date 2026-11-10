@@ -314,22 +314,6 @@ func (s *Store) ProjectOCReceipt(ctx context.Context, projectID int64) (OCReceip
 	return r, nil
 }
 
-// Payment states, as they were kept by hand before payments were recorded one by one
-// (#67): empty until the purchase order's factura is on record, then facturado de
-// anticipo for a P.P.D. order still to be collected, and pagado.
-const (
-	PaymentAdvanceInvoiced = "facturado_anticipo"
-	PaymentPaid            = "pagado"
-)
-
-// PaymentStatusLabels are the words users see for each payment state; "" is a proyecto
-// with nothing invoiced yet.
-var PaymentStatusLabels = map[string]string{
-	"":                     "Sin tramitar",
-	PaymentAdvanceInvoiced: "Facturado de anticipo",
-	PaymentPaid:            "Pagado",
-}
-
 // Document is a fiscal document as it is typed in by hand: its folio and its day
 // (YYYY-MM-DD). Both are required.
 type Document struct {
@@ -348,10 +332,9 @@ func (d Document) valid() bool {
 // RecordInvoice puts the purchase order's factura on record by hand, typed in, with its
 // método de pago (one of PaymentMethods, kept on the proyecto): the way to invoice while
 // facturación can't stamp, until #63's manual mode replaces it. It counts as facturada
-// for the proyecto's Estado de facturación; the stage doesn't change. P.U.E. means the
-// client paid, so the proyecto is pagado as of the factura's day; P.P.D. means it is the
-// factura de anticipo, facturado de anticipo until RecordPayment. The history gets one
-// comment saying which, ending with the user's note. A proyecto that isn't en curso with
+// for the proyecto's Estado de facturación; the stage doesn't change, and no payment is
+// recorded (that is RecordPayment's, even for P.U.E.). The history gets one comment
+// ("Factura registrada: F-1001 · 08/10/2026 · P.U.E."), ending with the user's note. A proyecto that isn't en curso with
 // its purchase order on record, one with a factura already (typed in or stamped), or a
 // método that isn't one, is ErrBadTransition.
 func (s *Store) RecordInvoice(ctx context.Context, projectID, userID int64, invoice Document, method, note string) error {
@@ -385,16 +368,10 @@ func (s *Store) RecordInvoice(ctx context.Context, projectID, userID int64, invo
 	if quoteID == 0 {
 		return ErrBadTransition
 	}
-	status, paidAt := PaymentAdvanceInvoiced, any(nil)
-	body := "Factura de anticipo " + invoice.Ref + " · " + dayText(invoice.Date)
-	if method == "PUE" {
-		status, paidAt = PaymentPaid, invoice.Date
-		body = "Pago recibido · factura " + invoice.Ref + " · " + dayText(invoice.Date)
-	}
+	body := "Factura registrada: " + invoice.Ref + " · " + dayText(invoice.Date) + " · " + PaymentMethodLabels[method]
 	if _, err := tx.ExecContext(ctx, `
-		UPDATE projects SET invoice_ref = ?, invoice_date = ?, payment_method = ?,
-			payment_status = ?, paid_at = ?, payment_ref = NULL
-		WHERE id = ?`, invoice.Ref, invoice.Date, method, status, paidAt, projectID); err != nil {
+		UPDATE projects SET invoice_ref = ?, invoice_date = ?, payment_method = ?
+		WHERE id = ?`, invoice.Ref, invoice.Date, method, projectID); err != nil {
 		return fmt.Errorf("store: record invoice of project %d: %w", projectID, err)
 	}
 	if note = strings.TrimSpace(note); note != "" {
@@ -405,52 +382,6 @@ func (s *Store) RecordInvoice(ctx context.Context, projectID, userID int64, invo
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("store: record invoice of project %d: %w", projectID, err)
-	}
-	return nil
-}
-
-// RecordPayment marks an en curso P.P.D. proyecto that is facturado de anticipo as
-// pagado, with the comprobante de pago issued when the payment was completed. The stage
-// doesn't change. Anything else is ErrBadTransition.
-func (s *Store) RecordPayment(ctx context.Context, projectID, userID int64, receipt Document, note string) error {
-	receipt.Ref = strings.TrimSpace(receipt.Ref)
-	if !receipt.valid() {
-		return ErrBadTransition
-	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("store: record payment of project %d: %w", projectID, err)
-	}
-	defer tx.Rollback()
-	if err := stampActor(ctx, tx); err != nil {
-		return fmt.Errorf("store: record payment of project %d: %w", projectID, err)
-	}
-	quoteID, _, err := currentQuote(ctx, tx, projectID)
-	if err != nil {
-		return fmt.Errorf("store: record payment of project %d: %w", projectID, err)
-	}
-	if quoteID == 0 {
-		return ErrBadTransition
-	}
-	res, err := tx.ExecContext(ctx, `
-		UPDATE projects SET payment_status = ?, payment_ref = ?, paid_at = ?
-		WHERE id = ? AND payment_status = ? AND status = 'en_curso'`,
-		PaymentPaid, receipt.Ref, receipt.Date, projectID, PaymentAdvanceInvoiced)
-	if err != nil {
-		return fmt.Errorf("store: record payment of project %d: %w", projectID, err)
-	}
-	if n, _ := res.RowsAffected(); n != 1 {
-		return ErrBadTransition
-	}
-	body := "Pago completado · comprobante de pago " + receipt.Ref + " · " + dayText(receipt.Date)
-	if note = strings.TrimSpace(note); note != "" {
-		body += "\n" + note
-	}
-	if err := addProjectComment(ctx, tx, quoteID, userID, body); err != nil {
-		return fmt.Errorf("store: record payment of project %d: comment: %w", projectID, err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: record payment of project %d: %w", projectID, err)
 	}
 	return nil
 }
@@ -906,14 +837,10 @@ type Project struct {
 	// factura is recorded, or already on proyectos whose purchase order was received
 	// while it was asked for there. Empty until then.
 	PaymentMethod string
-	// Invoice is the purchase order's factura as typed in (the factura de anticipo for a
-	// P.P.D. order), PaymentStatus one of PaymentStatusLabels' keys, PaymentRef the folio
-	// of the comprobante de pago of a P.P.D. order and PaidAt the day it was paid. All
-	// empty until the factura is on record.
-	Invoice       Document
-	PaymentStatus string
-	PaymentRef    string
-	PaidAt        string
+	// Invoice is the purchase order's factura as typed in, empty until it is on record.
+	// (The payment state once typed next to it, payment_status and its folio and day, is
+	// kept in its columns but no longer read: payments are recorded one by one, #67.)
+	Invoice Document
 	// Subtotal is the current quote's price before IVA and Profit what it earns on it (see
 	// quoteProfitSQL); the cost is the difference. LastMovementAt is when the proyecto last
 	// had news: its newest history entry, or when it was opened if it has none.
@@ -1034,8 +961,7 @@ var projectSelectCols = `
 	COALESCE((` + projectLastComment("lu.name") + `), ''),
 	COALESCE((` + projectLastComment("lc.created_at") + `), ''),
 	COALESCE(p.oc_number, ''), COALESCE(p.oc_date, ''), COALESCE(p.payment_method, ''),
-	COALESCE(p.invoice_ref, ''), COALESCE(p.invoice_date, ''), COALESCE(p.payment_status, ''),
-	COALESCE(p.payment_ref, ''), COALESCE(p.paid_at, ''),
+	COALESCE(p.invoice_ref, ''), COALESCE(p.invoice_date, ''),
 	q.subtotal, ` + quoteProfitSQL + `, COALESCE((` + projectLastComment("lc.created_at") + `), p.created_at),
 	COALESCE(p.cancel_reason, ''), COALESCE(p.cancelled_from, ''), COALESCE(p.cancelled_at, ''),
 	ps.facturacion, ps.entrega, ps.cobro, ps.paid, ps.last_paid_on, ps.cerrado`
@@ -1077,7 +1003,7 @@ func scanProject(row interface{ Scan(...any) error }) (*Project, error) {
 		&p.ContactName, &p.ContactPhone, &p.ContactEmail,
 		&p.LastBody, &p.LastUserName, &p.LastAt,
 		&p.OC.Number, &p.OC.Date, &p.PaymentMethod,
-		&p.Invoice.Ref, &p.Invoice.Date, &p.PaymentStatus, &p.PaymentRef, &p.PaidAt,
+		&p.Invoice.Ref, &p.Invoice.Date,
 		&p.Subtotal, &p.Profit, &p.LastMovementAt,
 		&p.CancelReason, &p.CancelledFrom, &p.CancelledAt,
 		&p.States.Facturacion, &p.States.Entrega, &p.States.Cobro, &p.States.Paid, &p.States.LastPaidOn, &p.States.Cerrado)

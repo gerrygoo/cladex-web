@@ -28,14 +28,3 @@ func hasActiveFactura(list []store.Comprobante) bool {
 	}
 	return false
 }
-
-// hasStampedFactura reports whether a proyecto's factura is a stamped CFDI, whose payment
-// is then a comprobante de pago made from the factura's page, not a folio typed in.
-func hasStampedFactura(list []store.Comprobante) bool {
-	for _, c := range list {
-		if c.Tipo == store.TipoFactura && c.UUID != "" {
-			return true
-		}
-	}
-	return false
-}

@@ -7,8 +7,8 @@ para administradores**; cualquier usuario puede verlas y descargarlas en **Proye
 Facturas** o desde su proyecto.
 
 Mientras la facturación no esté configurada en el servidor, el proyecto sigue pidiendo el
-folio de la factura escrito a mano, como hasta ahora ([Registrar la factura y el
-pago](proyectos.md#registrar-la-factura-y-el-pago)).
+folio de la factura escrito a mano, como hasta ahora ([Registrar la
+factura](proyectos.md#registrar-la-factura)).
 
 ## Antes de facturar
 
@@ -33,7 +33,7 @@ social, régimen fiscal, código postal fiscal y uso de CFDI
 ## Crear una factura
 
 1. Abre el proyecto. Tiene que estar **En curso**, con su orden de compra.
-2. En **Facturación y pago**, haz clic en **Crear factura**.
+2. En **Facturación**, haz clic en **Crear factura**.
 
 La factura empieza como **borrador** con las partidas de la cotización emitida: cantidades,
 precios e importes no cambian. Revisa y completa:
@@ -100,7 +100,9 @@ Cuando el cliente termina de pagar una factura P.P.D.:
    total de la factura, en un solo pago.
 3. **Guardar y validar**, y luego **Timbrar**.
 
-Al timbrarlo, el Estado de facturación del proyecto queda *Facturada*.
+Al timbrarlo, el Estado de facturación del proyecto queda *Facturada*. El comprobante no
+registra el pago en el Estado de cobro: regístralo en la sección **Cobro** del proyecto
+([Registrar un pago](proyectos.md#registrar-un-pago)), si no lo registraste ya.
 
 ## Corregir una factura timbrada
 

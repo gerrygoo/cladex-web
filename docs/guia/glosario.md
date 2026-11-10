@@ -127,8 +127,8 @@ está en curso se siguen su [[estado de facturación]], su [[estado de entrega]]
 ## Método de pago
 
 Cómo paga el cliente la factura. **P.U.E.**: pago en una sola exhibición (ya pagó).
-**P.P.D.**: pago en parcialidades o diferido (la factura es de anticipo y el pago se
-completa después). Se elige al registrar la factura, o en su borrador si se timbra desde
+**P.P.D.**: pago en parcialidades o diferido (el cliente paga después, en una o varias
+partes). Se elige al registrar la factura, o en su borrador si se timbra desde
 la app. Los proyectos que lo eligieron al recibir la orden de compra, cuando ahí se pedía,
 lo conservan como opción inicial.
 
@@ -147,15 +147,9 @@ orden de compra al proveedor. **En proceso de entrega**: ya está confirmada.
 
 ## Estado de cobro
 
-Cuánto ha pagado el cliente, contra el total con IVA del proyecto. **Pendiente de pago**: no
-hay pagos registrados. **Pago parcial**: los pagos no cubren el total. **Pagado**: lo
-cubren.
-
-## Estado de pago
-
-Cómo se anotaba el cobro antes del [[estado de cobro]], a mano con la factura.
-**Sin tramitar**: todavía no se registra su factura. **Facturado de anticipo**: factura
-P.P.D. (de anticipo) registrada, falta completar el pago. **Pagado**: ya se cobró.
+Cuánto ha pagado el cliente, contra el total con IVA del proyecto, según los pagos
+registrados en la sección **Cobro**. **Pendiente de pago**: no hay pagos registrados.
+**Pago parcial**: los pagos no cubren el total. **Pagado**: lo cubren.
 
 ## Cerrado
 

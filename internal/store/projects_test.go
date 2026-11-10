@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gerrygoo/cladex-web"
+	"github.com/gerrygoo/cladex-web/internal/money"
 )
 
 func TestForecastRelevant(t *testing.T) {
@@ -173,7 +174,7 @@ func TestReceiveOCStartsEnCurso(t *testing.T) {
 	if comments[1].Body != "Pasó a En curso.\nO.C. 4411 · 07/10/2026\nLlegó la OC 4411" {
 		t.Errorf("first comment = %q", comments[1].Body)
 	}
-	if comments[0].Body != "Pago recibido · factura F-1001 · 08/10/2026\nFactura enviada" {
+	if comments[0].Body != "Factura registrada: F-1001 · 08/10/2026 · P.U.E.\nFactura enviada" {
 		t.Errorf("newest comment = %q", comments[0].Body)
 	}
 }
@@ -851,86 +852,161 @@ func TestReceiveOC(t *testing.T) {
 	}
 }
 
-// TestTypedInvoiceAndPayment covers the factura and pago typed in by hand while
-// facturación can't stamp: they count for the Estado de facturación and never move the
-// stage. The método is chosen when the factura is recorded and kept on the proyecto.
-func TestTypedInvoiceAndPayment(t *testing.T) {
+// TestTypedInvoice covers the factura typed in by hand while facturación can't stamp: it
+// counts for the Estado de facturación, never moves the stage, and records no payment.
+// The método is chosen when the factura is recorded and kept on the proyecto.
+func TestTypedInvoice(t *testing.T) {
 	ctx := context.Background()
-	setup := func(t *testing.T) (*Store, int64, int64, func() *Project) {
-		s := newTestStore(t)
-		q, user := projectFixture(t, s)
-		project := *q.ProjectID
-		if err := s.ReceiveOC(ctx, project, user, testOC, nil, ""); err != nil {
-			t.Fatalf("ReceiveOC: %v", err)
-		}
-		return s, project, user, func() *Project {
-			t.Helper()
-			p, err := s.ProjectByFolio(ctx, "QA0001")
-			if err != nil || p == nil {
-				t.Fatalf("ProjectByFolio: %v, %v", p, err)
-			}
-			return p
+	s := newTestStore(t)
+	q, user := projectFixture(t, s)
+	project := *q.ProjectID
+	if err := s.ReceiveOC(ctx, project, user, testOC, nil, ""); err != nil {
+		t.Fatalf("ReceiveOC: %v", err)
+	}
+	for name, bad := range map[string]Document{"no folio": {Ref: " ", Date: "2026-10-08"}, "no date": {Ref: "F-1"}, "bad date": {Ref: "F-1", Date: "8/10/26"}} {
+		if err := s.RecordInvoice(ctx, project, user, bad, "PUE", ""); !errors.Is(err, ErrBadTransition) {
+			t.Errorf("RecordInvoice(%s) = %v, want ErrBadTransition", name, err)
 		}
 	}
+	for _, method := range []string{"", "contado"} {
+		if err := s.RecordInvoice(ctx, project, user, testInvoice, method, ""); !errors.Is(err, ErrBadTransition) {
+			t.Errorf("RecordInvoice(método %q) = %v, want ErrBadTransition", method, err)
+		}
+	}
+	if err := s.RecordInvoice(ctx, project, user, Document{Ref: " A-77 ", Date: "2026-10-08"}, "PPD", "Transferencia"); err != nil {
+		t.Fatalf("RecordInvoice: %v", err)
+	}
+	p, _ := s.ProjectByFolio(ctx, "QA0001")
+	if p.Status != StageEnCurso || p.Invoice != (Document{Ref: "A-77", Date: "2026-10-08"}) || p.PaymentMethod != "PPD" ||
+		p.States.Facturacion != FacturacionFacturada || p.States.Cobro != CobroPendiente {
+		t.Fatalf("after RecordInvoice = %+v", p)
+	}
+	if p.LastBody != "Factura registrada: A-77 · 08/10/2026 · P.P.D.\nTransferencia" {
+		t.Errorf("history = %q", p.LastBody)
+	}
 
-	t.Run("P.U.E.", func(t *testing.T) {
-		s, project, user, load := setup(t)
-		for name, bad := range map[string]Document{"no folio": {Ref: " ", Date: "2026-10-08"}, "no date": {Ref: "F-1"}, "bad date": {Ref: "F-1", Date: "8/10/26"}} {
-			if err := s.RecordInvoice(ctx, project, user, bad, "PUE", ""); !errors.Is(err, ErrBadTransition) {
-				t.Errorf("RecordInvoice(%s) = %v, want ErrBadTransition", name, err)
-			}
-		}
-		for _, method := range []string{"", "contado"} {
-			if err := s.RecordInvoice(ctx, project, user, testInvoice, method, ""); !errors.Is(err, ErrBadTransition) {
-				t.Errorf("RecordInvoice(método %q) = %v, want ErrBadTransition", method, err)
-			}
-		}
-		if err := s.RecordInvoice(ctx, project, user, Document{Ref: " F-1001 ", Date: "2026-10-08"}, "PUE", "Transferencia"); err != nil {
-			t.Fatalf("RecordInvoice: %v", err)
-		}
-		p := load()
-		if p.Status != StageEnCurso || p.Invoice != (Document{Ref: "F-1001", Date: "2026-10-08"}) || p.PaymentMethod != "PUE" ||
-			p.States.Facturacion != FacturacionFacturada {
-			t.Fatalf("after RecordInvoice = %+v", p)
-		}
-		if p.LastBody != "Pago recibido · factura F-1001 · 08/10/2026\nTransferencia" {
-			t.Errorf("history = %q", p.LastBody)
-		}
-	})
+	// A proyecto with no purchase order on record can't be invoiced.
+	other := insertProject(t, s, "QS0001", q.CustomerID, user, "en_curso", 90, 100_00)
+	var otherProject int64
+	if err := s.db.QueryRowContext(ctx, `SELECT project_id FROM quotes WHERE id = ?`, other).Scan(&otherProject); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordInvoice(ctx, otherProject, user, testInvoice, "PUE", ""); !errors.Is(err, ErrBadTransition) {
+		t.Errorf("RecordInvoice without O.C. = %v, want ErrBadTransition", err)
+	}
+}
 
-	t.Run("P.P.D.", func(t *testing.T) {
-		s, project, user, load := setup(t)
-		if err := s.RecordPayment(ctx, project, user, Document{Ref: "CP-1", Date: "2026-10-09"}, ""); !errors.Is(err, ErrBadTransition) {
-			t.Errorf("RecordPayment before the factura = %v, want ErrBadTransition", err)
+// TestPayments records and deletes the client's payments (#67): what they add up to, the
+// balance they can't go past, the comprobante, and the history.
+func TestPayments(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	q, user := projectFixture(t, s)
+	project := *q.ProjectID
+	if _, err := s.db.ExecContext(ctx, `UPDATE quotes SET subtotal = 1287582, iva = 206013, total = 1493595 WHERE id = ?`, q.ID); err != nil {
+		t.Fatal(err)
+	}
+	load := func() *Project {
+		t.Helper()
+		p, err := s.ProjectByFolio(ctx, "QA0001")
+		if err != nil || p == nil {
+			t.Fatalf("ProjectByFolio: %v, %v", p, err)
 		}
-		if err := s.RecordInvoice(ctx, project, user, Document{Ref: "A-77", Date: "2026-10-08"}, "PPD", ""); err != nil {
-			t.Fatalf("RecordInvoice: %v", err)
+		return p
+	}
+	// Only en curso.
+	if err := s.RecordPayment(ctx, project, user, 100, "2026-11-10", nil); !errors.Is(err, ErrBadTransition) {
+		t.Errorf("RecordPayment(prospecto) = %v, want ErrBadTransition", err)
+	}
+	if err := s.ReceiveOC(ctx, project, user, testOC, nil, ""); err != nil {
+		t.Fatalf("ReceiveOC: %v", err)
+	}
+	for name, c := range map[string]struct {
+		amount money.Centavos
+		day    string
+		file   *NewFile
+	}{
+		"zero":       {0, "2026-11-10", nil},
+		"negative":   {-5, "2026-11-10", nil},
+		"no date":    {100, "", nil},
+		"empty file": {100, "2026-11-10", &NewFile{Filename: "cp.pdf"}},
+	} {
+		if err := s.RecordPayment(ctx, project, user, c.amount, c.day, c.file); !errors.Is(err, ErrBadTransition) {
+			t.Errorf("RecordPayment(%s) = %v, want ErrBadTransition", name, err)
 		}
-		p := load()
-		if p.PaymentStatus != PaymentAdvanceInvoiced || p.PaymentMethod != "PPD" || p.States.Facturacion != FacturacionFacturada {
-			t.Fatalf("after the factura de anticipo = %+v", p)
-		}
-		if err := s.RecordPayment(ctx, project, user, Document{Ref: "CP-9", Date: "2026-10-20"}, "Depósito completo"); err != nil {
-			t.Fatalf("RecordPayment: %v", err)
-		}
-		if p = load(); p.Status != StageEnCurso || p.PaymentStatus != PaymentPaid || p.PaymentRef != "CP-9" || p.PaidAt != "2026-10-20" {
-			t.Fatalf("after RecordPayment = %+v", p)
-		}
-		if p.LastBody != "Pago completado · comprobante de pago CP-9 · 20/10/2026\nDepósito completo" {
-			t.Errorf("history = %q", p.LastBody)
-		}
-	})
+	}
+	if err := s.RecordPayment(ctx, project, user, 1493596, "2026-11-10", nil); !errors.Is(err, ErrPaymentOverBalance) {
+		t.Errorf("RecordPayment(over the total) = %v, want ErrPaymentOverBalance", err)
+	}
 
-	t.Run("a proyecto with no purchase order on record can't be invoiced", func(t *testing.T) {
-		s := newTestStore(t)
-		q, user := projectFixture(t, s)
-		if _, err := s.db.ExecContext(ctx, `UPDATE projects SET status = 'en_curso' WHERE id = ?`, *q.ProjectID); err != nil {
-			t.Fatalf("seed: %v", err)
-		}
-		if err := s.RecordInvoice(ctx, *q.ProjectID, user, testInvoice, "PUE", ""); !errors.Is(err, ErrBadTransition) {
-			t.Errorf("RecordInvoice without O.C. = %v, want ErrBadTransition", err)
-		}
-	})
+	// Half, without a comprobante: Pago parcial.
+	if err := s.RecordPayment(ctx, project, user, 746798, "2026-11-09", nil); err != nil {
+		t.Fatalf("RecordPayment: %v", err)
+	}
+	p := load()
+	if p.States.Cobro != CobroParcial || p.States.Paid != 746798 || p.Balance() != 746797 || p.Stage() != StageEnCurso {
+		t.Fatalf("after the first payment = %+v, balance %s", p.States, p.Balance())
+	}
+	if p.LastBody != "Pago registrado: $7,467.98 el 09/11/2026 por Rodolfo." {
+		t.Errorf("history = %q", p.LastBody)
+	}
+	if err := s.RecordPayment(ctx, project, user, 746798, "2026-11-10", nil); !errors.Is(err, ErrPaymentOverBalance) {
+		t.Errorf("RecordPayment(over the balance) = %v, want ErrPaymentOverBalance", err)
+	}
+
+	// The rest, with its comprobante: Pagado, as of the last payment.
+	cp := &NewFile{Filename: "transferencia.pdf", ContentType: "application/pdf", Data: []byte("%PDF-1.7 cp")}
+	if err := s.RecordPayment(ctx, project, user, 746797, "2026-11-10", cp); err != nil {
+		t.Fatalf("RecordPayment(rest): %v", err)
+	}
+	if p = load(); p.States.Cobro != CobroPagado || p.States.Paid != 1493595 || p.Balance() != 0 || p.States.LastPaidOn != "2026-11-10" {
+		t.Fatalf("after paying it all = %+v", p.States)
+	}
+	if p.LastBody != "Pago registrado: $7,467.97 el 10/11/2026 por Rodolfo con comprobante." {
+		t.Errorf("history = %q", p.LastBody)
+	}
+	payments, err := s.ListPayments(ctx, project)
+	if err != nil || len(payments) != 2 || payments[0].Amount != 746798 || payments[0].FileID != 0 ||
+		payments[1].FileName != "transferencia.pdf" || payments[1].CreatedByName != "Rodolfo" || payments[1].Source != PaymentSourceManual {
+		t.Fatalf("ListPayments = %+v, %v", payments, err)
+	}
+	if f, data, err := s.ProjectFileData(ctx, project, payments[1].FileID); err != nil || f == nil || f.Kind != "pago" || string(data) != "%PDF-1.7 cp" {
+		t.Errorf("comprobante file = %+v, %q, %v", f, data, err)
+	}
+
+	// Deleting one needs a motivo, takes it out of the sums and says so in the history.
+	if err := s.DeletePayment(ctx, project, payments[0].ID, user, " "); !errors.Is(err, ErrBadTransition) {
+		t.Errorf("DeletePayment(no reason) = %v, want ErrBadTransition", err)
+	}
+	if err := s.DeletePayment(ctx, project+1, payments[0].ID, user, "x"); !errors.Is(err, ErrBadTransition) {
+		t.Errorf("DeletePayment(another proyecto's) = %v, want ErrBadTransition", err)
+	}
+	if err := s.DeletePayment(ctx, project, payments[0].ID, user, "Se capturó dos veces"); err != nil {
+		t.Fatalf("DeletePayment: %v", err)
+	}
+	if p = load(); p.States.Cobro != CobroParcial || p.States.Paid != 746797 ||
+		p.LastBody != "Pago eliminado: $7,467.98 del 09/11/2026.\nSe capturó dos veces" {
+		t.Fatalf("after deleting = %+v, %q", p.States, p.LastBody)
+	}
+	if err := s.DeletePayment(ctx, project, payments[0].ID, user, "otra vez"); !errors.Is(err, ErrBadTransition) {
+		t.Errorf("DeletePayment(twice) = %v, want ErrBadTransition", err)
+	}
+	if payments, _ := s.ListPayments(ctx, project); len(payments) != 1 {
+		t.Errorf("payments after deleting = %d, want 1", len(payments))
+	}
+	var n int
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM audit_log WHERE table_name = 'payments' AND op = 'update'
+		AND json_extract(new_values, '$.delete_reason') = 'Se capturó dos veces'`).Scan(&n); err != nil || n != 1 {
+		t.Errorf("audit rows for the deletion = %d, %v", n, err)
+	}
+
+	// Deleting the proyecto takes its payments with it.
+	if err := s.DeleteProject(ctx, project); err != nil {
+		t.Fatalf("DeleteProject: %v", err)
+	}
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM payments`).Scan(&n); err != nil || n != 0 {
+		t.Errorf("payments after deleting the proyecto = %d, %v", n, err)
+	}
 }
 
 // TestProjectStates checks the project_states view against the records it reads: a

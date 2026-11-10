@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gerrygoo/cladex-web/internal/facturacion"
+	"github.com/gerrygoo/cladex-web/internal/money"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
@@ -130,7 +131,13 @@ func (p *Projects) Page(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	views.ProjectPage(*project, today(r), quotes, files, receipt, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user), supplier, panel, pos).Render(ctx, w)
+	payments, err := p.store.ListPayments(ctx, project.ID)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	cobro := views.ProjectCobro{Payments: payments, CanRecord: canEditPO(user, project), CanDelete: user != nil && user.Role == store.RoleAdmin}
+	views.ProjectPage(*project, today(r), quotes, files, receipt, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user), supplier, panel, pos, cobro).Render(ctx, w)
 }
 
 // Cancelar handles POST /proyectos/{folio}/cancelar (admin): marks the proyecto cancelado
@@ -538,8 +545,9 @@ func documentForm(r *http.Request) (store.Document, string) {
 
 // Factura handles POST /proyectos/{folio}/factura: puts the purchase order's factura on
 // record, typed in ("folio", "fecha", "metodo_pago" PUE or PPD, optional "note"), which
-// makes the proyecto's Estado de facturación Facturada. A P.P.D. one is the factura de
-// anticipo. Any signed-in user can, while the proyecto is en curso without a factura.
+// makes the proyecto's Estado de facturación Facturada. It records no payment: that is
+// Registrar pago (Pagos). Any signed-in user can, while the proyecto is en curso without
+// a factura.
 func (p *Projects) Factura(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := p.loadProjectOrNotFound(w, r)
@@ -570,38 +578,125 @@ func (p *Projects) Factura(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	http.Redirect(w, r, "/proyectos/"+project.Folio+"#pago", http.StatusSeeOther)
+	http.Redirect(w, r, "/proyectos/"+project.Folio+"#facturacion", http.StatusSeeOther)
 }
 
-// Pago handles POST /proyectos/{folio}/pago: marks a P.P.D. proyecto that is facturado de
-// anticipo as pagado, with its comprobante de pago ("folio", "fecha", optional "note").
-// Any signed-in user can, while the proyecto is en curso.
-func (p *Projects) Pago(w http.ResponseWriter, r *http.Request) {
+// Pagos handles POST /proyectos/{folio}/pagos: "Registrar pago" (#67), a payment the
+// client made toward an en curso proyecto. "fecha" is the day it came in (required, not
+// after the viewer's today), "monto" the amount with IVA (required, more than $0 and no
+// more than the saldo pendiente), and "comprobante" sí or no; with sí, "archivo" (PDF,
+// JPG or PNG up to 10 MB, like the O.C.'s) is required. The proyecto's vendedor and the
+// admins can.
+func (p *Projects) Pagos(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := p.loadProjectOrNotFound(w, r)
 	if project == nil {
 		return
 	}
-	note := strings.TrimSpace(r.FormValue("note"))
-	if utf8.RuneCountInString(note) > maxCommentLen {
-		http.Error(w, "el comentario no puede pasar de 2000 caracteres", http.StatusBadRequest)
+	user, _ := UserFromContext(ctx)
+	if !canEditPO(user, project) {
+		http.Error(w, "solo el vendedor del proyecto o un administrador registra sus pagos", http.StatusForbidden)
 		return
 	}
-	receipt, msg := documentForm(r)
-	if msg != "" {
-		http.Error(w, msg, http.StatusBadRequest)
+	if project.Status != store.StageEnCurso {
+		http.Error(w, "los pagos solo se registran en un proyecto En curso", http.StatusConflict)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxOCFileBytes+1<<20)
+	if err := r.ParseMultipartForm(maxOCFileBytes + 1<<20); err != nil && !errors.Is(err, http.ErrNotMultipart) {
+		http.Error(w, "el comprobante no puede pesar más de 10 MB", http.StatusRequestEntityTooLarge)
+		return
+	}
+	day := strings.TrimSpace(r.FormValue("fecha"))
+	if _, err := time.Parse("2006-01-02", day); err != nil {
+		http.Error(w, "escribe la fecha de pago", http.StatusBadRequest)
+		return
+	}
+	if day > today(r) {
+		http.Error(w, "la fecha de pago no puede ser futura", http.StatusBadRequest)
+		return
+	}
+	amount, ok := centavosInput(r.FormValue("monto"))
+	if !ok || amount <= 0 {
+		http.Error(w, "escribe el monto pagado, mayor a $0.00", http.StatusBadRequest)
+		return
+	}
+	if amount > project.Balance() {
+		http.Error(w, "el monto no puede ser mayor al saldo pendiente, "+project.Balance().String(), http.StatusBadRequest)
+		return
+	}
+	var file *store.NewFile
+	switch r.FormValue("comprobante") {
+	case "si":
+		f, msg, status := uploadedFile(r, "archivo", maxOCFileBytes, ocFileTypes,
+			"el comprobante no puede pesar más de 10 MB", "el comprobante debe ser PDF, JPG o PNG", "comprobante-de-pago")
+		if msg != "" {
+			http.Error(w, msg, status)
+			return
+		}
+		if f == nil {
+			http.Error(w, "adjunta el comprobante de pago: PDF, JPG o PNG de hasta 10 MB", http.StatusBadRequest)
+			return
+		}
+		file = f
+	case "no", "":
+	default:
+		http.Error(w, "elige si quieres subir un comprobante de pago", http.StatusBadRequest)
+		return
+	}
+	if err := p.store.RecordPayment(ctx, project.ID, user.ID, amount, day, file); err != nil {
+		switch {
+		case errors.Is(err, store.ErrPaymentOverBalance):
+			http.Error(w, "el monto no puede ser mayor al saldo pendiente", http.StatusConflict)
+		case errors.Is(err, store.ErrBadTransition):
+			http.Error(w, "los pagos solo se registran en un proyecto En curso", http.StatusConflict)
+		default:
+			serverError(w, r, err)
+		}
+		return
+	}
+	http.Redirect(w, r, "/proyectos/"+project.Folio+"#cobro", http.StatusSeeOther)
+}
+
+// centavosInput reads an amount typed in pesos ("7467.98", "$7,467.98") as centavos. It
+// is false for anything that isn't a number with at most two decimals.
+func centavosInput(raw string) (money.Centavos, bool) {
+	m, err := money.ParseMicros(amountInput(raw))
+	if err != nil || m%10_000 != 0 {
+		return 0, false
+	}
+	return money.Centavos(m / 10_000), true
+}
+
+// EliminarPago handles POST /proyectos/{folio}/pagos/{id}/eliminar (admin): takes a
+// payment recorded by mistake out of the cobro, with a required "reason" ("Motivo") that
+// goes into the history.
+func (p *Projects) EliminarPago(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	project := p.loadProjectOrNotFound(w, r)
+	if project == nil {
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	reason := strings.TrimSpace(r.FormValue("reason"))
+	if reason == "" || utf8.RuneCountInString(reason) > maxCommentLen {
+		http.Error(w, "escribe el motivo, de no más de 2000 caracteres", http.StatusBadRequest)
 		return
 	}
 	user, _ := UserFromContext(ctx)
-	if err := p.store.RecordPayment(ctx, project.ID, user.ID, receipt, note); err != nil {
+	if err := p.store.DeletePayment(ctx, project.ID, id, user.ID, reason); err != nil {
 		if errors.Is(err, store.ErrBadTransition) {
-			http.Error(w, "el pago completado solo se registra en un proyecto En curso facturado de anticipo", http.StatusConflict)
+			http.Error(w, "ese pago no existe o ya se eliminó", http.StatusConflict)
 			return
 		}
 		serverError(w, r, err)
 		return
 	}
-	http.Redirect(w, r, "/proyectos/"+project.Folio+"#pago", http.StatusSeeOther)
+	http.Redirect(w, r, "/proyectos/"+project.Folio+"#cobro", http.StatusSeeOther)
 }
 
 // adminPanel is the Administración section of a proyecto's page: nil for anyone but an

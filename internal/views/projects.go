@@ -1,6 +1,7 @@
 package views
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -23,20 +24,23 @@ func paymentMethodText(method string) string {
 	return method
 }
 
-// invoiceLabel names the factura on record by what it is for its método de pago.
-func invoiceLabel(method string) string {
-	if method == "PPD" {
-		return "Factura de anticipo"
+// cobroText is a proyecto's Estado de cobro as its summary shows it (#67): Pago parcial
+// with how much of the total is paid and what is left, Pagado with the day of the last
+// payment.
+func cobroText(p store.Project) string {
+	text := store.CobroLabels[p.States.Cobro]
+	switch p.States.Cobro {
+	case store.CobroParcial:
+		text += " · Pagado " + p.States.Paid.String() + " de " + p.Total.String() + " · Saldo " + p.Balance().String()
+	case store.CobroPagado:
+		text += " · " + dateText(p.States.LastPaidOn)
 	}
-	return "Factura"
+	return text
 }
 
-// paymentBadge is the CSS suffix for a payment state's badge.
-func paymentBadge(status string) string {
-	if status == "" {
-		return "sin_tramitar"
-	}
-	return status
+// centavosValue is an amount as a number field takes it: "7467.98", no sign or commas.
+func centavosValue(c money.Centavos) string {
+	return strconv.FormatInt(int64(c)/100, 10) + "." + fmt.Sprintf("%02d", int64(c)%100)
 }
 
 // ocDateValue is the purchase order form's date: the one on record, or today for a

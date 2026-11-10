@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/gerrygoo/cladex-web"
+	"github.com/gerrygoo/cladex-web/internal/money"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
@@ -992,7 +994,7 @@ func TestProjectsLegacyOCRecibida(t *testing.T) {
 		t.Errorf("Factura with O.C. status = %d", rec.Code)
 	}
 	// The método sent with the factura is the one that counts.
-	if project, _ := a.store.ProjectByFolio(context.Background(), folio); project.PaymentMethod != "PUE" || project.PaymentStatus != store.PaymentPaid {
+	if project, _ := a.store.ProjectByFolio(context.Background(), folio); project.PaymentMethod != "PUE" || project.States.Facturacion != store.FacturacionFacturada {
 		t.Errorf("after a P.U.E. factura = %+v", project)
 	}
 }
@@ -1007,8 +1009,8 @@ func mustProjectID(t *testing.T, a *Auth, folio string) int64 {
 }
 
 // TestProjectsTypedFactura follows the factura typed in by hand (while facturación can't
-// stamp) through the screens: it makes the Estado de facturación Facturada and moves no
-// stage. Typed P.P.D., the pago completado is typed in later.
+// stamp) through the screens: it makes the Estado de facturación Facturada, moves no
+// stage and records no payment.
 func TestProjectsTypedFactura(t *testing.T) {
 	a := newTestAuth(t)
 	q := newTestQuotes(t, a)
@@ -1023,15 +1025,15 @@ func TestProjectsTypedFactura(t *testing.T) {
 	page := func() string {
 		return doForm(t, a, ana, p.Page, "GET", base, pv, nil, false).Body.String()
 	}
-	post := func(h http.HandlerFunc, path string, form url.Values) *httptest.ResponseRecorder {
-		return doForm(t, a, ana, h, "POST", base+path, pv, form, false)
+	post := func(form url.Values) *httptest.ResponseRecorder {
+		return doForm(t, a, ana, p.Factura, "POST", base+"/factura", pv, form, false)
 	}
 	doc := func(folio, date string) url.Values {
 		return url.Values{"folio": {folio}, "fecha": {date}, "note": {"nota"}, "metodo_pago": {"PPD"}}
 	}
 
-	// Nothing to invoice or collect before the purchase order.
-	if rec := post(p.Factura, "/factura", doc("A-77", "2026-10-08")); rec.Code != http.StatusConflict {
+	// Nothing to invoice before the purchase order.
+	if rec := post(doc("A-77", "2026-10-08")); rec.Code != http.StatusConflict {
 		t.Errorf("Factura(prospecto) status = %d, want 409", rec.Code)
 	}
 	oc := map[string]string{"oc_numero": "4411", "oc_fecha": "2026-10-07"}
@@ -1040,11 +1042,17 @@ func TestProjectsTypedFactura(t *testing.T) {
 	}
 
 	body := page()
-	for _, want := range []string{"Facturación y pago", "Registrar la factura", "Método de pago",
+	for _, want := range []string{"<h2>Facturación</h2>", "Registrar la factura", "Método de pago",
 		`name="metodo_pago" value="PUE" required`, `name="metodo_pago" value="PPD" required`,
 		"Folio de la factura", "Fecha de la factura", ">Registrar factura</button>", "El Estado de facturación pasa a Facturada."} {
 		if !strings.Contains(body, want) {
 			t.Errorf("en curso page missing %q", want)
+		}
+	}
+	// The old payment state and its form are gone: payments are Cobro's.
+	for _, gone := range []string{"Estado de pago", "Sin tramitar", "Registrar pago completado", "Facturación y pago"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("en curso page still shows %q", gone)
 		}
 	}
 	noMethod, badMethod := doc("A-77", "2026-10-08"), doc("A-77", "2026-10-08")
@@ -1052,22 +1060,19 @@ func TestProjectsTypedFactura(t *testing.T) {
 	badMethod.Set("metodo_pago", "contado")
 	for name, bad := range map[string]url.Values{"no folio": doc("", "2026-10-08"), "no date": doc("A-77", ""), "bad date": doc("A-77", "8/10/2026"),
 		"no método": noMethod, "unknown método": badMethod} {
-		if rec := post(p.Factura, "/factura", bad); rec.Code != http.StatusBadRequest {
+		if rec := post(bad); rec.Code != http.StatusBadRequest {
 			t.Errorf("Factura(%s) status = %d, want 400", name, rec.Code)
 		}
 	}
-	if rec := post(p.Pago, "/pago", doc("CP-9", "2026-10-20")); rec.Code != http.StatusConflict {
-		t.Errorf("Pago before the factura status = %d, want 409", rec.Code)
-	}
 
-	rec := post(p.Factura, "/factura", doc("A-77", "2026-10-08"))
-	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != base+"#pago" {
+	rec := post(doc("A-77", "2026-10-08"))
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != base+"#facturacion" {
 		t.Fatalf("Factura status = %d, Location = %q; body = %s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
 	}
 	body = page()
-	for _, want := range []string{"En curso", "<dt>Estado de facturación</dt><dd>Facturada</dd>", "A-77 · 08/10/2026", "Registrar pago completado",
-		"<dt>Método de pago</dt><dd>P.P.D. · pago en parcialidades o diferido</dd>", "<dt>Factura de anticipo</dt>",
-		"Folio del comprobante de pago", "Factura de anticipo A-77 · 08/10/2026"} {
+	for _, want := range []string{"En curso", "<dt>Estado de facturación</dt><dd>Facturada</dd>", "<dt>Factura</dt><dd>A-77 · 08/10/2026</dd>",
+		"<dt>Método de pago</dt><dd>P.P.D. · pago en parcialidades o diferido</dd>", "Factura registrada: A-77 · 08/10/2026 · P.P.D.",
+		"<dt>Estado de cobro</dt><dd>Pendiente de pago"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("invoiced page missing %q", want)
 		}
@@ -1075,20 +1080,185 @@ func TestProjectsTypedFactura(t *testing.T) {
 	if strings.Contains(body, "Registrar la factura") {
 		t.Error("an invoiced proyecto still offers typing in a factura")
 	}
-	if rec := post(p.Factura, "/factura", doc("A-78", "2026-10-09")); rec.Code != http.StatusConflict {
+	if rec := post(doc("A-78", "2026-10-09")); rec.Code != http.StatusConflict {
 		t.Errorf("Factura twice status = %d, want 409", rec.Code)
 	}
-	if rec := post(p.Pago, "/pago", doc("CP-9", "2026-10-20")); rec.Code != http.StatusSeeOther {
-		t.Fatalf("Pago status = %d; body = %s", rec.Code, rec.Body.String())
+}
+
+// TestProjectsCobro walks #67's acceptance criteria: the Estado de cobro shows only en
+// curso; a payment of half without a comprobante makes it Pago parcial; one for the rest
+// with a comprobante makes it Pagado; the amount can't pass the saldo nor the date be in
+// the future; Sí needs the file; only the vendedor and admins record, and an admin
+// deletes with a motivo.
+func TestProjectsCobro(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	p := NewProjects(a.store)
+	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
+	beto := createTestUser(t, a, "beto", "vendedor", "hunter2")
+	admin := createTestUser(t, a, "gerardo", "admin", "hunter2")
+	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, ana)
+	ctx := context.Background()
+
+	folio := issueTestQuote(t, a, q, ana, customerID, costProductID)
+	pv := map[string]string{"folio": folio}
+	base := "/proyectos/" + folio
+	page := func(userID int64) string {
+		return doForm(t, a, userID, p.Page, "GET", base, pv, nil, false).Body.String()
 	}
-	body = page()
-	for _, want := range []string{"Pagado", "CP-9", "20/10/2026", "Pago completado · comprobante de pago CP-9 · 20/10/2026"} {
+	today := time.Now().UTC().Format("2006-01-02")
+	pay := func(userID int64, fields map[string]string, file string, data []byte) *httptest.ResponseRecorder {
+		t.Helper()
+		var buf bytes.Buffer
+		mw := multipart.NewWriter(&buf)
+		for k, v := range fields {
+			mw.WriteField(k, v)
+		}
+		if file != "" {
+			fw, _ := mw.CreateFormFile("archivo", file)
+			fw.Write(data)
+		}
+		mw.Close()
+		req := httptest.NewRequest("POST", base+"/pagos", &buf)
+		req.Header.Set("Content-Type", mw.FormDataContentType())
+		req.SetPathValue("folio", folio)
+		req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: mustSessionToken(t, a, userID)})
+		rec := httptest.NewRecorder()
+		a.RequireAuth(http.HandlerFunc(p.Pagos)).ServeHTTP(rec, req)
+		return rec
+	}
+
+	// At Inminente 90% there is no Estado de cobro nor Cobro section.
+	if body := page(ana); strings.Contains(body, "Estado de cobro") || strings.Contains(body, `id="cobro"`) {
+		t.Error("a prospecto shows its cobro")
+	}
+	if rec := pay(ana, map[string]string{"fecha": "2026-11-09", "monto": "100"}, "", nil); rec.Code != http.StatusConflict {
+		t.Errorf("Pagos(prospecto) status = %d, want 409", rec.Code)
+	}
+	if rec := receiveOC(t, a, p, ana, folio, ""); rec.Code != http.StatusSeeOther {
+		t.Fatalf("OC status = %d", rec.Code)
+	}
+	// Half of the total (the first half rounded up, as in the issue's example), then the rest.
+	project, _ := a.store.ProjectByFolio(ctx, folio)
+	total := project.Total
+	first, rest := total-total/2, total/2
+	value := func(c money.Centavos) string { return fmt.Sprintf("%d.%02d", c/100, c%100) }
+	body := page(ana)
+	for _, want := range []string{"<dt>Estado de cobro</dt><dd>Pendiente de pago</dd>", "<h2>Cobro</h2>", "Todavía no hay pagos registrados.",
+		"<dt>Total del proyecto (con IVA)</dt><dd>" + total.String() + "</dd>", "<dt>Pagado</dt><dd>$0.00</dd>", "<dt>Saldo pendiente</dt><dd>" + total.String() + "</dd>",
+		"<summary>Registrar pago</summary>", `name="monto" value="` + value(total) + `" min="0.01" max="` + value(total) + `"`, `max="` + time.Now().UTC().Format("2006-01-02")[:4],
+		"¿Quieres subir un comprobante de pago?", `name="comprobante" value="no" checked`, "<label data-payment-file hidden>"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("en curso page missing %q", want)
+		}
+	}
+	if i, j := strings.Index(body, "Estado de entrega"), strings.Index(body, "Estado de cobro"); i < 0 || i > j {
+		t.Error("Estado de cobro is not under Estado de entrega")
+	}
+	// Another vendedor sees it but can't record a payment.
+	if body := page(beto); strings.Contains(body, "<summary>Registrar pago</summary>") || !strings.Contains(body, "El vendedor del proyecto o un administrador registra los pagos.") {
+		t.Error("another vendedor is offered Registrar pago")
+	}
+	if rec := pay(beto, map[string]string{"fecha": "2026-11-09", "monto": "100"}, "", nil); rec.Code != http.StatusForbidden {
+		t.Errorf("Pagos(another vendedor) status = %d, want 403", rec.Code)
+	}
+
+	pdf := []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")
+	for name, c := range map[string]struct {
+		fields map[string]string
+		file   string
+		data   []byte
+		want   string
+	}{
+		"over the saldo":   {map[string]string{"fecha": "2026-11-09", "monto": value(total + 1)}, "", nil, "no puede ser mayor al saldo pendiente"},
+		"future":           {map[string]string{"fecha": "2099-01-01", "monto": "100"}, "", nil, "no puede ser futura"},
+		"no date":          {map[string]string{"monto": "100"}, "", nil, "escribe la fecha de pago"},
+		"zero":             {map[string]string{"fecha": "2026-11-09", "monto": "0"}, "", nil, "mayor a $0.00"},
+		"three decimals":   {map[string]string{"fecha": "2026-11-09", "monto": "1.005"}, "", nil, "mayor a $0.00"},
+		"sí without file":  {map[string]string{"fecha": "2026-11-09", "monto": "1", "comprobante": "si"}, "", nil, "adjunta el comprobante de pago"},
+		"sí with a .txt":   {map[string]string{"fecha": "2026-11-09", "monto": "1", "comprobante": "si"}, "cp.txt", []byte("hola"), "debe ser PDF, JPG o PNG"},
+		"unknown comprob.": {map[string]string{"fecha": "2026-11-09", "monto": "1", "comprobante": "tal vez"}, "", nil, "elige si quieres subir"},
+	} {
+		if rec := pay(ana, c.fields, c.file, c.data); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), c.want) {
+			t.Errorf("Pagos(%s) = %d %q, want 400 %q", name, rec.Code, rec.Body.String(), c.want)
+		}
+	}
+
+	// Half, without a comprobante.
+	rec := pay(ana, map[string]string{"fecha": "2026-11-09", "monto": first.String(), "comprobante": "no"}, "", nil)
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != base+"#cobro" {
+		t.Fatalf("Pagos status = %d, Location %q; body = %s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
+	}
+	body = page(ana)
+	for _, want := range []string{"<dt>Estado de cobro</dt><dd>Pago parcial · Pagado " + first.String() + " de " + total.String() + " · Saldo " + rest.String() + "</dd>",
+		"<td>09/11/2026</td>", "Sin comprobante", "Pago registrado: " + first.String() + " el 09/11/2026 por ana.",
+		`name="monto" value="` + value(rest) + `"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("partly paid page missing %q", want)
+		}
+	}
+	// The vendedor doesn't delete.
+	if strings.Contains(body, "Eliminar pago") {
+		t.Error("a vendedor is offered deleting a payment")
+	}
+
+	// The rest, with a comprobante, by an admin: Pagado, and Registrar pago is gone.
+	rec = pay(admin, map[string]string{"fecha": today, "monto": value(rest), "comprobante": "si"}, "transferencia.pdf", pdf)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Pagos(rest) status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	payments, _ := a.store.ListPayments(ctx, mustProjectID(t, a, folio))
+	if len(payments) != 2 || payments[1].FileID == 0 {
+		t.Fatalf("payments = %+v", payments)
+	}
+	todayText := today[8:10] + "/" + today[5:7] + "/" + today[:4]
+	body = page(ana)
+	for _, want := range []string{"<dt>Estado de cobro</dt><dd>Pagado · " + todayText + "</dd>",
+		`href="/proyectos/` + folio + `/archivos/` + strconv.FormatInt(payments[1].FileID, 10) + `">transferencia.pdf</a>`,
+		"<dt>Saldo pendiente</dt><dd>$0.00</dd>", "Pago registrado: " + rest.String() + " el " + todayText + " por gerardo con comprobante."} {
 		if !strings.Contains(body, want) {
 			t.Errorf("paid page missing %q", want)
 		}
 	}
-	if rec := post(p.Pago, "/pago", doc("CP-10", "2026-10-21")); rec.Code != http.StatusConflict {
-		t.Errorf("Pago twice status = %d, want 409", rec.Code)
+	if strings.Contains(body, "Registrar pago</summary>") {
+		t.Error("a paid proyecto still offers Registrar pago")
+	}
+	if rec := pay(ana, map[string]string{"fecha": "2026-11-09", "monto": "0.01"}, "", nil); rec.Code != http.StatusBadRequest {
+		t.Errorf("Pagos(nothing owed) status = %d, want 400", rec.Code)
+	}
+	// The comprobante downloads like the O.C.'s file.
+	id := strconv.FormatInt(payments[1].FileID, 10)
+	if rec := doForm(t, a, ana, p.Archivo, "GET", base+"/archivos/"+id, map[string]string{"folio": folio, "id": id}, nil, false); rec.Code != http.StatusOK || !bytes.Equal(rec.Body.Bytes(), pdf) {
+		t.Errorf("comprobante download = %d", rec.Code)
+	}
+
+	// An admin deletes one with a motivo (the route is admin-only: router_test), and the
+	// state goes back to Pago parcial.
+	adminBody := page(admin)
+	delPath := base + "/pagos/" + strconv.FormatInt(payments[0].ID, 10) + "/eliminar"
+	if !strings.Contains(adminBody, `action="`+delPath+`"`) || !strings.Contains(adminBody, `data-confirm="¿Eliminar el pago de `+first.String()+` del 09/11/2026?"`) {
+		t.Error("an admin is not offered deleting the payment, with a confirmation")
+	}
+	del := func(reason string) *httptest.ResponseRecorder {
+		return doForm(t, a, admin, p.EliminarPago, "POST", delPath, map[string]string{"folio": folio, "id": strconv.FormatInt(payments[0].ID, 10)},
+			url.Values{"reason": {reason}}, false)
+	}
+	if rec := del("  "); rec.Code != http.StatusBadRequest {
+		t.Errorf("EliminarPago(no motivo) status = %d, want 400", rec.Code)
+	}
+	if rec := del("Se registró dos veces"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("EliminarPago status = %d; body = %s", rec.Code, rec.Body.String())
+	}
+	body = page(ana)
+	for _, want := range []string{"<dt>Estado de cobro</dt><dd>Pago parcial · Pagado " + rest.String() + " de " + total.String() + " · Saldo " + first.String() + "</dd>",
+		"Pago eliminado: " + first.String() + " del 09/11/2026.", "Se registró dos veces", "<summary>Registrar pago</summary>"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("page after deleting missing %q", want)
+		}
+	}
+	if rec := del("otra vez"); rec.Code != http.StatusConflict {
+		t.Errorf("EliminarPago(twice) status = %d, want 409", rec.Code)
 	}
 }
 

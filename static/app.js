@@ -224,6 +224,17 @@
     });
   });
 
+  // "Registrar pago" (#67): the comprobante's file field shows, and is required, only
+  // with "¿Quieres subir un comprobante de pago?" answered Sí. The server checks it too.
+  document.addEventListener("change", function (e) {
+    var form = e.target.closest && e.target.closest("[data-payment-form]");
+    if (!form || e.target.name !== "comprobante") return;
+    var yes = e.target.value === "si";
+    var field = form.querySelector("[data-payment-file]");
+    field.hidden = !yes;
+    field.querySelector("input").required = yes;
+  });
+
   // Mark the nav link of the page, or else of the section it belongs to
   // (/cotizaciones/nueva is Nueva cotización; /cotizaciones/QS0001 is under Ver
   // cotizaciones).

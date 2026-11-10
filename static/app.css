@@ -658,19 +658,9 @@ span.badge-en_curso {
   background: color-mix(in srgb, var(--primary) 8%, var(--bg));
 }
 
-span.badge-facturado,
-span.badge-pago-facturado_anticipo {
+span.badge-facturado {
   color: var(--primary);
   background: color-mix(in srgb, var(--primary) 8%, var(--bg));
-}
-
-span.badge-pago-sin_tramitar {
-  color: var(--text-muted);
-}
-
-span.badge-pago-pagado {
-  color: var(--success);
-  background: color-mix(in srgb, var(--success) 8%, var(--bg));
 }
 
 span.badge-en_entrega {
@@ -1094,6 +1084,14 @@ dl.quote-info dt {
 
 dl.quote-info dd {
   margin: 0;
+}
+
+/* On a phone a long term ("Total del proyecto (con IVA)") wraps instead of pushing the
+   page wider than the screen. */
+@media (max-width: 30rem) {
+  dl.quote-info {
+    grid-template-columns: fit-content(55%) 1fr;
+  }
 }
 
 /* Comments: the text leads; author and date are a muted line underneath. */

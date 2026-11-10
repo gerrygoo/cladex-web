@@ -86,10 +86,10 @@ Debajo del folio y del cliente verás este resumen:
   [Los estados de un proyecto en curso](#los-estados-de-un-proyecto-en-curso).
 
 Más abajo están **Seguimiento y comentarios** (la probabilidad, las fechas o, desde que se
-recibe, la orden de compra, el comentario y, justo debajo, el historial), **Facturación y
-pago** y **Orden de compra al proveedor** (desde que se recibe la orden; ver
-[Órdenes de compra a proveedor](ordenes-de-compra.md)) y **Cotizaciones** (la vigente y las
-que fueron revisadas, cada una con su enlace).
+recibe, la orden de compra, el comentario y, justo debajo, el historial), **Facturación**,
+**Orden de compra al proveedor** (ver [Órdenes de compra a proveedor](ordenes-de-compra.md))
+y **Cobro** (desde que se recibe la orden) y **Cotizaciones** (la vigente y las que fueron
+revisadas, cada una con su enlace).
 
 En un proyecto **QL**, antes de **Cotizaciones** está también la **Cotización del
 proveedor**: el proveedor, su número de cotización y los archivos, los mismos que en la
@@ -178,7 +178,7 @@ En el historial aparece *"Pasó a En curso."* con los datos de la orden.
 - El número, la fecha y el archivo son obligatorios para pasar a En curso. Después, para
   corregir los datos, un archivo nuevo es opcional.
 - El [[método de pago]] (P.U.E. o P.P.D.) ya no se pide aquí: se elige al
-  [registrar la factura](#registrar-la-factura-y-el-pago). Si el proyecto ya tenía uno
+  [registrar la factura](#registrar-la-factura). Si el proyecto ya tenía uno
   guardado de cuando se pedía con la orden, se conserva y viene elegido al facturar.
 - Si el cliente todavía pide cambios,
   [revisa la cotización](cotizaciones.md#revisar-una-cotización-emitida) **antes** de
@@ -196,39 +196,64 @@ En el historial aparece *"Pasó a En curso."* con los datos de la orden.
 - Un proyecto que pasó a En curso antes de que se pidieran estos datos lo dice ahí mismo:
   captúralos para poder facturarlo.
 
-### Registrar la factura y el pago
+### Registrar la factura
 
 > Con la facturación configurada en el servidor, la factura y el comprobante de pago se
 > timbran desde la app y el Estado de facturación cambia solo: ver [Facturas](facturas.md).
 > Lo que sigue es para registrar a mano una factura hecha fuera de la app.
 
-Las facturas se siguen emitiendo fuera de la app; aquí se anota su folio. Todo se hace en
-la sección **Facturación y pago** del proyecto, que aparece al recibir la orden de compra y
-muestra el [[estado de pago]].
+Las facturas se siguen emitiendo fuera de la app; aquí se anota su folio. Se hace en la
+sección **Facturación** del proyecto, que aparece al recibir la orden de compra.
 
 1. Abre el proyecto, que está [[en curso]].
 2. En **Registrar la factura**, elige el [[método de pago]] de la factura (obligatorio):
-   **P.U.E.** (el cliente ya pagó) o **P.P.D.** (es la factura de anticipo y el pago se
-   completa después). Si el proyecto ya tenía uno guardado, viene elegido; cámbialo si
-   la factura dice otro.
+   **P.U.E.** (el cliente ya pagó) o **P.P.D.** (paga en parcialidades o después). Si el
+   proyecto ya tenía uno guardado, viene elegido; cámbialo si la factura dice otro.
 3. Escribe el **Folio de la factura** y revisa la **Fecha de la factura**.
 4. Haz clic en **Registrar factura**.
 
-Su [[estado de facturación]] pasa a *Facturada*; la etapa no cambia. Además:
+Su [[estado de facturación]] pasa a *Facturada*; la etapa no cambia. **Facturación**
+muestra el **Método de pago** y la **Factura**, y en el historial queda *"Factura
+registrada: …"* con el folio, la fecha y el método.
 
-- **P.U.E.**: su estado de pago queda en *Pagado*. No hay que registrar nada más.
-- **P.P.D.**: su estado de pago queda en *Facturado de anticipo*. Cuando el cliente termine
-  de pagar y se emita el comprobante de pago, vuelve al proyecto. En **Registrar pago
-  completado**, escribe el **Folio del comprobante de pago** y la **Fecha de pago**, y haz
-  clic en **Registrar pago completado**. El estado de pago queda en *Pagado*.
-
-Desde ese momento, **Facturación y pago** muestra el **Método de pago** y la factura
-(en una P.P.D., la **Factura de anticipo**).
-
-- En el historial queda una línea por cada registro, con el folio y la fecha.
+- Registrar la factura no registra ningún pago, ni siquiera con P.U.E.: el pago se
+  [registra en Cobro](#registrar-un-pago).
 - Una vez registrada la factura, los datos de la orden de compra ya no se pueden cambiar.
 - ¿Te equivocaste en un folio? Anota la corrección en un comentario: por ahora la factura
   registrada a mano no se puede cambiar.
+
+### Registrar un pago
+
+Cada pago del cliente (un anticipo, una parte, el total) se registra en la sección
+**Cobro**, al final del proyecto en curso. Pueden hacerlo el vendedor del proyecto y los
+administradores.
+
+1. Abre el proyecto y baja a **Cobro**.
+2. Haz clic en **Registrar pago**.
+3. Revisa la **Fecha de pago**: viene con la de hoy y no puede ser futura.
+4. Revisa el **Monto (con IVA)**: viene con el saldo pendiente. Tiene que ser mayor a $0 y
+   no mayor al saldo.
+5. En **¿Quieres subir un comprobante de pago?**, deja **No**, o elige **Sí** y adjunta el
+   **Comprobante de pago** (PDF, JPG o PNG de hasta 10 MB, como el archivo de la O.C.).
+   Con **Sí**, el archivo es obligatorio.
+6. Haz clic en **Guardar**.
+
+El [[estado de cobro]] cambia solo: *Pago parcial* mientras los pagos no cubren el total
+(el resumen dice, por ejemplo, *"Pago parcial · Pagado $7,467.98 de $14,935.95 · Saldo
+$7,467.97"*) y *Pagado*, con la fecha del último pago, cuando lo cubren. Entonces
+**Registrar pago** ya no aparece.
+
+**Cobro** muestra la tabla de pagos (**Fecha de pago**, **Monto**, **Comprobante**, con
+enlace si se subió, y **Registró**, quién y cuándo) y debajo el **Total del proyecto (con
+IVA)**, lo **Pagado** y el **Saldo pendiente**. En el historial queda *"Pago registrado: $X
+el [fecha] por [usuario]."*, y *"con comprobante"* si se subió.
+
+:::admin
+**Eliminar un pago registrado por error.** En su fila, haz clic en **Eliminar**, escribe
+el **Motivo** (obligatorio), haz clic en **Eliminar pago** y confirma. El pago deja de
+contar, el estado de cobro se recalcula y en el historial queda *"Pago eliminado: $X del
+[fecha]."* con el motivo. Su comprobante se conserva con los archivos del proyecto.
+:::
 
 ### Los estados de un proyecto en curso
 
@@ -242,8 +267,9 @@ se escoge: cada uno sale de lo que está registrado.
 - **Estado de entrega**: *Sin emitir O.C.* hasta que un administrador confirma la
   [orden de compra al proveedor](ordenes-de-compra.md); entonces *En proceso de entrega*,
   con el número de la orden y su enlace.
-- **Estado de cobro**: *Pendiente de pago*, *Pago parcial* o *Pagado*, según los pagos
-  registrados contra el total con IVA del proyecto.
+- **Estado de cobro**: *Pendiente de pago* sin pagos; *Pago parcial · Pagado $X de $Y ·
+  Saldo $Z* mientras no cubren el total con IVA; *Pagado*, con la fecha del último pago,
+  cuando lo cubren. Ver [Registrar un pago](#registrar-un-pago).
 
 ## Revisar el pronóstico
 
