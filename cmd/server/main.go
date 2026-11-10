@@ -17,6 +17,7 @@ import (
 
 	cladex "github.com/gerrygoo/cladex-web"
 	"github.com/gerrygoo/cladex-web/internal/appenv"
+	"github.com/gerrygoo/cladex-web/internal/avisos"
 	"github.com/gerrygoo/cladex-web/internal/cli"
 	factsvc "github.com/gerrygoo/cladex-web/internal/facturacion"
 	"github.com/gerrygoo/cladex-web/internal/facturoporti"
@@ -202,6 +203,16 @@ func runServer() {
 	runner := jobs.New(db, logger)
 	runner.Register(jobs.KindPrueba, jobs.Prueba)
 	runner.Register(store.NotificationJobKind, notify.New(db, notifyCfg, logger).Handle)
+	// The seguimiento avisos (internal/avisos) link to the proyecto at APP_URL.
+	appURL := os.Getenv("APP_URL")
+	if appURL == "" {
+		appURL = "https://cotizador.cladex.com.mx"
+	}
+	seguimiento := avisos.New(db, runner, appURL, logger)
+	runner.Register(avisos.JobKind, seguimiento.Handle)
+	if err := seguimiento.Schedule(ctx); err != nil {
+		logger.Error("avisos: schedule the next seguimiento round", slog.Any("err", err))
+	}
 	runnerDone := make(chan struct{})
 	go func() {
 		defer close(runnerDone)

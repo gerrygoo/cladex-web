@@ -45,6 +45,10 @@ func (a *Auth) renderMiCuenta(w http.ResponseWriter, r *http.Request, m views.Mi
 		return
 	}
 	m.Contact = c
+	if m.Avisos, err = a.store.UserAvisos(ctx, user.ID); err != nil {
+		serverError(w, r, err)
+		return
+	}
 	if len(m.PasswordErrors) > 0 {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 	}

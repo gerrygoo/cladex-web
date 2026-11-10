@@ -87,14 +87,28 @@ func (a *Auth) MiCuentaAvisos(w http.ResponseWriter, r *http.Request) {
 		saved = &s
 	}
 	c, errs := parseContactForm(r, saved)
+	kinds := avisosFromForm(r)
+	if saved != nil {
+		var err error
+		if kinds, err = a.store.UserAvisos(ctx, user.ID); err != nil {
+			serverError(w, r, err)
+			return
+		}
+	}
 	if len(errs) > 0 {
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		views.MiCuenta(views.MiCuentaView{Contact: c, ContactErrors: errs}, navUserView(user)).Render(ctx, w)
+		views.MiCuenta(views.MiCuentaView{Contact: c, Avisos: kinds, ContactErrors: errs}, navUserView(user)).Render(ctx, w)
 		return
 	}
 	if err := a.store.SetUserContact(ctx, user.ID, c); err != nil {
 		serverError(w, r, err)
 		return
+	}
+	if saved == nil {
+		if err := a.store.SetUserAvisos(ctx, user.ID, r.Form["aviso"]); err != nil {
+			serverError(w, r, err)
+			return
+		}
 	}
 	http.Redirect(w, r, "/mi-cuenta?avisos=1#avisos", http.StatusSeeOther)
 }
@@ -102,14 +116,14 @@ func (a *Auth) MiCuentaAvisos(w http.ResponseWriter, r *http.Request) {
 // AvisosPage handles GET /usuarios/{id}/avisos: an admin edits another user's Avisos, as
 // they would their own.
 func (u *Users) AvisosPage(w http.ResponseWriter, r *http.Request) {
-	u.renderAvisos(w, r, nil, nil)
+	u.renderAvisos(w, r, nil, nil, nil)
 }
 
 // Avisos handles POST /usuarios/{id}/avisos.
 func (u *Users) Avisos(w http.ResponseWriter, r *http.Request) {
 	c, errs := parseContactForm(r, nil)
 	if len(errs) > 0 {
-		u.renderAvisos(w, r, &c, errs)
+		u.renderAvisos(w, r, &c, avisosFromForm(r), errs)
 		return
 	}
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -126,12 +140,25 @@ func (u *Users) Avisos(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
+	if err := u.store.SetUserAvisos(r.Context(), id, r.Form["aviso"]); err != nil {
+		serverError(w, r, err)
+		return
+	}
 	http.Redirect(w, r, "/usuarios/"+strconv.FormatInt(id, 10)+"/avisos?guardado=1", http.StatusSeeOther)
 }
 
-// renderAvisos draws an admin's edit of a user's Avisos; contact and errs are a refused
+// avisosFromForm reads the aviso checkboxes of a submitted Avisos form.
+func avisosFromForm(r *http.Request) map[string]bool {
+	on := map[string]bool{}
+	for _, k := range r.Form["aviso"] {
+		on[k] = true
+	}
+	return on
+}
+
+// renderAvisos draws an admin's edit of a user's Avisos; contact, kinds and errs are a refused
 // submission, nil to show what is saved.
-func (u *Users) renderAvisos(w http.ResponseWriter, r *http.Request, contact *store.UserContact, errs map[string]string) {
+func (u *Users) renderAvisos(w http.ResponseWriter, r *http.Request, contact *store.UserContact, kinds map[string]bool, errs map[string]string) {
 	ctx := r.Context()
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	target, err := u.store.UserByID(ctx, id)
@@ -151,6 +178,12 @@ func (u *Users) renderAvisos(w http.ResponseWriter, r *http.Request, contact *st
 		}
 		contact = &c
 	}
+	if kinds == nil {
+		if kinds, err = u.store.UserAvisos(ctx, id); err != nil {
+			serverError(w, r, err)
+			return
+		}
+	}
 	msg := ""
 	if r.URL.Query().Get("guardado") == "1" {
 		msg = "Avisos guardados."
@@ -159,5 +192,5 @@ func (u *Users) renderAvisos(w http.ResponseWriter, r *http.Request, contact *st
 		w.WriteHeader(http.StatusUnprocessableEntity)
 	}
 	user, _ := UserFromContext(ctx)
-	views.UsuarioAvisos(*target, *contact, errs, msg, navUserView(user)).Render(ctx, w)
+	views.UsuarioAvisos(*target, *contact, kinds, errs, msg, navUserView(user)).Render(ctx, w)
 }

@@ -139,6 +139,31 @@ func TestAvisos(t *testing.T) {
 	if body := serve(t, a, mux, beto, "GET", "/mi-cuenta", nil).Body.String(); !strings.Contains(body, `name="notify_email"`) {
 		t.Error("an admin's Mi cuenta lacks the avisos toggles")
 	}
+
+	// Which avisos: an admin turns them on for Ana; Ana sees them but can't change them.
+	rec = serve(t, a, mux, beto, "POST", "/usuarios/1/avisos", url.Values{"email": {"ana@cladex.com.mx"}, "notify_email": {"1"},
+		"aviso": {store.AvisoSeguimientoVencido, "no_existe"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("admin save of avisos: %d", rec.Code)
+	}
+	if on, _ := a.store.UserAvisos(ctx, ana); len(on) != 1 || !on[store.AvisoSeguimientoVencido] {
+		t.Errorf("Ana's avisos after the admin's save: %v", on)
+	}
+	if body := serve(t, a, mux, beto, "GET", "/usuarios/1/avisos", nil).Body.String(); !strings.Contains(body, `name="aviso" value="seguimiento_vencido" checked`) {
+		t.Error("the admin's page doesn't show Ana's aviso on")
+	}
+	body = serve(t, a, mux, ana, "GET", "/mi-cuenta", nil).Body.String()
+	if !strings.Contains(body, "Seguimiento vencido de sus proyectos") || strings.Contains(body, `name="aviso"`) {
+		t.Error("Ana's Mi cuenta should list her aviso without a checkbox")
+	}
+	serve(t, a, mux, ana, "POST", "/mi-cuenta/avisos", url.Values{"email": {"ana@cladex.com.mx"}, "aviso": {store.AvisoSeguimientoEscalado}})
+	if on, _ := a.store.UserAvisos(ctx, ana); len(on) != 1 || !on[store.AvisoSeguimientoVencido] {
+		t.Errorf("a vendedor changed her own avisos: %v", on)
+	}
+	rec = serve(t, a, mux, beto, "POST", "/usuarios/1/avisos", url.Values{"email": {"ana@cladex.com.mx"}})
+	if on, _ := a.store.UserAvisos(ctx, ana); rec.Code != http.StatusSeeOther || len(on) != 0 {
+		t.Errorf("the admin unticked Ana's aviso but it stays: %v", on)
+	}
 	if rec := serve(t, a, mux, ana, "POST", "/usuarios/2/avisos", url.Values{"email": {"x@example.com"}}); rec.Code != http.StatusForbidden {
 		t.Errorf("vendedor editing another user: %d", rec.Code)
 	}

@@ -8,6 +8,7 @@ import "github.com/gerrygoo/cladex-web/internal/store"
 type MiCuentaView struct {
 	PasswordErrors map[string]string
 	Contact        store.UserContact
+	Avisos         map[string]bool
 	ContactErrors  map[string]string
 	ContactSaved   bool
 	Success        string
@@ -56,6 +57,6 @@ templ MiCuenta(m MiCuentaView, user *NavUser) {
 			@Flash("Avisos guardados.")
 		}
 		<p>Dónde quieres que la app te avise, por ejemplo, cuando vence el seguimiento de un proyecto.</p>
-		@ContactForm("/mi-cuenta/avisos", m.Contact, m.ContactErrors, user.IsAdmin)
+		@ContactForm("/mi-cuenta/avisos", m.Contact, m.Avisos, m.ContactErrors, user.IsAdmin)
 	}
 }

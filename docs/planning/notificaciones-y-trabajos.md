@@ -1,6 +1,6 @@
 # Notificaciones y trabajos en segundo plano
 
-**Design approved (Gerry, 2026-10-23). N1 (the runner) and N2 (notifications and email) built 2026-10-26; N3–N6 not started.** One design for
+**Design approved (Gerry, 2026-10-23). N1 (the runner) and N2 (notifications and email) built 2026-10-26; N3 (avisos de seguimiento, #69 A+B) built 2026-11-10; N4 (WhatsApp) in progress; N5–N6 not started.** One design for
 [#19](https://github.com/gerrygoo/cladex-web/issues/19) (background jobs) and
 [#18](https://github.com/gerrygoo/cladex-web/issues/18) (outbound notifications), because
 the second is the first real consumer of the first. A notification is a row written in the
@@ -192,48 +192,37 @@ seguimiento enviado a Gerardo por WhatsApp"), so the vendedor's view needs no ne
 
 ## 3. First consumer: el aviso de seguimiento
 
-```mermaid
-sequenceDiagram
-    participant V as Vendedor
-    participant A as App (transacción)
-    participant J as Job seguimiento_vencido
-    participant N as Notificación
+Decided 2026-11-10 from Emilio's answer on #69 (A and B there); built in
+`internal/avisos`. The first proposal (one job per proyecto at 09:00 on the day) gave way
+to rounds, because Emilio's schedule escalates over days.
 
-    V->>A: guarda seguimiento con fecha D
-    A->>A: cancela el job pendiente de este proyecto
-    A->>J: encola con run_at = D 09:00 (CDMX)
-    Note over J: ... llega D 09:00 ...
-    J->>A: ¿sigue en prospecto, sigue con fecha D, sin acción desde entonces?
-    alt hubo acción o cambió la fecha
-        J-->>J: hecho, "no aplica" (con el motivo)
-    else sin acción
-        J->>N: una por canal del vendedor
-    end
-```
+- **Rounds, not per-proyecto timers.** One `avisos_seguimiento` job per round, at 9:00,
+  12:00 and 18:00 Mexico City time, Monday to Friday; each queues the next first (dedupe
+  key = the round's time), and startup queues the one due. A round that runs more than 2 h
+  late sends nothing. `aviso_rounds` records each round in the transaction that queues its
+  notifications, so a retried round never sends twice.
+- **Overdue** = a prospecto whose `next_followup_date` D is before today and whose history
+  (any comment: a follow-up, which a new date also writes, or a note) has nothing from D
+  on. n = weekdays after D up to today, so a Friday's seguimiento is day 1 on Monday.
+- **Owner** (`projects.user_id`, aviso `seguimiento_vencido`): day 1 at 9:00, 12:00 and
+  18:00; every day after at 18:00 (B).
+- **Team** (everyone with `seguimiento_escalado` on, e.g. Gerardo, Rodolfo and Emilio):
+  day 2 at 12:00, then every 3 weekdays (5, 8, …) at 12:00. One email per proyecto.
+- **Stops** when anyone comments, the date moves to today or later, the proyecto leaves
+  prospecto, or the recipient's aviso is turned off.
+- **Content**: folio, quote, client and contact, total, and before IVA the sale, cost,
+  utilidad and margin; the last history entry with who and when; the next step; a link
+  (`APP_URL`, default the production address); "no lo respondas" (sent from
+  `noreply@`).
+- **WhatsApp**: Emilio wants it on day 1 at 18:00 and on the team's; those steps send
+  email only until N4's sender and templates are in, and N4 adds the WhatsApp leg.
+- **Existing dates**: nothing goes out until an admin turns an aviso on for someone. Then
+  every prospecto already overdue counts, so the vendedor gets their stale ones at 18:00
+  daily: clear or move old dates before turning it on.
 
-- **Scheduling.** `FollowUpProject`, in its own transaction, cancels the proyecto's
-  pending `seguimiento_vencido` job and, when a new date is set, enqueues one for that
-  day at 09:00 Mexico City time (`dedupe_key` `seguimiento:<project>:<D>`). Clearing the
-  date only cancels. Losing the proyecto, or moving it out of `prospecto`, cancels too.
-- **At run time** the handler re-checks everything (at-least-once, §1) and records in
-  `result` why it did nothing when it does nothing.
-- **What counts as "action"** (proposal, to confirm with Emilio): any new entry in the
-  proyecto's history after the seguimiento was scheduled, such as a comment, a follow-up,
-  a stage move or a revision. Setting a new date is itself an action, and replaces the
-  reminder.
-- **Who gets it**: the proyecto's vendedor (`projects.user_id`), on their channels.
-- **Content**: folio, client, amount, the date that was set, the last history entry, and a
-  link to the proyecto. In Spanish, in the app's tone.
-- **Existing dates**: the migration enqueues reminders for proyectos whose next follow-up
-  is today or later. Ones already overdue get none, so deploying doesn't send a burst; the
-  board already flags those.
-
-Questions for Emilio (they don't block the runner or the channels):
-
-1. Is "any new history entry" the right meaning of "action"?
-2. Only the vendedor, or the admins too? And if it's still ignored, a second reminder
-   (e.g. 3 days later to the admins)?
-3. 9:00 on the day, or a different hour?
+Not yet built from #69: C (O.C. recibida → Emilio, at once), D (monthly email of
+perdidos), F (supplier O.C. not marked enviada: needs that mark), E (factura draft ready:
+waits on #63), G (cobranza: waits on #63 and #67). H is nothing for now.
 
 ## 4. Slices
 
@@ -241,7 +230,7 @@ Questions for Emilio (they don't block the runner or the channels):
 |---|---|---|
 | N1 | Runner (#19): `jobs`, worker, leases, backoff, Trabajos dashboard. | A job enqueued before a restart runs after it; a failing job retries on schedule and shows its error. |
 | N2 | Notifications + email (#18): `notifications`, events, Resend and SMTP senders, fake, staging allowlist, user email/WhatsApp fields, Notificaciones dashboard with "Enviar prueba". | A test email from production arrives through Resend and its outcome is recorded; a send failure shows and can be retried. |
-| N3 | Aviso de seguimiento by email. | A seguimiento with no action fires at 09:00 on its day; one with action, or a changed date, doesn't, and says why. |
+| N3 | Avisos de seguimiento by email (#69 A+B): per-user aviso toggles, rounds. | An overdue seguimiento emails its owner on day 1 at 9, 12 and 18 and the team on day 2 at 12; a comment stops it. |
 | N4 | WhatsApp for the team: sender, templates, webhooks. | A vendedor with WhatsApp on gets the seguimiento reminder there, and its delivery shows in the dashboard. |
 | N5 | Clients: factura resend and copies by email (the "no resend" gap in §9 of the facturas doc), WhatsApp with opt-in. Resend bounce webhook. | A stamped factura is resent to several recipients; a bad address shows as failed and can be fixed and resent. |
 | N6 | GoDaddy SMTP in production (with Emilio, its own issue). | Switching `EMAIL_PROVIDER` to `smtp` sends the test email through Cladex's mailbox. |

@@ -198,6 +198,31 @@ No puedes cambiar tu propio rol.
 
 No puedes deshabilitarte a ti mismo.
 
+## Elegir los avisos de un usuario
+
+Cada aviso se prende por persona, y solo un administrador lo puede hacer. Todos empiezan
+apagados.
+
+1. En **Usuarios**, en la fila del usuario, haz clic en **Avisos**.
+2. Revisa que tenga su **Correo** y marca **Correo** en **Recibir avisos por**. Sin eso no
+   le llega ningún aviso, aunque lo prendas.
+3. En **Avisos**, marca los que debe recibir y haz clic en **Guardar avisos**.
+
+Los avisos que hay:
+
+- **Seguimiento vencido de sus proyectos**: para el vendedor. Si pasa el día de seguimiento
+  de un proyecto suyo y nadie registra un comentario ni una nueva fecha, el día hábil
+  siguiente le llega un correo a las 9:00, otro a las 12:00 y otro a las 18:00; después,
+  uno cada día hábil a las 18:00.
+- **Seguimientos vencidos del equipo**: para quien revisa al equipo. El segundo día hábil
+  sin seguimiento, a las 12:00, llega un correo por cada proyecto con el vendedor, el
+  valor y el último comentario; después, cada 3 días hábiles.
+
+Los fines de semana no se manda nada. Los avisos de un proyecto se detienen en cuanto
+alguien registra un comentario o una nueva fecha de seguimiento, o el proyecto deja de ser
+prospecto. Cada correo dice de qué proyecto se trata, su cliente y contacto, el total,
+costo, utilidad y margen, el último comentario y trae el enlace al proyecto.
+
 ## Dar de alta un usuario o restablecer una contraseña
 
 Esto **no** se hace desde la app, sino por línea de comandos en el servidor. Quien

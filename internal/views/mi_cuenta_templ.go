@@ -16,6 +16,7 @@ import "github.com/gerrygoo/cladex-web/internal/store"
 type MiCuentaView struct {
 	PasswordErrors map[string]string
 	Contact        store.UserContact
+	Avisos         map[string]bool
 	ContactErrors  map[string]string
 	ContactSaved   bool
 	Success        string
@@ -77,7 +78,7 @@ func MiCuenta(m MiCuentaView, user *NavUser) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(user.Username)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mi_cuenta.templ`, Line: 26, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/mi_cuenta.templ`, Line: 27, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -153,7 +154,7 @@ func MiCuenta(m MiCuentaView, user *NavUser) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = ContactForm("/mi-cuenta/avisos", m.Contact, m.ContactErrors, user.IsAdmin).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = ContactForm("/mi-cuenta/avisos", m.Contact, m.Avisos, m.ContactErrors, user.IsAdmin).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

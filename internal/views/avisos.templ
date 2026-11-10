@@ -6,10 +6,10 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-// ContactForm is the Avisos form: a user's email and WhatsApp, and which of them to be
-// notified on. It posts to action. Only an admin turns avisos on or off (canToggle); anyone
-// else sees which ones they get.
-templ ContactForm(action string, c store.UserContact, errs map[string]string, canToggle bool) {
+// ContactForm is the Avisos form: a user's email and WhatsApp, which of them to be
+// notified on, and which avisos (kinds) they get. It posts to action. Only an admin turns
+// avisos on or off (canToggle); anyone else sees which ones they get.
+templ ContactForm(action string, c store.UserContact, kinds map[string]bool, errs map[string]string, canToggle bool) {
 	<form method="post" action={ templ.URL(action) }>
 		<label>
 			Correo
@@ -48,12 +48,36 @@ templ ContactForm(action string, c store.UserContact, errs map[string]string, ca
 				Solo un administrador puede cambiar qué avisos recibes.
 			</p>
 		}
+		if canToggle {
+			<fieldset>
+				<legend>Avisos</legend>
+				for _, k := range store.AvisoKinds {
+					<label>
+						<input type="checkbox" name="aviso" value={ k.Key } checked?={ kinds[k.Key] }/>
+						{ k.Label }
+						<span class="hint">{ k.Description }</span>
+					</label>
+				}
+			</fieldset>
+		} else {
+			<p>Avisos que recibes:</p>
+			<ul>
+				for _, k := range store.AvisoKinds {
+					if kinds[k.Key] {
+						<li>{ k.Label }. <span class="hint">{ k.Description }</span></li>
+					}
+				}
+				if !anyAviso(kinds) {
+					<li>Ninguno.</li>
+				}
+			</ul>
+		}
 		<button type="submit" class="primary">Guardar avisos</button>
 	</form>
 }
 
 // UsuarioAvisos is an admin's edit of another user's Avisos.
-templ UsuarioAvisos(target store.User, c store.UserContact, errs map[string]string, successMsg string, user *NavUser) {
+templ UsuarioAvisos(target store.User, c store.UserContact, kinds map[string]bool, errs map[string]string, successMsg string, user *NavUser) {
 	@Layout("Avisos de "+target.Name, user) {
 		<div class="page-title">
 			<h1>Avisos de { target.Name }</h1>
@@ -62,6 +86,16 @@ templ UsuarioAvisos(target store.User, c store.UserContact, errs map[string]stri
 		<p><a href="/usuarios">← Usuarios</a></p>
 		@Flash(successMsg)
 		<p>Dónde la app le avisa a { target.Username }, por ejemplo, cuando vence el seguimiento de un proyecto. Cada quien puede cambiar su correo y su WhatsApp en Mi cuenta; qué avisos recibe, solo un administrador.</p>
-		@ContactForm("/usuarios/"+strconv.FormatInt(target.ID, 10)+"/avisos", c, errs, true)
+		@ContactForm("/usuarios/"+strconv.FormatInt(target.ID, 10)+"/avisos", c, kinds, errs, true)
 	}
+}
+
+// anyAviso reports whether any of AvisoKinds is on.
+func anyAviso(kinds map[string]bool) bool {
+	for _, k := range store.AvisoKinds {
+		if kinds[k.Key] {
+			return true
+		}
+	}
+	return false
 }
