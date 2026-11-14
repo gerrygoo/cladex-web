@@ -83,6 +83,11 @@ func (f Forecast) Totals() ForecastTotals {
 		price += int64(p.Subtotal)
 		profit += int64(p.Profit)
 	}
+	return totalsOf(price, profit)
+}
+
+// totalsOf is the ForecastTotals of a price and the profit on it.
+func totalsOf(price, profit int64) ForecastTotals {
 	return ForecastTotals{
 		Cost: money.Centavos(price - profit), Price: money.Centavos(price), Profit: money.Centavos(profit),
 		Margin: marginPercentText(profit, price),

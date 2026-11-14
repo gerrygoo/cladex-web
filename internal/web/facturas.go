@@ -33,16 +33,26 @@ func NewFacturas(s *store.Store, svc *facturacion.Service, logger *slog.Logger) 
 	return &Facturas{store: s, svc: svc, logger: logger}
 }
 
-// List handles GET /facturas.
+// List handles GET /facturas: the proyectos with the client's O.C. received and their
+// Estado de facturación (#63), sortable by every column and filterable by estado,
+// cliente and vendedor. Each factura opens from its folio fiscal or its proyecto.
 func (f *Facturas) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	list, err := f.store.ListComprobantes(ctx, 0)
+	sortCol, dir := sortParams(r)
+	filters := filterParams(r)
+	rows, err := f.store.ListBilling(ctx, sortCol, dir, filters)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	customers, owners, err := f.store.ProjectFilterChoices(ctx)
 	if err != nil {
 		serverError(w, r, err)
 		return
 	}
 	user, _ := UserFromContext(ctx)
-	views.FacturasList(list, navUserView(user)).Render(ctx, w)
+	lv := views.ListView{Base: "/facturas", Sort: sortCol, Dir: dir, Filters: filters}
+	views.FacturasPage(views.Billing{Rows: rows, Today: today(r)}, lv, customers, owners, navUserView(user)).Render(ctx, w)
 }
 
 func (f *Facturas) load(w http.ResponseWriter, r *http.Request) *store.Comprobante {

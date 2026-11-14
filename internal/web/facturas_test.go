@@ -14,6 +14,7 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/facturacion"
 	"github.com/gerrygoo/cladex-web/internal/facturoporti"
 	"github.com/gerrygoo/cladex-web/internal/store"
+	"github.com/gerrygoo/cladex-web/internal/views"
 )
 
 // testFacturacion is facturación against an in-process fake Facturoporti, with the SAT's
@@ -265,8 +266,10 @@ func TestFacturacionEndToEnd(t *testing.T) {
 	if c.Status != store.CompCancelada || c.CancelMotivo != "01" || c.CancelSustitucion != rep.UUID {
 		t.Errorf("cancelled = %s %s %s", c.Status, c.CancelMotivo, c.CancelSustitucion)
 	}
-	if list := doForm(t, a, vendedor, f.List, "GET", "/facturas", nil, nil, false).Body.String(); !strings.Contains(list, "Factura F-2") ||
-		!strings.Contains(list, "Comprobante de pago P-1") || !strings.Contains(list, "Cancelada") {
+	// The Facturas table shows the proyecto with its valid factura's folio fiscal, the
+	// replacement's, linked to it.
+	if list := doForm(t, a, vendedor, f.List, "GET", "/facturas", nil, nil, false).Body.String(); !strings.Contains(list, `id="p-`+folio+`"`) ||
+		!strings.Contains(list, `href="/facturas/`+repID+`"`) || !strings.Contains(list, rep.UUID) {
 		t.Errorf("list page: %s", list)
 	}
 }
@@ -439,5 +442,66 @@ func TestFacturaDraftTakesProductSATCodes(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("draft page missing %q", want)
 		}
+	}
+}
+
+// The Facturas table (#63) lists the proyectos with the client's O.C. received, Pendiente
+// with its días pendiente until a factura is stamped, and filters by Estado de facturación.
+func TestFacturasTable(t *testing.T) {
+	a := newTestAuth(t)
+	ctx := context.Background()
+	admin := createTestUser(t, a, "gerry", "admin", "hunter2")
+	vendedor := createTestUser(t, a, "emilio", "vendedor", "hunter2")
+	svc, _ := testFacturacion(t, a, admin)
+	f := NewFacturas(a.store, svc, nil)
+	list := func(query string) string {
+		return doForm(t, a, vendedor, f.List, "GET", "/facturas?"+query, nil, nil, false).Body.String()
+	}
+	if body := list(""); !strings.Contains(body, "Todavía no hay proyectos con orden de compra recibida.") {
+		t.Errorf("empty table doesn't say so: %s", body)
+	}
+
+	folio := facturaFixture(t, a, admin)
+	body := list("")
+	for _, want := range []string{`id="p-` + folio + `"`, "Pendiente", "4411", "Días pendiente", "Folio fiscal",
+		"Costo sin IVA", "Precio de venta sin IVA", "1 proyecto"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("table missing %q", want)
+		}
+	}
+	project, _ := a.store.ProjectByFolio(ctx, folio)
+	if got := views.DaysPendingFactura(*project, "2026-10-17"); got != "10" {
+		t.Errorf("DaysPendingFactura = %q, want 10 (O.C. of 2026-10-07)", got)
+	}
+	if body := list("f.estado=facturada"); strings.Contains(body, `id="p-`+folio+`"`) || !strings.Contains(body, "Ningún proyecto coincide con el filtro.") {
+		t.Error("the Facturada filter shows a pending proyecto")
+	}
+	if body := list("f.estado=pendiente"); !strings.Contains(body, `id="p-`+folio+`"`) {
+		t.Error("the Pendiente filter hides a pending proyecto")
+	}
+
+	// Stamped as P.U.E., it is Facturada with its folio fiscal and no días pendiente.
+	id, err := a.store.CreateFacturaDraft(ctx, project.ID, admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, _ := a.store.ComprobanteByID(ctx, id)
+	if err := a.store.UpdateDraft(ctx, id, admin, store.DraftEdit{UsoCFDI: "G01", MetodoPago: "PUE", FormaPago: "03", Conceptos: []store.ConceptoEdit{
+		{ID: c.Conceptos[0].ID, SATProductCode: "26121600", SATUnitCode: "MTR", Description: "Cable"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Validate(ctx, id, admin); err != nil {
+		t.Fatal(err)
+	}
+	if o, err := svc.Stamp(ctx, id, admin); err != nil || o.Result != "stamped" {
+		t.Fatalf("Stamp = %+v, %v", o, err)
+	}
+	c, _ = a.store.ComprobanteByID(ctx, id)
+	project, _ = a.store.ProjectByFolio(ctx, folio)
+	if project.States.Facturacion != store.FacturacionFacturada || views.DaysPendingFactura(*project, "2026-10-17") != "" {
+		t.Fatalf("after stamping: %s", project.States.Facturacion)
+	}
+	if body := list("f.estado=facturada"); !strings.Contains(body, `id="p-`+folio+`"`) || !strings.Contains(body, c.UUID) {
+		t.Error("the Facturada filter misses the stamped proyecto or its folio fiscal")
 	}
 }

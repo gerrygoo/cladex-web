@@ -3,12 +3,31 @@
 La app timbra las facturas de los proyectos y sus comprobantes de pago con Facturoporti, el
 proveedor de certificación (PAC) de Cladex. Una factura timbrada es un CFDI ante el SAT: ya
 no se edita, solo se cancela o se sustituye. Crear, timbrar y cancelar facturas es **solo
-para administradores**; cualquier usuario puede verlas y descargarlas en **Proyectos →
-Facturas** o desde su proyecto.
+para administradores**; cualquier usuario puede verlas y descargarlas desde su proyecto o
+desde la tabla de **Proyectos → Facturas**.
 
 Mientras la facturación no esté configurada en el servidor, el proyecto sigue pidiendo el
 folio de la factura escrito a mano, como hasta ahora ([Registrar la
 factura](proyectos.md#registrar-la-factura)).
+
+## La tabla de Facturas
+
+**Proyectos → Facturas** muestra todos los proyectos con la orden de compra del cliente
+recibida y su **Estado de facturación**:
+
+- **Pendiente**: tiene orden de compra y todavía no tiene factura.
+- **Pendiente complemento de pago**: tiene factura P.P.D. y le falta su comprobante de pago.
+- **Facturada**: tiene factura P.U.E., o factura P.P.D. con su comprobante de pago.
+
+Por cada proyecto se ven el cliente, el costo, el precio de venta sin IVA, la utilidad y el
+margen, el vendedor, el número y la fecha de la orden de compra, los **días pendiente**
+(desde la fecha de la orden de compra, mientras la factura esté pendiente) y el **folio
+fiscal** de su factura, que la abre. Abajo, los totales sin IVA.
+
+Primero salen los pendientes, luego los que esperan su comprobante de pago y al final los
+facturados, cada grupo del más antiguo al más reciente. Como en el Pronóstico, haz clic en
+un encabezado para ordenar y usa el embudo de **Estado de facturación**, **Cliente** o
+**Vendedor** para filtrar. Para facturar, abre el proyecto desde su número.
 
 ## Antes de facturar
 

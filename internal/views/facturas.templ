@@ -489,50 +489,85 @@ templ facturaStampedActions(v FacturaView) {
 }
 
 // FacturasList is /facturas: every comprobante, newest first.
-templ FacturasList(list []store.Comprobante, user *NavUser) {
+// FacturasPage is the Facturas table (#63): every proyecto with the client's O.C.
+// received and its Estado de facturación, in the style of Pronóstico.
+templ FacturasPage(b Billing, lv ListView, customers, owners []string, user *NavUser) {
 	@Layout("Facturas", user) {
 		<div class="page-title">
 			<h1>Facturas</h1>
 			@HelpLink(HelpFacturas)
 		</div>
-		<div class="table-scroll">
-			<table>
-				<thead>
-					<tr>
-						<th>Comprobante</th>
-						<th>Proyecto</th>
-						<th>Cliente</th>
-						<th>Estado</th>
-						<th class="num">Total</th>
-						<th>Folio fiscal</th>
-					</tr>
-				</thead>
-				<tbody>
-					if len(list) == 0 {
+		<p>Los proyectos con orden de compra recibida y su estado de facturación. Para facturar, abre el proyecto desde su número.</p>
+		@listActiveFilters(lv)
+		if len(b.Rows) == 0 {
+			if lv.HasFilters() {
+				<p>Ningún proyecto coincide con el filtro.</p>
+			} else {
+				<p>Todavía no hay proyectos con orden de compra recibida.</p>
+			}
+		} else {
+			{{ totals := b.Totals() }}
+			<div class="table-scroll">
+				<table class="forecast-table">
+					<thead>
 						<tr>
-							<td colspan="6">Todavía no hay facturas. Se crean desde un proyecto con su orden de compra.</td>
+							@sortHeader(lv, "No. de proyecto", "folio", false)
+							@columnHeader(lv, "Estado de facturación", "estado", billingStateFilter)
+							@columnHeader(lv, "Cliente", "cliente", choiceFilter(customers))
+							@sortHeader(lv, "Costo sin IVA", "costo", true)
+							@sortHeader(lv, "Precio de venta sin IVA", "precio", true)
+							@sortHeader(lv, "Utilidad", "utilidad", true)
+							@sortHeader(lv, "Margen", "margen", true)
+							@columnHeader(lv, "Vendedor", "vendedor", choiceFilter(owners))
+							@sortHeader(lv, "No. de O.C.", "oc", false)
+							@sortHeader(lv, "Fecha de la O.C.", "fecha_oc", false)
+							@sortHeader(lv, "Días pendiente", "dias", true)
+							@sortHeader(lv, "Folio fiscal", "folio_fiscal", false)
 						</tr>
-					}
-					for _, c := range list {
+					</thead>
+					<tbody data-announce={ countAnnouncement(len(b.Rows), "proyecto", "proyectos") }>
+						for _, r := range b.Rows {
+							<tr id={ "p-" + r.Folio }>
+								<th scope="row"><a href={ templ.URL(projectPath(r.Folio)) }>{ r.Label() }</a></th>
+								<td>{ store.FacturacionLabels[r.States.Facturacion] }</td>
+								<td class="customer">{ r.CustomerName }</td>
+								<td class="num">{ r.Cost().String() }</td>
+								<td class="num">{ r.Subtotal.String() }</td>
+								<td class="num">{ r.Profit.String() }</td>
+								<td class="num">{ ProjectMargin(r.Project) }</td>
+								<td>{ r.UserName }</td>
+								<td>{ r.OC.Number }</td>
+								<td>
+									if r.OC.Date != "" {
+										{ dateText(r.OC.Date) }
+									}
+								</td>
+								<td class="num">{ DaysPendingFactura(r.Project, b.Today) }</td>
+								<td>
+									if r.FacturaID != 0 {
+										<a href={ templ.URL(facturaPath(r.FacturaID)) }><small>{ r.FolioFiscal }</small></a>
+									} else {
+										<small>{ r.FolioFiscal }</small>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+					<tfoot>
 						<tr>
-							<td>
-								<a href={ templ.URL(facturaPath(c.ID)) }>{ ComprobanteTitle(c) }</a>
-								if c.Sandbox {
-									<small>{ " (pruebas)" }</small>
-								}
-							</td>
-							<td><a href={ templ.URL(projectPath(c.ProjectFolio)) }>{ c.ProjectFolio }</a></td>
-							<td>{ c.Customer.Name }</td>
-							<td>
-								@ComprobanteBadge(c.Status)
-							</td>
-							<td class="num">{ c.Total.String() }</td>
-							<td><small>{ c.UUID }</small></td>
+							<th scope="row">Total</th>
+							<td colspan="2">{ countAnnouncementPlain(len(b.Rows), "proyecto", "proyectos") }</td>
+							<td class="num">{ totals.Cost.String() }</td>
+							<td class="num">{ totals.Price.String() }</td>
+							<td class="num">{ totals.Profit.String() }</td>
+							<td class="num">{ totals.Margin }</td>
+							<td colspan="5"></td>
 						</tr>
-					}
-				</tbody>
-			</table>
-		</div>
+					</tfoot>
+				</table>
+			</div>
+			<p><small>Totales sin IVA. El margen total es la suma de utilidades entre la suma de precios.</small></p>
+		}
 	}
 }
 
