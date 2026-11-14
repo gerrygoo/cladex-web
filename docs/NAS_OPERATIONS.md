@@ -307,7 +307,25 @@ ssh cladex-nas 'sh /volume1/docker/cladex/staging-refresh.sh'
 ```
 
 It copies the live database with sqlite3's online backup (production keeps running),
-drops the sessions so production cookies don't open staging, and restarts staging.
+drops the sessions so production cookies don't open staging, adds the test data
+(`cladex seed-staging`) and restarts staging.
+
+**Test data** (`internal/web/seed.go`), everything named or prefixed `PRUEBA`:
+
+- Users `prueba-admin`, `prueba-admin2` (admin) and `prueba-vend1`–`3` (vendedor), with
+  one random password the refresh prints.
+- Five customers with SAT test RFCs that Facturoporti's sandbox accepts (601 and 612), so
+  facturas to them stamp in staging; five suppliers.
+- Five products copied from the real ones of CCS & AC, CCA and ABASTILUM (same cost,
+  weight and materials) with SAT codes: one CCS in KGM (invoiced in kilos), one in MTR, a
+  CCA without SAT codes (to see "Faltan datos para facturar") and a luminaria in H87.
+- Proyectos: a prospecto with an overdue follow-up, one at Inminente, one en curso with a
+  confirmed supplier O.C. ready to invoice (with a KGM line), one en curso with an
+  anticipo and a P.P.D. factura recorded by hand (Pendiente complemento de pago), one
+  Perdido, and a draft quote.
+
+`seed-staging` refuses unless `APP_ENV` is staging or development, and does nothing when
+`prueba-admin` already exists.
 Everything done in staging since the last refresh is lost. Staging has no Litestream and
 no backups: its data is disposable.
 

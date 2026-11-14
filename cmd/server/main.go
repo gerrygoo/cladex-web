@@ -87,7 +87,33 @@ func main() {
 		runMigrateCLI(os.Args[2:])
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "seed-staging" {
+		runSeedStaging()
+		return
+	}
 	runServer()
+}
+
+// runSeedStaging adds the test data (web.SeedStaging) to this instance's database:
+// `docker compose run --rm cladex-staging seed-staging`, which staging-refresh.sh runs
+// after copying production's database. It refuses unless APP_ENV is staging or
+// development, so it can never touch production.
+func runSeedStaging() {
+	env, err := appenv.Parse(os.Getenv("APP_ENV"))
+	if err != nil || env.Name != appenv.Staging && env.Name != appenv.Development {
+		fmt.Fprintln(os.Stderr, "error: seed-staging solo corre con APP_ENV=staging o development")
+		os.Exit(1)
+	}
+	ctx := store.WithActor(context.Background(), store.Actor{Source: store.SourceCLI})
+	db, err := openStore(ctx)
+	if err != nil {
+		log.Fatalf("store: %v", err)
+	}
+	defer db.Close()
+	if err := web.SeedStaging(ctx, db, time.Now(), os.Stdout); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
 }
 
 // runMigrateCLI answers deploy.sh's question to a new image before it rolls production

@@ -5,6 +5,7 @@
 #
 # The copy is sqlite3's online backup of the live database, so production keeps running.
 # Sessions are dropped from the copy: production's login cookies don't open staging.
+# Then the test data is added on top (seed-staging).
 set -eu
 
 APP_DIR=/volume1/docker/cladex
@@ -28,5 +29,10 @@ cd "$APP_DIR"
 docker compose stop cladex-staging
 rm -f "$STAGING_DATA/cladex.db-wal" "$STAGING_DATA/cladex.db-shm"
 mv "$NEW" "$STAGING_DATA/cladex.db"
+# Add the test data (users, customers valid in the SAT's sandbox, suppliers, products and
+# proyectos in several states; cladex seed-staging, web.SeedStaging) so staging is a
+# superset of production. The test users' password is printed here. It refuses to run
+# unless the service's APP_ENV is staging.
+docker compose run --rm --no-deps cladex-staging seed-staging
 docker compose up -d cladex-staging
 echo "staging refreshed from production at $(date '+%Y-%m-%d %H:%M')"
