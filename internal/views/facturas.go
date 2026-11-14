@@ -65,3 +65,27 @@ var billingStateFilter = enumFilter(
 	FilterOption{store.FacturacionPendiente, store.FacturacionLabels[store.FacturacionPendiente]},
 	FilterOption{store.FacturacionPendienteComplemento, store.FacturacionLabels[store.FacturacionPendienteComplemento]},
 	FilterOption{store.FacturacionFacturada, store.FacturacionLabels[store.FacturacionFacturada]})
+
+// complementoWarnDays is how close to its deadline a missing complemento is flagged.
+const complementoWarnDays = 5
+
+// ComplementoWarning flags a proyecto Pendiente complemento de pago whose oldest payment
+// without a complemento is near (complementoWarnDays) or past the SAT's deadline, the 5th
+// of the next month: "Complemento vence el 05/12/2026" or "Complemento vencido (05/12/2026)".
+// "" otherwise.
+func ComplementoWarning(r store.BillingRow, today string) string {
+	if r.States.Facturacion != store.FacturacionPendienteComplemento || r.UncoveredPaymentSince == "" {
+		return ""
+	}
+	deadline := store.ComplementoDeadline(r.UncoveredPaymentSince)
+	d, ok := daysBetween(today, deadline)
+	switch {
+	case !ok:
+		return ""
+	case d < 0:
+		return "Complemento vencido (" + dateText(deadline) + ")"
+	case d <= complementoWarnDays:
+		return "Complemento vence el " + dateText(deadline)
+	}
+	return ""
+}

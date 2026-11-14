@@ -325,3 +325,16 @@ unchanged. Choices beyond the issue:
   manual one (and vice versa).
 - The printed PDF renders from the XML as for stamped ones; the uploaded PDF, if any, is a
   separate download.
+
+**Complementos (parcialidades)** (`store.RecordManualComplemento`, no migration): a
+manual complemento is a `pago` comprobante related to its P.P.D. factura, its `total` the
+sum of the XML's `ImpPagado` for that factura's UUID, `pago_fecha` the first matching
+`FechaPago`. Together they can't pass the factura's total; the view already sums them.
+Each one either links an unlinked payment of the same amount (`payments.comprobante_id`
+set, source left `manual`) or records a new payment, source `complemento`, refused if it
+would pass the Cobro balance (the message says to link it instead). Marking a complemento
+cancelled reuses `CancelManualFactura`; a factura can't be marked cancelled while it has
+one in force. The Facturas table flags a Pendiente complemento proyecto whose oldest
+payment without a comprobante is within 5 days of, or past, the 5th of the next month.
+The PAC's "Crear comprobante de pago" (one for the whole total) is unchanged and still
+only offered with no complemento in force.

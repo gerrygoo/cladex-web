@@ -83,7 +83,7 @@ func (f *Facturas) Page(w http.ResponseWriter, r *http.Request) {
 	success := map[string]string{
 		"guardado": "Borrador guardado.", "validada": "Validada: lista para timbrar.", "timbrada": "Timbrada.",
 		"cancelada": "Cancelada.", "pendiente": "La cancelación espera la respuesta del receptor.",
-		"registrada": "Factura registrada.",
+		"registrada": "Factura registrada.", "complemento": "Complemento de pago registrado.",
 	}[r.URL.Query().Get("ok")]
 	f.render(w, r, c, success, "", http.StatusOK)
 }
@@ -102,6 +102,31 @@ func (f *Facturas) render(w http.ResponseWriter, r *http.Request, c *store.Compr
 	if err != nil {
 		serverError(w, r, err)
 		return
+	}
+	if c.Tipo == store.TipoFactura {
+		v.Saldo = c.Total
+		for i := len(siblings) - 1; i >= 0; i-- { // oldest first
+			s := siblings[i]
+			if s.RelatedID != c.ID || s.Tipo != store.TipoPago {
+				continue
+			}
+			v.Pagos = append(v.Pagos, s)
+			if s.Status == store.CompTimbrada || s.Status == store.CompCancelPend {
+				v.Saldo -= s.Total
+			}
+		}
+		if c.MetodoPago == "PPD" && c.Status == store.CompTimbrada {
+			payments, err := f.store.ListPayments(ctx, c.ProjectID)
+			if err != nil {
+				serverError(w, r, err)
+				return
+			}
+			for _, p := range payments {
+				if p.ComprobanteID == 0 {
+					v.Unlinked = append(v.Unlinked, p)
+				}
+			}
+		}
 	}
 	for i := range siblings {
 		s := siblings[i]
@@ -554,4 +579,69 @@ func (f *Facturas) CancelarManual(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, facturaURL(c.ID, "cancelada"), http.StatusSeeOther)
+}
+
+// ComplementoManual handles POST /facturas/{id}/complemento-manual (#63): an admin records
+// a complemento de pago issued outside the app for this P.P.D. factura. "xml" is its
+// stamped XML (required), "pdf" its PDF (optional), and "pago" the id of a payment already
+// in Cobro that it covers, or "nuevo" to record the payment from the complemento.
+func (f *Facturas) ComplementoManual(w http.ResponseWriter, r *http.Request) {
+	c := f.load(w, r)
+	if c == nil {
+		return
+	}
+	limit := int64(store.MaxCFDISize + maxOCFileBytes + 1<<20)
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
+	if err := r.ParseMultipartForm(limit); err != nil {
+		http.Error(w, "sube el XML del complemento (hasta 1 MB) y, si quieres, su PDF (hasta 10 MB)", http.StatusBadRequest)
+		return
+	}
+	xmlFile, msg, status := uploadedFile(r, "xml", store.MaxCFDISize, cfdiXMLTypes,
+		"el XML no puede pesar más de 1 MB", "el archivo del complemento debe ser su XML", "complemento.xml")
+	if msg != "" {
+		http.Error(w, msg, status)
+		return
+	}
+	if xmlFile == nil {
+		http.Error(w, "sube el XML del complemento de pago: es obligatorio", http.StatusBadRequest)
+		return
+	}
+	pdfFile, msg, status := uploadedFile(r, "pdf", maxOCFileBytes, pdfOnly,
+		"el PDF no puede pesar más de 10 MB", "el PDF del complemento debe ser un archivo PDF", "complemento.pdf")
+	if msg != "" {
+		http.Error(w, msg, status)
+		return
+	}
+	m := store.ManualComplemento{XML: xmlFile.Data, PDF: pdfFile}
+	switch choice := r.FormValue("pago"); choice {
+	case "nuevo":
+	case "":
+		http.Error(w, "elige si el pago ya está registrado en Cobro", http.StatusBadRequest)
+		return
+	default:
+		id, err := strconv.ParseInt(choice, 10, 64)
+		if err != nil || id <= 0 {
+			http.Error(w, "elige si el pago ya está registrado en Cobro", http.StatusBadRequest)
+			return
+		}
+		m.LinkPaymentID = id
+	}
+	user, _ := UserFromContext(r.Context())
+	id, err := f.store.RecordManualComplemento(r.Context(), c.ID, user.ID, m)
+	var me *store.ManualError
+	switch {
+	case errors.As(err, &me):
+		http.Error(w, me.Msg, http.StatusBadRequest)
+		return
+	case errors.Is(err, store.ErrPaymentMismatch):
+		http.Error(w, "el pago elegido no se puede ligar: debe ser del mismo monto que el complemento y no tener ya un comprobante", http.StatusBadRequest)
+		return
+	case errors.Is(err, store.ErrComprobanteState):
+		http.Error(w, "el complemento solo se registra en una factura P.P.D. vigente de un proyecto En curso", http.StatusConflict)
+		return
+	case err != nil:
+		serverError(w, r, err)
+		return
+	}
+	http.Redirect(w, r, facturaURL(id, "complemento"), http.StatusSeeOther)
 }

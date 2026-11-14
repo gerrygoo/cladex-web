@@ -241,12 +241,34 @@ cliente y el [[método de pago]]. Se abre la página de la factura, y:
 - La etapa no cambia, y con la factura registrada los datos de la orden de compra ya no
   se pueden cambiar.
 
+#### Registrar los complementos de pago (P.P.D.)
+
+Una factura P.P.D. se cubre con uno o varios complementos de pago, uno por cada pago del
+cliente. Se registran en la página de la factura (ábrela desde **Facturación** o desde su
+folio fiscal en **Facturas**), en **Complementos de pago**:
+
+1. Sube el **XML del complemento** (obligatorio) y, si quieres, su **PDF**.
+2. En **¿Este pago ya está registrado en Cobro?**, si ya habías registrado ese pago a mano
+   (por ejemplo, un anticipo), elígelo: el complemento se liga a él y no se cuenta dos
+   veces. Tiene que ser del mismo monto. Si no, elige **No**: el pago se registra en Cobro
+   con la fecha y el monto del complemento.
+3. Haz clic en **Registrar complemento**.
+
+Del XML se toman la fecha del pago y lo que paga de esta factura. La página muestra los
+complementos y el **saldo pendiente** de la factura; cuando los complementos cubren el
+total, el proyecto queda *Facturada*. Un complemento no puede pagar más que el saldo.
+
+Un complemento cancelado fuera de la app se marca igual que una factura (en su página,
+**Marcar como cancelado**): deja de contar para el saldo, y el pago se queda en Cobro.
+
 #### Si la factura se canceló
 
 Si cancelaste la factura fuera de la app, márcala aquí: en su página, en **Cancelar**,
 elige el **motivo**, escribe **por qué se canceló** y haz clic en **Marcar como
 cancelada**. El estado de facturación regresa a *Pendiente* hasta que registres la que la
-sustituye. Los pagos registrados se quedan, porque el dinero sí llegó.
+sustituye. Los pagos registrados se quedan, porque el dinero sí llegó. Una factura con
+complementos de pago vigentes no se puede marcar como cancelada: primero marca los
+complementos.
 
 ### Marcar la entrega
 

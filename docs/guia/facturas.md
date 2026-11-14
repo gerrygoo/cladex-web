@@ -24,6 +24,10 @@ margen, el vendedor, el número y la fecha de la orden de compra, los **días pe
 (desde la fecha de la orden de compra, mientras la factura esté pendiente) y el **folio
 fiscal** de su factura, que la abre. Abajo, los totales sin IVA.
 
+Si un proyecto *Pendiente complemento de pago* tiene un pago en Cobro sin su complemento,
+su estado avisa cuando se acerca o ya pasó la fecha límite del SAT, el **día 5 del mes
+siguiente al pago**: *"Complemento vence el …"* o *"Complemento vencido (…)"*.
+
 Primero salen los pendientes, luego los que esperan su comprobante de pago y al final los
 facturados, cada grupo del más antiguo al más reciente. Como en el Pronóstico, haz clic en
 un encabezado para ordenar y usa el embudo de **Estado de facturación**, **Cliente** o

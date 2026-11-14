@@ -684,3 +684,170 @@ func TestManualFactura(t *testing.T) {
 		t.Error("recorded a factura already on record")
 	}
 }
+
+// testCFDIPago is a minimal stamped complemento de pago (Pagos 2.0) paying amount of the
+// factura facturaUUID on day.
+func testCFDIPago(uuid, facturaUUID string, amount money.Centavos, day string) []byte {
+	amt := fmt.Sprintf("%d.%02d", int64(amount)/100, int64(amount)%100)
+	return []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:pago20="http://www.sat.gob.mx/Pagos20" xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" Version="4.0" Serie="P" Folio="9" Fecha="` + day + `T12:00:00" SubTotal="0" Moneda="XXX" Total="0" TipoDeComprobante="P" Exportacion="01" LugarExpedicion="64000" Sello="abcdefghijkl" NoCertificado="00001000000500000000">
+  <cfdi:Emisor Rfc="CLA010101AAA" Nombre="CLADEX" RegimenFiscal="601"/>
+  <cfdi:Receptor Rfc="IIA040805DZ4" Nombre="INDISTRIA ILUMINADORA DE ALMACENES" DomicilioFiscalReceptor="62661" RegimenFiscalReceptor="601" UsoCFDI="CP01"/>
+  <cfdi:Conceptos><cfdi:Concepto ClaveProdServ="84111506" Cantidad="1" ClaveUnidad="ACT" Descripcion="Pago" ValorUnitario="0" Importe="0" ObjetoImp="01"/></cfdi:Conceptos>
+  <cfdi:Complemento>
+    <pago20:Pagos Version="2.0">
+      <pago20:Totales MontoTotalPagos="` + amt + `"/>
+      <pago20:Pago FechaPago="` + day + `T12:00:00" FormaDePagoP="03" MonedaP="MXN" TipoCambioP="1" Monto="` + amt + `">
+        <pago20:DoctoRelacionado IdDocumento="` + facturaUUID + `" MonedaDR="MXN" NumParcialidad="1" ImpSaldoAnt="0" ImpPagado="` + amt + `" ImpSaldoInsoluto="0" ObjetoImpDR="01"/>
+      </pago20:Pago>
+    </pago20:Pagos>
+    <tfd:TimbreFiscalDigital Version="1.1" UUID="` + uuid + `" FechaTimbrado="` + day + `T12:01:00" RfcProvCertif="SPR190613I52" SelloCFD="abc" NoCertificadoSAT="00001000000505142236" SelloSAT="def"/>
+  </cfdi:Complemento>
+</cfdi:Comprobante>`)
+}
+
+// postComplemento uploads a complemento de pago made outside the app to a factura.
+func postComplemento(t *testing.T, a *Auth, f *Facturas, userID int64, facturaID string, pago string, xmlData []byte) *httptest.ResponseRecorder {
+	t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	if pago != "" {
+		mw.WriteField("pago", pago)
+	}
+	if xmlData != nil {
+		fw, _ := mw.CreateFormFile("xml", "P-9.xml")
+		fw.Write(xmlData)
+	}
+	mw.Close()
+	req := httptest.NewRequest("POST", "/facturas/"+facturaID+"/complemento-manual", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.SetPathValue("id", facturaID)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: mustSessionToken(t, a, userID)})
+	rec := httptest.NewRecorder()
+	a.RequireAuth(http.HandlerFunc(f.ComplementoManual)).ServeHTTP(rec, req)
+	return rec
+}
+
+// #63's parcialidades: a P.P.D. factura gets several complementos recorded by hand, each
+// lowering its saldo, linked to a payment already in Cobro or recording a new one; once
+// they cover the total the proyecto is Facturada. The Facturas table warns as the SAT's
+// day-5 deadline for a payment without complemento nears.
+func TestManualComplementos(t *testing.T) {
+	a := newTestAuth(t)
+	ctx := context.Background()
+	admin := createTestUser(t, a, "gerry", "admin", "hunter2")
+	f := NewFacturas(a.store, facturacion.New(a.store, nil, facturoporti.Status{Sandbox: true, Problem: "no está configurada"}), nil)
+	folio := facturaFixture(t, a, admin)
+	project, _ := a.store.ProjectByFolio(ctx, folio)
+	total := project.Total
+	half := total / 2
+
+	// The anticipo, recorded in Cobro by hand before the factura.
+	if err := a.store.RecordPayment(ctx, project.ID, admin, half, "2026-11-01", nil); err != nil {
+		t.Fatal(err)
+	}
+	fid := recordTestFactura(t, a, admin, folio, "PPD")
+	factura, _ := a.store.ComprobanteByID(ctx, fid)
+	id := strconv.FormatInt(fid, 10)
+	pv := map[string]string{"id": id}
+
+	// The table warns as the anticipo's complemento deadline (05/12/2026) nears.
+	rows, _ := a.store.ListBilling(ctx, "", "", nil)
+	if len(rows) != 1 || rows[0].UncoveredPaymentSince != "2026-11-01" {
+		t.Fatalf("billing rows = %+v", rows)
+	}
+	for today, want := range map[string]string{"2026-11-15": "", "2026-12-02": "Complemento vence el 05/12/2026",
+		"2026-12-06": "Complemento vencido (05/12/2026)"} {
+		if got := views.ComplementoWarning(rows[0], today); got != want {
+			t.Errorf("ComplementoWarning(%s) = %q, want %q", today, got, want)
+		}
+	}
+
+	payments, _ := a.store.ListPayments(ctx, project.ID)
+	anticipo := strconv.FormatInt(payments[0].ID, 10)
+	page := doForm(t, a, admin, f.Page, "GET", "/facturas/"+id, pv, nil, false).Body.String()
+	for _, want := range []string{"Complementos de pago", "Todavía no tiene complementos de pago.", "Saldo pendiente",
+		"Registrar complemento de pago", `name="pago" value="` + anticipo + `"`, "Sí, el pago de " + half.String() + " del 01/11/2026"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("PPD factura page missing %q", want)
+		}
+	}
+
+	first := testCFDIPago("C0000001-2222-3333-4444-555555555555", factura.UUID, half, "2026-11-01")
+	for name, c := range map[string]struct {
+		pago string
+		xml  []byte
+		want string
+	}{
+		"no choice":     {"", first, "elige si el pago ya está registrado"},
+		"a factura":     {"nuevo", testCFDI("C0000009-2222-3333-4444-555555555555", "PPD", total, "IIA040805DZ4"), "no es un complemento de pago"},
+		"other factura": {"nuevo", testCFDIPago("C0000002-2222-3333-4444-555555555555", "00000000-0000-0000-0000-000000000000", half, "2026-11-01"), "no paga esta factura"},
+		"too much":      {"nuevo", testCFDIPago("C0000003-2222-3333-4444-555555555555", factura.UUID, total+1, "2026-11-01"), "más que el saldo de la factura"},
+		"wrong amount":  {anticipo, testCFDIPago("C0000004-2222-3333-4444-555555555555", factura.UUID, half-1, "2026-11-01"), "debe ser del mismo monto"},
+	} {
+		if rec := postComplemento(t, a, f, admin, id, c.pago, c.xml); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), c.want) {
+			t.Errorf("ComplementoManual(%s) = %d %q, want 400 with %q", name, rec.Code, rec.Body.String(), c.want)
+		}
+	}
+
+	// The first complemento covers the anticipo: linked, not a second payment.
+	if rec := postComplemento(t, a, f, admin, id, anticipo, first); rec.Code != http.StatusSeeOther {
+		t.Fatalf("ComplementoManual(linked) = %d: %s", rec.Code, rec.Body.String())
+	}
+	project, _ = a.store.ProjectByFolio(ctx, folio)
+	payments, _ = a.store.ListPayments(ctx, project.ID)
+	if len(payments) != 1 || payments[0].ComprobanteID == 0 || project.States.Facturacion != store.FacturacionPendienteComplemento {
+		t.Errorf("after the linked complemento: %+v %+v", payments, project.States)
+	}
+	if !strings.Contains(project.LastBody, "Complemento de pago P-9 registrado: "+half.String()+" pagado el 01/11/2026") ||
+		!strings.Contains(project.LastBody, "Ligado al pago ya registrado") || !strings.Contains(project.LastBody, "Saldo de la factura A-153: "+(total-half).String()) {
+		t.Errorf("history = %q", project.LastBody)
+	}
+	if rows, _ := a.store.ListBilling(ctx, "", "", nil); rows[0].UncoveredPaymentSince != "" {
+		t.Error("a payment covered by its complemento still counts as uncovered")
+	}
+
+	// A factura with a complemento in force can't be marked cancelled.
+	if rec := doForm(t, a, admin, f.CancelarManual, "POST", "/facturas/"+id+"/cancelar-manual", pv, url.Values{"motivo": {"02"}, "nota": {"x"}}, false); rec.Code != http.StatusConflict {
+		t.Errorf("CancelarManual(factura with complemento) = %d, want 409", rec.Code)
+	}
+
+	// The second covers the rest with a new payment: Facturada and Pagado.
+	second := testCFDIPago("C0000005-2222-3333-4444-555555555555", factura.UUID, total-half, "2026-11-20")
+	rec := postComplemento(t, a, f, admin, id, "nuevo", second)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("ComplementoManual(new) = %d: %s", rec.Code, rec.Body.String())
+	}
+	pid := strings.TrimSuffix(strings.TrimPrefix(rec.Header().Get("Location"), "/facturas/"), "?ok=complemento")
+	project, _ = a.store.ProjectByFolio(ctx, folio)
+	if project.States.Facturacion != store.FacturacionFacturada || project.States.Cobro != store.CobroPagado {
+		t.Errorf("after covering the factura: %+v", project.States)
+	}
+	payments, _ = a.store.ListPayments(ctx, project.ID)
+	if len(payments) != 2 || payments[1].Source != store.PaymentSourceComplemento || payments[1].PaidOn != "2026-11-20" {
+		t.Errorf("payments = %+v", payments)
+	}
+	page = doForm(t, a, admin, f.Page, "GET", "/facturas/"+id, pv, nil, false).Body.String()
+	if !strings.Contains(page, "Comprobante de pago P-9") || strings.Contains(page, "Registrar complemento de pago") {
+		t.Logf("has P-9 %v; has form %v; saldo idx %d", strings.Contains(page, "Complemento de pago P-9"), strings.Contains(page, "Registrar complemento de pago"), strings.Index(page, "Saldo pendiente"))
+		t.Log(page[strings.Index(page, "Complementos de pago"):][:1500])
+		t.Error("a fully paid factura doesn't list its complementos, or still offers another")
+	}
+	ppage := doForm(t, a, admin, f.Page, "GET", "/facturas/"+pid, map[string]string{"id": pid}, nil, false).Body.String()
+	for _, want := range []string{"Fecha del pago", "20/11/2026", "Monto pagado", "Paga la factura", "Marcar como cancelado"} {
+		if !strings.Contains(ppage, want) {
+			t.Errorf("complemento page missing %q", want)
+		}
+	}
+
+	// Marking the second cancelled reopens the saldo; its payment stays.
+	if rec := doForm(t, a, admin, f.CancelarManual, "POST", "/facturas/"+pid+"/cancelar-manual", map[string]string{"id": pid},
+		url.Values{"motivo": {"02"}, "nota": {"Monto equivocado"}}, false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("CancelarManual(complemento) = %d: %s", rec.Code, rec.Body.String())
+	}
+	project, _ = a.store.ProjectByFolio(ctx, folio)
+	if project.States.Facturacion != store.FacturacionPendienteComplemento || project.States.Cobro != store.CobroPagado ||
+		!strings.Contains(project.LastBody, "Complemento de pago P-9 marcado como cancelado") {
+		t.Errorf("after cancelling the complemento: %+v %q", project.States, project.LastBody)
+	}
+}

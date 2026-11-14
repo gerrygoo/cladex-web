@@ -83,6 +83,7 @@ var appRoutes = []route{
 	{"POST", "/proyectos/QA0001/oc", false},
 	{"POST", "/proyectos/QA0001/factura/manual", true},
 	{"POST", "/facturas/1/cancelar-manual", true},
+	{"POST", "/facturas/1/complemento-manual", true},
 	{"POST", "/proyectos/QA0001/pagos", false},
 	{"POST", "/proyectos/QA0001/pagos/1/eliminar", true},
 	{"GET", "/proyectos/QA0001/archivos/1", false},

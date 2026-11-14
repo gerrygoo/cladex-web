@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gerrygoo/cladex-web/internal/cfdi"
+	"github.com/gerrygoo/cladex-web/internal/money"
 
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
@@ -20,14 +21,20 @@ type FacturaView struct {
 	Related     *store.Comprobante
 	Replacement *store.Comprobante
 	Pago        *store.Comprobante
-	Problems    []string
-	Events      []store.ComprobanteEvent
-	Enabled     bool
-	Sandbox     bool
-	WrongEnv    bool
-	Today       string
-	Success     string
-	Error       string
+	// Pagos are every complemento de pago of this factura, cancelled ones included, oldest
+	// first; Saldo is what they still leave unpaid. Unlinked are the proyecto's payments in
+	// Cobro that no comprobante covers, which a complemento recorded by hand can link to.
+	Pagos    []store.Comprobante
+	Saldo    money.Centavos
+	Unlinked []store.Payment
+	Problems []string
+	Events   []store.ComprobanteEvent
+	Enabled  bool
+	Sandbox  bool
+	WrongEnv bool
+	Today    string
+	Success  string
+	Error    string
 }
 
 func facturaPath(id int64) string { return "/facturas/" + strconv.FormatInt(id, 10) }
@@ -178,7 +185,15 @@ templ FacturaPage(v FacturaView, user *NavUser) {
 					</dd>
 				}
 			}
-			<dt>Total</dt>
+			if c.Tipo == store.TipoPago && c.PagoFecha != "" {
+				<dt>Fecha del pago</dt>
+				<dd>{ dateText(c.PagoFecha) }</dd>
+			}
+			if c.Tipo == store.TipoPago {
+				<dt>Monto pagado</dt>
+			} else {
+				<dt>Total</dt>
+			}
 			<dd>{ c.Total.String() } { c.Moneda }</dd>
 		</dl>
 		if v.WrongEnv {
@@ -248,6 +263,9 @@ templ FacturaPage(v FacturaView, user *NavUser) {
 						@facturaStampedActions(v)
 					}
 				}
+		}
+		if c.Tipo == store.TipoFactura && c.MetodoPago == "PPD" && (c.Status == store.CompTimbrada || len(v.Pagos) > 0) {
+			@complementosSection(v, admin)
 		}
 		<section id="historial">
 			<h2>Historial</h2>
@@ -543,7 +561,13 @@ templ FacturasPage(b Billing, lv ListView, customers, owners []string, user *Nav
 						for _, r := range b.Rows {
 							<tr id={ "p-" + r.Folio }>
 								<th scope="row"><a href={ templ.URL(projectPath(r.Folio)) }>{ r.Label() }</a></th>
-								<td>{ store.FacturacionLabels[r.States.Facturacion] }</td>
+								<td>
+									{ store.FacturacionLabels[r.States.Facturacion] }
+									if w := ComplementoWarning(r, b.Today); w != "" {
+										<br/>
+										<strong class="overdue">{ w }</strong>
+									}
+								</td>
 								<td class="customer">{ r.CustomerName }</td>
 								<td class="num">{ r.Cost().String() }</td>
 								<td class="num">{ r.Subtotal.String() }</td>
@@ -681,32 +705,34 @@ templ manualFacturaBody(v FacturaView, admin bool) {
 			</ul>
 		</div>
 	}
-	<div class="table-scroll">
-		<table>
-			<thead>
-				<tr>
-					<th>Clave de producto SAT</th>
-					<th class="num">Cantidad</th>
-					<th>Clave de unidad SAT</th>
-					<th>Descripción</th>
-					<th class="num">Valor unitario</th>
-					<th class="num">Importe</th>
-				</tr>
-			</thead>
-			<tbody>
-				for _, l := range manualConceptos(c) {
+	if c.Tipo == store.TipoFactura {
+		<div class="table-scroll">
+			<table>
+				<thead>
 					<tr>
-						<td>{ l.ClaveProdServ }</td>
-						<td class="num">{ l.Cantidad }</td>
-						<td>{ l.ClaveUnidad }</td>
-						<td>{ l.Descripcion }</td>
-						<td class="num">{ l.ValorUnitario }</td>
-						<td class="num">{ l.Importe }</td>
+						<th>Clave de producto SAT</th>
+						<th class="num">Cantidad</th>
+						<th>Clave de unidad SAT</th>
+						<th>Descripción</th>
+						<th class="num">Valor unitario</th>
+						<th class="num">Importe</th>
 					</tr>
-				}
-			</tbody>
-		</table>
-	</div>
+				</thead>
+				<tbody>
+					for _, l := range manualConceptos(c) {
+						<tr>
+							<td>{ l.ClaveProdServ }</td>
+							<td class="num">{ l.Cantidad }</td>
+							<td>{ l.ClaveUnidad }</td>
+							<td>{ l.Descripcion }</td>
+							<td class="num">{ l.ValorUnitario }</td>
+							<td class="num">{ l.Importe }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
 	<p>
 		if c.PDFFileID != 0 {
 			<a href={ templ.URL(projectPath(c.ProjectFolio) + "/archivos/" + strconv.FormatInt(c.PDFFileID, 10)) }>Descargar PDF</a>
@@ -715,11 +741,15 @@ templ manualFacturaBody(v FacturaView, admin bool) {
 		<a href={ templ.URL(facturaPath(c.ID) + "/pdf") } target="_blank">Ver representación impresa</a>
 		· <a href={ templ.URL(facturaPath(c.ID) + "/xml") }>Descargar XML</a>
 	</p>
-	if admin && c.Status == store.CompTimbrada && c.Tipo == store.TipoFactura {
+	if admin && c.Status == store.CompTimbrada {
 		<section id="cancelar">
 			<h2>Cancelar</h2>
 			<form method="post" action={ templ.URL(facturaPath(c.ID) + "/cancelar-manual") } class="stage-form">
-				<p>Si la factura se canceló fuera de la app, márcala aquí. El Estado de facturación regresa a Pendiente hasta que se registre la que la sustituye. Los pagos registrados se quedan.</p>
+				if c.Tipo == store.TipoPago {
+					<p>Si el complemento se canceló fuera de la app, márcalo aquí. Deja de contar para el saldo de la factura. El pago registrado en Cobro se queda.</p>
+				} else {
+					<p>Si la factura se canceló fuera de la app, márcala aquí. El Estado de facturación regresa a Pendiente hasta que se registre la que la sustituye. Los pagos registrados se quedan.</p>
+				}
 				<label>
 					Motivo de cancelación
 					<select name="motivo" required>
@@ -733,8 +763,85 @@ templ manualFacturaBody(v FacturaView, admin bool) {
 					¿Por qué se canceló?
 					<textarea name="nota" rows="2" maxlength="2000" required></textarea>
 				</label>
-				<button type="submit" class="danger" data-confirm="¿Marcar la factura como cancelada?">Marcar como cancelada</button>
+				if c.Tipo == store.TipoPago {
+					<button type="submit" class="danger" data-confirm="¿Marcar el complemento como cancelado?">Marcar como cancelado</button>
+				} else {
+					<button type="submit" class="danger" data-confirm="¿Marcar la factura como cancelada?">Marcar como cancelada</button>
+				}
 			</form>
 		</section>
 	}
+}
+
+// complementosSection lists a P.P.D. factura's complementos de pago with the saldo they
+// leave, and lets an admin record one issued outside the app (#63), linked to a payment
+// already in Cobro or recording a new one.
+templ complementosSection(v FacturaView, admin bool) {
+	{{ c := v.C }}
+	<section id="complementos">
+		<h2>Complementos de pago</h2>
+		if len(v.Pagos) == 0 {
+			<p>Todavía no tiene complementos de pago.</p>
+		} else {
+			<div class="table-scroll">
+				<table>
+					<thead>
+						<tr>
+							<th>Complemento</th>
+							<th>Fecha del pago</th>
+							<th class="num">Monto</th>
+							<th>Estado</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, p := range v.Pagos {
+							<tr>
+								<td><a href={ templ.URL(facturaPath(p.ID)) }>{ ComprobanteTitle(p) }</a></td>
+								<td>{ dateText(p.PagoFecha) }</td>
+								<td class="num">{ p.Total.String() }</td>
+								<td>
+									@ComprobanteBadge(p.Status)
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		<dl class="quote-info">
+			<dt>Total de la factura</dt>
+			<dd>{ c.Total.String() }</dd>
+			<dt>Saldo pendiente</dt>
+			<dd>{ v.Saldo.String() }</dd>
+		</dl>
+		if admin && c.Status == store.CompTimbrada && v.Saldo > 0 && c.ProjectStatus == store.StageEnCurso {
+			<form method="post" action={ templ.URL(facturaPath(c.ID) + "/complemento-manual") } enctype="multipart/form-data" class="stage-form">
+				<h3>Registrar complemento de pago</h3>
+				<p>Sube el XML timbrado del complemento que se hizo fuera de la app. De él se toman la fecha del pago y lo que paga de esta factura. Cuando los complementos cubren el total, el proyecto queda Facturada.</p>
+				<label>
+					XML del complemento (obligatorio)
+					<input type="file" name="xml" accept=".xml,text/xml,application/xml" required/>
+				</label>
+				<label>
+					PDF del complemento (opcional)
+					<input type="file" name="pdf" accept="application/pdf,.pdf"/>
+				</label>
+				<fieldset>
+					<legend>¿Este pago ya está registrado en Cobro?</legend>
+					for _, p := range v.Unlinked {
+						<label>
+							<input type="radio" name="pago" value={ strconv.FormatInt(p.ID, 10) } required/>
+							{ "Sí, el pago de " + p.Amount.String() + " del " + dateText(p.PaidOn) }
+						</label>
+					}
+					<label>
+						<input type="radio" name="pago" value="nuevo" required checked?={ len(v.Unlinked) == 0 }/>
+						No: registrar el pago en Cobro con los datos del complemento
+					</label>
+					<p class="hint">Elige el pago que ampara el complemento para no contarlo dos veces. Debe ser del mismo monto.</p>
+				</fieldset>
+				<button type="submit" class="primary">Registrar complemento</button>
+			</form>
+		}
+	</section>
 }

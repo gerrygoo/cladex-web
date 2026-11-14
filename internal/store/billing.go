@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // BillingRow is one proyecto of the Facturas table (#63): a proyecto en curso, with the
@@ -14,6 +15,20 @@ type BillingRow struct {
 	// facturación was in the app.
 	FacturaID   int64
 	FolioFiscal string
+	// UncoveredPaymentSince is the day of the oldest payment in Cobro that no comprobante
+	// covers yet ("" when none). On a P.P.D. factura each payment needs its complemento
+	// by the 5th of the next month (ComplementoDeadline).
+	UncoveredPaymentSince string
+}
+
+// ComplementoDeadline is the last day to issue the complemento de pago for a payment
+// received on paidOn (YYYY-MM-DD): the 5th of the next month. "" for a bad day.
+func ComplementoDeadline(paidOn string) string {
+	t, err := time.Parse("2006-01-02", paidOn)
+	if err != nil {
+		return ""
+	}
+	return time.Date(t.Year(), t.Month()+1, 5, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
 }
 
 // billingFactura selects one column of the proyecto's newest valid factura, the one the
@@ -71,7 +86,9 @@ func (s *Store) ListBilling(ctx context.Context, sort, dir string, filters Filte
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+projectSelectCols+`,
 			COALESCE((`+billingFactura("bf.id")+`), 0),
-			COALESCE((`+billingFactura("bf.uuid")+`), p.invoice_ref, '')`+projectFrom+`
+			COALESCE((`+billingFactura("bf.uuid")+`), p.invoice_ref, ''),
+			COALESCE((SELECT MIN(pm.paid_on) FROM payments pm
+				WHERE pm.project_id = p.id AND pm.deleted_at IS NULL AND pm.comprobante_id IS NULL), '')`+projectFrom+`
 		WHERE p.status = 'en_curso'`+extra+`
 		`+order, extraArgs...)
 	if err != nil {
@@ -81,7 +98,7 @@ func (s *Store) ListBilling(ctx context.Context, sort, dir string, filters Filte
 	var out []BillingRow
 	for rows.Next() {
 		var r BillingRow
-		p, err := scanProject(scanTail{rows, []any{&r.FacturaID, &r.FolioFiscal}})
+		p, err := scanProject(scanTail{rows, []any{&r.FacturaID, &r.FolioFiscal, &r.UncoveredPaymentSince}})
 		if err != nil {
 			return nil, fmt.Errorf("store: list billing: %w", err)
 		}
