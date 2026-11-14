@@ -156,7 +156,7 @@ templ PurchaseOrderView(p PurchaseOrderPage, user *NavUser) {
 // the viewer can't edit.
 templ poSummary(p PurchaseOrderPage) {
 	<p>
-		<a href={ templ.URL(POPDFPath(p.Project.Folio, p.PO.ID, false)) } target="_blank" rel="noopener">Ver PDF<span class="visually-hidden"> (se abre en otra pestaña)</span></a>
+		<a href={ templ.URL(POPDFPath(p.Project.Folio, p.PO.ID, false)) } target="_blank" rel="noopener">Ver PDF<span class="visually-hidden">(se abre en otra pestaña)</span></a>
 		if p.PO.Status != store.POBorrador {
 			{ " · " }
 			<a href={ templ.URL(POPDFPath(p.Project.Folio, p.PO.ID, true)) } download>Descargar PDF</a>
@@ -396,6 +396,19 @@ templ poDraftForm(p PurchaseOrderPage) {
 		</div>
 		<p>Siempre salen también: «La mercancía se recibe sujeta a revisión de cantidad y calidad.» y «Favor de emitir el CFDI con los datos de facturación indicados en esta orden.»</p>
 		<h2>Datos de facturación</h2>
+		<label>
+			Uso de CFDI con que el proveedor debe facturar
+			<select name="uso_cfdi" { errAttrs(p.Errors, "uso_cfdi")... }>
+				<option value="">Elige…</option>
+				for _, c := range store.CFDIUses {
+					if c.Code != "CP01" && c.Code != "CN01" {
+						<option value={ c.Code } selected?={ p.Values.CFDIUse == c.Code }>{ c.Code } - { c.Description }</option>
+					}
+				}
+			</select>
+		</label>
+		@FieldError(p.Errors, "uso_cfdi")
+		<p class="hint">Empieza con el de Configuración del sistema; cámbialo si esta compra es otro gasto (p. ej. G03, gastos en general).</p>
 		<dl class="quote-info">
 			<dt>Razón social</dt>
 			<dd>{ orDash(p.Billing.Name) }</dd>
@@ -405,8 +418,6 @@ templ poDraftForm(p PurchaseOrderPage) {
 			<dd>{ orDash(p.Billing.Regime) }</dd>
 			<dt>Domicilio fiscal</dt>
 			<dd>{ orDash(p.Billing.Address) }</dd>
-			<dt>Uso de CFDI</dt>
-			<dd>{ orDash(p.Billing.CFDIUse) }</dd>
 		</dl>
 		<p>
 			Son los de Cladex y se cambian en Configuración del sistema.
@@ -421,7 +432,7 @@ templ poDraftForm(p PurchaseOrderPage) {
 			} else {
 				<button type="submit" class="primary">Guardar borrador</button>
 			}
-			<button type="submit" formaction={ templ.URL(POPath(p.Project.Folio, p.PO.ID, "ver-pdf")) } formtarget="_blank">Ver PDF<span class="visually-hidden"> (se abre en otra pestaña)</span></button>
+			<button type="submit" formaction={ templ.URL(POPath(p.Project.Folio, p.PO.ID, "ver-pdf")) } formtarget="_blank">Ver PDF<span class="visually-hidden">(se abre en otra pestaña)</span></button>
 		</div>
 		if !p.IsAdmin {
 			<p>Un administrador confirma la orden de compra y la descarga para mandarla al proveedor.</p>

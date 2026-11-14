@@ -64,11 +64,14 @@ type POFormValues struct {
 	PaymentForm        string
 	CreditDays         string
 	PaymentOther       string
+	CFDIUse            string // c_UsoCFDI the supplier invoices with, chosen per O.C.
 }
 
 // POBillingView is the Datos de facturación block as an O.C. prints it.
 type POBillingView struct {
 	Name, RFC, Regime, Address, CFDIUse string
+	// DefaultCFDIUse is Configuración's uso de CFDI code, the one a new borrador starts with.
+	DefaultCFDIUse string
 	// Missing is set when something is blank: the O.C. can't be confirmed until an admin
 	// completes it in Configuración del sistema.
 	Missing bool

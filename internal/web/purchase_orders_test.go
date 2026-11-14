@@ -75,7 +75,7 @@ func adminOnly(a *Auth, h http.HandlerFunc) http.HandlerFunc {
 }
 
 func poFormValues(supplierID string, partidas []string, extra map[string]string) url.Values {
-	v := url.Values{"proveedor": {supplierID}, "moneda": {"MXN"}, "forma_pago": {store.POPayTransfer}, "partida": partidas}
+	v := url.Values{"proveedor": {supplierID}, "moneda": {"MXN"}, "forma_pago": {store.POPayTransfer}, "uso_cfdi": {"G01"}, "partida": partidas}
 	for k, x := range extra {
 		v.Set(k, x)
 	}
@@ -163,7 +163,9 @@ func TestPurchaseOrdersQA0037(t *testing.T) {
 	for _, want := range []string{"Borrador", "CABLE THW/THHW CONDUCCASA CALIBRE 14 AWG verde", "$5.54", "$1,108.00",
 		"$10,244.00", "$1,639.04", "$11,883.04", "selected>Cable Anti Robo", "Guardar borrador", "Ver PDF",
 		"Un administrador confirma la orden de compra y la descarga para mandarla al proveedor.", "Transferencia electrónica por adelantado",
-		"CLADEX S.A. de C.V.", "CLA260326Q19", "601 - General de Ley Personas Morales", "G01 - Adquisición de mercancías"} {
+		"CLADEX S.A. de C.V.", "CLA260326Q19", "601 - General de Ley Personas Morales",
+		// The uso de CFDI is chosen per O.C., starting from Configuración's.
+		`name="uso_cfdi"`, `<option value="G01" selected>G01 - Adquisición de mercancías`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("draft page lacks %q", want)
 		}
@@ -253,8 +255,14 @@ func TestPurchaseOrdersQA0037(t *testing.T) {
 		t.Fatalf("Ver PDF = %d → %s", rec.Code, rec.Header().Get("Location"))
 	}
 
-	// Confirmed with "Otra": numbered with today's date in México, its text printed as typed.
-	rec = confirm(beto, poFormValues(sup, six, map[string]string{"domicilio": "Av. Industria 10, Querétaro",
+	// Without a uso de CFDI it isn't confirmed.
+	if rec := confirm(beto, poFormValues(sup, six, map[string]string{"domicilio": "Obra", "uso_cfdi": ""})); rec.Code != http.StatusUnprocessableEntity ||
+		!strings.Contains(rec.Body.String(), "Elige el uso de CFDI con que el proveedor debe facturar.") {
+		t.Errorf("Confirmar without uso de CFDI = %d", rec.Code)
+	}
+	// Confirmed with "Otra": numbered with today's date in México, its text printed as typed,
+	// and this O.C.'s own uso de CFDI (G03), not Configuración's.
+	rec = confirm(beto, poFormValues(sup, six, map[string]string{"domicilio": "Av. Industria 10, Querétaro", "uso_cfdi": "G03",
 		"referencias": "Andén 3", "moneda": "USD", "forma_pago": store.POPayOther, "forma_pago_otra": "50% anticipo y 50% contra entrega."}))
 	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != poPath+"?confirmada=1" {
 		t.Fatalf("Confirmar = %d: %s", rec.Code, rec.Body.String())
@@ -272,7 +280,8 @@ func TestPurchaseOrdersQA0037(t *testing.T) {
 		doc.SupplierName != "CABLE ANTI ROBO" || doc.Issuer != "CLADEX S.A. de C.V. · RFC CLA260326Q19" ||
 		doc.DeliveryAddress != "Av. Industria 10, Querétaro" || doc.DeliveryRefs != "Andén 3" || doc.ShowKg ||
 		len(doc.Lines) != 6 || doc.Lines[0].UnitPrice != "$5.54" || doc.Lines[0].Qty != "200" || doc.Lines[0].Total != "$1,108.00" ||
-		doc.Lines[4].UnitPrice != "$12.30" || doc.Subtotal != "$10,244.00" || doc.IVA != "$1,639.04" || doc.Total != "$11,883.04" {
+		doc.Lines[4].UnitPrice != "$12.30" || doc.Subtotal != "$10,244.00" || doc.IVA != "$1,639.04" || doc.Total != "$11,883.04" ||
+		doc.BillingCFDIUse != "G03 - Gastos en general" || po.CFDIUse != "G03" {
 		t.Fatalf("frozen document = %+v", doc)
 	}
 	if strings.Join(doc.Conditions, "|") != "Precios en dólares americanos (USD), más IVA.|50% anticipo y 50% contra entrega.|"+

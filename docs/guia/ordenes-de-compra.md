@@ -47,9 +47,13 @@ El borrador tiene estas partes, en orden:
   **Referencias** (opcional), escritos a mano en cada orden.
 - **Condiciones**: la **Moneda** y la **Forma de pago** (ver
   [Condiciones](#condiciones)).
-- **Datos de facturación**: los de Cladex (razón social, RFC, régimen fiscal, domicilio
-  fiscal y uso de CFDI). No se capturan en cada orden: un administrador los mantiene en
+- **Datos de facturación**: el **Uso de CFDI** con que el proveedor debe facturar esta
+  compra (obligatorio para confirmar). Empieza con el predeterminado de Configuración; si
+  la compra es otro tipo de gasto, elige otro (p. ej. *G03 - Gastos en general*). Los demás
+  son los de Cladex (razón social, RFC, régimen fiscal y domicilio fiscal) y no se capturan
+  en cada orden: un administrador los mantiene en
   [Configuración del sistema](administracion.md#datos-de-facturación-en-órdenes-de-compra).
+  Una revisión empieza con el uso de CFDI de la orden que corrige.
 
 Haz clic en **Guardar borrador**; verás *"Borrador guardado."* Los totales se actualizan
 al guardar. El borrador se puede dejar incompleto y terminar después.

@@ -445,7 +445,7 @@ func seedSupplierOC(ctx context.Context, pos *PurchaseOrders, st *store.Store, a
 	if err != nil {
 		return err
 	}
-	form := url.Values{"proveedor": {strconv.FormatInt(supplier, 10)}, "moneda": {"MXN"}, "forma_pago": {store.POPayTransfer},
+	form := url.Values{"proveedor": {strconv.FormatInt(supplier, 10)}, "moneda": {"MXN"}, "forma_pago": {store.POPayTransfer}, "uso_cfdi": {"G01"},
 		"domicilio": {"Almacén de prueba, Monterrey, N.L."}}
 	for _, l := range lines {
 		form.Add("partida", strconv.Itoa(l.LineNo))

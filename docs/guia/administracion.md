@@ -112,7 +112,9 @@ piden al proveedor en su factura, en el bloque **Datos de facturación**:
 
 - **Razón social**, con el régimen de capital (*CLADEX S.A. de C.V.*).
 - **Domicilio fiscal**, en un renglón, tal como saldrá.
-- **Uso de CFDI** (*G01 - Adquisición de mercancías*).
+- **Uso de CFDI** predeterminado (*G01 - Adquisición de mercancías*): con el que empieza
+  cada orden nueva. Se elige en cada orden, así que una compra puede llevar otro (p. ej.
+  *G03 - Gastos en general*).
 
 El **RFC** y el **Régimen fiscal** son los del Emisor. Haz clic en **Guardar datos de
 facturación**; verás *"Datos de facturación de las órdenes de compra guardados."* Lo que

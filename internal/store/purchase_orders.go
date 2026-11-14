@@ -84,6 +84,9 @@ type PurchaseOrder struct {
 	PaymentForm        string
 	CreditDays         *int64
 	PaymentOther       string
+	// CFDIUse is the uso de CFDI the O.C. asks the supplier to invoice with, chosen per
+	// O.C. (c_UsoCFDI); "" on an O.C. from before it was, whose document has the default.
+	CFDIUse            string
 	Subtotal           money.Centavos
 	IVA                money.Centavos
 	Total              money.Centavos
@@ -154,7 +157,7 @@ const poSelectCols = `
 	COALESCE((SELECT r.id FROM purchase_orders r WHERE r.supersedes_id = po.id AND r.status = 'borrador'), 0),
 	COALESCE(po.seq, 0), po.revision, COALESCE(po.number, ''), po.status,
 	po.supplier_id, COALESCE(s.name, ''), po.delivery_address, po.delivery_references,
-	po.currency, po.payment_form, po.credit_days, po.payment_other,
+	po.currency, po.payment_form, po.credit_days, po.payment_other, COALESCE(po.cfdi_use, ''),
 	po.subtotal, po.iva, po.total, COALESCE(po.revision_reason, ''),
 	po.created_by, cu.name, po.created_at, COALESCE(fu.name, ''), COALESCE(po.confirmed_at, ''),
 	COALESCE(po.document, ''), COALESCE(po.pdf_sha256, ''),
@@ -175,7 +178,7 @@ func scanPO(row interface{ Scan(...any) error }) (*PurchaseOrder, error) {
 		&po.SupersedesNumber, &po.ReplacedByNumber, &po.PendingRevisionID,
 		&po.Seq, &po.Revision, &po.Number, &po.Status,
 		&supplier, &po.SupplierName, &po.DeliveryAddress, &po.DeliveryReferences,
-		&po.Currency, &po.PaymentForm, &credit, &po.PaymentOther,
+		&po.Currency, &po.PaymentForm, &credit, &po.PaymentOther, &po.CFDIUse,
 		&po.Subtotal, &po.IVA, &po.Total, &po.RevisionReason,
 		&po.CreatedBy, &po.CreatedByName, &po.CreatedAt, &po.ConfirmedByName, &po.ConfirmedAt,
 		&po.Document, &po.PDFSHA256, &po.CancelReason, &po.CancelledByName, &po.CancelledAt)
@@ -409,6 +412,7 @@ type PODraft struct {
 	PaymentForm        string
 	CreditDays         *int64
 	PaymentOther       string
+	CFDIUse            string
 	Lines              []PurchaseOrderLine
 }
 
@@ -429,7 +433,7 @@ func (d PODraft) args() []any {
 	}
 	t := POTotals(d.Lines)
 	return []any{supplier, strings.TrimSpace(d.DeliveryAddress), strings.TrimSpace(d.DeliveryReferences),
-		currency, form, credit, strings.TrimSpace(d.PaymentOther),
+		currency, form, credit, strings.TrimSpace(d.PaymentOther), nullIfEmpty(d.CFDIUse),
 		int64(t.Subtotal), int64(t.IVA), int64(t.Total)}
 }
 
@@ -491,9 +495,9 @@ func (s *Store) CreatePurchaseOrder(ctx context.Context, projectID, quoteID, use
 	}
 	res, err := tx.ExecContext(ctx, `
 		INSERT INTO purchase_orders (supplier_id, delivery_address, delivery_references, currency,
-			payment_form, credit_days, payment_other, subtotal, iva, total,
+			payment_form, credit_days, payment_other, cfdi_use, subtotal, iva, total,
 			project_id, quote_id, created_by)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		append(d.args(), projectID, quoteID, userID)...)
 	if err != nil {
 		return 0, fmt.Errorf("store: create purchase order: %w", err)
@@ -533,7 +537,7 @@ func (s *Store) SavePurchaseOrderDraft(ctx context.Context, id int64, d PODraft)
 func saveDraftTx(ctx context.Context, tx *sql.Tx, id int64, d PODraft) error {
 	res, err := tx.ExecContext(ctx, `
 		UPDATE purchase_orders SET supplier_id = ?, delivery_address = ?, delivery_references = ?,
-			currency = ?, payment_form = ?, credit_days = ?, payment_other = ?,
+			currency = ?, payment_form = ?, credit_days = ?, payment_other = ?, cfdi_use = ?,
 			subtotal = ?, iva = ?, total = ?
 		WHERE id = ? AND status = 'borrador'`, append(d.args(), id)...)
 	if err != nil {
@@ -708,12 +712,12 @@ func (s *Store) CreatePurchaseOrderRevision(ctx context.Context, id, userID int6
 	}
 	d := PODraft{SupplierID: prev.SupplierID, DeliveryAddress: prev.DeliveryAddress,
 		DeliveryReferences: prev.DeliveryReferences, Currency: prev.Currency, PaymentForm: prev.PaymentForm,
-		CreditDays: prev.CreditDays, PaymentOther: prev.PaymentOther, Lines: lines}
+		CreditDays: prev.CreditDays, PaymentOther: prev.PaymentOther, CFDIUse: prev.CFDIUse, Lines: lines}
 	res, err := tx.ExecContext(ctx, `
 		INSERT INTO purchase_orders (supplier_id, delivery_address, delivery_references, currency,
-			payment_form, credit_days, payment_other, subtotal, iva, total,
+			payment_form, credit_days, payment_other, cfdi_use, subtotal, iva, total,
 			project_id, quote_id, created_by, supersedes_id, seq, revision, revision_reason)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		append(d.args(), prev.ProjectID, prev.QuoteID, userID, id, prev.Seq, prev.Revision+1, reason)...)
 	if err != nil {
 		return 0, fmt.Errorf("store: revise purchase order %d: %w", id, err)

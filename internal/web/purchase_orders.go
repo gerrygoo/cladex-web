@@ -139,6 +139,12 @@ func (h *PurchaseOrders) Generar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	draft := store.PODraft{SupplierID: supplierID}
+	billingDefaults, err := h.store.POBillingSettings(ctx)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	draft.CFDIUse = billingDefaults.CFDIUse // the default; chosen per O.C. on the borrador
 	if supplierID != nil {
 		sup, err := h.store.SupplierByID(ctx, *supplierID)
 		if err != nil {
@@ -248,6 +254,7 @@ func (h *PurchaseOrders) page(ctx context.Context, project *store.Project, po *s
 		Values: views.POFormValues{
 			DeliveryAddress: po.DeliveryAddress, DeliveryReferences: po.DeliveryReferences,
 			Currency: po.Currency, PaymentForm: po.PaymentForm, PaymentOther: po.PaymentOther,
+			CFDIUse: po.CFDIUse,
 		},
 		Conditions: store.POConditions(po.Currency, po.PaymentForm, po.CreditDays, po.PaymentOther),
 	}
@@ -296,6 +303,9 @@ func (h *PurchaseOrders) page(ctx context.Context, project *store.Project, po *s
 		if page.Billing, err = h.billing(ctx); err != nil {
 			return page, err
 		}
+		if page.Values.CFDIUse == "" && form == nil {
+			page.Values.CFDIUse = page.Billing.DefaultCFDIUse
+		}
 	} else {
 		current = saved
 		for _, l := range saved {
@@ -338,7 +348,7 @@ func (h *PurchaseOrders) billing(ctx context.Context) (views.POBillingView, erro
 		v.Regime = store.SATLabel(store.TaxRegimes, e.TaxRegime)
 	}
 	if b.CFDIUse != "" {
-		v.CFDIUse = store.SATLabel(store.CFDIUses, b.CFDIUse)
+		v.CFDIUse, v.DefaultCFDIUse = store.SATLabel(store.CFDIUses, b.CFDIUse), b.CFDIUse
 	}
 	v.Missing = len(b.Errors()) > 0 || !store.ValidRFC(e.RFC) || e.TaxRegime == ""
 	return v, nil
@@ -359,10 +369,15 @@ func (h *PurchaseOrders) parseForm(r *http.Request, po *store.PurchaseOrder) (*p
 		PaymentForm:        r.FormValue("forma_pago"),
 		CreditDays:         strings.TrimSpace(r.FormValue("dias_credito")),
 		PaymentOther:       strings.TrimSpace(r.FormValue("forma_pago_otra")),
+		CFDIUse:            r.FormValue("uso_cfdi"),
 	}
 	v := f.values
 	d := store.PODraft{DeliveryAddress: v.DeliveryAddress, DeliveryReferences: v.DeliveryReferences,
-		Currency: v.Currency, PaymentForm: v.PaymentForm, PaymentOther: v.PaymentOther}
+		Currency: v.Currency, PaymentForm: v.PaymentForm, PaymentOther: v.PaymentOther, CFDIUse: v.CFDIUse}
+	if !store.ValidSATCode(store.CFDIUses, v.CFDIUse) {
+		f.errors["uso_cfdi"] = "Elige un uso de CFDI de la lista."
+		d.CFDIUse = ""
+	}
 	if utf8.RuneCountInString(v.DeliveryAddress) > 500 || utf8.RuneCountInString(v.DeliveryReferences) > 500 ||
 		utf8.RuneCountInString(v.PaymentOther) > 300 {
 		f.errors["domicilio"] = "El domicilio y las referencias son de hasta 500 caracteres, y la forma de pago de hasta 300."
@@ -451,6 +466,9 @@ func confirmProblems(d store.PODraft) map[string]string {
 	}
 	if len(d.Lines) == 0 {
 		errs["partidas"] = "Elige al menos una partida."
+	}
+	if d.CFDIUse == "" {
+		errs["uso_cfdi"] = "Elige el uso de CFDI con que el proveedor debe facturar."
 	}
 	switch d.PaymentForm {
 	case store.POPayCredit:
@@ -636,7 +654,7 @@ func poDocument(project store.Project, sup store.Supplier, billing views.POBilli
 		SupplierName:    sup.LegalName,
 		SupplierAddress: store.SupplierAddress(sup),
 		BillingName:     billing.Name, BillingRFC: billing.RFC, BillingRegime: billing.Regime,
-		BillingAddress: billing.Address, BillingCFDIUse: billing.CFDIUse,
+		BillingAddress: billing.Address, BillingCFDIUse: store.SATLabel(store.CFDIUses, d.CFDIUse),
 		DeliveryAddress: d.DeliveryAddress, DeliveryRefs: d.DeliveryReferences,
 		ShowKg:     showKg,
 		Conditions: store.POConditions(d.Currency, d.PaymentForm, d.CreditDays, d.PaymentOther),
