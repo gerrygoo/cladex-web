@@ -56,7 +56,15 @@ templ MiCuenta(m MiCuentaView, user *NavUser) {
 		if m.ContactSaved {
 			@Flash("Avisos guardados.")
 		}
-		<p>Dónde quieres que la app te avise, por ejemplo, cuando vence el seguimiento de un proyecto.</p>
-		@ContactForm("/mi-cuenta/avisos", m.Contact, m.Avisos, m.ContactErrors, user.IsAdmin)
+		<p>Dónde y de qué quieres que la app te avise. Todos los avisos empiezan apagados: marca los que te sirvan.</p>
+		@ContactForm("/mi-cuenta/avisos", m.Contact, m.Avisos, m.ContactErrors, navRole(user))
 	}
+}
+
+// navRole is the signed-in user's role, for what Avisos offers them.
+func navRole(user *NavUser) string {
+	if user != nil && user.IsAdmin {
+		return store.RoleAdmin
+	}
+	return store.RoleVendedor
 }

@@ -156,7 +156,7 @@ debajo tu nota.
 - Cuando llega el día del **Próximo seguimiento**, el resumen del proyecto dice *"toca
   darle seguimiento"* y la [página de inicio](README.md#la-página-de-inicio) lo cuenta
   en **Sin seguimiento**. Si el día pasa sin un comentario nuevo, el vendedor recibe
-  un [aviso por correo](acceso.md#recibir-avisos), si un administrador se lo activó.
+  un [aviso por correo](acceso.md#recibir-avisos), si lo tiene prendido en Mi cuenta.
 
 ### Recibir la orden de compra del cliente
 

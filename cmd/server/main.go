@@ -210,8 +210,14 @@ func runServer() {
 	}
 	seguimiento := avisos.New(db, runner, appURL, logger)
 	runner.Register(avisos.JobKind, seguimiento.Handle)
+	runner.Register(avisos.OCJobKind, seguimiento.HandleOC)
+	runner.Register(avisos.SupplierJobKind, seguimiento.HandleSupplier)
+	runner.Register(avisos.PerdidosJobKind, seguimiento.HandlePerdidos)
 	if err := seguimiento.Schedule(ctx); err != nil {
 		logger.Error("avisos: schedule the next seguimiento round", slog.Any("err", err))
+	}
+	if err := seguimiento.SchedulePerdidos(ctx); err != nil {
+		logger.Error("avisos: schedule the next resumen de perdidos", slog.Any("err", err))
 	}
 	runnerDone := make(chan struct{})
 	go func() {

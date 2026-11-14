@@ -150,11 +150,11 @@ func MiCuenta(m MiCuentaView, user *NavUser) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, " <p>Dónde quieres que la app te avise, por ejemplo, cuando vence el seguimiento de un proyecto.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, " <p>Dónde y de qué quieres que la app te avise. Todos los avisos empiezan apagados: marca los que te sirvan.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = ContactForm("/mi-cuenta/avisos", m.Contact, m.Avisos, m.ContactErrors, user.IsAdmin).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = ContactForm("/mi-cuenta/avisos", m.Contact, m.Avisos, m.ContactErrors, navRole(user)).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -166,6 +166,14 @@ func MiCuenta(m MiCuentaView, user *NavUser) templ.Component {
 		}
 		return nil
 	})
+}
+
+// navRole is the signed-in user's role, for what Avisos offers them.
+func navRole(user *NavUser) string {
+	if user != nil && user.IsAdmin {
+		return store.RoleAdmin
+	}
+	return store.RoleVendedor
 }
 
 var _ = templruntime.GeneratedTemplate

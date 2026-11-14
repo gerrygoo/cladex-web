@@ -1,6 +1,6 @@
 # Notificaciones y trabajos en segundo plano
 
-**Design approved (Gerry, 2026-10-23). N1 (the runner) and N2 (notifications and email) built 2026-10-26; N3 (avisos de seguimiento, #69 A+B) built 2026-11-10; N4 (WhatsApp) in progress; N5–N6 not started.** One design for
+**Design approved (Gerry, 2026-10-23). N1 (the runner) and N2 (notifications and email) built 2026-10-26; N3 (avisos de seguimiento, #69 A+B) built 2026-11-10; #69 C, D, F built 2026-11-14; N4 (WhatsApp) in progress; N5–N6 not started.** One design for
 [#19](https://github.com/gerrygoo/cladex-web/issues/19) (background jobs) and
 [#18](https://github.com/gerrygoo/cladex-web/issues/18) (outbound notifications), because
 the second is the first real consumer of the first. A notification is a row written in the
@@ -220,9 +220,30 @@ to rounds, because Emilio's schedule escalates over days.
   every prospecto already overdue counts, so the vendedor gets their stale ones at 18:00
   daily: clear or move old dates before turning it on.
 
-Not yet built from #69: C (O.C. recibida → Emilio, at once), D (monthly email of
-perdidos), F (supplier O.C. not marked enviada: needs that mark), E (factura draft ready:
-waits on #63), G (cobranza: waits on #63 and #67). H is nothing for now.
+C, D and F were built 2026-11-14 (email only; each takes WhatsApp with N4):
+
+- **C, O.C. recibida** (aviso `oc_recibida`). `store.ReceiveOC` queues an
+  `avisos_oc_recibida` job in the transaction that takes a prospecto to en curso; the job
+  emails everyone with C on at once (dedupe: `aviso_rounds` key `oc_recibida <id> <at>`)
+  and queues F's reminders.
+- **F, O.C. al proveedor sin enviar** (`oc_proveedor_pendiente`, admins only). No
+  separate "enviada" mark: **confirming** the supplier O.C. (Confirmar y descargar) counts
+  as sent. Pending = no confirmed O.C., or a draft left (covers QL's several). Reminders
+  at receipt +1 h, +3 h and 18:00; from 15:00, +1 h and +2 h; received on a weekend, from
+  18:00 or before 8:00, counted from 8:00 of the next weekday. Each reminder checks the
+  proyecto is still en curso from the same receipt (the newest prospecto→en curso audit
+  row), so an undone and redone receipt only follows its own chain.
+- **D, resumen de perdidos** (`resumen_perdidos`). First weekday of the month at 9:00,
+  the proyectos lost the month before and still lost (by `lost_at`, Mexico City), value
+  before IVA; a month with none says so. One job per month queueing the next; 3 days
+  late sends nothing.
+
+**Avisos are self-service since 2026-11-14** (Gerry): each user turns their own channels
+and avisos on in Mi cuenta. `AdminOnly` kinds (`seguimiento_escalado`, F) are only offered
+to and only sent to admins. An admin can still edit anyone's on Usuarios → Avisos.
+
+Still to build from #69: E (factura draft ready: waits on #63), G (cobranza: waits on
+#63 and a due date). H is nothing for now.
 
 ## 4. Slices
 
@@ -256,7 +277,7 @@ Where N1 and N2 differ from the text above (2026-10-26):
 - **A manual retry of a failed job** gives it its 5 attempts again.
 - **No attachment column yet**: it comes with its first use, the factura resend (N5).
 - The users' contact fields are edited on **Mi cuenta → Avisos** and, by an admin, on
-  **Usuarios → Avisos**; since 2026-11-08 only an admin turns a channel on or off; Trabajos has an "Encolar trabajo de prueba" to check the runner.
+  **Usuarios → Avisos**; from 2026-11-08 to 2026-11-14 only an admin turned a channel on or off (now each user does); Trabajos has an "Encolar trabajo de prueba" to check the runner.
 
 ## 5. Not in this work
 

@@ -199,6 +199,14 @@ func (s *Store) ReceiveOC(ctx context.Context, projectID, userID int64, oc OC, f
 			return fmt.Errorf("store: receive OC of project %d: %w", projectID, err)
 		}
 	}
+	// Orden colocada 100%: the avisos about it (#69 C and F) start from a job queued with
+	// it, so they never go out for an O.C. that wasn't saved.
+	if status == StageProspecto {
+		if _, err := enqueueJob(ctx, tx, NewJob{Kind: AvisoOCJobKind,
+			Payload: fmt.Sprintf(`{"project_id":%d}`, projectID)}, time.Now()); err != nil {
+			return fmt.Errorf("store: receive OC of project %d: aviso: %w", projectID, err)
+		}
+	}
 	if file != nil {
 		if _, err := insertProjectFile(ctx, tx, projectID, userID, "oc", file); err != nil {
 			return fmt.Errorf("store: receive OC of project %d: file: %w", projectID, err)

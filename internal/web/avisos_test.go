@@ -57,15 +57,20 @@ func TestAvisos(t *testing.T) {
 	mux.Handle("GET /usuarios/{id}/avisos", a.RequireAuth(a.RequireAdmin(http.HandlerFunc(users.AvisosPage))))
 	mux.Handle("POST /usuarios/{id}/avisos", a.RequireAuth(a.RequireAdmin(http.HandlerFunc(users.Avisos))))
 
-	// A vendedor sees which avisos they get but can't turn them on or off.
+	// Each user chooses their own avisos (#69): a vendedor gets the toggles, without the
+	// ones only an admin may have.
 	body := serve(t, a, mux, ana, "GET", "/mi-cuenta", nil).Body.String()
-	for _, want := range []string{"Avisos", "Correo", "WhatsApp", "No recibes avisos.", "Solo un administrador puede cambiar qué avisos recibes.", "Guardar avisos"} {
+	for _, want := range []string{"Avisos", "Correo", "WhatsApp", "Recibir avisos por", `name="notify_email"`,
+		"Seguimiento vencido de sus proyectos", "Orden de compra del cliente recibida", "Resumen mensual de proyectos perdidos",
+		"Todos los avisos empiezan apagados: marca los que te sirvan.", "Guardar avisos"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("Mi cuenta missing %q", want)
 		}
 	}
-	if strings.Contains(body, `name="notify_email"`) {
-		t.Error("a vendedor's Mi cuenta offers the avisos toggles")
+	for _, gone := range []string{"Seguimientos vencidos del equipo", "Orden de compra al proveedor sin enviar"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("a vendedor's Mi cuenta offers %q", gone)
+		}
 	}
 
 	rec := serve(t, a, mux, ana, "POST", "/mi-cuenta/avisos", url.Values{
@@ -75,8 +80,8 @@ func TestAvisos(t *testing.T) {
 		t.Fatalf("save: %d %s", rec.Code, rec.Header().Get("Location"))
 	}
 	c, _ := a.store.UserContactByID(ctx, ana)
-	if c != (store.UserContact{Email: "ana@cladex.com.mx", WhatsApp: "+523312345678"}) {
-		t.Errorf("saved %+v; a vendedor's notify_email must be ignored", c)
+	if c != (store.UserContact{Email: "ana@cladex.com.mx", WhatsApp: "+523312345678", NotifyEmail: true}) {
+		t.Errorf("saved %+v", c)
 	}
 	body = serve(t, a, mux, ana, "GET", "/mi-cuenta?avisos=1", nil).Body.String()
 	if !strings.Contains(body, "Avisos guardados.") || !strings.Contains(body, `value="+523312345678"`) {
@@ -99,8 +104,8 @@ func TestAvisos(t *testing.T) {
 		t.Errorf("a refused form changed the saved Avisos: %+v", c2)
 	}
 
-	// An admin turns Ana's email avisos on; Ana's own saves keep them, and her clearing the
-	// address turns them off.
+	// An admin can still set them for her, e.g. to help her set them up; her own saves
+	// change them, and her clearing the address turns its avisos off.
 	if rec := serve(t, a, mux, beto, "GET", "/usuarios/1/avisos", nil); rec.Code != 200 || !strings.Contains(rec.Body.String(), "Avisos de ana") {
 		t.Errorf("admin page: %d", rec.Code)
 	}
@@ -123,12 +128,12 @@ func TestAvisos(t *testing.T) {
 	if c, _ := a.store.UserContactByID(ctx, ana); c != (store.UserContact{Email: "ana@example.com", NotifyEmail: true}) {
 		t.Errorf("after the admin's edit: %+v", c)
 	}
-	if body := serve(t, a, mux, ana, "GET", "/mi-cuenta", nil).Body.String(); !strings.Contains(body, "Recibes avisos por correo.") {
-		t.Error("Ana's Mi cuenta doesn't say she gets email avisos")
+	if body := serve(t, a, mux, ana, "GET", "/mi-cuenta", nil).Body.String(); !strings.Contains(body, `name="notify_email" value="1" checked`) {
+		t.Error("Ana's Mi cuenta doesn't show her email avisos on")
 	}
 	serve(t, a, mux, ana, "POST", "/mi-cuenta/avisos", url.Values{"email": {"ana@cladex.com.mx"}})
-	if c, _ := a.store.UserContactByID(ctx, ana); c != (store.UserContact{Email: "ana@cladex.com.mx", NotifyEmail: true}) {
-		t.Errorf("Ana's save without the toggle turned it off: %+v", c)
+	if c, _ := a.store.UserContactByID(ctx, ana); c != (store.UserContact{Email: "ana@cladex.com.mx"}) {
+		t.Errorf("Ana unticked Correo but it stays on: %+v", c)
 	}
 	serve(t, a, mux, ana, "POST", "/mi-cuenta/avisos", url.Values{"email": {""}})
 	if c, _ := a.store.UserContactByID(ctx, ana); c != (store.UserContact{}) {
@@ -140,7 +145,8 @@ func TestAvisos(t *testing.T) {
 		t.Error("an admin's Mi cuenta lacks the avisos toggles")
 	}
 
-	// Which avisos: an admin turns them on for Ana; Ana sees them but can't change them.
+	// Which avisos: an admin turns one on for Ana; Ana changes them herself, but can't turn
+	// on one only admins may have.
 	rec = serve(t, a, mux, beto, "POST", "/usuarios/1/avisos", url.Values{"email": {"ana@cladex.com.mx"}, "notify_email": {"1"},
 		"aviso": {store.AvisoSeguimientoVencido, "no_existe"}})
 	if rec.Code != http.StatusSeeOther {
@@ -153,12 +159,13 @@ func TestAvisos(t *testing.T) {
 		t.Error("the admin's page doesn't show Ana's aviso on")
 	}
 	body = serve(t, a, mux, ana, "GET", "/mi-cuenta", nil).Body.String()
-	if !strings.Contains(body, "Seguimiento vencido de sus proyectos") || strings.Contains(body, `name="aviso"`) {
-		t.Error("Ana's Mi cuenta should list her aviso without a checkbox")
+	if !strings.Contains(body, `name="aviso" value="seguimiento_vencido" checked`) {
+		t.Error("Ana's Mi cuenta doesn't show her aviso on")
 	}
-	serve(t, a, mux, ana, "POST", "/mi-cuenta/avisos", url.Values{"email": {"ana@cladex.com.mx"}, "aviso": {store.AvisoSeguimientoEscalado}})
-	if on, _ := a.store.UserAvisos(ctx, ana); len(on) != 1 || !on[store.AvisoSeguimientoVencido] {
-		t.Errorf("a vendedor changed her own avisos: %v", on)
+	serve(t, a, mux, ana, "POST", "/mi-cuenta/avisos", url.Values{"email": {"ana@cladex.com.mx"},
+		"aviso": {store.AvisoSeguimientoEscalado, store.AvisoOCRecibida}})
+	if on, _ := a.store.UserAvisos(ctx, ana); len(on) != 1 || !on[store.AvisoOCRecibida] {
+		t.Errorf("Ana's avisos after her own save: %v, want only %s", on, store.AvisoOCRecibida)
 	}
 	rec = serve(t, a, mux, beto, "POST", "/usuarios/1/avisos", url.Values{"email": {"ana@cladex.com.mx"}})
 	if on, _ := a.store.UserAvisos(ctx, ana); rec.Code != http.StatusSeeOther || len(on) != 0 {

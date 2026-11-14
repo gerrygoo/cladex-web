@@ -34,18 +34,14 @@ func normalizeWhatsApp(raw string) (string, bool) {
 }
 
 // parseContactForm reads the Avisos form, shared by Mi cuenta and an admin's edit of
-// another user. Errors key by the input's name. Only an admin turns avisos on or off: for
-// anyone else, saved carries the toggles as they are, and the form's are ignored. Their
-// clearing an address still turns its avisos off (SetUserContact).
-func parseContactForm(r *http.Request, saved *store.UserContact) (store.UserContact, map[string]string) {
+// another user. Errors key by the input's name. Each user turns their own channels and
+// avisos on or off (#69).
+func parseContactForm(r *http.Request) (store.UserContact, map[string]string) {
 	c := store.UserContact{
 		Email:          strings.TrimSpace(r.FormValue("email")),
 		WhatsApp:       strings.TrimSpace(r.FormValue("whatsapp")),
 		NotifyEmail:    r.FormValue("notify_email") == "1",
 		NotifyWhatsApp: r.FormValue("notify_whatsapp") == "1",
-	}
-	if saved != nil {
-		c.NotifyEmail, c.NotifyWhatsApp = saved.NotifyEmail, saved.NotifyWhatsApp
 	}
 	errs := map[string]string{}
 	if c.Email != "" {
@@ -61,9 +57,6 @@ func parseContactForm(r *http.Request, saved *store.UserContact) (store.UserCont
 			c.WhatsApp = n
 		}
 	}
-	if saved != nil {
-		return c, errs
-	}
 	if c.NotifyEmail && c.Email == "" {
 		errs["email"] = "Escribe el correo para recibir avisos por correo."
 	}
@@ -73,28 +66,14 @@ func parseContactForm(r *http.Request, saved *store.UserContact) (store.UserCont
 	return c, errs
 }
 
-// MiCuentaAvisos handles POST /mi-cuenta/avisos: where the user wants to be told things.
+// MiCuentaAvisos handles POST /mi-cuenta/avisos: where and about what the user wants to
+// be told. Avisos only an admin may have (store.AvisoKind.AdminOnly) are left as they are
+// for anyone else.
 func (a *Auth) MiCuentaAvisos(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user, _ := UserFromContext(ctx)
-	var saved *store.UserContact
-	if user.Role != "admin" {
-		s, err := a.store.UserContactByID(ctx, user.ID)
-		if err != nil {
-			serverError(w, r, err)
-			return
-		}
-		saved = &s
-	}
-	c, errs := parseContactForm(r, saved)
+	c, errs := parseContactForm(r)
 	kinds := avisosFromForm(r)
-	if saved != nil {
-		var err error
-		if kinds, err = a.store.UserAvisos(ctx, user.ID); err != nil {
-			serverError(w, r, err)
-			return
-		}
-	}
 	if len(errs) > 0 {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		views.MiCuenta(views.MiCuentaView{Contact: c, Avisos: kinds, ContactErrors: errs}, navUserView(user)).Render(ctx, w)
@@ -104,24 +83,22 @@ func (a *Auth) MiCuentaAvisos(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	if saved == nil {
-		if err := a.store.SetUserAvisos(ctx, user.ID, r.Form["aviso"]); err != nil {
-			serverError(w, r, err)
-			return
-		}
+	if err := a.store.SetUserAvisos(ctx, user.ID, user.Role, r.Form["aviso"]); err != nil {
+		serverError(w, r, err)
+		return
 	}
 	http.Redirect(w, r, "/mi-cuenta?avisos=1#avisos", http.StatusSeeOther)
 }
 
 // AvisosPage handles GET /usuarios/{id}/avisos: an admin edits another user's Avisos, as
-// they would their own.
+// they would their own, e.g. to help someone set them up.
 func (u *Users) AvisosPage(w http.ResponseWriter, r *http.Request) {
 	u.renderAvisos(w, r, nil, nil, nil)
 }
 
 // Avisos handles POST /usuarios/{id}/avisos.
 func (u *Users) Avisos(w http.ResponseWriter, r *http.Request) {
-	c, errs := parseContactForm(r, nil)
+	c, errs := parseContactForm(r)
 	if len(errs) > 0 {
 		u.renderAvisos(w, r, &c, avisosFromForm(r), errs)
 		return
@@ -140,7 +117,7 @@ func (u *Users) Avisos(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	if err := u.store.SetUserAvisos(r.Context(), id, r.Form["aviso"]); err != nil {
+	if err := u.store.SetUserAvisos(r.Context(), id, target.Role, r.Form["aviso"]); err != nil {
 		serverError(w, r, err)
 		return
 	}

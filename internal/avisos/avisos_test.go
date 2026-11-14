@@ -90,7 +90,7 @@ func newFixture(t *testing.T) *fixture {
 		if err := s.SetUserContact(ctx, id, store.UserContact{Email: username + "@cladex.com.mx", NotifyEmail: email}); err != nil {
 			t.Fatal(err)
 		}
-		if err := s.SetUserAvisos(ctx, id, []string{kind}); err != nil {
+		if err := s.SetUserAvisos(ctx, id, role, []string{kind}); err != nil {
 			t.Fatal(err)
 		}
 		return id
@@ -235,7 +235,7 @@ func TestSeguimientoStops(t *testing.T) {
 
 	// So does Ana's turning her aviso off, or the proyecto leaving prospecto.
 	g := newFixture(t)
-	g.s.SetUserAvisos(context.Background(), g.ana, nil)
+	g.s.SetUserAvisos(context.Background(), g.ana, store.RoleVendedor, nil)
 	if _, got := g.run(t, "2026-11-12T09:00", 0); len(got) != 0 {
 		t.Errorf("with the aviso off: %v", got)
 	}

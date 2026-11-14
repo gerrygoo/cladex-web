@@ -13,12 +13,30 @@ func TestUserAvisos(t *testing.T) {
 	beto, _ := s.CreateUser(ctx, "beto", "Beto", "hash", "vendedor")
 	ctxAdmin := WithActor(ctx, Actor{UserID: beto, Source: "web"})
 
-	if err := s.SetUserAvisos(ctxAdmin, ana, []string{AvisoSeguimientoVencido, "no_existe"}); err != nil {
+	if err := s.SetUserAvisos(ctxAdmin, ana, RoleVendedor, []string{AvisoSeguimientoVencido, "no_existe"}); err != nil {
 		t.Fatal(err)
 	}
-	s.SetUserAvisos(ctx, beto, []string{AvisoSeguimientoVencido, AvisoSeguimientoEscalado})
+	// A vendedor can't turn on an aviso only admins may have (#69).
+	s.SetUserAvisos(ctx, beto, RoleVendedor, []string{AvisoSeguimientoVencido, AvisoSeguimientoEscalado})
 	if on, _ := s.UserAvisos(ctx, ana); len(on) != 1 || !on[AvisoSeguimientoVencido] {
 		t.Errorf("Ana's avisos: %v", on)
+	}
+	if on, _ := s.UserAvisos(ctx, beto); on[AvisoSeguimientoEscalado] {
+		t.Errorf("a vendedor turned on %s", AvisoSeguimientoEscalado)
+	}
+	// One an admin turned on for someone, as admin, stays when they save their own, and
+	// only reaches them while they are an admin.
+	s.SetUserAvisos(ctx, beto, RoleAdmin, []string{AvisoSeguimientoVencido, AvisoSeguimientoEscalado})
+	s.SetUserAvisos(ctx, beto, RoleVendedor, []string{AvisoSeguimientoVencido})
+	if on, _ := s.UserAvisos(ctx, beto); !on[AvisoSeguimientoEscalado] {
+		t.Error("a vendedor's save turned off an admin-only aviso")
+	}
+	if rs, _ := s.AvisoRecipients(ctx, AvisoSeguimientoEscalado); len(rs) != 0 {
+		t.Errorf("an admin-only aviso reaches a vendedor: %+v", rs)
+	}
+	s.db.ExecContext(ctx, `UPDATE users SET role = 'admin' WHERE id = ?`, beto)
+	if rs, _ := s.AvisoRecipients(ctx, AvisoSeguimientoEscalado); len(rs) != 1 {
+		t.Errorf("an admin-only aviso doesn't reach an admin: %+v", rs)
 	}
 	rs, _ := s.AvisoRecipients(ctx, AvisoSeguimientoVencido)
 	if len(rs) != 2 || rs[0].Name != "Ana" {
@@ -32,7 +50,7 @@ func TestUserAvisos(t *testing.T) {
 		t.Errorf("recipients with Ana disabled: %+v", rs)
 	}
 	// Turning one off is audited, with who did it.
-	s.SetUserAvisos(ctxAdmin, ana, nil)
+	s.SetUserAvisos(ctxAdmin, ana, RoleVendedor, nil)
 	var actor int64
 	if err := s.db.QueryRowContext(ctx, `SELECT actor_id FROM audit_log WHERE table_name = 'user_avisos' AND op = 'delete'`).Scan(&actor); err != nil || actor != beto {
 		t.Errorf("audit of the removal: actor %d, %v", actor, err)

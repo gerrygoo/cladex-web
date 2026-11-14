@@ -11,4 +11,7 @@ func init() {
 		notificationKindLabels[k.Key] = k.Label
 	}
 	jobKindLabels[avisos.JobKind] = "Ronda de avisos de seguimiento"
+	jobKindLabels[avisos.OCJobKind] = "Avisos de O.C. del cliente recibida"
+	jobKindLabels[avisos.SupplierJobKind] = "Recordatorio de O.C. al proveedor sin enviar"
+	jobKindLabels[avisos.PerdidosJobKind] = "Resumen mensual de proyectos perdidos"
 }
