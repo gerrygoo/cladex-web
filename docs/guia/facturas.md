@@ -6,9 +6,9 @@ no se edita, solo se cancela o se sustituye. Crear, timbrar y cancelar facturas 
 para administradores**; cualquier usuario puede verlas y descargarlas desde su proyecto o
 desde la tabla de **Proyectos → Facturas**.
 
-Mientras la facturación no esté configurada en el servidor, el proyecto sigue pidiendo el
-folio de la factura escrito a mano, como hasta ahora ([Registrar la
-factura](proyectos.md#registrar-la-factura)).
+Una factura hecha fuera de la app (por ejemplo, en el portal de Facturoporti) se registra
+subiendo su XML: ver [Registrar la factura](proyectos.md#registrar-la-factura). Es la forma
+de facturar mientras la app no timbre, y queda siempre como respaldo.
 
 ## La tabla de Facturas
 

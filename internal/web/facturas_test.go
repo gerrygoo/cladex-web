@@ -1,7 +1,10 @@
 package web
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,6 +16,7 @@ import (
 
 	"github.com/gerrygoo/cladex-web/internal/facturacion"
 	"github.com/gerrygoo/cladex-web/internal/facturoporti"
+	"github.com/gerrygoo/cladex-web/internal/money"
 	"github.com/gerrygoo/cladex-web/internal/store"
 	"github.com/gerrygoo/cladex-web/internal/views"
 )
@@ -87,8 +91,8 @@ func TestFacturacionEndToEnd(t *testing.T) {
 	projectPage := func() string {
 		return doForm(t, a, admin, p.Page, "GET", "/proyectos/"+folio, map[string]string{"folio": folio}, nil, false).Body.String()
 	}
-	if body := projectPage(); !strings.Contains(body, "Crear factura") || strings.Contains(body, "Registrar la factura") {
-		t.Fatalf("project page should offer Crear factura instead of the typed form")
+	if body := projectPage(); !strings.Contains(body, "Crear factura") || !strings.Contains(body, "Registrar una factura hecha fuera de la app") {
+		t.Fatalf("project page should offer Crear factura and the manual factura")
 	}
 	post := func(userID int64, h http.HandlerFunc, path string, pv map[string]string, form url.Values) *httptest.ResponseRecorder {
 		t.Helper()
@@ -315,7 +319,7 @@ func TestFacturacionCancelPending(t *testing.T) {
 	}
 }
 
-// With facturación off, the proyecto keeps the typed factura form, and stamping refuses.
+// With facturación off, the proyecto offers only the manual factura, and stamping refuses.
 func TestFacturacionOff(t *testing.T) {
 	a := newTestAuth(t)
 	admin := createTestUser(t, a, "gerry", "admin", "hunter2")
@@ -323,8 +327,8 @@ func TestFacturacionOff(t *testing.T) {
 	p := NewProjects(a.store)
 	p.fact = facturacion.New(a.store, nil, facturoporti.Status{Sandbox: true, Problem: "no está configurada"})
 	body := doForm(t, a, admin, p.Page, "GET", "/proyectos/"+folio, map[string]string{"folio": folio}, nil, false).Body.String()
-	if !strings.Contains(body, "Registrar la factura") || strings.Contains(body, "Crear factura") {
-		t.Error("facturación off should keep the typed form")
+	if !strings.Contains(body, "Registrar una factura hecha fuera de la app") || strings.Contains(body, "Crear factura") {
+		t.Error("facturación off should offer only the manual factura")
 	}
 	if _, err := p.fact.Stamp(context.Background(), 1, admin); err == nil || !strings.Contains(err.Error(), "apagada") {
 		t.Errorf("Stamp with facturación off = %v", err)
@@ -503,5 +507,180 @@ func TestFacturasTable(t *testing.T) {
 	}
 	if body := list("f.estado=facturada"); !strings.Contains(body, `id="p-`+folio+`"`) || !strings.Contains(body, c.UUID) {
 		t.Error("the Facturada filter misses the stamped proyecto or its folio fiscal")
+	}
+}
+
+// testCFDI is a minimal stamped CFDI 4.0 factura as the PAC's portal would give it, for
+// recording by hand.
+func testCFDI(uuid, metodo string, total money.Centavos, rfc string) []byte {
+	sub := money.Centavos(int64(total) * 100 / 116)
+	amt := func(c money.Centavos) string { return fmt.Sprintf("%d.%02d", int64(c)/100, int64(c)%100) }
+	forma := "03"
+	if metodo == "PPD" {
+		forma = "99"
+	}
+	return []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" Version="4.0" Serie="A" Folio="153" Fecha="2026-11-12T10:00:00" FormaPago="` + forma + `" SubTotal="` + amt(sub) + `" Moneda="MXN" Total="` + amt(total) + `" TipoDeComprobante="I" Exportacion="01" MetodoPago="` + metodo + `" LugarExpedicion="64000" Sello="abcdefghijkl" NoCertificado="00001000000500000000">
+  <cfdi:Emisor Rfc="CLA010101AAA" Nombre="CLADEX" RegimenFiscal="601"/>
+  <cfdi:Receptor Rfc="` + rfc + `" Nombre="INDISTRIA ILUMINADORA DE ALMACENES" DomicilioFiscalReceptor="62661" RegimenFiscalReceptor="601" UsoCFDI="G01"/>
+  <cfdi:Conceptos>
+    <cfdi:Concepto ClaveProdServ="26121600" Cantidad="100" ClaveUnidad="MTR" Unidad="Metro" Descripcion="Cable THW 14" ValorUnitario="1.00" Importe="` + amt(sub) + `" ObjetoImp="02"/>
+  </cfdi:Conceptos>
+  <cfdi:Impuestos TotalImpuestosTrasladados="` + amt(total-sub) + `"/>
+  <cfdi:Complemento>
+    <tfd:TimbreFiscalDigital Version="1.1" UUID="` + uuid + `" FechaTimbrado="2026-11-12T10:01:00" RfcProvCertif="SPR190613I52" SelloCFD="abc" NoCertificadoSAT="00001000000505142236" SelloSAT="def"/>
+  </cfdi:Complemento>
+</cfdi:Comprobante>`)
+}
+
+// recordTestFactura records a manual factura for the proyecto's whole total, to the
+// fixtures' customer RFC; P.U.E. ones paid on 2026-11-10.
+func recordTestFactura(t *testing.T, a *Auth, userID int64, folio, metodo string) int64 {
+	t.Helper()
+	ctx := context.Background()
+	project, _ := a.store.ProjectByFolio(ctx, folio)
+	m := store.ManualFactura{XML: testCFDI("11111111-2222-3333-4444-"+fmt.Sprintf("%012d", project.ID), metodo, project.Total, "IIA040805DZ4")}
+	if metodo == "PUE" {
+		m.PaidOn = "2026-11-10"
+	}
+	id, err := a.store.RecordManualFactura(ctx, project.ID, userID, m)
+	if err != nil {
+		t.Fatalf("RecordManualFactura: %v", err)
+	}
+	return id
+}
+
+// postManual uploads a factura made outside the app to the proyecto.
+func postManual(t *testing.T, a *Auth, f *Facturas, userID int64, folio string, fields map[string]string, xmlData, pdfData []byte) *httptest.ResponseRecorder {
+	t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	for k, v := range fields {
+		mw.WriteField(k, v)
+	}
+	if xmlData != nil {
+		fw, _ := mw.CreateFormFile("xml", "A-153.xml")
+		fw.Write(xmlData)
+	}
+	if pdfData != nil {
+		fw, _ := mw.CreateFormFile("pdf", "A-153.pdf")
+		fw.Write(pdfData)
+	}
+	mw.Close()
+	req := httptest.NewRequest("POST", "/proyectos/"+folio+"/factura/manual", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.SetPathValue("folio", folio)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: mustSessionToken(t, a, userID)})
+	rec := httptest.NewRecorder()
+	a.RequireAuth(http.HandlerFunc(f.Manual)).ServeHTTP(rec, req)
+	return rec
+}
+
+// #63's manual mode: a factura issued in the PAC's portal is recorded from its XML. P.U.E.
+// needs the payment confirmed and records it in Cobro; P.P.D. leaves the complemento
+// pending; what doesn't match the proyecto is warned about; marking it cancelled puts
+// Facturación back to Pendiente and keeps the payment.
+func TestManualFactura(t *testing.T) {
+	a := newTestAuth(t)
+	ctx := context.Background()
+	admin := createTestUser(t, a, "gerry", "admin", "hunter2")
+	f := NewFacturas(a.store, facturacion.New(a.store, nil, facturoporti.Status{Sandbox: true, Problem: "no está configurada"}), nil)
+	folio := facturaFixture(t, a, admin)
+	project, _ := a.store.ProjectByFolio(ctx, folio)
+	pdfData := []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")
+	const uuid = "ABCDEF01-2222-3333-4444-555555555555"
+	pue := testCFDI(strings.ToLower(uuid), "PUE", project.Total, "IIA040805DZ4")
+
+	for name, c := range map[string]struct {
+		fields map[string]string
+		xml    []byte
+		want   string
+	}{
+		"no xml":           {nil, nil, "es obligatorio"},
+		"not a cfdi":       {nil, []byte("<?xml version=\"1.0\"?><nota/>"), "no es un CFDI timbrado"},
+		"pdf as xml":       {nil, pdfData, "debe ser su XML"},
+		"PUE without paid": {nil, pue, "confirma que ya se cobró"},
+		"PUE future paid":  {map[string]string{"cobrado": "si", "fecha_pago": "2999-01-01"}, pue, "no puede ser futura"},
+	} {
+		if rec := postManual(t, a, f, admin, folio, c.fields, c.xml, nil); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), c.want) {
+			t.Errorf("Manual(%s) = %d %q, want 400 with %q", name, rec.Code, rec.Body.String(), c.want)
+		}
+	}
+
+	// P.U.E., paid: Facturada and Pagado, with its PDF.
+	rec := postManual(t, a, f, admin, folio, map[string]string{"cobrado": "si", "fecha_pago": "2026-11-10"}, pue, pdfData)
+	if rec.Code != http.StatusSeeOther || !strings.HasSuffix(rec.Header().Get("Location"), "?ok=registrada") {
+		t.Fatalf("Manual(PUE) = %d: %s", rec.Code, rec.Body.String())
+	}
+	id := strings.TrimSuffix(strings.TrimPrefix(rec.Header().Get("Location"), "/facturas/"), "?ok=registrada")
+	project, _ = a.store.ProjectByFolio(ctx, folio)
+	if project.States.Facturacion != store.FacturacionFacturada || project.States.Cobro != store.CobroPagado {
+		t.Errorf("after a P.U.E. manual factura: %+v", project.States)
+	}
+	if !strings.HasPrefix(project.LastBody, "Pagado el 10/11/2026 · Factura A-153 registrada (PUE, emitida el 12/11/2026) · Folio fiscal "+uuid) {
+		t.Errorf("history = %q", project.LastBody)
+	}
+	payments, _ := a.store.ListPayments(ctx, project.ID)
+	if len(payments) != 1 || payments[0].Source != store.PaymentSourceFactura || payments[0].Amount != project.Total || payments[0].PaidOn != "2026-11-10" {
+		t.Errorf("payments = %+v", payments)
+	}
+	page := doForm(t, a, admin, f.Page, "GET", "/facturas/"+id+"?ok=registrada", map[string]string{"id": id}, nil, false).Body.String()
+	for _, want := range []string{"Factura A-153", uuid, "fuera de la app, registrada a mano", "Factura registrada.", "Cable THW 14",
+		"/archivos/", "Ver representación impresa", "Descargar XML", "Marcar como cancelada", "Registrada a mano con su XML"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("manual factura page missing %q", want)
+		}
+	}
+	if strings.Contains(page, "Revisa la factura") || strings.Contains(page, "Cancelar ante el SAT") || strings.Contains(page, "Crear factura que la sustituye") {
+		t.Error("a matching manual factura shows warnings or the PAC's actions")
+	}
+	if r := doForm(t, a, admin, f.PDF, "GET", "/facturas/"+id+"/pdf", map[string]string{"id": id}, nil, false); r.Code != http.StatusOK || r.Header().Get("Content-Type") != "application/pdf" {
+		t.Errorf("printed PDF = %d %s", r.Code, r.Header().Get("Content-Type"))
+	}
+	if list := doForm(t, a, admin, f.List, "GET", "/facturas", nil, nil, false).Body.String(); !strings.Contains(list, `href="/facturas/`+id+`"`) {
+		t.Error("the Facturas table doesn't link the manual factura")
+	}
+	// A second factura while one is in force is refused.
+	if rec := postManual(t, a, f, admin, folio, map[string]string{"cobrado": "si", "fecha_pago": "2026-11-10"}, pue, nil); rec.Code != http.StatusConflict {
+		t.Errorf("Manual(twice) = %d, want 409", rec.Code)
+	}
+
+	// Marking it cancelled: motivo and why are required; then Pendiente, payment kept.
+	pv := map[string]string{"id": id}
+	if rec := doForm(t, a, admin, f.CancelarManual, "POST", "/facturas/"+id+"/cancelar-manual", pv, url.Values{"motivo": {"02"}}, false); rec.Code != http.StatusBadRequest {
+		t.Errorf("CancelarManual(no nota) = %d, want 400", rec.Code)
+	}
+	if rec := doForm(t, a, admin, f.CancelarManual, "POST", "/facturas/"+id+"/cancelar-manual", pv, url.Values{"motivo": {"02"}, "nota": {"RFC equivocado"}}, false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("CancelarManual = %d: %s", rec.Code, rec.Body.String())
+	}
+	project, _ = a.store.ProjectByFolio(ctx, folio)
+	if project.States.Facturacion != store.FacturacionPendiente || project.States.Cobro != store.CobroPagado ||
+		!strings.Contains(project.LastBody, "marcada como cancelada") || !strings.Contains(project.LastBody, "RFC equivocado") {
+		t.Errorf("after cancelling: %+v %q", project.States, project.LastBody)
+	}
+
+	// Its replacement, P.P.D. to another RFC: Pendiente complemento, warned, no payment.
+	ppd := testCFDI("99999999-2222-3333-4444-555555555555", "PPD", project.Total+100, "XAXX010101000")
+	rec = postManual(t, a, f, admin, folio, nil, ppd, nil)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("Manual(PPD) = %d: %s", rec.Code, rec.Body.String())
+	}
+	id = strings.TrimSuffix(strings.TrimPrefix(rec.Header().Get("Location"), "/facturas/"), "?ok=registrada")
+	project, _ = a.store.ProjectByFolio(ctx, folio)
+	if project.States.Facturacion != store.FacturacionPendienteComplemento {
+		t.Errorf("after a P.P.D. manual factura: %+v", project.States)
+	}
+	if payments, _ := a.store.ListPayments(ctx, project.ID); len(payments) != 1 {
+		t.Errorf("a P.P.D. factura recorded a payment: %+v", payments)
+	}
+	page = doForm(t, a, admin, f.Page, "GET", "/facturas/"+id, map[string]string{"id": id}, nil, false).Body.String()
+	for _, want := range []string{"Revisa la factura", "no coincide con el total con IVA de la cotización", "El RFC de la factura (XAXX010101000) no coincide"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("mismatched manual factura page missing %q", want)
+		}
+	}
+	// The same XML can't be recorded twice, even on another proyecto.
+	if _, err := a.store.RecordManualFactura(ctx, project.ID, admin, store.ManualFactura{XML: pue, PaidOn: "2026-11-10"}); err == nil {
+		t.Error("recorded a factura already on record")
 	}
 }

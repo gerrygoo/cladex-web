@@ -296,3 +296,32 @@ Choices made beyond the issue (smallest sensible, recorded here):
   summary's order (facturación, entrega, cobro), rather than "al final" as the issue says.
 - `static/app.js`'s Sí/No file toggle is shared: `data-comprobante-form` /
   `data-comprobante-file` on both Registrar pago and Marcar como entregado.
+
+## Built 2026-11-14: #63 Facturas, table and manual mode
+
+**Table** (`store.ListBilling`, `/facturas`): every proyecto en curso (Cerrado · Ganado
+included) with its Estado de facturación, in Pronóstico's style; it replaces the list of
+comprobantes, which still open from the proyecto or the folio fiscal. Días pendiente counts
+from the O.C.'s date while Facturación is Pendiente.
+
+**Manual mode** (migration `0044_facturas_manuales.sql`, exclusive: it rebuilds
+`project_files` so `kind` gains `factura` and `complemento`): `comprobantes.origen`
+(`timbrado` / `manual`), `ext_folio` (the XML's serie-folio; the app's own serie/folio stay
+NULL so the portal's numbering never collides with its sequence) and `pdf_file_id`.
+`store.RecordManualFactura` reads UUID, tipo I, PUE/PPD, moneda, amounts, uso and forma
+from the XML and inserts a `timbrada` comprobante, so the view, blockers and screens work
+unchanged. Choices beyond the issue:
+
+- **Admin only**, as #63 says. The typed-folio form (which any user could submit) is gone;
+  proyectos with a typed `invoice_ref` keep counting as Facturada.
+- **Mismatches warn, they don't block**: the XML is what the SAT has. The factura page shows
+  "Revisa la factura" when its total differs from the quote's or its RFC from the
+  customer's; the fix is cancel + record the right one.
+- **P.U.E.'s payment is what is still owed**, up to the factura's total, so an anticipo
+  recorded by hand isn't counted twice; none if nothing is owed.
+- **Marking cancelled** (`CancelManualFactura`): SAT motivo plus a required note, blocked
+  while a complemento is in force; payments stay.
+- **One factura in force per proyecto** still: a PAC draft in the works blocks recording a
+  manual one (and vice versa).
+- The printed PDF renders from the XML as for stamped ones; the uploaded PDF, if any, is a
+  separate download.

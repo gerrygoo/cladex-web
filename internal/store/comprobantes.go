@@ -85,14 +85,26 @@ type Comprobante struct {
 	CreatedByName     string
 	CreatedAt         string
 	UpdatedAt         string
+	// Origen is OrigenTimbrado (stamped by the app) or OrigenManual (issued outside it,
+	// its XML uploaded, #63). ExtFolio is a manual one's serie and folio from its XML, and
+	// PDFFileID the PDF uploaded with it (a project_files row), 0 when none.
+	Origen    string
+	ExtFolio  string
+	PDFFileID int64
+	// QuoteTotal is the total of the quote it bills, with IVA.
+	QuoteTotal money.Centavos
 	// Customer is the receptor, read live from the customer while the comprobante is a
 	// draft (the stamped XML is what counts after).
 	Customer  Customer
 	Conceptos []ComprobanteConcepto
 }
 
-// SerieFolio is how a comprobante is named: "F-12", or "" before its first validation.
+// SerieFolio is how a comprobante is named: "F-12", or "" before its first validation. A
+// manual one goes by its XML's serie and folio.
 func (c Comprobante) SerieFolio() string {
+	if c.Origen == OrigenManual {
+		return c.ExtFolio
+	}
 	if c.Folio == 0 {
 		return ""
 	}
@@ -135,7 +147,8 @@ const comprobanteCols = `
 	COALESCE(c.sandbox, 0), COALESCE(c.error, ''), COALESCE(c.uuid, ''), COALESCE(c.xml, ''),
 	COALESCE(c.stamped_at, ''), COALESCE(c.email_sent, 0), COALESCE(c.cancel_motivo, ''),
 	COALESCE(c.cancel_sustitucion, ''), COALESCE(c.cancel_acuse, ''), COALESCE(c.cancelled_at, ''),
-	u.name, c.created_at, c.updated_at, p.customer_id`
+	u.name, c.created_at, c.updated_at, c.origen, COALESCE(c.ext_folio, ''), COALESCE(c.pdf_file_id, 0),
+	COALESCE(q.total, 0), p.customer_id`
 
 const comprobanteFrom = `
 	FROM comprobantes c
@@ -151,7 +164,8 @@ func scanComprobante(row interface{ Scan(...any) error }) (*Comprobante, error) 
 		&c.RelatedID, &c.Status, &c.Serie, &c.Folio, &c.UsoCFDI, &c.MetodoPago, &c.FormaPago, &c.Moneda,
 		&tc, &c.Recipients, &c.PagoFecha, &c.Subtotal, &c.IVA, &c.Total, &c.Request, &c.RequestSHA256,
 		&sandbox, &c.Error, &c.UUID, &c.XML, &c.StampedAt, &email, &c.CancelMotivo, &c.CancelSustitucion,
-		&c.CancelAcuse, &c.CancelledAt, &c.CreatedByName, &c.CreatedAt, &c.UpdatedAt, &c.Customer.ID)
+		&c.CancelAcuse, &c.CancelledAt, &c.CreatedByName, &c.CreatedAt, &c.UpdatedAt,
+		&c.Origen, &c.ExtFolio, &c.PDFFileID, &c.QuoteTotal, &c.Customer.ID)
 	if err != nil {
 		return nil, err
 	}

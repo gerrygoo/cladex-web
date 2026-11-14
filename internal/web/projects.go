@@ -556,57 +556,6 @@ func (p *Projects) Archivo(w http.ResponseWriter, r *http.Request) {
 	serveUploadedFile(w, r, file.Filename, file.ContentType, data)
 }
 
-// documentForm reads a hand-typed fiscal document from a form: "folio" and "fecha" (a
-// day), both required. It returns a message when either is missing or malformed.
-func documentForm(r *http.Request) (store.Document, string) {
-	d := store.Document{Ref: strings.TrimSpace(r.FormValue("folio")), Date: strings.TrimSpace(r.FormValue("fecha"))}
-	if d.Ref == "" || utf8.RuneCountInString(d.Ref) > 100 {
-		return d, "escribe el folio, de no más de 100 caracteres"
-	}
-	if _, err := time.Parse("2006-01-02", d.Date); err != nil {
-		return d, "escribe la fecha"
-	}
-	return d, ""
-}
-
-// Factura handles POST /proyectos/{folio}/factura: puts the purchase order's factura on
-// record, typed in ("folio", "fecha", "metodo_pago" PUE or PPD, optional "note"), which
-// makes the proyecto's Estado de facturación Facturada. It records no payment: that is
-// Registrar pago (Pagos). Any signed-in user can, while the proyecto is en curso without
-// a factura.
-func (p *Projects) Factura(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	project := p.loadProjectOrNotFound(w, r)
-	if project == nil {
-		return
-	}
-	note := strings.TrimSpace(r.FormValue("note"))
-	if utf8.RuneCountInString(note) > maxCommentLen {
-		http.Error(w, "el comentario no puede pasar de 2000 caracteres", http.StatusBadRequest)
-		return
-	}
-	invoice, msg := documentForm(r)
-	if msg != "" {
-		http.Error(w, msg, http.StatusBadRequest)
-		return
-	}
-	method := r.FormValue("metodo_pago")
-	if store.PaymentMethodLabels[method] == "" {
-		http.Error(w, "elige el método de pago: P.U.E. o P.P.D.", http.StatusBadRequest)
-		return
-	}
-	user, _ := UserFromContext(ctx)
-	if err := p.store.RecordInvoice(ctx, project.ID, user.ID, invoice, method, note); err != nil {
-		if errors.Is(err, store.ErrBadTransition) {
-			http.Error(w, "la factura solo se registra en un proyecto En curso con su orden de compra capturada y sin otra factura", http.StatusConflict)
-			return
-		}
-		serverError(w, r, err)
-		return
-	}
-	http.Redirect(w, r, "/proyectos/"+project.Folio+"#facturacion", http.StatusSeeOther)
-}
-
 // Pagos handles POST /proyectos/{folio}/pagos: "Registrar pago" (#67), a payment the
 // client made toward an en curso proyecto. "fecha" is the day it came in (required, not
 // after the viewer's today), "monto" the amount with IVA (required, more than $0 and no

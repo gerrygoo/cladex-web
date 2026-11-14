@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -35,12 +36,6 @@ func receiveOC(t *testing.T, a *Auth, p *Projects, userID int64, folio, note str
 		fields[k] = v[0]
 	}
 	return postOC(t, a, p, userID, folio, fields, "oc.pdf", []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n"))
-}
-
-// testInvoiceForm is a complete factura form, P.U.E., so posting it also leaves the
-// proyecto pagado.
-func testInvoiceForm() url.Values {
-	return url.Values{"folio": {"F-1001"}, "fecha": {"2026-10-08"}, "metodo_pago": {"PUE"}}
 }
 
 // issueTestQuote creates a QA draft with one catalog line and issues it through the
@@ -238,7 +233,7 @@ func TestProjectsFollowUp(t *testing.T) {
 	// With the purchase order in: en curso, its three states in the summary right under
 	// Margen (#66, #67), no probability to pick, and the quote can't be revised.
 	body = page(ana)
-	for _, want := range []string{"En curso", "Registrar factura", "Pasó a En curso.", "OC 4411",
+	for _, want := range []string{"En curso", "Un administrador registra la factura.", "Pasó a En curso.", "OC 4411",
 		"Orden colocada", "Orden de compra recibida", "<dt>Registró</dt><dd>ana · ",
 		"<dt>Estado de facturación</dt><dd>Pendiente</dd>", "<dt>Estado de entrega</dt><dd>Sin emitir O.C.",
 		"<dt>Estado de cobro</dt><dd>Pendiente de pago",
@@ -351,9 +346,7 @@ func TestProjectsFollowUp(t *testing.T) {
 	}
 
 	// With a factura on record the O.C. can't be undone; the page says so instead.
-	if rec := doForm(t, a, ana, p.Factura, "POST", base+"/factura", pv, testInvoiceForm(), false); rec.Code != http.StatusSeeOther {
-		t.Fatalf("Factura status = %d; body = %s", rec.Code, rec.Body.String())
-	}
+	recordTestFactura(t, a, ana, folio, "PUE")
 	if body := page(beto); !strings.Contains(body, "No se puede deshacer: el proyecto ya tiene factura.") ||
 		!strings.Contains(body, "<dt>Estado de facturación</dt><dd>Facturada</dd>") {
 		t.Error("an invoiced proyecto still offers undoing its O.C., or isn't Facturada")
@@ -857,7 +850,7 @@ func TestProjectsReceiveOC(t *testing.T) {
 	}
 	body = page()
 	for _, want := range []string{"En curso", "Orden de compra recibida", "<dd>4411</dd>", "07/10/2026",
-		"OC 4411.pdf", "Descargar", "<dt>Registró</dt><dd>ana · ", "Corregir la orden de compra", "Guardar O.C.", "Registrar la factura",
+		"OC 4411.pdf", "Descargar", "<dt>Registró</dt><dd>ana · ", "Corregir la orden de compra", "Guardar O.C.", "Un administrador registra la factura.",
 		"O.C. 4411 · 07/10/2026", "Archivo de la O.C.: OC 4411.pdf", "Llegó por correo"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("oc_recibida page missing %q", want)
@@ -920,9 +913,7 @@ func TestProjectsReceiveOC(t *testing.T) {
 	}
 
 	// Once it is invoiced the purchase order is shown but closed.
-	if rec := doForm(t, a, ana, p.Factura, "POST", "/proyectos/"+folio+"/factura", pv, testInvoiceForm(), false); rec.Code != http.StatusSeeOther {
-		t.Fatalf("Factura status = %d; body = %s", rec.Code, rec.Body.String())
-	}
+	recordTestFactura(t, a, ana, folio, "PUE")
 	body = page()
 	if !strings.Contains(body, "Orden de compra recibida") || strings.Contains(body, "Guardar O.C.") {
 		t.Error("an invoiced proyecto doesn't show its purchase order, or still lets it be edited")
@@ -972,30 +963,23 @@ func TestProjectsLegacyOCRecibida(t *testing.T) {
 	if strings.Contains(body, "Facturación y pago") {
 		t.Error("a proyecto with no purchase order on record offers invoicing")
 	}
-	invoice := func() *httptest.ResponseRecorder {
-		return doForm(t, a, ana, p.Factura, "POST", "/proyectos/"+folio+"/factura", pv, testInvoiceForm(), false)
+	project, _ := a.store.ProjectByFolio(context.Background(), folio)
+	invoice := func() error {
+		_, err := a.store.RecordManualFactura(context.Background(), project.ID, ana, store.ManualFactura{
+			XML: testCFDI("AAAAAAAA-2222-3333-4444-555555555555", "PUE", project.Total, "IIA040805DZ4"), PaidOn: "2026-11-10"})
+		return err
 	}
-	if rec := invoice(); rec.Code != http.StatusConflict {
-		t.Errorf("Factura without O.C. status = %d, want 409", rec.Code)
+	if err := invoice(); !errors.Is(err, store.ErrBadTransition) {
+		t.Errorf("factura without O.C. = %v, want ErrBadTransition", err)
 	}
 	if rec := receiveOC(t, a, p, ana, folio, ""); rec.Code != http.StatusSeeOther {
 		t.Fatalf("OC status = %d; body = %s", rec.Code, rec.Body.String())
 	}
-	// A método de pago chosen when the order was received, before issue #61, is kept and
-	// comes picked in the factura's form.
-	if _, err := raw.Exec(`UPDATE projects SET payment_method = 'PPD' WHERE folio = ?`, folio); err != nil {
-		t.Fatalf("seed método: %v", err)
+	if err := invoice(); err != nil {
+		t.Errorf("factura with O.C. = %v", err)
 	}
-	body = doForm(t, a, ana, p.Page, "GET", "/proyectos/"+folio, pv, nil, false).Body.String()
-	if !strings.Contains(body, `name="metodo_pago" value="PPD" checked required`) || strings.Contains(body, `value="PUE" checked`) {
-		t.Error("the stored método de pago is not the factura form's starting choice")
-	}
-	if rec := invoice(); rec.Code != http.StatusSeeOther {
-		t.Errorf("Factura with O.C. status = %d", rec.Code)
-	}
-	// The método sent with the factura is the one that counts.
-	if project, _ := a.store.ProjectByFolio(context.Background(), folio); project.PaymentMethod != "PUE" || project.States.Facturacion != store.FacturacionFacturada {
-		t.Errorf("after a P.U.E. factura = %+v", project)
+	if project, _ := a.store.ProjectByFolio(context.Background(), folio); project.States.Facturacion != store.FacturacionFacturada {
+		t.Errorf("after a P.U.E. factura = %+v", project.States)
 	}
 }
 
@@ -1006,83 +990,6 @@ func mustProjectID(t *testing.T, a *Auth, folio string) int64 {
 		t.Fatalf("ProjectByFolio(%s): %v, %v", folio, p, err)
 	}
 	return p.ID
-}
-
-// TestProjectsTypedFactura follows the factura typed in by hand (while facturación can't
-// stamp) through the screens: it makes the Estado de facturación Facturada, moves no
-// stage and records no payment.
-func TestProjectsTypedFactura(t *testing.T) {
-	a := newTestAuth(t)
-	q := newTestQuotes(t, a)
-	p := NewProjects(a.store)
-	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
-	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
-	seedPricingSettings(t, a, ana)
-
-	folio := issueTestQuote(t, a, q, ana, customerID, costProductID)
-	pv := map[string]string{"folio": folio}
-	base := "/proyectos/" + folio
-	page := func() string {
-		return doForm(t, a, ana, p.Page, "GET", base, pv, nil, false).Body.String()
-	}
-	post := func(form url.Values) *httptest.ResponseRecorder {
-		return doForm(t, a, ana, p.Factura, "POST", base+"/factura", pv, form, false)
-	}
-	doc := func(folio, date string) url.Values {
-		return url.Values{"folio": {folio}, "fecha": {date}, "note": {"nota"}, "metodo_pago": {"PPD"}}
-	}
-
-	// Nothing to invoice before the purchase order.
-	if rec := post(doc("A-77", "2026-10-08")); rec.Code != http.StatusConflict {
-		t.Errorf("Factura(prospecto) status = %d, want 409", rec.Code)
-	}
-	oc := map[string]string{"oc_numero": "4411", "oc_fecha": "2026-10-07"}
-	if rec := postOC(t, a, p, ana, folio, oc, "oc.pdf", []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")); rec.Code != http.StatusSeeOther {
-		t.Fatalf("OC status = %d; body = %s", rec.Code, rec.Body.String())
-	}
-
-	body := page()
-	for _, want := range []string{"<h2>Facturación</h2>", "Registrar la factura", "Método de pago",
-		`name="metodo_pago" value="PUE" required`, `name="metodo_pago" value="PPD" required`,
-		"Folio de la factura", "Fecha de la factura", ">Registrar factura</button>", "El Estado de facturación pasa a Facturada."} {
-		if !strings.Contains(body, want) {
-			t.Errorf("en curso page missing %q", want)
-		}
-	}
-	// The old payment state and its form are gone: payments are Cobro's.
-	for _, gone := range []string{"Estado de pago", "Sin tramitar", "Registrar pago completado", "Facturación y pago"} {
-		if strings.Contains(body, gone) {
-			t.Errorf("en curso page still shows %q", gone)
-		}
-	}
-	noMethod, badMethod := doc("A-77", "2026-10-08"), doc("A-77", "2026-10-08")
-	noMethod.Del("metodo_pago")
-	badMethod.Set("metodo_pago", "contado")
-	for name, bad := range map[string]url.Values{"no folio": doc("", "2026-10-08"), "no date": doc("A-77", ""), "bad date": doc("A-77", "8/10/2026"),
-		"no método": noMethod, "unknown método": badMethod} {
-		if rec := post(bad); rec.Code != http.StatusBadRequest {
-			t.Errorf("Factura(%s) status = %d, want 400", name, rec.Code)
-		}
-	}
-
-	rec := post(doc("A-77", "2026-10-08"))
-	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != base+"#facturacion" {
-		t.Fatalf("Factura status = %d, Location = %q; body = %s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
-	}
-	body = page()
-	for _, want := range []string{"En curso", "<dt>Estado de facturación</dt><dd>Facturada</dd>", "<dt>Factura</dt><dd>A-77 · 08/10/2026</dd>",
-		"<dt>Método de pago</dt><dd>P.P.D. · pago en parcialidades o diferido</dd>", "Factura registrada: A-77 · 08/10/2026 · P.P.D.",
-		"<dt>Estado de cobro</dt><dd>Pendiente de pago"} {
-		if !strings.Contains(body, want) {
-			t.Errorf("invoiced page missing %q", want)
-		}
-	}
-	if strings.Contains(body, "Registrar la factura") {
-		t.Error("an invoiced proyecto still offers typing in a factura")
-	}
-	if rec := post(doc("A-78", "2026-10-09")); rec.Code != http.StatusConflict {
-		t.Errorf("Factura twice status = %d, want 409", rec.Code)
-	}
 }
 
 // TestProjectsCobro walks #67's acceptance criteria: the Estado de cobro shows only en

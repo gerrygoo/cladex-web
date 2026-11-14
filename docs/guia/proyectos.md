@@ -191,9 +191,8 @@ En el historial aparece *"Pasó a En curso."* con los datos de la orden.
 
 - El número, la fecha y el archivo son obligatorios para pasar a En curso. Después, para
   corregir los datos, un archivo nuevo es opcional.
-- El [[método de pago]] (P.U.E. o P.P.D.) ya no se pide aquí: se elige al
-  [registrar la factura](#registrar-la-factura). Si el proyecto ya tenía uno
-  guardado de cuando se pedía con la orden, se conserva y viene elegido al facturar.
+- El [[método de pago]] (P.U.E. o P.P.D.) ya no se pide aquí: es el de la factura, al
+  [registrarla](#registrar-la-factura) o al timbrarla.
 - Si el cliente todavía pide cambios,
   [revisa la cotización](cotizaciones.md#revisar-una-cotización-emitida) **antes** de
   recibir la orden. Con la orden recibida la cotización ya no se puede revisar: la
@@ -212,29 +211,42 @@ En el historial aparece *"Pasó a En curso."* con los datos de la orden.
 
 ### Registrar la factura
 
-> Con la facturación configurada en el servidor, la factura y el comprobante de pago se
-> timbran desde la app y el Estado de facturación cambia solo: ver [Facturas](facturas.md).
-> Lo que sigue es para registrar a mano una factura hecha fuera de la app.
+> Con la facturación configurada en el servidor, la factura y el comprobante de pago
+> también se pueden timbrar desde la app: ver [Facturas](facturas.md). Lo que sigue es
+> para registrar una factura hecha fuera de la app, por ejemplo en el portal de
+> Facturoporti.
 
-Las facturas se siguen emitiendo fuera de la app; aquí se anota su folio. Se hace en la
-sección **Facturación** del proyecto, que aparece al recibir la orden de compra.
+Se hace en la sección **Facturación** del proyecto, que aparece al recibir la orden de
+compra. Solo los **administradores** registran facturas; los vendedores ven el estado.
 
 1. Abre el proyecto, que está [[en curso]].
-2. En **Registrar la factura**, elige el [[método de pago]] de la factura (obligatorio):
-   **P.U.E.** (el cliente ya pagó) o **P.P.D.** (paga en parcialidades o después). Si el
-   proyecto ya tenía uno guardado, viene elegido; cámbialo si la factura dice otro.
-3. Escribe el **Folio de la factura** y revisa la **Fecha de la factura**.
+2. En **Registrar una factura hecha fuera de la app**, sube el **XML de la factura**
+   (obligatorio) y, si quieres, su **PDF**.
+3. Si la factura es **P.U.E.**, marca **Ya se cobró** y escribe la **fecha del pago**. Es
+   obligatorio: una factura P.U.E. solo se emite cuando el cliente ya pagó. Si no se ha
+   cobrado, la factura debe ser P.P.D.
 4. Haz clic en **Registrar factura**.
 
-Su [[estado de facturación]] pasa a *Facturada*; la etapa no cambia. **Facturación**
-muestra el **Método de pago** y la **Factura**, y en el historial queda *"Factura
-registrada: …"* con el folio, la fecha y el método.
+Del XML se toman el folio fiscal, la serie y el folio, la fecha, el total, el RFC del
+cliente y el [[método de pago]]. Se abre la página de la factura, y:
 
-- Registrar la factura no registra ningún pago, ni siquiera con P.U.E.: el pago se
-  [registra en Cobro](#registrar-un-pago).
-- Una vez registrada la factura, los datos de la orden de compra ya no se pueden cambiar.
-- ¿Te equivocaste en un folio? Anota la corrección en un comentario: por ahora la factura
-  registrada a mano no se puede cambiar.
+- Con **P.U.E.**, el [[estado de facturación]] pasa a *Facturada* y el pago queda
+  registrado en [Cobro](#registrar-un-pago) con la fecha que escribiste (por lo que falte
+  pagar, si ya habías registrado un anticipo). En el historial queda *"Pagado el … ·
+  Factura … registrada"* con el folio fiscal.
+- Con **P.P.D.**, pasa a *Pendiente complemento de pago*. Los pagos se registran en Cobro.
+- Si el total del XML no es el de la cotización, o su RFC no es el del cliente, la
+  página de la factura lo avisa en **Revisa la factura**. La factura se registra de todos
+  modos, porque es la que tiene el SAT: si está mal, cancélala y registra la buena.
+- La etapa no cambia, y con la factura registrada los datos de la orden de compra ya no
+  se pueden cambiar.
+
+#### Si la factura se canceló
+
+Si cancelaste la factura fuera de la app, márcala aquí: en su página, en **Cancelar**,
+elige el **motivo**, escribe **por qué se canceló** y haz clic en **Marcar como
+cancelada**. El estado de facturación regresa a *Pendiente* hasta que registres la que la
+sustituye. Los pagos registrados se quedan, porque el dinero sí llegó.
 
 ### Marcar la entrega
 

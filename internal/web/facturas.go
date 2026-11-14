@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gerrygoo/cladex-web/internal/facturacion"
 	"github.com/gerrygoo/cladex-web/internal/money"
@@ -82,6 +83,7 @@ func (f *Facturas) Page(w http.ResponseWriter, r *http.Request) {
 	success := map[string]string{
 		"guardado": "Borrador guardado.", "validada": "Validada: lista para timbrar.", "timbrada": "Timbrada.",
 		"cancelada": "Cancelada.", "pendiente": "La cancelación espera la respuesta del receptor.",
+		"registrada": "Factura registrada.",
 	}[r.URL.Query().Get("ok")]
 	f.render(w, r, c, success, "", http.StatusOK)
 }
@@ -459,3 +461,97 @@ func (f *Facturas) stateError(w http.ResponseWriter, r *http.Request, id int64, 
 func facturaPathURL(id int64) string { return "/facturas/" + strconv.FormatInt(id, 10) }
 
 func facturaURL(id int64, ok string) string { return facturaPathURL(id) + "?ok=" + ok }
+
+// cfdiXMLTypes are what an uploaded CFDI's bytes may sniff as; cfdi.Parse is the real check.
+var cfdiXMLTypes = map[string]bool{"text/xml; charset=utf-8": true, "text/plain; charset=utf-8": true}
+
+// pdfOnly is the type of a factura's or complemento's PDF.
+var pdfOnly = map[string]bool{"application/pdf": true}
+
+// Manual handles POST /proyectos/{folio}/factura/manual (#63): an admin records a factura
+// issued outside the app. "xml" is its stamped XML (required, up to 1 MB), "pdf" its PDF
+// (optional, up to 10 MB). A P.U.E. factura needs "cobrado" checked and "fecha_pago" (not
+// after today): it is only issued once paid, and that payment goes to Cobro.
+func (f *Facturas) Manual(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	project, err := f.store.ProjectByFolio(ctx, r.PathValue("folio"))
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	if project == nil {
+		http.NotFound(w, r)
+		return
+	}
+	limit := int64(store.MaxCFDISize + maxOCFileBytes + 1<<20)
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
+	if err := r.ParseMultipartForm(limit); err != nil {
+		http.Error(w, "sube el XML de la factura (hasta 1 MB) y, si quieres, su PDF (hasta 10 MB)", http.StatusBadRequest)
+		return
+	}
+	xmlFile, msg, status := uploadedFile(r, "xml", store.MaxCFDISize, cfdiXMLTypes,
+		"el XML no puede pesar más de 1 MB", "el archivo de la factura debe ser su XML", "factura.xml")
+	if msg != "" {
+		http.Error(w, msg, status)
+		return
+	}
+	if xmlFile == nil {
+		http.Error(w, "sube el XML de la factura: es obligatorio", http.StatusBadRequest)
+		return
+	}
+	pdfFile, msg, status := uploadedFile(r, "pdf", maxOCFileBytes, pdfOnly,
+		"el PDF no puede pesar más de 10 MB", "el PDF de la factura debe ser un archivo PDF", "factura.pdf")
+	if msg != "" {
+		http.Error(w, msg, status)
+		return
+	}
+	m := store.ManualFactura{XML: xmlFile.Data, PDF: pdfFile}
+	if r.FormValue("cobrado") == "si" {
+		m.PaidOn = strings.TrimSpace(r.FormValue("fecha_pago"))
+		if m.PaidOn > today(r) {
+			http.Error(w, "la fecha de pago no puede ser futura", http.StatusBadRequest)
+			return
+		}
+	}
+	user, _ := UserFromContext(ctx)
+	id, err := f.store.RecordManualFactura(ctx, project.ID, user.ID, m)
+	var me *store.ManualError
+	switch {
+	case errors.As(err, &me):
+		http.Error(w, me.Msg, http.StatusBadRequest)
+		return
+	case errors.Is(err, store.ErrBadTransition):
+		http.Error(w, "la factura solo se registra en un proyecto En curso con su orden de compra y sin otra factura vigente", http.StatusConflict)
+		return
+	case err != nil:
+		serverError(w, r, err)
+		return
+	}
+	http.Redirect(w, r, facturaURL(id, "registrada"), http.StatusSeeOther)
+}
+
+// CancelarManual handles POST /facturas/{id}/cancelar-manual: an admin marks a factura
+// recorded by hand as cancelled once it was cancelled outside the app, with "motivo" (the
+// SAT's) and "nota", both required.
+func (f *Facturas) CancelarManual(w http.ResponseWriter, r *http.Request) {
+	c := f.load(w, r)
+	if c == nil {
+		return
+	}
+	note := strings.TrimSpace(r.FormValue("nota"))
+	if note == "" || utf8.RuneCountInString(note) > maxCommentLen {
+		f.render(w, r, c, "", "Escribe por qué se canceló (hasta 2000 caracteres).", http.StatusBadRequest)
+		return
+	}
+	user, _ := UserFromContext(r.Context())
+	err := f.store.CancelManualFactura(r.Context(), c.ID, user.ID, r.FormValue("motivo"), note)
+	if errors.Is(err, store.ErrComprobanteState) {
+		f.render(w, r, c, "", "No se puede marcar como cancelada: elige el motivo, y si tiene un complemento de pago vigente, cancélalo antes.", http.StatusConflict)
+		return
+	}
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	http.Redirect(w, r, facturaURL(c.ID, "cancelada"), http.StatusSeeOther)
+}

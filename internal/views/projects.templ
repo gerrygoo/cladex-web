@@ -292,49 +292,18 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 					</dl>
 				}
 				@ProjectFacturas(facturas)
-				if p.Status == store.StageEnCurso {
-					if factEnabled {
-						if !hasActiveFactura(facturas) {
-							if user != nil && user.IsAdmin {
-								<form method="post" action={ templ.URL(projectPath(p.Folio) + "/factura/nueva") } class="stage-form">
-									<h3>Facturar</h3>
-									<p>Crea la factura con las partidas de la cotización. Al timbrarla, el Estado de facturación pasa a Facturada (o a Pendiente complemento de pago, si es P.P.D.).</p>
-									<button type="submit" class="primary">Crear factura</button>
-								</form>
-							} else {
-								<p>Un administrador crea y timbra la factura.</p>
-							}
+				if p.Status == store.StageEnCurso && !hasActiveFactura(facturas) && p.States.Facturacion == store.FacturacionPendiente {
+					if user != nil && user.IsAdmin {
+						if factEnabled {
+							<form method="post" action={ templ.URL(projectPath(p.Folio) + "/factura/nueva") } class="stage-form">
+								<h3>Facturar</h3>
+								<p>Crea la factura con las partidas de la cotización. Al timbrarla, el Estado de facturación pasa a Facturada (o a Pendiente complemento de pago, si es P.P.D.).</p>
+								<button type="submit" class="primary">Crear factura</button>
+							</form>
 						}
-					} else if p.States.Facturacion == store.FacturacionPendiente {
-						<form method="post" action={ templ.URL(projectPath(p.Folio) + "/factura") } class="stage-form">
-							<h3>Registrar la factura</h3>
-							<p>Cuando se emita la factura, regístrala aquí con su método de pago. El Estado de facturación pasa a Facturada.</p>
-							<fieldset class="probability">
-								<legend>Método de pago</legend>
-								for _, m := range store.PaymentMethods {
-									<label>
-										<input type="radio" name="metodo_pago" value={ m } checked?={ m == p.PaymentMethod } required/>
-										{ paymentMethodText(m) }
-									</label>
-								}
-							</fieldset>
-							<p class="hint">P.U.E.: el cliente ya pagó. P.P.D.: paga en parcialidades o después. Los pagos se registran aparte, en Cobro.</p>
-							<div class="followup-dates">
-								<label>
-									Folio de la factura
-									<input type="text" name="folio" maxlength="100" required/>
-								</label>
-								<label>
-									Fecha de la factura
-									<input type="date" name="fecha" value={ today } required/>
-								</label>
-							</div>
-							<label>
-								Comentario (opcional)
-								<textarea name="note" rows="2" maxlength="2000"></textarea>
-							</label>
-							<button type="submit" class="primary">Registrar factura</button>
-						</form>
+						@ManualFacturaForm(p, today, !factEnabled)
+					} else {
+						<p>Un administrador registra la factura.</p>
 					}
 				}
 			</section>

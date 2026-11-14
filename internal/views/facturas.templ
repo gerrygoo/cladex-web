@@ -2,6 +2,9 @@ package views
 
 import (
 	"strconv"
+	"strings"
+
+	"github.com/gerrygoo/cladex-web/internal/cfdi"
 
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
@@ -39,6 +42,9 @@ func ComprobanteTitle(c store.Comprobante) string {
 	if sf := c.SerieFolio(); sf != "" {
 		return kind + " " + sf
 	}
+	if c.Origen == store.OrigenManual {
+		return kind + " registrada"
+	}
 	return kind + " (borrador)"
 }
 
@@ -75,6 +81,8 @@ var eventLabels = map[string]string{
 	"cancel_refused":    "Cancelación rechazada",
 	"cancel_unknown":    "Sin respuesta clara sobre la cancelación",
 	"cancel_vigente":    "El receptor rechazó la cancelación: sigue vigente",
+	"manual_recorded":   "Registrada a mano con su XML",
+	"manual_cancelled":  "Marcada como cancelada",
 }
 
 func eventLabel(e string) string {
@@ -155,6 +163,9 @@ templ FacturaPage(v FacturaView, user *NavUser) {
 				<dt>Timbrada</dt>
 				<dd>
 					@Timestamp(c.StampedAt)
+					if c.Origen == store.OrigenManual {
+						{ " · fuera de la app, registrada a mano" }
+					}
 				</dd>
 				if c.Recipients != "" {
 					<dt>Enviada por correo</dt>
@@ -223,15 +234,19 @@ templ FacturaPage(v FacturaView, user *NavUser) {
 					@facturaBackToDraft(c)
 				}
 			default:
-				@conceptosTable(c)
-				if c.UUID != "" {
-					<p>
-						<a href={ templ.URL(facturaPath(c.ID) + "/pdf") } target="_blank">Descargar PDF</a>
-						· <a href={ templ.URL(facturaPath(c.ID) + "/xml") }>Descargar XML</a>
-					</p>
-				}
-				if admin && v.Enabled && !v.WrongEnv {
-					@facturaStampedActions(v)
+				if c.Origen == store.OrigenManual {
+					@manualFacturaBody(v, admin)
+				} else {
+					@conceptosTable(c)
+					if c.UUID != "" {
+						<p>
+							<a href={ templ.URL(facturaPath(c.ID) + "/pdf") } target="_blank">Descargar PDF</a>
+							· <a href={ templ.URL(facturaPath(c.ID) + "/xml") }>Descargar XML</a>
+						</p>
+					}
+					if admin && v.Enabled && !v.WrongEnv {
+						@facturaStampedActions(v)
+					}
 				}
 		}
 		<section id="historial">
@@ -488,7 +503,6 @@ templ facturaStampedActions(v FacturaView) {
 	}
 }
 
-// FacturasList is /facturas: every comprobante, newest first.
 // FacturasPage is the Facturas table (#63): every proyecto with the client's O.C.
 // received and its Estado de facturación, in the style of Pronóstico.
 templ FacturasPage(b Billing, lv ListView, customers, owners []string, user *NavUser) {
@@ -585,5 +599,142 @@ templ ProjectFacturas(list []store.Comprobante) {
 				</li>
 			}
 		</ul>
+	}
+}
+
+// ManualFacturaForm records a factura issued outside the app (#63): its XML, required,
+// its PDF, optional, and for P.U.E. that it was already paid and when. primary styles it
+// as the section's main action (when the app doesn't stamp).
+templ ManualFacturaForm(p store.Project, today string, primary bool) {
+	<form method="post" action={ templ.URL(projectPath(p.Folio) + "/factura/manual") } enctype="multipart/form-data" class="stage-form">
+		<h3>Registrar una factura hecha fuera de la app</h3>
+		<p>Sube el XML timbrado de la factura. De él se toman el folio fiscal, la fecha, el total, el RFC y si es PUE o PPD. Con PUE el Estado de facturación pasa a Facturada; con PPD, a Pendiente complemento de pago.</p>
+		<label>
+			XML de la factura (obligatorio)
+			<input type="file" name="xml" accept=".xml,text/xml,application/xml" required/>
+		</label>
+		<label>
+			PDF de la factura (opcional)
+			<input type="file" name="pdf" accept="application/pdf,.pdf"/>
+		</label>
+		<fieldset>
+			<legend>Si la factura es PUE</legend>
+			<p class="hint">Una factura PUE solo se emite cuando el cliente ya pagó: el pago se registra en Cobro con esta fecha. Si no se ha cobrado, la factura debe ser PPD.</p>
+			<label>
+				<input type="checkbox" name="cobrado" value="si"/>
+				Ya se cobró
+			</label>
+			<label>
+				Fecha del pago
+				<input type="date" name="fecha_pago" max={ today }/>
+			</label>
+		</fieldset>
+		<button type="submit" class={ templ.KV("primary", primary) }>Registrar factura</button>
+	</form>
+}
+
+// ManualWarnings is what a factura recorded by hand says that doesn't match its proyecto:
+// its total against the quote's, and its receptor's RFC against the customer's. The
+// factura is what the SAT has, so these are warnings, not errors.
+func ManualWarnings(c store.Comprobante) []string {
+	if c.Origen != store.OrigenManual || c.Tipo != store.TipoFactura {
+		return nil
+	}
+	var out []string
+	if c.Total != c.QuoteTotal {
+		out = append(out, "El total de la factura ("+c.Total.String()+") no coincide con el total con IVA de la cotización ("+c.QuoteTotal.String()+").")
+	}
+	x, err := cfdi.Parse(c.XML)
+	if err != nil {
+		return out
+	}
+	rfc, want := strings.ToUpper(strings.TrimSpace(x.Receptor.Rfc)), strings.ToUpper(strings.TrimSpace(c.Customer.RFC))
+	switch {
+	case want == "":
+		out = append(out, "El cliente no tiene RFC en su ficha; la factura está a nombre del RFC "+rfc+".")
+	case rfc != want:
+		out = append(out, "El RFC de la factura ("+rfc+") no coincide con el del cliente ("+want+").")
+	}
+	return out
+}
+
+// manualConceptos are a manual factura's conceptos as its XML has them.
+func manualConceptos(c store.Comprobante) []cfdi.Concepto {
+	x, err := cfdi.Parse(c.XML)
+	if err != nil {
+		return nil
+	}
+	return x.Conceptos
+}
+
+// manualFacturaBody is the page of a factura recorded by hand: what doesn't match, its
+// conceptos from the XML, its downloads, and for an admin, marking it cancelled.
+templ manualFacturaBody(v FacturaView, admin bool) {
+	{{ c := v.C }}
+	if ws := ManualWarnings(c); len(ws) > 0 && c.Status == store.CompTimbrada {
+		<div class="error" role="alert">
+			<p><strong>Revisa la factura:</strong></p>
+			<ul>
+				for _, w := range ws {
+					<li>{ w }</li>
+				}
+			</ul>
+		</div>
+	}
+	<div class="table-scroll">
+		<table>
+			<thead>
+				<tr>
+					<th>Clave de producto SAT</th>
+					<th class="num">Cantidad</th>
+					<th>Clave de unidad SAT</th>
+					<th>Descripción</th>
+					<th class="num">Valor unitario</th>
+					<th class="num">Importe</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, l := range manualConceptos(c) {
+					<tr>
+						<td>{ l.ClaveProdServ }</td>
+						<td class="num">{ l.Cantidad }</td>
+						<td>{ l.ClaveUnidad }</td>
+						<td>{ l.Descripcion }</td>
+						<td class="num">{ l.ValorUnitario }</td>
+						<td class="num">{ l.Importe }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+	<p>
+		if c.PDFFileID != 0 {
+			<a href={ templ.URL(projectPath(c.ProjectFolio) + "/archivos/" + strconv.FormatInt(c.PDFFileID, 10)) }>Descargar PDF</a>
+			{ " · " }
+		}
+		<a href={ templ.URL(facturaPath(c.ID) + "/pdf") } target="_blank">Ver representación impresa</a>
+		· <a href={ templ.URL(facturaPath(c.ID) + "/xml") }>Descargar XML</a>
+	</p>
+	if admin && c.Status == store.CompTimbrada && c.Tipo == store.TipoFactura {
+		<section id="cancelar">
+			<h2>Cancelar</h2>
+			<form method="post" action={ templ.URL(facturaPath(c.ID) + "/cancelar-manual") } class="stage-form">
+				<p>Si la factura se canceló fuera de la app, márcala aquí. El Estado de facturación regresa a Pendiente hasta que se registre la que la sustituye. Los pagos registrados se quedan.</p>
+				<label>
+					Motivo de cancelación
+					<select name="motivo" required>
+						<option value="">Elige…</option>
+						for _, m := range store.CancelMotives {
+							<option value={ m.Code }>{ m.Code } - { m.Description }</option>
+						}
+					</select>
+				</label>
+				<label>
+					¿Por qué se canceló?
+					<textarea name="nota" rows="2" maxlength="2000" required></textarea>
+				</label>
+				<button type="submit" class="danger" data-confirm="¿Marcar la factura como cancelada?">Marcar como cancelada</button>
+			</form>
+		</section>
 	}
 }
