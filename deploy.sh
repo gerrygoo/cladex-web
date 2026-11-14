@@ -7,10 +7,13 @@
 #   deploy.sh restart  roll production even if it hasn't (a compose or secrets change)
 #   deploy.sh active   print the live slot, cladex-blue or cladex-green
 #
-# Rolling: start the new image in the idle slot, wait until its /healthz answers, then
-# stop the old slot. nginx (nginx.conf) retries refused connections on the other slot, so
-# requests don't notice. A new slot that never gets healthy is removed and the old one
-# keeps serving; the next tick tries again.
+# Rolling: start the new image in the idle slot, wait until its /healthz answers, point
+# nginx at it, then stop the old slot. nginx (nginx.conf) sends everything to the live
+# slot and only retries on the other one when the live slot refuses, so requests don't
+# notice. A new slot that never gets healthy is removed and the old one keeps serving; the
+# next tick tries again. Before rolling, the idle slot's port must be free: anything else
+# answering there (another service that took it while the slot was stopped) stops the
+# deploy with a log line saying so.
 #
 # Exclusive rolling, when the new image brings a pending migration marked
 # `-- cladex:exclusive` (one the old code can't run against): stop the old slot first,
@@ -25,9 +28,11 @@ IMAGE=ghcr.io/gerrygoo/cladex-web:latest
 HEALTH_WAIT=60       # seconds: startup runs pending migrations before it listens
 EXCLUSIVE_WAIT=600   # the same, for a deploy that pauses production on a long migration
 ERR=/tmp/cladex-deploy.err
+UPSTREAM=proxy/upstream.conf  # included by nginx.conf; compose.yaml mounts ./proxy
 
 log() { echo "$(date '+%F %T') $*"; }
 port() { case $1 in cladex-blue) echo 8092 ;; cladex-green) echo 8093 ;; esac; }
+other() { case $1 in cladex-blue) echo cladex-green ;; *) echo cladex-blue ;; esac; }
 running() { [ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null)" = true ]; }
 
 # The new image's pending exclusive migrations, one per line (cmd/server runMigrateCLI).
@@ -61,6 +66,24 @@ active() {
 	fi
 }
 
+# Points cladex-proxy at slot $1, with the other slot as nginx's backup: nginx tries the
+# backup only when $1 refuses (mid-roll, or production paused), so whatever else might
+# answer on the idle slot's port never gets a request. Reloads nginx only on a change; a
+# reload lets in-flight requests finish on the old workers.
+point_proxy() {
+	want=$(printf 'server 127.0.0.1:%s max_fails=0;         # %s, live\nserver 127.0.0.1:%s max_fails=0 backup;  # %s' \
+		"$(port "$1")" "$1" "$(port "$(other "$1")")" "$(other "$1")")
+	[ "$want" = "$(cat "$UPSTREAM" 2>/dev/null)" ] && return 0
+	mkdir -p "$(dirname "$UPSTREAM")"
+	printf '%s\n' "$want" >"$UPSTREAM.tmp"
+	mv "$UPSTREAM.tmp" "$UPSTREAM"
+	if running cladex-proxy; then
+		docker exec cladex-proxy nginx -t -q
+		docker exec cladex-proxy nginx -s reload 2>/dev/null
+	fi
+	log "proxy → $1"
+}
+
 if [ "${1:-}" = active ]; then
 	active
 	exit 0
@@ -71,14 +94,13 @@ exec 9>/tmp/cladex-deploy.lock
 flock -n 9 || { log "another deploy is running"; exit 0; }
 
 docker compose pull -q
-# Everything but production is simply recreated when its image or config changes.
-docker compose up -d --no-deps cladex-proxy litestream cladex-staging
 
 live=$(active)
-case $live in
-cladex-blue) next=cladex-green ;;
-*) next=cladex-blue ;;
-esac
+next=$(other "$live")
+# Before cladex-proxy starts, so nginx.conf's include always finds the file.
+point_proxy "${live:-$next}"
+# Everything but production is simply recreated when its image or config changes.
+docker compose up -d --no-deps cladex-proxy litestream cladex-staging
 
 if [ -n "$live" ] && [ "${1:-}" != restart ] &&
 	[ "$(docker inspect -f '{{.Image}}' "$live")" = "$(docker image inspect -f '{{.Id}}' "$IMAGE")" ]; then
@@ -87,6 +109,20 @@ if [ -n "$live" ] && [ "${1:-}" != restart ] &&
 		docker compose stop "$next"
 	fi
 	exit 0
+fi
+
+# The idle slot's port must be free. With host networking a slot can't start on a port
+# something else holds, and before nginx.conf had a live/backup split, whatever held it got
+# half of production's traffic (2026-11-13, a monitoring hub on :8092).
+if ! running "$next"; then
+	set +e
+	curl -s -o /dev/null -m 2 "http://127.0.0.1:$(port "$next")/"
+	rc=$?
+	set -e
+	if [ "$rc" -ne 7 ]; then # 7: connection refused, the port is free
+		log "port $(port "$next") belongs to $next, but something else answers on it (curl exit $rc); not rolling. Find it with: docker ps --filter publish=$(port "$next"); see docs/NAS_OPERATIONS.md#ports"
+		exit 1
+	fi
 fi
 
 exclusive=
@@ -104,7 +140,8 @@ log "rolling ${live:-nothing live} → $next"
 docker compose up -d --no-deps --force-recreate "$next"
 url="http://127.0.0.1:$(port "$next")/healthz"
 waited=0
-until health=$(curl -fsS -m 2 "$url" 2>/dev/null); do
+# "ok <sha>" (cmd/server): any other 2xx is not this slot.
+until health=$(curl -fsS -m 2 "$url" 2>/dev/null) && [ "${health#ok }" != "$health" ]; do
 	waited=$((waited + 1))
 	# A restart means it exited (a failed migration, say): no point waiting out the limit.
 	restarts=$(docker inspect -f '{{.RestartCount}}' "$next" 2>/dev/null || echo 0)
@@ -125,6 +162,7 @@ until health=$(curl -fsS -m 2 "$url" 2>/dev/null); do
 	sleep 1
 done
 log "$next healthy: $health"
+point_proxy "$next"
 
 if [ -n "$live" ] && [ -z "$exclusive" ]; then
 	# SIGTERM: the old slot stops accepting and drains its in-flight requests (cmd/server).

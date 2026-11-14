@@ -1,8 +1,9 @@
 # Production runs blue/green (docs/NAS_OPERATIONS.md#deploy-pipeline): two slots of the
-# same service on their own ports, behind a local nginx that owns :8090, where FRP and
-# LAN users connect. deploy.sh starts the new image in the idle slot, waits for its
-# /healthz, then stops the old one; nginx retries a refused connection on the other
-# slot, so nobody sees the swap. Normally only one slot runs. Never `docker compose up -d`
+# same service on their own ports (8092 and 8093, reserved even while a slot is stopped),
+# behind a local nginx that owns :8090, where FRP and LAN users connect. deploy.sh starts
+# the new image in the idle slot, waits for its /healthz, points nginx at it, then stops
+# the old one; nginx retries a refused connection on the other slot, so nobody sees the
+# swap. Normally only one slot runs. Never `docker compose up -d`
 # the slots by hand — that recreates both at once, which is the outage this avoids; run
 # deploy.sh (or `deploy.sh restart` to roll without a new image).
 x-cladex: &cladex
@@ -53,7 +54,8 @@ services:
       <<: *cladex-env
       PORT: "8093"
 
-  # Owns :8090 and spreads requests over whichever slots are up; see nginx.conf.
+  # Owns :8090 and sends requests to the live slot; see nginx.conf. deploy.sh keeps
+  # proxy/upstream.conf, which says which slot that is, and creates it before this starts.
   cladex-proxy:
     image: nginx:1.30.5-alpine
     container_name: cladex-proxy
@@ -61,6 +63,9 @@ services:
     restart: unless-stopped
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      # A directory, not the file: deploy.sh replaces upstream.conf with a rename, and a
+      # single-file bind mount would keep showing nginx the old one.
+      - ./proxy:/etc/nginx/cladex:ro
     logging:
       driver: json-file
       options:

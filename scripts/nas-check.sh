@@ -7,7 +7,6 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 NAS_HOST=192.168.3.169
 LAN_URL="http://$NAS_HOST:8090/healthz"
-PUBLIC_URL="https://cotizador.cladex.com.mx/healthz"
 status=0
 warn() { echo "  ⚠ $*"; [ "$status" -lt 1 ] && status=1; }
 fail() { echo "  ✗ $*"; status=2; }
@@ -22,12 +21,35 @@ read -r run_sha run_status run_conclusion run_at <<<"$run"
 echo "  origin/main: $main_sha · last Actions run: $run_sha $run_status/${run_conclusion:-–} at $run_at"
 [ "$run_conclusion" = "failure" ] && warn "the last deploy workflow failed: gh run list --branch main"
 
-lan=$(curl -s -m 5 "$LAN_URL")
-public=$(curl -s -m 10 "$PUBLIC_URL")
+# Several requests each: one can't tell a proxy spreading traffic over two backends (one
+# of them not cladex: 2026-11-13) from a healthy one.
+lan_all=$(for _ in $(seq 1 10); do
+	body=$(curl -s -m 5 "$LAN_URL" | head -1 | cut -c1-40)
+	echo "${body:-<no answer>}"
+done | sort | uniq -c)
+lan=$(awk 'NR==1{$1=""; sub(/^ /,""); print}' <<<"$lan_all")
 lan_sha=${lan#ok }
-public_sha=${public#ok }
-[[ "$lan" == ok* ]] && ok "LAN    $LAN_URL → $lan" || fail "LAN health check failed ($LAN_URL): '${lan:-no answer}'"
-[[ "$public" == ok* ]] && ok "public $PUBLIC_URL → $public" || fail "public health check failed ($PUBLIC_URL): '${public:-no answer}' — VPS/FRP or the app"
+if [ "$(wc -l <<<"$lan_all")" -eq 1 ] && [[ "$lan" == ok* ]]; then
+	ok "LAN    $LAN_URL → $lan (10 of 10)"
+else
+	fail "LAN health check failed ($LAN_URL), answers (count, body):"
+	sed 's/^/      /' <<<"$lan_all"
+	lan=
+fi
+
+# The blue/green ports belong to cladex even while a slot is stopped: each must either
+# refuse or be a cladex slot. Anything else there blocks the next deploy (deploy.sh
+# refuses to roll) and is a port clash to fix in the homelab compose files.
+for slot_port in 8092 8093; do
+	answer=$(curl -s -m 3 "http://$NAS_HOST:$slot_port/healthz" | head -1 | cut -c1-40)
+	if [[ "$answer" == ok* ]]; then
+		ok ":$slot_port is a cladex slot ($answer)"
+	elif [ -z "$answer" ] && ! curl -s -m 3 -o /dev/null "http://$NAS_HOST:$slot_port/"; then
+		ok ":$slot_port free (idle slot)"
+	else
+		warn ":$slot_port is cladex's, but something else answers there ('${answer:-not HTTP}'); the next deploy won't roll until it moves"
+	fi
+done
 
 if [[ "$lan" == ok* && -n "$main_sha" ]]; then
 	if [ "$lan_sha" = "$main_sha" ]; then
@@ -42,6 +64,9 @@ if [[ "$lan" == ok* && -n "$main_sha" ]]; then
 		fi
 	fi
 fi
+
+echo "== Public (scripts/uptime-check.sh)"
+scripts/uptime-check.sh || fail "public checks failed — VPS/FRP, certificates or the app"
 
 echo "== NAS (over SSH)"
 if ! timeout 4 bash -c "echo > /dev/tcp/$NAS_HOST/22" 2>/dev/null; then

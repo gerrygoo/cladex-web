@@ -1,0 +1,26 @@
+name: uptime
+
+# Checks production from outside every 10 minutes (scripts/uptime-check.sh): /healthz on
+# repeated requests, the c. redirect, certificates, and whether the last deploy reached
+# the NAS. A failed run is the alert: GitHub emails whoever last changed the schedule.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: uptime
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/uptime-check.sh
+        env:
+          GH_TOKEN: ${{ github.token }}

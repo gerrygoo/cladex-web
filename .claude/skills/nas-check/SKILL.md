@@ -18,11 +18,16 @@ scripts/nas-check.sh
 It checks, cheapest first:
 
 1. **Deploy**: `origin/main`'s SHA, the last GitHub Actions run, and the SHA that
-   `/healthz` reports on the LAN (`http://192.168.3.169:8090/healthz`) and publicly
-   (`https://cotizador.cladex.com.mx/healthz`, through the VPS/FRP). Production should run
-   `main` within ~15 min of the deploy run finishing (Actions build → NAS cron pulls every
-   5 min).
-2. **Over SSH** (`ssh cladex-nas`), only if port 22 answers: the live blue/green slot,
+   `/healthz` reports on the LAN (`http://192.168.3.169:8090/healthz`, 10 requests, all
+   of which must agree). Production should run `main` within ~15 min of the deploy run
+   finishing (Actions build → NAS cron pulls every 5 min). Then the blue/green ports
+   :8092 and :8093: each must be a cladex slot or free; anything else answering there is
+   a port clash (docs/NAS_OPERATIONS.md#ports).
+2. **Public**: `scripts/uptime-check.sh`, the same check the scheduled `uptime` workflow
+   runs every 10 min: 10 requests to `https://cotizador.cladex.com.mx/healthz`, the
+   `c.cladex.com.mx` redirect, certificate expiry, and whether the last deploy run's
+   build reached production.
+3. **Over SSH** (`ssh cladex-nas`), only if port 22 answers: the live blue/green slot,
    container state, image build time, Litestream errors in the last 30 min, age of the
    newest nightly backup tarball, disk use of `/volume1`, memory/CPU per container.
 

@@ -59,7 +59,34 @@ found, so don't rediscover this the hard way again.
 - `PUID=1000` / `PGID=10` — match these in any compose file touching NAS-mounted
   volumes, or file ownership breaks.
 - **Ports already taken on this box**: 8080 (FRP), 8081, 8096, 8191, 8282, 5055, 7878,
-  8989. Cladex itself runs on **8090**.
+  8989. Cladex itself runs on **8090**; see [Ports](#ports) for all of Cladex's.
+
+## Ports
+
+Cladex owns these on the NAS, **whether or not anything is listening on them right now**:
+
+| Port | What |
+|------|------|
+| 8090 | `cladex-proxy` (nginx): FRP and LAN users connect here |
+| 8091 | `cladex-staging` |
+| 8092 | `cladex-blue` — usually stopped, so it looks free. It isn't. |
+| 8093 | `cladex-green` — likewise |
+
+The homelab repo's `docs/Infra Reference.md` port table is the registry for the whole
+box, and its `scripts/check-ports.sh` checks every stack's compose file against it. Run
+it before starting any new service on the NAS.
+
+What happens when something takes a slot's port anyway (2026-11-13: a Beszel monitoring
+hub published on :8092 while blue was idle):
+
+- `cladex-proxy` sends nothing to it while the live slot is up: the idle slot is only
+  nginx's `backup`. (Before that day both slots were equal upstreams, so the squatter got
+  half of all requests, publicly, for hours.)
+- `deploy.sh` refuses to roll onto that slot and logs `port 8092 belongs to cladex-blue,
+  but something else answers on it`, so new builds stop reaching production until the
+  port is freed. Find the culprit with `docker ps --filter publish=8092`.
+- `scripts/nas-check.sh` warns about it, and if it ever reaches users, the scheduled
+  `uptime` workflow (`scripts/uptime-check.sh`, every 10 min) fails and GitHub emails.
 - The deployed image is **distroless — no shell.** `docker compose exec cladex-blue sh`
   (or any `exec ... sh`) fails outright. Run the app binary directly, through the `cladex`
   service, which exists only for this (`profiles: ["cli"]`, so `up` never starts it) and
@@ -89,11 +116,15 @@ End to end: push to `main` → Actions build (~a couple minutes) → next NAS cr
 **Deploys don't interrupt service (blue/green, since 2026-10-23).** Production is two
 slots of the same service, `cladex-blue` on :8092 and `cladex-green` on :8093, behind
 `cladex-proxy`, a small nginx (`nginx.conf`) that owns :8090, where FRP and LAN users
-connect. Normally only one slot runs. When the image changed, `deploy.sh` starts it in
-the idle slot, waits until that slot's own `/healthz` answers (startup runs pending
-migrations before it listens), then stops the old slot, which drains its in-flight
-requests. nginx retries any refused connection on the other slot, so no request
-fails. If the new slot isn't healthy within 60 s, `deploy.sh` removes it and logs its
+connect. Normally only one slot runs. nginx sends every request to the live slot and
+treats the other as a `backup`, tried only when the live one refuses; `deploy.sh` keeps
+which is which in `proxy/upstream.conf` (generated on the NAS, not in the repo) and
+reloads nginx when it changes. When the image changed, `deploy.sh` checks that nothing
+else holds the idle slot's port ([Ports](#ports)), starts the new image there, waits
+until that slot's own `/healthz` answers `ok <sha>` (startup runs pending migrations
+before it listens), points nginx at it, then stops the old slot, which drains its
+in-flight requests. nginx retries any refused connection on the other slot, so no
+request fails. If the new slot isn't healthy within 60 s, `deploy.sh` removes it and logs its
 last lines to `deploy.log`; the old build keeps serving, and the next tick tries again.
 Staging and Litestream are simply recreated in place.
 
@@ -308,6 +339,7 @@ port 22 from the LAN (SSH turned off in UGOS), while `:8090` answered.
 | Task | Command |
 |---|---|
 | Check the app is up | `ssh cladex-nas curl -s localhost:8090/healthz` (staging: `:8091`) |
+| Check it from outside, like the `uptime` workflow | `scripts/uptime-check.sh` |
 | Refresh staging from production | `ssh cladex-nas 'sh /volume1/docker/cladex/staging-refresh.sh'` |
 | See resource usage | `ssh cladex-nas docker stats --no-stream` |
 | Tail app logs | `ssh cladex-nas docker compose -f /volume1/docker/cladex/compose.yaml logs -f` |
