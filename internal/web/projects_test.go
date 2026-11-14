@@ -1281,7 +1281,10 @@ func TestProjectsPageShowsProfit(t *testing.T) {
 	}
 	pv := map[string]string{"folio": folio}
 	body := doForm(t, a, ana, p.Page, "GET", "/proyectos/"+folio, pv, nil, false).Body.String()
+	// Total con IVA, then the price before IVA, then the cost (issue #74).
 	for _, want := range []string{
+		"<dt>Total con IVA</dt><dd>" + project.Total.String() + "</dd><dt>Precio de venta sin IVA</dt><dd>" +
+			project.Subtotal.String() + "</dd><dt>Costo sin IVA</dt>",
 		"<dt>Costo sin IVA</dt><dd>" + project.Cost().String() + "</dd>",
 		"<dt>Utilidad</dt><dd>" + project.Profit.String() + "</dd>",
 		"<dt>Margen</dt><dd>" + views.ProjectMargin(*project) + "</dd>",

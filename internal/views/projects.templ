@@ -179,8 +179,10 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 				}
 				· <a href={ templ.URL(duplicarPath(p.CurrentQuoteFolio)) }>Duplicar</a>
 			</dd>
-			<dt>Total</dt>
+			<dt>Total con IVA</dt>
 			<dd>{ p.Total.String() }</dd>
+			<dt>Precio de venta sin IVA</dt>
+			<dd>{ p.Subtotal.String() }</dd>
 			// What the current quote costs and earns before IVA (issue #46), as in the
 			// pronóstico; a revision in draft has no margin frozen yet, so it earns nothing.
 			if p.CurrentQuoteStatus != store.QuoteBorrador {
