@@ -219,9 +219,15 @@
     box.querySelectorAll("[data-not-lost]").forEach(function (rest) {
       rest.hidden = lost;
     });
+    // Disabled, not just optional: an overdue Próximo seguimiento still holds a day
+    // before its min, and a hidden field that fails its check blocks the submit without
+    // any message (issue #76). Disabled fields are neither checked nor sent; Perdida
+    // only needs the Motivo.
     box.querySelectorAll("[name=proximo_seguimiento], [name=note]").forEach(function (el) {
       el.required = !lost;
+      el.disabled = lost;
     });
+    box.querySelector("[name=oc_esperada]").disabled = lost;
   });
 
   // "Registrar pago" (#67) and "Marcar como entregado" (#66): the comprobante's file
