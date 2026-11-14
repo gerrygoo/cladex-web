@@ -338,3 +338,25 @@ one in force. The Facturas table flags a Pendiente complemento proyecto whose ol
 payment without a comprobante is within 5 days of, or past, the 5th of the next month.
 The PAC's "Crear comprobante de pago" (one for the whole total) is unchanged and still
 only offered with no complemento in force.
+
+**Checks for stamping (slice 4):**
+
+- **Uso de CFDI × régimen**: `store.CFDIUseAllowed` / `CFDIUsesFor`, written from the
+  c_UsoCFDI catalog's "Régimen Fiscal Receptor" column (the app ships no copy of that
+  sheet; re-check against catCFDI when it changes). The draft offers only the usos valid
+  for the customer's régimen and validation refuses an invalid one. Validation also
+  stopped accepting an empty uso de CFDI or régimen fiscal (`ValidSATCode` treats "" as
+  valid, which let both through).
+- **Kilos** (`store.invoiceInKilos`): on a quote priced by weight (QG, QS), a line whose
+  product's own unit code is KGM gets qty = metres × kg per metre (from the line's
+  pricing snapshot, to the hundredth, as the quote shows) and unit price = importe ÷ kilos
+  to the micro; the importe never changes. A line without a weight stays in MTR. Checked
+  against Facturoporti's sandbox with #63's example (607.80 KGM × $203.703702 =
+  $123,811.11).
+- **Completing data from the draft**: the customer and product edit pages take
+  `?factura=<id>` and return to it; saving a product refills the draft's empty codes
+  (`RefreshDraftSATCodes`, codes already on a concepto stay).
+- **Deviation from #63 point 4, kept on purpose**: the familia's SAT code still fills a
+  product without its own (Gerry's earlier fallback decision), so "Faltan datos para
+  facturar" lists only lines left with no code at all.
+- P.P.D. → forma 99 and P.U.E. ≠ 99 were already enforced (draft form and validation).

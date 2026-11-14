@@ -356,7 +356,7 @@ templ facturaDraftForm(v FacturaView) {
 				Uso de CFDI
 				<select name="uso_cfdi">
 					<option value="">Elige…</option>
-					for _, u := range store.CFDIUses {
+					for _, u := range cfdiUseOptions(c) {
 						<option value={ u.Code } selected?={ u.Code == c.UsoCFDI }>{ u.Code } - { u.Description }</option>
 					}
 				</select>
@@ -454,6 +454,25 @@ templ facturaDraftForm(v FacturaView) {
 					</tbody>
 					@quoteTotals(pricingTotals(c), 7, 0)
 				</table>
+			</div>
+		}
+		if missing := MissingCustomerData(c); len(missing) > 0 {
+			<div class="error" role="alert">
+				<p><strong>{ "Faltan datos fiscales del cliente: " + strings.Join(missing, ", ") + "." }</strong></p>
+				<p><a class="button" href={ templ.URL("/clientes/" + strconv.FormatInt(c.Customer.ID, 10) + returnToFactura(c.ID)) }>Completar datos del cliente</a></p>
+			</div>
+		}
+		if lines := MissingKeyLines(c); len(lines) > 0 {
+			<div class="error" role="alert">
+				<p><strong>Faltan datos para facturar en:</strong></p>
+				<ul>
+					for _, l := range lines {
+						<li>
+							{ "Partida " + strconv.Itoa(l.LineNo) + ": " + l.SKU + " · " + l.Description + " · " }
+							<a href={ templ.URL("/productos/" + strconv.FormatInt(l.ProductID, 10) + returnToFactura(c.ID)) }>Completar sus claves SAT</a>
+						</li>
+					}
+				</ul>
 			</div>
 		}
 		if len(v.Problems) > 0 {

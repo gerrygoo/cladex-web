@@ -61,7 +61,11 @@ social, régimen fiscal, código postal fiscal y uso de CFDI
 La factura empieza como **borrador** con las partidas de la cotización emitida: cantidades,
 precios e importes no cambian. Revisa y completa:
 
-- **Uso de CFDI** (sale del cliente).
+- **Uso de CFDI**: viene el **uso de CFDI predeterminado** del cliente, si tiene uno, y se
+  puede cambiar. La lista solo ofrece los usos que el SAT permite para el **régimen fiscal**
+  del cliente (por ejemplo, un cliente en *605 - Sueldos y salarios* no puede recibir
+  *G01 - Adquisición de mercancías*); si el elegido no es válido para su régimen, la factura
+  no se valida y dice por qué.
 - **Método de pago**: **PUE** (el cliente ya pagó) o **PPD** (el pago se completa después
   con un comprobante de pago). Viene elegido si el proyecto ya tenía uno guardado, de
   cuando se pedía al recibir la orden de compra; si no, dice *Sin elegir* y hay que
@@ -73,9 +77,24 @@ precios e importes no cambian. Revisa y completa:
   timbrarla. Puedes dejarlo vacío y mandarla tú.
 - En cada partida, la **clave de producto SAT**, la **clave de unidad SAT**, la unidad y la
   descripción. Empiezan con las claves del producto; si el producto no las tiene, con la
-  clave de su familia y la de su unidad. Por ahora, un producto que se cotiza por metro y
-  se factura en kilos (*KGM*) empieza en metros (*MTR*), porque la cantidad de la
-  cotización está en metros.
+  clave de su familia y la de su unidad. Las líneas libres de una QL se capturan aquí.
+- **Facturar en kilos.** En las cotizaciones por metro y peso (QS, QG), un producto cuya
+  clave de unidad SAT es *KGM* sale en **kilos**: la cantidad son los kilos que calculó la
+  cotización y el precio unitario es el importe de la partida entre esos kilos. El importe
+  y el total no cambian. Por ejemplo, 1,000 m de un cable de 0.6078 kg/m por $123,811.11
+  salen como 607.80 KGM a $203.703702. Un producto con *MTR* sale en metros, como se
+  cotizó.
+
+**Si faltan datos para facturar,** el borrador lo dice arriba:
+
+- *"Faltan datos fiscales del cliente: …"* (RFC, razón social, código postal fiscal o
+  régimen fiscal) con el botón **Completar datos del cliente**. En el cliente siguen siendo
+  opcionales para cotizar; solo se piden al facturar.
+- *"Faltan datos para facturar en: …"*, con cada partida cuyo producto no tiene su clave de
+  producto o de unidad SAT y el enlace **Completar sus claves SAT**.
+
+En los dos casos, al guardar regresas a la factura, y las claves del producto ya quedan en
+el borrador.
 
 Haz clic en **Guardar borrador** para seguir después, o en **Guardar y validar**. Si falta
 algo, la página dice qué (*"Para validarla falta: …"*), p. ej. una clave que no existe en

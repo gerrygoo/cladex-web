@@ -350,8 +350,9 @@ func TestQuoteQGPricesPerMetreFromKg(t *testing.T) {
 	if project == nil || project.Profit != 4_112_44 {
 		t.Fatalf("proyecto profit = %+v, want $4,112.44", project)
 	}
-	// Its factura takes the metro unit the line was quoted in, not the catalog's kilo nor
-	// the product's KGM (its quantity is in metres), and the product's own SAT code.
+	// Its factura is in the product's KGM (#63 point 5): the kilos the quote computed
+	// (389.60) at the line's importe over them, so the importe is the quote's to the
+	// centavo, with the product's own SAT code.
 	if err := a.store.SetProjectProbability(ctx, project.ID, userID, 90, ""); err != nil {
 		t.Fatal(err)
 	}
@@ -363,9 +364,10 @@ func TestQuoteQGPricesPerMetreFromKg(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateFacturaDraft: %v", err)
 	}
-	if c, _ := a.store.ComprobanteByID(ctx, facturaID); c == nil || c.Conceptos[0].SATUnitCode != "MTR" || c.Conceptos[0].UnitName != "Metro" ||
-		c.Conceptos[0].SATProductCode != "26121600" {
-		t.Errorf("QG factura concepto = %+v, want 26121600 in MTR Metro", c)
+	if c, _ := a.store.ComprobanteByID(ctx, facturaID); c == nil || c.Conceptos[0].SATUnitCode != "KGM" || c.Conceptos[0].UnitName != "Kilogramo" ||
+		c.Conceptos[0].SATProductCode != "26121600" || c.Conceptos[0].QtyMilli != 389_600 || c.Conceptos[0].UnitPriceMicros != 105_555_544 ||
+		c.Conceptos[0].Importe != 41_124_44 || c.Subtotal != 41_124_44 {
+		t.Errorf("QG factura concepto = %+v, want 389.600 KGM × $105.555544 = $41,124.44", c)
 	}
 
 	other, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QG")

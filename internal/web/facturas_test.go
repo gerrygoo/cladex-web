@@ -851,3 +851,102 @@ func TestManualComplementos(t *testing.T) {
 		t.Errorf("after cancelling the complemento: %+v %q", project.States, project.LastBody)
 	}
 }
+
+// #63 points 3 and 4 on the draft: missing fiscal data of the customer and SAT codes of a
+// product are named with a link that edits them and comes back to the factura (the
+// product's codes then fill the draft), and the uso de CFDI must fit the customer's
+// régimen.
+func TestFacturaDraftChecks(t *testing.T) {
+	a := newTestAuth(t)
+	ctx := context.Background()
+	admin := createTestUser(t, a, "gerry", "admin", "hunter2")
+	svc, _ := testFacturacion(t, a, admin)
+	f := NewFacturas(a.store, svc, nil)
+	folio := facturaFixture(t, a, admin)
+	project, _ := a.store.ProjectByFolio(ctx, folio)
+	fid, err := a.store.CreateFacturaDraft(ctx, project.ID, admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := strconv.FormatInt(fid, 10)
+	c, _ := a.store.ComprobanteByID(ctx, fid)
+	pid := strconv.FormatInt(c.Conceptos[0].ProductID, 10)
+	page := func() string {
+		return doForm(t, a, admin, f.Page, "GET", "/facturas/"+id, map[string]string{"id": id}, nil, false).Body.String()
+	}
+
+	// The fixture's product has no SAT codes of its own.
+	body := page()
+	if !strings.Contains(body, "Faltan datos para facturar en:") || !strings.Contains(body, `href="/productos/`+pid+`?factura=`+id+`"`) {
+		t.Error("the draft doesn't point to the product missing its SAT codes")
+	}
+	if strings.Contains(body, "Faltan datos fiscales del cliente") {
+		t.Error("a customer with complete fiscal data is reported missing some")
+	}
+	products := newTestProducts(t, a)
+	edit := doForm(t, a, admin, products.EditPage, "GET", "/productos/"+pid+"?factura="+id, map[string]string{"id": pid}, nil, false).Body.String()
+	if !strings.Contains(edit, `name="factura" value="`+id+`"`) {
+		t.Error("the product form doesn't carry the factura it came from")
+	}
+	prod, _ := a.store.ProductByID(ctx, c.Conceptos[0].ProductID)
+	form := url.Values{"family_id": {strconv.FormatInt(prod.FamilyID, 10)}, "sku": {prod.SKU}, "description": {prod.Description},
+		"cost": {prod.CostMicros.String()}, "sat_product_code": {"26121600"}, "sat_unit_code": {"MTR"}, "factura": {id}}
+	if prod.UnitID != nil {
+		form.Set("unit_id", strconv.FormatInt(*prod.UnitID, 10))
+	}
+	rec := doForm(t, a, admin, products.Update, "POST", "/productos/"+pid, map[string]string{"id": pid}, form, false)
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/facturas/"+id+"?ok=datos" {
+		t.Fatalf("product Update = %d %q: %s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
+	}
+	c, _ = a.store.ComprobanteByID(ctx, fid)
+	if c.Conceptos[0].SATProductCode != "26121600" || c.Conceptos[0].SATUnitCode != "MTR" {
+		t.Errorf("draft concepto after completing the product = %+v", c.Conceptos[0])
+	}
+	if strings.Contains(page(), "Faltan datos para facturar en:") {
+		t.Error("the draft still reports the product's codes missing")
+	}
+
+	// A customer without régimen fiscal: named, with the link back.
+	cust := c.Customer
+	cust.TaxRegime = ""
+	if err := a.store.UpdateCustomer(ctx, cust); err != nil {
+		t.Fatal(err)
+	}
+	body = page()
+	cid := strconv.FormatInt(cust.ID, 10)
+	if !strings.Contains(body, "Faltan datos fiscales del cliente: régimen fiscal.") || !strings.Contains(body, `href="/clientes/`+cid+`?factura=`+id+`"`) {
+		t.Error("the draft doesn't name the missing régimen with its link")
+	}
+	customers := NewCustomers(a.store)
+	rec = doForm(t, a, admin, customers.Update, "POST", "/clientes/"+cid, map[string]string{"id": cid}, url.Values{
+		"name": {cust.Name}, "rfc": {cust.RFC}, "legal_name": {cust.LegalName}, "postal_code": {cust.PostalCode},
+		"tax_regime": {"605"}, "email": {cust.Email}, "factura": {id}}, false)
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/facturas/"+id+"?ok=datos" {
+		t.Fatalf("customer Update = %d %q: %s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
+	}
+
+	// Régimen 605 (sueldos y salarios) can't take G01: the draft says so, and doesn't offer G01.
+	c, _ = a.store.ComprobanteByID(ctx, fid)
+	if err := a.store.UpdateDraft(ctx, fid, admin, store.DraftEdit{UsoCFDI: "G01", MetodoPago: "PUE", FormaPago: "03", Conceptos: []store.ConceptoEdit{
+		{ID: c.Conceptos[0].ID, SATProductCode: "26121600", SATUnitCode: "MTR", Description: "Cable"}}}); err != nil {
+		t.Fatal(err)
+	}
+	c, _ = a.store.ComprobanteByID(ctx, fid)
+	problems, err := svc.Problems(ctx, c, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(problems, "\n"), "El uso de CFDI G01 - Adquisición de mercancías no es válido para el régimen fiscal 605") {
+		t.Errorf("problems = %q", problems)
+	}
+	body = page()
+	if !strings.Contains(body, `<option value="D01"`) || strings.Contains(body, `<option value="G03"`) {
+		t.Error("the uso de CFDI choices don't follow the customer's régimen")
+	}
+
+	// No uso de CFDI at all is a problem too (it used to pass as "not set").
+	c.UsoCFDI = ""
+	if problems, _ := svc.Problems(ctx, c, nil); !strings.Contains(strings.Join(problems, "\n"), "Elige el uso de CFDI.") {
+		t.Errorf("problems without uso = %q", problems)
+	}
+}

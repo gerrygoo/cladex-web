@@ -683,39 +683,7 @@ func buildPricingInputsJSON(p *store.Product, materials []store.ProductMaterial,
 // inputs: a QG line's weight plus the materials priced per kg, added up (e.g. 0.1723 kg
 // of CCS 30% per m). It reads what the line was priced from, so an issued quote keeps
 // its weights even if the catalog changes. nil for a line without any.
-func kgPerUnit(inputs *string) *money.Micros {
-	if inputs == nil {
-		return nil
-	}
-	var snap pricingInputsSnapshot
-	if err := json.Unmarshal([]byte(*inputs), &snap); err != nil {
-		return nil
-	}
-	var kg money.Micros
-	found := false
-	if snap.KgPerUnit != "" {
-		q, err := money.ParseMicros(snap.KgPerUnit)
-		if err != nil {
-			return nil
-		}
-		kg, found = q, true
-	}
-	for _, m := range snap.Materials {
-		if m.Unit != "kg" {
-			continue
-		}
-		q, err := money.ParseMicros(m.QtyPerUnit)
-		if err != nil {
-			return nil
-		}
-		kg += q
-		found = true
-	}
-	if !found {
-		return nil
-	}
-	return &kg
-}
+func kgPerUnit(inputs *string) *money.Micros { return store.LineKgPerMetre(inputs) }
 
 // freeLineMargin is the margin a QL free line was priced with, from its pricing inputs;
 // nil for any other line.

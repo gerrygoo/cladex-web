@@ -406,11 +406,13 @@ func (p *Products) EditPage(w http.ResponseWriter, r *http.Request) {
 	}
 	user, _ := UserFromContext(ctx)
 	action := fmt.Sprintf("/productos/%d", id)
+	values := productToValues(*product)
+	values.Factura = facturaParam(r)
 	title := "Editar producto"
 	if !isAdmin(ctx) {
 		title = "Producto" // read-only for a vendedor (issue #41)
 	}
-	views.ProductForm(title, action, productToValues(*product), nil, successMsg, families, units, id, sections, navUserView(user)).Render(ctx, w)
+	views.ProductForm(title, action, values, nil, successMsg, families, units, id, sections, navUserView(user)).Render(ctx, w)
 }
 
 // renderSectionError re-renders the edit form with a validation error scoped to one of
@@ -597,6 +599,15 @@ func (p *Products) Update(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
+	if f := facturaParam(r); f != "" {
+		fid, _ := strconv.ParseInt(f, 10, 64)
+		if err := p.store.RefreshDraftSATCodes(ctx, fid); err != nil {
+			serverError(w, r, err)
+			return
+		}
+		http.Redirect(w, r, "/facturas/"+f+"?ok=datos", http.StatusSeeOther)
+		return
+	}
 	http.Redirect(w, r, fmt.Sprintf("/productos/%d?guardado=1", id), http.StatusSeeOther)
 }
 
@@ -640,5 +651,7 @@ func (p *Products) renderFormError(w http.ResponseWriter, r *http.Request, title
 	}
 	user, _ := UserFromContext(ctx)
 	w.WriteHeader(http.StatusUnprocessableEntity)
-	views.ProductForm(title, action, form.toValues(), fieldErrors, "", families, units, id, sections, navUserView(user)).Render(ctx, w)
+	values := form.toValues()
+	values.Factura = facturaParam(r)
+	views.ProductForm(title, action, values, fieldErrors, "", families, units, id, sections, navUserView(user)).Render(ctx, w)
 }

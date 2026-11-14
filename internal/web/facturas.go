@@ -84,6 +84,7 @@ func (f *Facturas) Page(w http.ResponseWriter, r *http.Request) {
 		"guardado": "Borrador guardado.", "validada": "Validada: lista para timbrar.", "timbrada": "Timbrada.",
 		"cancelada": "Cancelada.", "pendiente": "La cancelación espera la respuesta del receptor.",
 		"registrada": "Factura registrada.", "complemento": "Complemento de pago registrado.",
+		"datos": "Datos guardados. Revisa la factura.",
 	}[r.URL.Query().Get("ok")]
 	f.render(w, r, c, success, "", http.StatusOK)
 }
@@ -644,4 +645,14 @@ func (f *Facturas) ComplementoManual(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, facturaURL(id, "complemento"), http.StatusSeeOther)
+}
+
+// facturaParam is the "factura" an edit page was opened from to complete what a factura
+// draft needs (#63), as digits, or "" when absent or malformed: saving goes back to it.
+func facturaParam(r *http.Request) string {
+	f := strings.TrimSpace(r.FormValue("factura"))
+	if id, err := strconv.ParseInt(f, 10, 64); err != nil || id <= 0 {
+		return ""
+	}
+	return f
 }

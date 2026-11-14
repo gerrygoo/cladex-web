@@ -306,7 +306,9 @@ func (cs *Customers) EditPage(w http.ResponseWriter, r *http.Request) {
 	}
 	user, _ := UserFromContext(ctx)
 	action := fmt.Sprintf("/clientes/%d", id)
-	views.CustomerForm("Editar cliente", action, customerToValues(*customer), nil, nil, successMsg, history, navUserView(user)).Render(ctx, w)
+	values := customerToValues(*customer)
+	values.Factura = facturaParam(r)
+	views.CustomerForm("Editar cliente", action, values, nil, nil, successMsg, history, navUserView(user)).Render(ctx, w)
 }
 
 // Update handles POST /clientes/{id}.
@@ -332,6 +334,10 @@ func (cs *Customers) Update(w http.ResponseWriter, r *http.Request) {
 	customer.ID = id
 	if err := cs.store.UpdateCustomer(ctx, customer); err != nil {
 		serverError(w, r, err)
+		return
+	}
+	if f := facturaParam(r); f != "" {
+		http.Redirect(w, r, "/facturas/"+f+"?ok=datos", http.StatusSeeOther)
 		return
 	}
 	http.Redirect(w, r, fmt.Sprintf("/clientes/%d?guardado=1", id), http.StatusSeeOther)
@@ -362,7 +368,9 @@ func (cs *Customers) renderFormError(w http.ResponseWriter, r *http.Request, id 
 	}
 	user, _ := UserFromContext(ctx)
 	w.WriteHeader(http.StatusUnprocessableEntity)
-	views.CustomerForm("Editar cliente", fmt.Sprintf("/clientes/%d", id), form.toValues(), fieldErrors, nil, "", history, navUserView(user)).Render(ctx, w)
+	values := form.toValues()
+	values.Factura = facturaParam(r)
+	views.CustomerForm("Editar cliente", fmt.Sprintf("/clientes/%d", id), values, fieldErrors, nil, "", history, navUserView(user)).Render(ctx, w)
 }
 
 // customerFieldLabels names each audited customer column as the form labels it, in the

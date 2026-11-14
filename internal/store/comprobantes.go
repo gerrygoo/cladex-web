@@ -128,6 +128,10 @@ type ComprobanteConcepto struct {
 	UnitPriceMicros money.Micros
 	Importe         money.Centavos
 	IVA             money.Centavos
+	// ProductID and SKU are the catalog product of the quote line it comes from; 0 and ""
+	// for a free line.
+	ProductID int64
+	SKU       string
 }
 
 // ComprobanteEvent is one entry of a comprobante's history.
@@ -198,9 +202,12 @@ func (s *Store) ComprobanteByID(ctx context.Context, id int64) (*Comprobante, er
 	}
 	c.Customer = *cust
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, line_no, COALESCE(sat_product_code, ''), COALESCE(sat_unit_code, ''), COALESCE(unit_name, ''),
-			description, qty_milli, unit_price_micros, importe, iva
-		FROM comprobante_conceptos WHERE comprobante_id = ? ORDER BY line_no`, id)
+		SELECT cc.id, cc.line_no, COALESCE(cc.sat_product_code, ''), COALESCE(cc.sat_unit_code, ''), COALESCE(cc.unit_name, ''),
+			cc.description, cc.qty_milli, cc.unit_price_micros, cc.importe, cc.iva, COALESCE(pr.id, 0), COALESCE(pr.sku, '')
+		FROM comprobante_conceptos cc
+		LEFT JOIN quote_lines ql ON ql.id = cc.quote_line_id
+		LEFT JOIN products pr ON pr.id = ql.product_id
+		WHERE cc.comprobante_id = ? ORDER BY cc.line_no`, id)
 	if err != nil {
 		return nil, fmt.Errorf("store: comprobante %d conceptos: %w", id, err)
 	}
@@ -208,7 +215,7 @@ func (s *Store) ComprobanteByID(ctx context.Context, id int64) (*Comprobante, er
 	for rows.Next() {
 		var l ComprobanteConcepto
 		if err := rows.Scan(&l.ID, &l.LineNo, &l.SATProductCode, &l.SATUnitCode, &l.UnitName, &l.Description,
-			&l.QtyMilli, &l.UnitPriceMicros, &l.Importe, &l.IVA); err != nil {
+			&l.QtyMilli, &l.UnitPriceMicros, &l.Importe, &l.IVA, &l.ProductID, &l.SKU); err != nil {
 			return nil, fmt.Errorf("store: comprobante %d conceptos: %w", id, err)
 		}
 		c.Conceptos = append(c.Conceptos, l)
@@ -339,9 +346,8 @@ func activeFactura(ctx context.Context, tx *sql.Tx, projectID int64) (int64, err
 // previous defaults: the quote type's familia's c_ClaveProdServ and the c_ClaveUnidad of
 // the product's unit (a kg-priced type's line is quoted per metre whatever the product's
 // catalog unit, kg, so it takes the metro unit). A product invoiced in KGM on a quote
-// priced per metre by weight (QG, QS) keeps the metre default too: its quantity is in
-// metres, and turning it into kilos belongs to invoicing by weight, not built yet. Every
-// code stays editable on the draft. A proyecto has one factura at a time; a cancelled one
+// priced per metre by weight (QG, QS) is turned into kilos, its importe unchanged
+// (invoiceInKilos). Every code stays editable on the draft. A proyecto has one factura at a time; a cancelled one
 // doesn't count.
 func (s *Store) CreateFacturaDraft(ctx context.Context, projectID, userID int64) (int64, error) {
 	var id int64
@@ -395,11 +401,15 @@ func (s *Store) CreateFacturaDraft(ctx context.Context, projectID, userID int64)
 				l.unit_price_micros, l.line_total, 0
 			FROM quote_lines l
 			LEFT JOIN products pr ON pr.id = l.product_id
-			LEFT JOIN (SELECT id, sat_unit_code AS code FROM products) own
-				ON own.id = pr.id AND NOT (? AND own.code = 'KGM')
+			LEFT JOIN (SELECT id, sat_unit_code AS code FROM products) own ON own.id = pr.id
 			LEFT JOIN units un ON un.id = CASE WHEN pr.id IS NOT NULL AND ? THEN (SELECT id FROM units WHERE code = 'm') ELSE pr.unit_id END
-			WHERE l.quote_id = ? ORDER BY l.line_no`, id, familyCode, byWeight, kgPriced, quoteID); err != nil {
+			WHERE l.quote_id = ? ORDER BY l.line_no`, id, familyCode, kgPriced, quoteID); err != nil {
 			return err
+		}
+		if byWeight {
+			if err := invoiceInKilos(ctx, tx, id); err != nil {
+				return err
+			}
 		}
 		if err := nameSATUnits(ctx, tx, id); err != nil {
 			return err

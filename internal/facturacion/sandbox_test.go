@@ -15,7 +15,7 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-// testFactura is a two-line P.P.D. factura from the SAT's test emisor to a test receptor,
+// testFactura is a three-line P.P.D. factura from the SAT's test emisor to a test receptor,
 // with amounts as Cladex's quotes make them (unit prices to the micro).
 func testFactura() *store.Comprobante {
 	c := &store.Comprobante{Tipo: store.TipoFactura, UsoCFDI: "G01", MetodoPago: "PPD", FormaPago: "99", Moneda: "MXN",
@@ -25,6 +25,10 @@ func testFactura() *store.Comprobante {
 				QtyMilli: 1_250_000, UnitPriceMicros: 39_129_876, Importe: 4_891_235},
 			{LineNo: 2, SATProductCode: "39111500", SATUnitCode: "H87", UnitName: "Pieza", Description: "Luminaria LED 100 W",
 				QtyMilli: 3_000, UnitPriceMicros: 1_234_567_891, Importe: 370_370},
+			// #63 point 5: a QS line invoiced in kilos, 1,000 m × 0.6078 kg/m = 607.80 KGM, its
+			// importe the quote's and the unit price adapted to it (store.UnitPriceFor).
+			{LineNo: 3, SATProductCode: "26121600", SATUnitCode: "KGM", UnitName: "Kilogramo", Description: "Cable Copperclad CCS 30% 7#7 (2/0 AWG)",
+				QtyMilli: 607_800, UnitPriceMicros: store.UnitPriceFor(12_381_111, 607_800), Importe: 12_381_111},
 		}}
 	for i := range c.Conceptos {
 		c.Conceptos[i].IVA = money.Centavos(money.RoundHalfUp(int64(c.Conceptos[i].Importe)*16, 100))

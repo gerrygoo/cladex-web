@@ -102,9 +102,12 @@ type CustomerFormValues struct {
 	// Volver and Tipo carry a trip from Nueva cotización (issue #29) through the form;
 	// CancelHref is where Cancelar goes then ("" for the catalog).
 	Volver     string
-	Tipo      string
+	Tipo       string
 	Folio      string
 	CancelHref string
+	// Factura is the factura draft the form was opened from to complete the customer's
+	// fiscal data (#63); saving goes back to it. "" otherwise.
+	Factura string
 }
 
 // SimilarCustomer is an existing customer the new one may duplicate, and where "Usar
@@ -176,6 +179,10 @@ templ CustomerForm(title string, action string, values CustomerFormValues, field
 		</div>
 		@Flash(successMsg)
 		<form method="post" action={ templ.URL(action) }>
+			if values.Factura != "" {
+				<input type="hidden" name="factura" value={ values.Factura }/>
+				<p class="hint">Al guardar regresas a la factura.</p>
+			}
 			if values.Volver != "" {
 				<input type="hidden" name="volver" value={ values.Volver }/>
 				<input type="hidden" name="tipo" value={ values.Tipo }/>

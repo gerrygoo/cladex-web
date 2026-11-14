@@ -77,7 +77,7 @@ func (s *Service) Problems(ctx context.Context, c *store.Comprobante, related *s
 	if strings.TrimSpace(cu.LegalName) == "" {
 		p = append(p, "El cliente no tiene razón social.")
 	}
-	if !store.ValidSATCode(store.TaxRegimes, cu.TaxRegime) {
+	if cu.TaxRegime == "" || !store.ValidSATCode(store.TaxRegimes, cu.TaxRegime) {
 		p = append(p, "El cliente no tiene régimen fiscal.")
 	}
 	if !store.ValidPostalCode(cu.PostalCode) {
@@ -93,8 +93,12 @@ func (s *Service) Problems(ctx context.Context, c *store.Comprobante, related *s
 	}
 	switch c.Tipo {
 	case store.TipoFactura:
-		if !store.ValidSATCode(store.CFDIUses, c.UsoCFDI) {
+		switch {
+		case c.UsoCFDI == "" || !store.ValidSATCode(store.CFDIUses, c.UsoCFDI):
 			p = append(p, "Elige el uso de CFDI.")
+		case !store.CFDIUseAllowed(c.UsoCFDI, cu.TaxRegime):
+			p = append(p, fmt.Sprintf("El uso de CFDI %s no es válido para el régimen fiscal %s del cliente: elige otro.",
+				store.SATLabel(store.CFDIUses, c.UsoCFDI), store.SATLabel(store.TaxRegimes, cu.TaxRegime)))
 		}
 		switch {
 		case c.MetodoPago != "PUE" && c.MetodoPago != "PPD":

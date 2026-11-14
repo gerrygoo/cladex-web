@@ -117,3 +117,49 @@ var CancelMotives = []SATCode{
 	{"03", "No se llevó a cabo la operación"},
 	{"04", "Operación nominativa relacionada en una factura global"},
 }
+
+// cfdiUseRegimes is the c_UsoCFDI catalog's "Régimen Fiscal Receptor" column (Anexo 20,
+// catCFDI 4.0): the receptor's regímenes each uso de CFDI may be used with. A uso not
+// listed (none today) is allowed with any régimen.
+var cfdiUseRegimes = func() map[string][]string {
+	business := []string{"601", "603", "606", "612", "620", "621", "622", "623", "624", "625", "626"}
+	personal := []string{"605", "606", "607", "608", "611", "612", "614", "615", "625"}
+	all := []string{"601", "603", "605", "606", "607", "608", "610", "611", "612", "614", "615", "616",
+		"620", "621", "622", "623", "624", "625", "626"}
+	m := map[string][]string{"S01": all, "CP01": all, "CN01": {"605"}}
+	for _, u := range []string{"G01", "G02", "G03", "I01", "I02", "I03", "I04", "I05", "I06", "I07", "I08"} {
+		m[u] = business
+	}
+	for _, u := range []string{"D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08", "D09", "D10"} {
+		m[u] = personal
+	}
+	return m
+}()
+
+// CFDIUseAllowed reports whether uso de CFDI use may go to a receptor in tax regime
+// regime, per the SAT's catalog. An unknown or empty régimen allows every uso (the
+// missing régimen is reported on its own).
+func CFDIUseAllowed(use, regime string) bool {
+	regimes, ok := cfdiUseRegimes[use]
+	if !ok || regime == "" {
+		return true
+	}
+	for _, r := range regimes {
+		if r == regime {
+			return true
+		}
+	}
+	return false
+}
+
+// CFDIUsesFor is the usos de CFDI a factura (not a pago: CP01 is the complemento's) may
+// take for a receptor in regime: every one, when the régimen isn't known yet.
+func CFDIUsesFor(regime string) []SATCode {
+	var out []SATCode
+	for _, u := range CFDIUses {
+		if u.Code != "CP01" && CFDIUseAllowed(u.Code, regime) {
+			out = append(out, u)
+		}
+	}
+	return out
+}

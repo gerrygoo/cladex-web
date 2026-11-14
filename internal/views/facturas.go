@@ -2,6 +2,7 @@ package views
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/gerrygoo/cladex-web/internal/pricing"
 	"github.com/gerrygoo/cladex-web/internal/store"
@@ -89,3 +90,57 @@ func ComplementoWarning(r store.BillingRow, today string) string {
 	}
 	return ""
 }
+
+// MissingCustomerData is what a factura draft's receptor still lacks to be invoiced (#63
+// point 3): RFC, razón social, código postal and régimen fiscal, by the names the
+// customer form uses. They stay optional on the customer until a factura needs them.
+func MissingCustomerData(c store.Comprobante) []string {
+	cu := c.Customer
+	var out []string
+	if !store.ValidRFC(cu.RFC) {
+		out = append(out, "RFC")
+	}
+	if strings.TrimSpace(cu.LegalName) == "" {
+		out = append(out, "razón social")
+	}
+	if !store.ValidPostalCode(cu.PostalCode) {
+		out = append(out, "código postal fiscal")
+	}
+	if cu.TaxRegime == "" {
+		out = append(out, "régimen fiscal")
+	}
+	return out
+}
+
+// MissingKeyLines are a factura draft's catalog lines without a clave de producto or de
+// unidad SAT (#63 point 4), each fixed on its product. Free lines (QL) take theirs on
+// the draft itself.
+func MissingKeyLines(c store.Comprobante) []store.ComprobanteConcepto {
+	var out []store.ComprobanteConcepto
+	for _, l := range c.Conceptos {
+		if l.ProductID != 0 && (l.SATProductCode == "" || l.SATUnitCode == "") {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// cfdiUseOptions are the usos de CFDI the draft offers: those valid for the customer's
+// régimen, plus the one already chosen if it isn't (so validation can say why).
+func cfdiUseOptions(c store.Comprobante) []store.SATCode {
+	opts := store.CFDIUsesFor(c.Customer.TaxRegime)
+	for _, o := range opts {
+		if o.Code == c.UsoCFDI {
+			return opts
+		}
+	}
+	for _, u := range store.CFDIUses {
+		if u.Code == c.UsoCFDI {
+			return append(opts, u)
+		}
+	}
+	return opts
+}
+
+// returnToFactura is the query that brings an edit page back to factura id on saving.
+func returnToFactura(id int64) string { return "?factura=" + strconv.FormatInt(id, 10) }
