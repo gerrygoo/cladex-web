@@ -18,7 +18,13 @@ func TestSeedStaging(t *testing.T) {
 	a := newTestAuth(t)
 	ctx := context.Background()
 	admin := createTestUser(t, a, "gerry", "admin", "hunter2")
-	seedQuoteBuilderFixtures(t, a)
+	_, _, ccaID := seedQuoteBuilderFixtures(t, a)
+	cca, _ := a.store.ProductByID(ctx, ccaID)
+	kg, ccaCost := money.Micros(318_270), money.Micros(45_000_000)
+	if _, err := a.store.CreateProduct(ctx, store.Product{FamilyID: cca.FamilyID, SKU: "CCA-C12", Description: "Cable CCA 12",
+		CostMicros: &ccaCost, KgPerMMicros: &kg}); err != nil {
+		t.Fatal(err)
+	}
 	seedCCSProduct(t, a)
 	seedPricingSettings(t, a, admin)
 	abl, err := a.store.UpsertFamily(ctx, "ABASTILUM", "")
@@ -27,6 +33,14 @@ func TestSeedStaging(t *testing.T) {
 	}
 	cost := money.Micros(1_200_000_000)
 	if _, err := a.store.CreateProduct(ctx, store.Product{FamilyID: abl, SKU: "ABL-FL-50w", Description: "Luminaria 50 W", CostMicros: &cost}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A seed that failed halfway left a user and a customer behind: the next run reuses them.
+	if _, err := a.store.CreateUser(ctx, "prueba-admin", "Prueba Administrador", "x", store.RoleAdmin); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.store.CreateCustomer(ctx, seedCustomers[0]); err != nil {
 		t.Fatal(err)
 	}
 

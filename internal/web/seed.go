@@ -48,20 +48,85 @@ var seedCustomers = []store.Customer{
 		TaxRegime: "612", PostalCode: "80290", CFDIUse: "G01", ContactName: "María Martínez", Phone: "55 0000 0005", Email: "compras5@example.com"},
 }
 
-// seedProduct is a test product copied from the first live product of a familia (its
-// cost, weight, unit and materials, so it prices like the real ones), with SAT codes.
+// Kinds of quote type the seed quotes with. Admins rename quote types, their prefixes
+// and familias, so each is found by what it does (seedResolve), never by name.
+const (
+	seedCopper = "copper" // priced from the copper price, by weight (CCS)
+	seedMetre  = "metre"  // cable by the metre, its products with a weight (CCA)
+	seedPiece  = "piece"  // pieces, its products without a weight (luminarias)
+)
+
+// seedProduct is a test product copied from the first live product of its kind's quote
+// type (its cost, weight, unit and materials, so it prices like the real ones), with
+// SAT codes.
 type seedProduct struct {
-	family, sku, description, satProduct, satUnit string
-	needsMaterials                                bool // copy a product that has materials (CCS's copper)
+	kind, sku, description, satProduct, satUnit string
 }
 
 var seedProducts = []seedProduct{
-	{"CCS & AC", "PRUEBA-CCS-KGM", "Cable CCS de prueba, se factura en kilos", "26121600", "KGM", true},
-	{"CCS & AC", "PRUEBA-CCS-MTR", "Cable CCS de prueba, se factura en metros", "26121600", "MTR", true},
-	{"CCA", "PRUEBA-CCA-MTR", "Cable CCA de prueba", "26121600", "MTR", false},
-	{"CCA", "PRUEBA-CCA-SINSAT", "Cable CCA de prueba sin datos para facturar", "", "", false},
-	{"ABASTILUM", "PRUEBA-ABL-H87", "Luminaria de prueba", "39111600", "H87", false},
+	{seedCopper, "PRUEBA-CCS-KGM", "Cable CCS de prueba, se factura en kilos", "26121600", "KGM"},
+	{seedCopper, "PRUEBA-CCS-MTR", "Cable CCS de prueba, se factura en metros", "26121600", "MTR"},
+	{seedMetre, "PRUEBA-CCA-MTR", "Cable CCA de prueba", "26121600", "MTR"},
+	{seedMetre, "PRUEBA-CCA-SINSAT", "Cable CCA de prueba sin datos para facturar", "", ""},
+	{seedPiece, "PRUEBA-ABL-H87", "Luminaria de prueba", "39111600", "H87"},
 }
+
+// seedKind is a quote type of one kind and the live product its test products copy.
+type seedKind struct {
+	typeID int64
+	base   store.Product
+}
+
+// seedResolve finds, for each kind, the first quote type of that kind with a product to
+// copy: copper, the type priced from the copper price (a product with materials);
+// metre and piece, plain types (not free lines, not by weight) with a priced product
+// with or without a weight.
+func seedResolve(ctx context.Context, st *store.Store) (map[string]seedKind, error) {
+	types, err := st.ListQuoteTypes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	list, err := st.ListProducts(ctx, "", "sku", "", nil)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]seedKind{}
+	for _, kind := range []string{seedCopper, seedMetre, seedPiece} {
+		for _, t := range types {
+			if t.FamilyID == nil || t.FreeLinesOnly || t.KgPriced || t.CopperPriceMargin != (kind == seedCopper) {
+				continue
+			}
+			for _, p := range list {
+				if p.FamilyID != *t.FamilyID || strings.HasPrefix(p.SKU, SeedPrefix) {
+					continue
+				}
+				ok := false
+				switch kind {
+				case seedCopper:
+					ok = p.HasMaterials
+				case seedMetre:
+					ok = p.CostMicros != nil && p.KgPerMMicros != nil
+				case seedPiece:
+					ok = p.CostMicros != nil && p.KgPerMMicros == nil
+				}
+				if ok {
+					out[kind] = seedKind{typeID: t.ID, base: p}
+					break
+				}
+			}
+			if _, found := out[kind]; found {
+				break
+			}
+		}
+		if _, found := out[kind]; !found {
+			return nil, fmt.Errorf("no quote type with a product to copy for %s", kind)
+		}
+	}
+	return out, nil
+}
+
+// seedDoneKey is the setting SeedStaging writes last: a database that has it is seeded.
+const seedDoneKey = "seed_staging_at"
 
 // SeedStaging adds a small, useful set of test data to a staging database that is a copy
 // of production's, so it becomes a superset: five users, customers (receptores valid in
@@ -74,12 +139,13 @@ var seedProducts = []seedProduct{
 // It does nothing when the test users already exist. It never runs on production: the
 // caller checks APP_ENV. The test users' password is generated and written to out.
 func SeedStaging(ctx context.Context, st *store.Store, now time.Time, out io.Writer) error {
-	if u, err := st.UserByUsername(ctx, seedUsers[0].username); err != nil {
+	if done, err := st.SettingValues(ctx, []string{seedDoneKey}); err != nil {
 		return err
-	} else if u != nil {
-		fmt.Fprintln(out, "staging ya tiene los datos de prueba (existe "+seedUsers[0].username+"); no se agregó nada")
+	} else if done[seedDoneKey] != "" {
+		fmt.Fprintln(out, "staging ya tiene los datos de prueba (desde "+done[seedDoneKey]+"); no se agregó nada")
 		return nil
 	}
+
 	password, err := seedPassword()
 	if err != nil {
 		return err
@@ -90,8 +156,15 @@ func SeedStaging(ctx context.Context, st *store.Store, now time.Time, out io.Wri
 	}
 	users := make([]*store.AuthenticatedUser, len(seedUsers))
 	for i, u := range seedUsers {
-		id, err := st.CreateUser(ctx, u.username, u.name, string(hash), u.role)
-		if err != nil {
+		var id int64
+		if existing, err := st.UserByUsername(ctx, u.username); err != nil {
+			return err
+		} else if existing != nil { // left by a seed that failed halfway
+			id = existing.ID
+			if err := st.UpdatePassword(ctx, id, string(hash)); err != nil {
+				return err
+			}
+		} else if id, err = st.CreateUser(ctx, u.username, u.name, string(hash), u.role); err != nil {
 			return fmt.Errorf("seed user %s: %w", u.username, err)
 		}
 		users[i] = &store.AuthenticatedUser{ID: id, Username: u.username, Name: u.name, Role: u.role}
@@ -99,24 +172,51 @@ func SeedStaging(ctx context.Context, st *store.Store, now time.Time, out io.Wri
 	admin, vend1, vend2, vend3 := users[0], users[2], users[3], users[4]
 	actx := store.WithActor(ctx, store.Actor{UserID: admin.ID, Source: store.SourceCLI})
 
+	existingCustomers, err := st.ListCustomers(ctx, SeedPrefix, "", "", nil)
+	if err != nil {
+		return err
+	}
 	customers := make([]int64, len(seedCustomers))
 	for i, c := range seedCustomers {
-		if customers[i], err = st.CreateCustomer(actx, c); err != nil {
-			return fmt.Errorf("seed customer %s: %w", c.Name, err)
+		for _, e := range existingCustomers {
+			if e.Name == c.Name {
+				customers[i] = e.ID
+			}
+		}
+		if customers[i] == 0 {
+			if customers[i], err = st.CreateCustomer(actx, c); err != nil {
+				return fmt.Errorf("seed customer %s: %w", c.Name, err)
+			}
 		}
 	}
 	suppliers := make([]int64, 5)
 	for i := range suppliers {
 		n := strconv.Itoa(i + 1)
+		if id, err := st.SupplierByName(ctx, SeedPrefix+" Proveedor "+n); err != nil {
+			return err
+		} else if id != nil {
+			suppliers[i] = *id
+			continue
+		}
 		if suppliers[i], err = st.CreateSupplier(actx, store.Supplier{Name: SeedPrefix + " Proveedor " + n, RFC: "EKU9003173C9",
 			LegalName: "PROVEEDOR DE PRUEBA " + n, Street: "Calle de Prueba", ExtNumber: n, Neighborhood: "Centro",
 			Municipality: "Monterrey", State: "Nuevo León", PostalCode: "64000", TaxRegime: "601"}); err != nil {
 			return fmt.Errorf("seed supplier %s: %w", n, err)
 		}
 	}
+	kinds, err := seedResolve(ctx, st)
+	if err != nil {
+		return err
+	}
 	products := map[string]int64{}
 	for _, sp := range seedProducts {
-		id, err := seedCopyProduct(actx, st, sp)
+		if p, err := st.ProductBySKU(ctx, sp.sku); err != nil {
+			return err
+		} else if p != nil {
+			products[sp.sku] = p.ID
+			continue
+		}
+		id, err := seedCopyProduct(actx, st, sp, kinds[sp.kind].base)
 		if err != nil {
 			return fmt.Errorf("seed product %s: %w", sp.sku, err)
 		}
@@ -126,8 +226,8 @@ func SeedStaging(ctx context.Context, st *store.Store, now time.Time, out io.Wri
 	q := NewQuotes(st, nil)
 	pos := NewPurchaseOrders(st)
 	// issue creates and issues a quote with lines, pairs of SKU and quantity in order.
-	issue := func(u *store.AuthenticatedUser, prefix string, customer int64, lines ...string) (*store.Project, error) {
-		quote, err := st.CreateDraftQuote(withSeedUser(ctx, u), customer, u.ID, prefix)
+	issue := func(u *store.AuthenticatedUser, kind string, customer int64, lines ...string) (*store.Project, error) {
+		quote, err := st.CreateDraftQuoteOfType(withSeedUser(ctx, u), customer, u.ID, kinds[kind].typeID)
 		if err != nil {
 			return nil, err
 		}
@@ -150,7 +250,7 @@ func SeedStaging(ctx context.Context, st *store.Store, now time.Time, out io.Wri
 	var folios []string
 
 	// 1. Prospecto whose follow-up was yesterday (avisos A/B).
-	p1, err := issue(vend1, "QA", customers[0], "PRUEBA-CCA-MTR", "500")
+	p1, err := issue(vend1, seedMetre, customers[0], "PRUEBA-CCA-MTR", "500")
 	if err != nil {
 		return err
 	}
@@ -162,7 +262,7 @@ func SeedStaging(ctx context.Context, st *store.Store, now time.Time, out io.Wri
 	folios = append(folios, p1.Folio+": prospecto con seguimiento vencido")
 
 	// 2. Prospecto at Inminente, in the Pronóstico.
-	p2, err := issue(vend2, "QS", customers[1], "PRUEBA-CCS-MTR", "1000")
+	p2, err := issue(vend2, seedCopper, customers[1], "PRUEBA-CCS-MTR", "1000")
 	if err != nil {
 		return err
 	}
@@ -173,7 +273,7 @@ func SeedStaging(ctx context.Context, st *store.Store, now time.Time, out io.Wri
 
 	// 3. En curso with its client O.C. and a confirmed supplier O.C., to invoice in kilos
 	// (stamp it in the sandbox).
-	p3, err := issue(vend1, "QS", customers[1], "PRUEBA-CCS-KGM", "1000", "PRUEBA-CCS-MTR", "250")
+	p3, err := issue(vend1, seedCopper, customers[1], "PRUEBA-CCS-KGM", "1000", "PRUEBA-CCS-MTR", "250")
 	if err != nil {
 		return err
 	}
@@ -187,7 +287,7 @@ func SeedStaging(ctx context.Context, st *store.Store, now time.Time, out io.Wri
 
 	// 4. En curso with an anticipo and a P.P.D. factura recorded by hand: Pendiente
 	// complemento de pago, with the complemento's deadline running.
-	p4, err := issue(vend3, "QA", customers[3], "PRUEBA-CCA-MTR", "300", "PRUEBA-CCA-SINSAT", "200")
+	p4, err := issue(vend3, seedMetre, customers[3], "PRUEBA-CCA-MTR", "300", "PRUEBA-CCA-SINSAT", "200")
 	if err != nil {
 		return err
 	}
@@ -207,7 +307,7 @@ func SeedStaging(ctx context.Context, st *store.Store, now time.Time, out io.Wri
 	folios = append(folios, p4.Folio+": en curso, factura P.P.D. registrada a mano y anticipo del 50% (falta complemento)")
 
 	// 5. Perdido.
-	p5, err := issue(vend2, "QI", customers[4], "PRUEBA-ABL-H87", "12")
+	p5, err := issue(vend2, seedPiece, customers[4], "PRUEBA-ABL-H87", "12")
 	if err != nil {
 		return err
 	}
@@ -217,12 +317,15 @@ func SeedStaging(ctx context.Context, st *store.Store, now time.Time, out io.Wri
 	folios = append(folios, p5.Folio+": perdido")
 
 	// A draft quote, never issued.
-	draft, err := st.CreateDraftQuote(withSeedUser(ctx, vend3), customers[2], vend3.ID, "QA")
+	draft, err := st.CreateDraftQuoteOfType(withSeedUser(ctx, vend3), customers[2], vend3.ID, kinds[seedMetre].typeID)
 	if err != nil {
 		return err
 	}
 	folios = append(folios, draft.Folio+": cotización en borrador")
 
+	if err := st.SetSetting(actx, seedDoneKey, now.Format(time.RFC3339), admin.ID); err != nil {
+		return err
+	}
 	fmt.Fprintln(out, "Datos de prueba agregados a staging.")
 	fmt.Fprintln(out, "Usuarios (contraseña para todos: "+password+"):")
 	for _, u := range seedUsers {
@@ -289,25 +392,10 @@ func seedPostLocation(ctx context.Context, u *store.AuthenticatedUser, h http.Ha
 	return rec.Header().Get("Location"), nil
 }
 
-// seedCopyProduct creates sp as a copy of its familia's first product (with materials
-// when sp.needsMaterials), with sp's SKU, description and SAT codes.
-func seedCopyProduct(ctx context.Context, st *store.Store, sp seedProduct) (int64, error) {
-	list, err := st.ListProducts(ctx, "", "sku", "", nil)
-	if err != nil {
-		return 0, err
-	}
-	var base *store.Product
-	for i := range list {
-		p := list[i]
-		if p.FamilyName == sp.family && !strings.HasPrefix(p.SKU, SeedPrefix) && (!sp.needsMaterials || p.HasMaterials) &&
-			(p.CostMicros != nil || p.HasMaterials) {
-			base = &p
-			break
-		}
-	}
-	if base == nil {
-		return 0, fmt.Errorf("no product of familia %q to copy", sp.family)
-	}
+// seedCopyProduct creates sp as a copy of base (its materials too), with sp's SKU,
+// description and SAT codes.
+func seedCopyProduct(ctx context.Context, st *store.Store, sp seedProduct, b store.Product) (int64, error) {
+	base := &b
 	np := *base
 	np.ID, np.SKU, np.Description, np.SATProductCode, np.SATUnitCode = 0, sp.sku, sp.description, sp.satProduct, sp.satUnit
 	id, err := st.CreateProduct(ctx, np)
@@ -404,3 +492,4 @@ func seedUUID() string {
 	b[8] = b[8]&0x3f | 0x80
 	return strings.ToUpper(fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:]))
 }
+

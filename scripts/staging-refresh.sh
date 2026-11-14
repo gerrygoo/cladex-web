@@ -33,6 +33,8 @@ mv "$NEW" "$STAGING_DATA/cladex.db"
 # proyectos in several states; cladex seed-staging, web.SeedStaging) so staging is a
 # superset of production. The test users' password is printed here. It refuses to run
 # unless the service's APP_ENV is staging.
-docker compose run --rm --no-deps cladex-staging seed-staging
+# A failed seed must not leave staging down: warn, start it anyway, and re-run the seed
+# by hand (it resumes): docker compose run --rm --no-deps cladex-staging seed-staging
+docker compose run --rm --no-deps cladex-staging seed-staging || echo "AVISO: los datos de prueba no se agregaron completos"
 docker compose up -d cladex-staging
 echo "staging refreshed from production at $(date '+%Y-%m-%d %H:%M')"

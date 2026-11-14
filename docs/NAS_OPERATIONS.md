@@ -316,16 +316,21 @@ drops the sessions so production cookies don't open staging, adds the test data
   one random password the refresh prints.
 - Five customers with SAT test RFCs that Facturoporti's sandbox accepts (601 and 612), so
   facturas to them stamp in staging; five suppliers.
-- Five products copied from the real ones of CCS & AC, CCA and ABASTILUM (same cost,
-  weight and materials) with SAT codes: one CCS in KGM (invoiced in kilos), one in MTR, a
-  CCA without SAT codes (to see "Faltan datos para facturar") and a luminaria in H87.
+- Five products copied from real ones (same cost, weight and materials) with SAT codes:
+  two from the quote type priced by the copper price (CCS), one in KGM (invoiced in kilos)
+  and one in MTR; two cables by the metre (CCA), one without SAT codes (to see "Faltan
+  datos para facturar"); and a piece (a luminaria) in H87. Quote types are found by what
+  they do, not by prefix or name, which admins change.
 - Proyectos: a prospecto with an overdue follow-up, one at Inminente, one en curso with a
   confirmed supplier O.C. ready to invoice (with a KGM line), one en curso with an
   anticipo and a P.P.D. factura recorded by hand (Pendiente complemento de pago), one
   Perdido, and a draft quote.
 
-`seed-staging` refuses unless `APP_ENV` is staging or development, and does nothing when
-`prueba-admin` already exists.
+`seed-staging` refuses unless `APP_ENV` is staging or development. It writes the setting
+`seed_staging_at` last and does nothing once it's there; after a run that failed halfway,
+running it again reuses what was created and finishes. A failed seed doesn't keep the
+refresh from starting staging: it prints a warning; re-run it with
+`docker compose run --rm --no-deps cladex-staging seed-staging`.
 Everything done in staging since the last refresh is lost. Staging has no Litestream and
 no backups: its data is disposable.
 
