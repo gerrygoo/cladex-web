@@ -264,7 +264,7 @@ templ lineInput(folio string, line QuoteLineView, field, value, label, placehold
 // and margin and shows the price they give, read-only (issue #27); elsewhere a free
 // line takes its price, and an optional cost below it that is never printed.
 templ quoteLineRow(folio string, line QuoteLineView, freeLinesOnly, kg bool, partida int) {
-	<tr>
+	<tr data-line>
 		<td class="num">{ strconv.Itoa(partida) }</td>
 		<td>
 			<input type="hidden" name={ "lines[" + line.Key + "][kind]" } value={ lineKind(line) }/>
@@ -287,7 +287,7 @@ templ quoteLineRow(folio string, line QuoteLineView, freeLinesOnly, kg bool, par
 				{ line.ProductLabel }
 			}
 		</td>
-		<td class="num">
+		<td class="num qty">
 			<input
 				type="text"
 				inputmode="decimal"
@@ -385,7 +385,9 @@ templ QuoteLinesFragment(quote store.Quote, lines []QuoteLineView, totals pricin
 		if marginError != "" {
 			<p class="error">{ marginError }</p>
 		}
-		<div class="table-scroll">
+		// data-lines-scroll: past maxVisibleLines partidas the table scrolls inside itself,
+		// so the page, and the picker below it, stop moving as lines are added (issue #75).
+		<div class="table-scroll lines-scroll" data-lines-scroll data-max-lines="7">
 			<table class={ templ.KV("kg-lines", kg) }>
 				<caption class="visually-hidden">Líneas de la cotización</caption>
 				<thead>

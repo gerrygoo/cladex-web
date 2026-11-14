@@ -305,9 +305,41 @@
   // picker grows the lines table above it; without this the next product would slide
   // out from under the pointer. Whatever moved is compensated by scrolling the page.
   var anchor = null;
+  var addedLine = false;
   document.addEventListener("htmx:beforeRequest", function (e) {
     var elt = e.detail.elt;
     anchor = elt ? { elt: elt, top: elt.getBoundingClientRect().top } : null;
+    addedLine = !!(elt && (elt.name === "add_product_id" || elt.name === "add_free"));
+  });
+
+  // The quote builder's lines table shows at most data-max-lines partidas and scrolls
+  // inside itself past that, its header and totals pinned (issue #75), so adding a line
+  // no longer pushes the picker down the page. Measured, not a fixed height: a free
+  // line's description or a line's error makes its row taller. Sized right after the
+  // swap, before the anchor above is checked, and scrolled to the line just added.
+  function capLines() {
+    var box = document.querySelector("[data-lines-scroll]");
+    if (!box) return;
+    var max = parseInt(box.dataset.maxLines, 10);
+    var rows = box.querySelectorAll("tbody tr[data-line]");
+    if (rows.length <= max) {
+      box.classList.remove("capped");
+      box.style.maxHeight = "";
+      return;
+    }
+    var head = box.querySelector("thead");
+    var foot = box.querySelector("tfoot");
+    var top = rows[0].getBoundingClientRect().top;
+    var shown = rows[max].getBoundingClientRect().top - top;
+    box.style.maxHeight = (head.offsetHeight + shown + (foot ? foot.offsetHeight : 0)) + "px";
+    box.classList.add("capped");
+  }
+  document.addEventListener("DOMContentLoaded", capLines);
+  document.addEventListener("htmx:afterSwap", function (e) {
+    if (e.detail.target && e.detail.target.id !== "quote-lines-fragment") return;
+    capLines();
+    var box = document.querySelector("[data-lines-scroll]");
+    if (box && addedLine) box.scrollTop = box.scrollHeight;
   });
   document.addEventListener("htmx:afterSettle", function () {
     if (!anchor || !anchor.elt.isConnected) return;

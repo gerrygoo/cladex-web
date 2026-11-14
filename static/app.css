@@ -789,6 +789,44 @@ div.table-scroll {
   position: relative;
 }
 
+/* The quote builder's lines (issue #75): past seven partidas static/app.js caps the
+   height and the table scrolls inside, with its header and totals pinned. */
+div.lines-scroll {
+  overflow-y: auto;
+  overflow-anchor: none;
+}
+
+div.lines-scroll.capped thead,
+div.lines-scroll.capped tfoot {
+  position: sticky;
+  z-index: 1;
+}
+
+div.lines-scroll.capped thead {
+  top: 0;
+}
+
+div.lines-scroll.capped tfoot {
+  bottom: 0;
+}
+
+div.lines-scroll.capped thead th,
+div.lines-scroll.capped tfoot th,
+div.lines-scroll.capped tfoot td {
+  background: var(--bg);
+}
+
+/* The unit sits right after the quantity, not under it. */
+td.qty {
+  white-space: nowrap;
+}
+
+td.qty input {
+  display: inline-block;
+  margin-top: 0;
+  vertical-align: middle;
+}
+
 /* Search and "Nuevo …" above a list. */
 div.toolbar {
   display: flex;

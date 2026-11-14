@@ -73,6 +73,9 @@ Con la cotización en borrador:
 2. Haz clic en el producto. Se agrega como una línea nueva, con cantidad 1 y su precio
    ya calculado. La lista se queda en la misma página y en el mismo lugar de la
    pantalla, así que puedes seguir haciendo clic en el siguiente producto.
+   - Con más de 7 líneas, la tabla muestra 7 y el resto se ve con su propia barra de
+     desplazamiento; los encabezados y el **Subtotal**, **IVA (16%)** y **Total** se
+     quedan a la vista. Al agregar una línea, la tabla baja sola hasta ella.
 3. Repite para cada producto.
 
 > El precio de una línea **lo calcula el sistema** a partir del catálogo, el
