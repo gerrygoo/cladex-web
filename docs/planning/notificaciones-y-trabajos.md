@@ -172,9 +172,9 @@ with a fake for tests and local dev (it logs and records instead of sending).
   avisos someone chose for them. With the channel toggles that makes a setting per user,
   kind and channel; it lands with the first trigger (a table keyed by user and kind, or
   columns, decided then).
-- **Only admins change toggles**, channel and per-trigger alike, on **Usuarios → Avisos**
-  (and their own Mi cuenta). A user still edits their own email and WhatsApp, sees what
-  they get, and clearing an address turns its channel off.
+- **Each user changes their own toggles**, channel and per-trigger alike, in Mi cuenta,
+  and nobody else does (2026-11-14; from 2026-11-08 until then only admins did, on a
+  Usuarios → Avisos page since removed). Clearing an address turns its channel off.
 
 ### Dashboard
 
@@ -240,7 +240,8 @@ C, D and F were built 2026-11-14 (email only; each takes WhatsApp with N4):
 
 **Avisos are self-service since 2026-11-14** (Gerry): each user turns their own channels
 and avisos on in Mi cuenta. `AdminOnly` kinds (`seguimiento_escalado`, F) are only offered
-to and only sent to admins. An admin can still edit anyone's on Usuarios → Avisos.
+to and only sent to admins. Admins can't edit other users' avisos: Usuarios → Avisos was
+removed the same day.
 
 Still to build from #69: E (factura draft ready: waits on #63), G (cobranza: waits on
 #63 and a due date). H is nothing for now.
@@ -276,8 +277,8 @@ Where N1 and N2 differ from the text above (2026-10-26):
   a manual retry (a new job) gets a new one.
 - **A manual retry of a failed job** gives it its 5 attempts again.
 - **No attachment column yet**: it comes with its first use, the factura resend (N5).
-- The users' contact fields are edited on **Mi cuenta → Avisos** and, by an admin, on
-  **Usuarios → Avisos**; from 2026-11-08 to 2026-11-14 only an admin turned a channel on or off (now each user does); Trabajos has an "Encolar trabajo de prueba" to check the runner.
+- The users' contact fields are edited on **Mi cuenta → Avisos**, by the user only (an
+  admin's Usuarios → Avisos existed until 2026-11-14); Trabajos has an "Encolar trabajo de prueba" to check the runner.
 
 ## 5. Not in this work
 

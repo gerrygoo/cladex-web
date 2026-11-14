@@ -73,8 +73,7 @@ Los fines de semana no se mandan avisos de seguimiento. Los de un proyecto se de
 cuanto alguien registra un comentario o una nueva fecha de seguimiento, o el proyecto deja
 de ser prospecto. Cada correo dice de qué proyecto se trata y trae el enlace.
 
-Un administrador también puede configurar los avisos de otra persona, por ejemplo para
-ayudarle ([cómo](administracion.md#configurar-los-avisos-de-un-usuario)).
+Solo tú puedes cambiar tus avisos; nadie más, ni un administrador, los cambia por ti.
 
 ## Cerrar sesión
 

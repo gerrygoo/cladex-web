@@ -1,14 +1,11 @@
 package views
 
-import (
-	"strconv"
+import "github.com/gerrygoo/cladex-web/internal/store"
 
-	"github.com/gerrygoo/cladex-web/internal/store"
-)
-
-// ContactForm is the Avisos form: a user's email and WhatsApp, which of them to be
-// notified on, and which avisos (kinds) they get, among those offered to their role (an
-// admin sees the AdminOnly ones too). It posts to action. Each user sets their own (#69).
+// ContactForm is Mi cuenta's Avisos form: the user's email and WhatsApp, which of them to
+// be notified on, and which avisos (kinds) they get, among those offered to their role
+// (an admin sees the AdminOnly ones too). It posts to action. Only the user sets their
+// own (#69).
 templ ContactForm(action string, c store.UserContact, kinds map[string]bool, errs map[string]string, role string) {
 	<form method="post" action={ templ.URL(action) }>
 		<label>
@@ -46,18 +43,4 @@ templ ContactForm(action string, c store.UserContact, kinds map[string]bool, err
 		</fieldset>
 		<button type="submit" class="primary">Guardar avisos</button>
 	</form>
-}
-
-// UsuarioAvisos is an admin's edit of another user's Avisos.
-templ UsuarioAvisos(target store.User, c store.UserContact, kinds map[string]bool, errs map[string]string, successMsg string, user *NavUser) {
-	@Layout("Avisos de "+target.Name, user) {
-		<div class="page-title">
-			<h1>Avisos de { target.Name }</h1>
-			@HelpLink(HelpAvisos)
-		</div>
-		<p><a href="/usuarios">← Usuarios</a></p>
-		@Flash(successMsg)
-		<p>Dónde y de qué la app le avisa a { target.Username }. Cada quien elige sus avisos en Mi cuenta; aquí puedes ayudarle a configurarlos.</p>
-		@ContactForm("/usuarios/"+strconv.FormatInt(target.ID, 10)+"/avisos", c, kinds, errs, target.Role)
-	}
 }

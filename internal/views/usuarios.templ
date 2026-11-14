@@ -67,7 +67,6 @@ templ UsersList(users []store.User, currentUserID int64, lv ListView, successMsg
 								}
 							</td>
 							<td class="actions">
-								<a href={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/avisos") }>Avisos<span class="visually-hidden">{ " de " + u.Username }</span></a>
 								if u.ID != currentUserID && u.DisabledAt != nil {
 									<form method="post" action={ templ.URL("/usuarios/" + strconv.FormatInt(u.ID, 10) + "/habilitar") }>
 										<button type="submit">Habilitar</button>

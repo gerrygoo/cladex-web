@@ -43,7 +43,7 @@ func serve(t *testing.T, a *Auth, mux http.Handler, userID int64, method, path s
 	return rec
 }
 
-// TestAvisos covers Mi cuenta → Avisos and an admin's edit of another user's. Its strings
+// TestAvisos covers Mi cuenta → Avisos, where each user, and only they, sets their own. Its strings
 // are the ones docs/guia/acceso.md, "Recibir avisos", quotes.
 func TestAvisos(t *testing.T) {
 	a := newTestAuth(t)
@@ -54,8 +54,6 @@ func TestAvisos(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("GET /mi-cuenta", a.RequireAuth(http.HandlerFunc(a.MiCuentaPage)))
 	mux.Handle("POST /mi-cuenta/avisos", a.RequireAuth(http.HandlerFunc(a.MiCuentaAvisos)))
-	mux.Handle("GET /usuarios/{id}/avisos", a.RequireAuth(a.RequireAdmin(http.HandlerFunc(users.AvisosPage))))
-	mux.Handle("POST /usuarios/{id}/avisos", a.RequireAuth(a.RequireAdmin(http.HandlerFunc(users.Avisos))))
 
 	// Each user chooses their own avisos (#69): a vendedor gets the toggles, without the
 	// ones only an admin may have.
@@ -104,11 +102,8 @@ func TestAvisos(t *testing.T) {
 		t.Errorf("a refused form changed the saved Avisos: %+v", c2)
 	}
 
-	// An admin can still set them for her, e.g. to help her set them up; her own saves
-	// change them, and her clearing the address turns its avisos off.
-	if rec := serve(t, a, mux, beto, "GET", "/usuarios/1/avisos", nil); rec.Code != 200 || !strings.Contains(rec.Body.String(), "Avisos de ana") {
-		t.Errorf("admin page: %d", rec.Code)
-	}
+	// Ana sets her own channels: a channel needs its address, unticking turns it off, and
+	// clearing the address turns its avisos off too.
 	for _, tc := range []struct {
 		form url.Values
 		want string
@@ -116,17 +111,10 @@ func TestAvisos(t *testing.T) {
 		{url.Values{"notify_email": {"1"}}, "Escribe el correo para recibir avisos por correo."},
 		{url.Values{"notify_whatsapp": {"1"}}, "Escribe el número para recibir avisos por WhatsApp."},
 	} {
-		rec := serve(t, a, mux, beto, "POST", "/usuarios/1/avisos", tc.form)
+		rec := serve(t, a, mux, ana, "POST", "/mi-cuenta/avisos", tc.form)
 		if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), tc.want) {
-			t.Errorf("admin %v: %d, want 422 with %q", tc.form, rec.Code, tc.want)
+			t.Errorf("%v: %d, want 422 with %q", tc.form, rec.Code, tc.want)
 		}
-	}
-	rec = serve(t, a, mux, beto, "POST", "/usuarios/1/avisos", url.Values{"email": {"ana@example.com"}, "notify_email": {"1"}})
-	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("admin save: %d %s", rec.Code, rec.Body.String())
-	}
-	if c, _ := a.store.UserContactByID(ctx, ana); c != (store.UserContact{Email: "ana@example.com", NotifyEmail: true}) {
-		t.Errorf("after the admin's edit: %+v", c)
 	}
 	if body := serve(t, a, mux, ana, "GET", "/mi-cuenta", nil).Body.String(); !strings.Contains(body, `name="notify_email" value="1" checked`) {
 		t.Error("Ana's Mi cuenta doesn't show her email avisos on")
@@ -135,28 +123,22 @@ func TestAvisos(t *testing.T) {
 	if c, _ := a.store.UserContactByID(ctx, ana); c != (store.UserContact{Email: "ana@cladex.com.mx"}) {
 		t.Errorf("Ana unticked Correo but it stays on: %+v", c)
 	}
-	serve(t, a, mux, ana, "POST", "/mi-cuenta/avisos", url.Values{"email": {""}})
+	serve(t, a, mux, ana, "POST", "/mi-cuenta/avisos", url.Values{"email": {""}, "notify_email": {""}})
 	if c, _ := a.store.UserContactByID(ctx, ana); c != (store.UserContact{}) {
-		t.Errorf("Ana cleared her email but its avisos stay on: %+v", c)
+		t.Errorf("Ana cleared her email: %+v", c)
 	}
 
-	// An admin's own Mi cuenta has the toggles.
-	if body := serve(t, a, mux, beto, "GET", "/mi-cuenta", nil).Body.String(); !strings.Contains(body, `name="notify_email"`) {
-		t.Error("an admin's Mi cuenta lacks the avisos toggles")
+	// An admin's own Mi cuenta has the admin-only avisos too.
+	if body := serve(t, a, mux, beto, "GET", "/mi-cuenta", nil).Body.String(); !strings.Contains(body, "Seguimientos vencidos del equipo") ||
+		!strings.Contains(body, "Orden de compra al proveedor sin enviar") {
+		t.Error("an admin's Mi cuenta lacks the admin-only avisos")
 	}
 
-	// Which avisos: an admin turns one on for Ana; Ana changes them herself, but can't turn
-	// on one only admins may have.
-	rec = serve(t, a, mux, beto, "POST", "/usuarios/1/avisos", url.Values{"email": {"ana@cladex.com.mx"}, "notify_email": {"1"},
+	// Which avisos: Ana turns hers on and off, but can't turn on one only admins may have.
+	serve(t, a, mux, ana, "POST", "/mi-cuenta/avisos", url.Values{"email": {"ana@cladex.com.mx"}, "notify_email": {"1"},
 		"aviso": {store.AvisoSeguimientoVencido, "no_existe"}})
-	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("admin save of avisos: %d", rec.Code)
-	}
 	if on, _ := a.store.UserAvisos(ctx, ana); len(on) != 1 || !on[store.AvisoSeguimientoVencido] {
-		t.Errorf("Ana's avisos after the admin's save: %v", on)
-	}
-	if body := serve(t, a, mux, beto, "GET", "/usuarios/1/avisos", nil).Body.String(); !strings.Contains(body, `name="aviso" value="seguimiento_vencido" checked`) {
-		t.Error("the admin's page doesn't show Ana's aviso on")
+		t.Errorf("Ana's avisos: %v", on)
 	}
 	body = serve(t, a, mux, ana, "GET", "/mi-cuenta", nil).Body.String()
 	if !strings.Contains(body, `name="aviso" value="seguimiento_vencido" checked`) {
@@ -167,14 +149,9 @@ func TestAvisos(t *testing.T) {
 	if on, _ := a.store.UserAvisos(ctx, ana); len(on) != 1 || !on[store.AvisoOCRecibida] {
 		t.Errorf("Ana's avisos after her own save: %v, want only %s", on, store.AvisoOCRecibida)
 	}
-	rec = serve(t, a, mux, beto, "POST", "/usuarios/1/avisos", url.Values{"email": {"ana@cladex.com.mx"}})
-	if on, _ := a.store.UserAvisos(ctx, ana); rec.Code != http.StatusSeeOther || len(on) != 0 {
-		t.Errorf("the admin unticked Ana's aviso but it stays: %v", on)
-	}
-	if rec := serve(t, a, mux, ana, "POST", "/usuarios/2/avisos", url.Values{"email": {"x@example.com"}}); rec.Code != http.StatusForbidden {
-		t.Errorf("vendedor editing another user: %d", rec.Code)
-	}
-	if rec := serve(t, a, mux, beto, "GET", "/usuarios/99/avisos", nil); rec.Code != http.StatusNotFound {
-		t.Errorf("missing user: %d", rec.Code)
+
+	// Nobody edits someone else's avisos: Usuarios has no Avisos page or link.
+	if body := doForm(t, a, beto, users.List, "GET", "/usuarios", nil, nil, false).Body.String(); strings.Contains(body, "/avisos") {
+		t.Error("Usuarios still links to a user's Avisos")
 	}
 }

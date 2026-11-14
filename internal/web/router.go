@@ -213,8 +213,6 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /usuarios/{id}/rol", admin(users.SetRole))
 	mux.Handle("POST /usuarios/{id}/deshabilitar", admin(users.SetDisabled(true)))
 	mux.Handle("POST /usuarios/{id}/habilitar", admin(users.SetDisabled(false)))
-	mux.Handle("GET /usuarios/{id}/avisos", admin(users.AvisosPage))
-	mux.Handle("POST /usuarios/{id}/avisos", admin(users.Avisos))
 
 	mux.Handle("GET /ajustes", admin(settings.Page))
 	mux.Handle("POST /ajustes/margenes", admin(settings.CreateMargen))

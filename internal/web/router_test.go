@@ -114,8 +114,6 @@ var appRoutes = []route{
 	{"POST", "/usuarios/1/rol", true},
 	{"POST", "/usuarios/1/deshabilitar", true},
 	{"POST", "/usuarios/1/habilitar", true},
-	{"GET", "/usuarios/1/avisos", true},
-	{"POST", "/usuarios/1/avisos", true},
 
 	{"GET", "/ajustes", true},
 	{"POST", "/ajustes/margenes", true},

@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/mail"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/gerrygoo/cladex-web/internal/store"
@@ -33,9 +32,8 @@ func normalizeWhatsApp(raw string) (string, bool) {
 	return digits, e164.MatchString(digits)
 }
 
-// parseContactForm reads the Avisos form, shared by Mi cuenta and an admin's edit of
-// another user. Errors key by the input's name. Each user turns their own channels and
-// avisos on or off (#69).
+// parseContactForm reads Mi cuenta's Avisos form. Errors key by the input's name. Each
+// user sets their own contact, channels and avisos, and only they do (#69).
 func parseContactForm(r *http.Request) (store.UserContact, map[string]string) {
 	c := store.UserContact{
 		Email:          strings.TrimSpace(r.FormValue("email")),
@@ -90,40 +88,6 @@ func (a *Auth) MiCuentaAvisos(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/mi-cuenta?avisos=1#avisos", http.StatusSeeOther)
 }
 
-// AvisosPage handles GET /usuarios/{id}/avisos: an admin edits another user's Avisos, as
-// they would their own, e.g. to help someone set them up.
-func (u *Users) AvisosPage(w http.ResponseWriter, r *http.Request) {
-	u.renderAvisos(w, r, nil, nil, nil)
-}
-
-// Avisos handles POST /usuarios/{id}/avisos.
-func (u *Users) Avisos(w http.ResponseWriter, r *http.Request) {
-	c, errs := parseContactForm(r)
-	if len(errs) > 0 {
-		u.renderAvisos(w, r, &c, avisosFromForm(r), errs)
-		return
-	}
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	target, err := u.store.UserByID(r.Context(), id)
-	if err != nil {
-		serverError(w, r, err)
-		return
-	}
-	if target == nil {
-		http.NotFound(w, r)
-		return
-	}
-	if err := u.store.SetUserContact(r.Context(), id, c); err != nil {
-		serverError(w, r, err)
-		return
-	}
-	if err := u.store.SetUserAvisos(r.Context(), id, target.Role, r.Form["aviso"]); err != nil {
-		serverError(w, r, err)
-		return
-	}
-	http.Redirect(w, r, "/usuarios/"+strconv.FormatInt(id, 10)+"/avisos?guardado=1", http.StatusSeeOther)
-}
-
 // avisosFromForm reads the aviso checkboxes of a submitted Avisos form.
 func avisosFromForm(r *http.Request) map[string]bool {
 	on := map[string]bool{}
@@ -131,43 +95,4 @@ func avisosFromForm(r *http.Request) map[string]bool {
 		on[k] = true
 	}
 	return on
-}
-
-// renderAvisos draws an admin's edit of a user's Avisos; contact, kinds and errs are a refused
-// submission, nil to show what is saved.
-func (u *Users) renderAvisos(w http.ResponseWriter, r *http.Request, contact *store.UserContact, kinds map[string]bool, errs map[string]string) {
-	ctx := r.Context()
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	target, err := u.store.UserByID(ctx, id)
-	if err != nil {
-		serverError(w, r, err)
-		return
-	}
-	if target == nil {
-		http.NotFound(w, r)
-		return
-	}
-	if contact == nil {
-		c, err := u.store.UserContactByID(ctx, id)
-		if err != nil {
-			serverError(w, r, err)
-			return
-		}
-		contact = &c
-	}
-	if kinds == nil {
-		if kinds, err = u.store.UserAvisos(ctx, id); err != nil {
-			serverError(w, r, err)
-			return
-		}
-	}
-	msg := ""
-	if r.URL.Query().Get("guardado") == "1" {
-		msg = "Avisos guardados."
-	}
-	if len(errs) > 0 {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-	}
-	user, _ := UserFromContext(ctx)
-	views.UsuarioAvisos(*target, *contact, kinds, errs, msg, navUserView(user)).Render(ctx, w)
 }

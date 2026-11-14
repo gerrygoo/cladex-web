@@ -150,7 +150,7 @@ intento y su resultado.
 
 La app la reintenta sola varias veces (ver [trabajos en segundo
 plano](#trabajos-en-segundo-plano)). Si aun así queda *Fallida*, corrige lo que dice el
-error (por ejemplo, el correo del usuario en **Usuarios → Avisos**) y haz clic en
+error (por ejemplo, pídele al usuario que corrija su correo en **Mi cuenta → Avisos**) y haz clic en
 **Reintentar** en la notificación. Una que sigue *Por enviar* se puede **Cancelar**.
 
 > En el [ambiente de pruebas](#ambiente-de-pruebas) solo se envían avisos a las
@@ -200,20 +200,6 @@ No puedes cambiar tu propio rol.
 3. Para devolverle el acceso, haz clic en **Habilitar**.
 
 No puedes deshabilitarte a ti mismo.
-
-## Configurar los avisos de un usuario
-
-Cada quien elige sus avisos en **Mi cuenta** ([cómo](acceso.md#recibir-avisos)). Si
-alguien necesita ayuda, un administrador puede hacerlo por él:
-
-1. En **Usuarios**, en la fila del usuario, haz clic en **Avisos**.
-2. Revisa que tenga su **Correo** y marca **Correo** en **Recibir avisos por**. Sin eso no
-   le llega ningún aviso, aunque lo prendas.
-3. En **Avisos**, marca los que debe recibir y haz clic en **Guardar avisos**.
-
-Los avisos *Solo para administradores* solo aparecen, y solo llegan, a quien es
-administrador. La lista de avisos y cuándo llega cada uno está en
-[Recibir avisos](acceso.md#recibir-avisos).
 
 ## Dar de alta un usuario o restablecer una contraseña
 
