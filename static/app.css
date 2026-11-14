@@ -827,6 +827,22 @@ td.qty input {
   vertical-align: middle;
 }
 
+/* The proyecto's name (issue #73): field, its count and Guardar nombre on one row. */
+form.project-name-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.25rem 0.75rem;
+}
+
+form.project-name-form label {
+  flex: 0 1 22rem;
+}
+
+form.project-name-form small {
+  padding-bottom: 0.6rem;
+}
+
 /* Search and "Nuevo …" above a list. */
 div.toolbar {
   display: flex;

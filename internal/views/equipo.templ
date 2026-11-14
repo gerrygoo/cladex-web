@@ -137,7 +137,7 @@ templ EquipoPage(e Equipo, user *NavUser) {
 					<tbody>
 						for _, o := range e.Team.Overdue {
 							<tr>
-								<th scope="row"><a href={ templ.URL(projectPath(o.Folio)) }>{ o.Folio }</a></th>
+								<th scope="row"><a href={ templ.URL(projectPath(o.Folio)) }>{ store.ProjectLabel(o.Folio, o.Name) }</a></th>
 								<td>{ o.Customer }</td>
 								<td>{ o.UserName }</td>
 								<td>{ probabilityText(o.Probability) }</td>

@@ -67,6 +67,8 @@ type SeguimientoPeriod struct {
 	ProjectID    int64
 	Folio        string
 	CustomerName string
+	// ProjectName is the proyecto's name now (issue #73), empty when it has none.
+	ProjectName string
 	// Deleted is set when the proyecto no longer exists: there is no page to link to.
 	Deleted bool
 	// UserID is the proyecto's owner when the period opened, and Probability its
@@ -257,12 +259,17 @@ func (s *Store) seguimientoHistory(ctx context.Context, now time.Time) ([]Seguim
 	if err != nil {
 		return nil, nil, err
 	}
+	names, err := s.projectNames(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 	var periods []SeguimientoPeriod
 	var days []seguimientoDay
 	for _, h := range histories {
 		ps, ds := replaySeguimientos(*h, now, mexicoCity)
 		for i := range ps {
 			ps[i].CustomerName = customers[h.CustomerID]
+			ps[i].ProjectName = names[h.ID]
 		}
 		periods = append(periods, ps...)
 		days = append(days, ds...)
@@ -392,6 +399,25 @@ func (s *Store) projectTimelines(ctx context.Context) ([]*projectTimeline, error
 		sort.Slice(h.Comments, func(i, j int) bool { return h.Comments[i].Before(h.Comments[j]) })
 	}
 	return order, nil
+}
+
+// projectNames maps the id of every proyecto that has a name to it.
+func (s *Store) projectNames(ctx context.Context) (map[int64]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name FROM projects WHERE name IS NOT NULL`)
+	if err != nil {
+		return nil, fmt.Errorf("store: project names: %w", err)
+	}
+	defer rows.Close()
+	out := map[int64]string{}
+	for rows.Next() {
+		var id int64
+		var name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, fmt.Errorf("store: project names: %w", err)
+		}
+		out[id] = name
+	}
+	return out, rows.Err()
 }
 
 // customerNames maps every customer's id to its name, deleted ones included.

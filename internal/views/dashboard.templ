@@ -85,7 +85,7 @@ templ MisPendientesSection(m MisPendientes) {
 									if d.Period.Deleted {
 										{ d.Period.Folio }
 									} else {
-										<a href={ templ.URL(projectPath(d.Period.Folio)) }>{ d.Period.Folio }</a>
+										<a href={ templ.URL(projectPath(d.Period.Folio)) }>{ store.ProjectLabel(d.Period.Folio, d.Period.ProjectName) }</a>
 									}
 									{ " · " + d.Period.CustomerName }
 									<small class="comment-meta">Completado { closedReasonText(d.Period.Reason) } el { mxTimeText(d.At) }</small>
@@ -113,7 +113,7 @@ templ seguimientoRow(p store.SeguimientoPeriod) {
 	<tr>
 		<td><span class={ priorityClass(p.Priority()) }>{ priorityText(p.Priority()) }</span></td>
 		<td>
-			Seguimiento de <a href={ templ.URL(projectPath(p.Folio)) }>{ p.Folio }</a>{ " · " + p.CustomerName }
+			Seguimiento de <a href={ templ.URL(projectPath(p.Folio)) }>{ store.ProjectLabel(p.Folio, p.ProjectName) }</a>{ " · " + p.CustomerName }
 		</td>
 		<td>{ dateText(p.Day) }</td>
 		<td>{ daysLateText(p.DaysLate) }</td>

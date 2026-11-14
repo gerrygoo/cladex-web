@@ -852,6 +852,9 @@ type Project struct {
 	CancelReason  string
 	CancelledFrom string
 	CancelledAt   string
+	// Name is the proyecto's own name (issue #73), e.g. "Capuchinas", empty when it has
+	// none. Shown next to the folio; see Project.Label.
+	Name string
 	// States are its facturación, entrega and cobro (the project_states view). They are
 	// derived for every proyecto but only mean something once it is en curso.
 	States ProjectStates
@@ -933,6 +936,39 @@ func (p Project) MarginPercent() float64 {
 // HasOC reports whether the client's purchase order is on record.
 func (p Project) HasOC() bool { return p.OC.Number != "" }
 
+// MaxProjectName is how long a proyecto's name may be, in characters (issue #73).
+const MaxProjectName = 40
+
+// Label is how a proyecto is named in lists, avisos and dashboards: its folio, and its
+// name after it when it has one ("QCCA0053 · Capuchinas").
+func (p Project) Label() string { return ProjectLabel(p.Folio, p.Name) }
+
+// ProjectLabel is Project.Label for a folio and name read on their own.
+func ProjectLabel(folio, name string) string {
+	if name == "" {
+		return folio
+	}
+	return folio + " · " + name
+}
+
+// SetProjectName sets or changes the proyecto's name; blank clears it. The caller checks
+// its length (MaxProjectName).
+func (s *Store) SetProjectName(ctx context.Context, projectID int64, name string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: set project %d name: %w", projectID, err)
+	}
+	defer tx.Rollback()
+	if err := stampActor(ctx, tx); err != nil {
+		return fmt.Errorf("store: set project %d name: %w", projectID, err)
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE projects SET name = NULLIF(?, '') WHERE id = ?`,
+		strings.TrimSpace(name), projectID); err != nil {
+		return fmt.Errorf("store: set project %d name: %w", projectID, err)
+	}
+	return tx.Commit()
+}
+
 // FollowUpDue reports whether the prospecto's next follow-up is today or overdue.
 func (p Project) FollowUpDue(today string) bool {
 	return p.Status == "prospecto" && p.NextFollowUpDate != "" && p.NextFollowUpDate <= today
@@ -964,7 +1000,8 @@ var projectSelectCols = `
 	COALESCE(p.invoice_ref, ''), COALESCE(p.invoice_date, ''),
 	q.subtotal, ` + quoteProfitSQL + `, COALESCE((` + projectLastComment("lc.created_at") + `), p.created_at),
 	COALESCE(p.cancel_reason, ''), COALESCE(p.cancelled_from, ''), COALESCE(p.cancelled_at, ''),
-	ps.facturacion, ps.entrega, ps.cobro, ps.paid, ps.last_paid_on, ps.cerrado`
+	ps.facturacion, ps.entrega, ps.cobro, ps.paid, ps.last_paid_on, ps.cerrado,
+	COALESCE(p.name, '')`
 
 // quoteProfitSQL is the current quote's profit before IVA, in centavos: its catalog lines'
 // total times the margin it was issued with (a fraction of the sale price), rounded half
@@ -1006,7 +1043,8 @@ func scanProject(row interface{ Scan(...any) error }) (*Project, error) {
 		&p.Invoice.Ref, &p.Invoice.Date,
 		&p.Subtotal, &p.Profit, &p.LastMovementAt,
 		&p.CancelReason, &p.CancelledFrom, &p.CancelledAt,
-		&p.States.Facturacion, &p.States.Entrega, &p.States.Cobro, &p.States.Paid, &p.States.LastPaidOn, &p.States.Cerrado)
+		&p.States.Facturacion, &p.States.Entrega, &p.States.Cobro, &p.States.Paid, &p.States.LastPaidOn, &p.States.Cerrado,
+		&p.Name)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -1067,7 +1105,7 @@ var projectFilterColumns = []filterColumn{
 }
 
 // ListProjects returns proyectos, optionally filtered by a case-insensitive substring
-// match on folio or customer name and by per-column filters (see projectFilterColumns),
+// match on folio, customer name or the proyecto's name and by per-column filters (see projectFilterColumns),
 // sorted per sort/dir (see projectSortColumns). The list is of the proyectos still being
 // worked: a Cerrado · Ganado one is left out unless the etapa filter asks for it or a
 // search is typed (looking a proyecto up by its folio finds it whatever its stage).
@@ -1086,8 +1124,9 @@ func (s *Store) ListProjects(ctx context.Context, query, sort, dir string, filte
 	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+projectSelectCols+projectFrom+`
-		WHERE (? = '' OR p.folio LIKE ? ESCAPE '\' COLLATE NOCASE OR c.name LIKE ? ESCAPE '\' COLLATE NOCASE)`+extra+`
-		`+order, append([]any{query, like, like}, extraArgs...)...,
+		WHERE (? = '' OR p.folio LIKE ? ESCAPE '\' COLLATE NOCASE OR c.name LIKE ? ESCAPE '\' COLLATE NOCASE
+			OR p.name LIKE ? ESCAPE '\' COLLATE NOCASE)`+extra+`
+		`+order, append([]any{query, like, like, like}, extraArgs...)...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: list projects: %w", err)

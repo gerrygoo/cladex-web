@@ -259,7 +259,7 @@ func (s *Service) details(p store.Project) []string {
 		last = fmt.Sprintf("Último comentario de seguimiento, de %s el %s: %s", p.LastUserName, when, p.LastBody)
 	}
 	return []string{
-		fmt.Sprintf("Proyecto %s · cotización %s · cliente %s · contacto: %s.", p.Folio, p.CurrentQuoteFolio, p.CustomerName, contact),
+		fmt.Sprintf("Proyecto %s · cotización %s · cliente %s · contacto: %s.", p.Label(), p.CurrentQuoteFolio, p.CustomerName, contact),
 		fmt.Sprintf("Total: %s. Antes de IVA: venta %s, costo %s, utilidad %s, margen %.1f%%.",
 			p.Total, p.Subtotal, p.Cost(), p.Profit, p.MarginPercent()),
 		last,
@@ -273,7 +273,7 @@ func (s *Service) link(p store.Project) string {
 const footer = "— Cladex. Este correo es automático; no lo respondas."
 
 func (s *Service) ownerMessage(r store.AvisoRecipient, p store.Project, d time.Time, n int) (subject, text, html string) {
-	what := fmt.Sprintf("El seguimiento del proyecto %s de %s era el %s y no se ha registrado nada desde entonces.", p.Folio, p.CustomerName, day(d))
+	what := fmt.Sprintf("El seguimiento del proyecto %s de %s era el %s y no se ha registrado nada desde entonces.", p.Label(), p.CustomerName, day(d))
 	if n > 1 {
 		what += fmt.Sprintf(" Van %d días hábiles.", n)
 	}
@@ -282,16 +282,16 @@ func (s *Service) ownerMessage(r store.AvisoRecipient, p store.Project, d time.T
 		"Siguiente paso: registra el seguimiento en el proyecto, con un comentario o una nueva fecha. En cuanto lo hagas, dejan de llegar estos avisos.",
 		s.link(p), footer)
 	text, html = notify.Email(paras...)
-	return fmt.Sprintf("Seguimiento vencido: %s · %s", p.Folio, p.CustomerName), text, html
+	return fmt.Sprintf("Seguimiento vencido: %s · %s", p.Label(), p.CustomerName), text, html
 }
 
 func (s *Service) teamMessage(r store.AvisoRecipient, p store.Project, d time.Time, n int) (subject, text, html string) {
 	what := fmt.Sprintf("%s no le ha dado seguimiento al proyecto %s de %s, con valor de %s. Su seguimiento era el %s; van %d días hábiles sin que se registre nada.",
-		p.UserName, p.Folio, p.CustomerName, p.Total, day(d), n)
+		p.UserName, p.Label(), p.CustomerName, p.Total, day(d), n)
 	paras := append([]string{"Hola, " + r.Name + ".", what}, s.details(p)...)
 	paras = append(paras,
 		"Siguiente paso: revisar el proyecto con "+p.UserName+".",
 		s.link(p), footer)
 	text, html = notify.Email(paras...)
-	return fmt.Sprintf("%s no ha dado seguimiento a %s · %s", p.UserName, p.Folio, p.CustomerName), text, html
+	return fmt.Sprintf("%s no ha dado seguimiento a %s · %s", p.UserName, p.Label(), p.CustomerName), text, html
 }

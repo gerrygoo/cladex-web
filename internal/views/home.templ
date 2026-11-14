@@ -85,7 +85,7 @@ templ folioList(folios []store.DashboardProject, label string) {
 			<summary aria-label={ label + ": " + strconv.Itoa(len(folios)) }>{ strconv.Itoa(len(folios)) }</summary>
 			<ul>
 				for _, f := range folios {
-					<li><a href={ templ.URL(projectPath(f.Folio)) }>{ f.Folio }</a>{ " · " + f.Customer + " · " + f.Amount.String() }</li>
+					<li><a href={ templ.URL(projectPath(f.Folio)) }>{ store.ProjectLabel(f.Folio, f.Name) }</a>{ " · " + f.Customer + " · " + f.Amount.String() }</li>
 				}
 			</ul>
 		</details>

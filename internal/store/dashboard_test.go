@@ -120,7 +120,7 @@ func TestSalesDashboard(t *testing.T) {
 	if e.ForecastCount != 1 || e.ForecastAmount != 1_000_00 {
 		t.Errorf("Emilio forecast = %d, %v; want 1 and $1,000.00", e.ForecastCount, e.ForecastAmount)
 	}
-	if !reflect.DeepEqual(e.Untracked, []DashboardProject{{"QA0002", "Grupo PEME", 500_00}}) || e.UntrackedAmount != 500_00 {
+	if !reflect.DeepEqual(e.Untracked, []DashboardProject{{"QA0002", "Grupo PEME", 500_00, ""}}) || e.UntrackedAmount != 500_00 {
 		t.Errorf("Emilio untracked = %v, %v; want QA0002 and $500.00 (follow-up today counts, a future one doesn't, and QA0003, with its O.C. in and no follow-up date, never does: issue #61)", e.Untracked, e.UntrackedAmount)
 	}
 	// An O.C. date of today hasn't passed; yesterday has.

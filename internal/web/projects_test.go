@@ -1303,3 +1303,50 @@ func TestProjectsPageShowsProfit(t *testing.T) {
 		t.Error("a proyecto whose current quote is a draft shows a profit")
 	}
 }
+
+// Issue #73: any user names a proyecto, up to 40 characters; the name shows next to the
+// folio on its page and in the list, and the list's search finds it.
+func TestProjectsName(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	p := NewProjects(a.store)
+	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
+	customerID, _, productID := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, ana)
+	folio := issueTestQuote(t, a, q, ana, customerID, productID)
+	pv := map[string]string{"folio": folio}
+	name := func(v string) *httptest.ResponseRecorder {
+		return doForm(t, a, ana, p.Nombre, "POST", "/proyectos/"+folio+"/nombre", pv, url.Values{"name": {v}}, false)
+	}
+
+	if rec := name(strings.Repeat("ñ", 41)); rec.Code != http.StatusBadRequest {
+		t.Errorf("Nombre(41 characters) status = %d, want 400", rec.Code)
+	}
+	if rec := name("  Capuchinas   norte "); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Nombre status = %d, want 303", rec.Code)
+	}
+	page := doForm(t, a, ana, p.Page, "GET", "/proyectos/"+folio, pv, nil, false).Body.String()
+	for _, want := range []string{"<h1>Proyecto " + folio + " · Capuchinas norte</h1>", `value="Capuchinas norte"`, "16 / 40",
+		"Nombre del proyecto (opcional)", "Guardar nombre"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("proyecto page missing %q", want)
+		}
+	}
+	list := func(query string) string {
+		return doForm(t, a, ana, p.List, "GET", "/proyectos?"+query, nil, nil, false).Body.String()
+	}
+	if body := list("q=capuchinas"); !strings.Contains(body, folio+" · Capuchinas norte") {
+		t.Error("searching the list by the proyecto's name doesn't find it")
+	}
+	if body := list(""); !strings.Contains(body, "Buscar por folio, cliente o nombre del proyecto…") {
+		t.Error("the list's search box doesn't say it searches by name")
+	}
+
+	if rec := name(" "); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Nombre(blank) status = %d, want 303", rec.Code)
+	}
+	project, _ := a.store.ProjectByFolio(context.Background(), folio)
+	if project.Name != "" || project.Label() != folio {
+		t.Errorf("after clearing, Name = %q, Label = %q", project.Name, project.Label())
+	}
+}

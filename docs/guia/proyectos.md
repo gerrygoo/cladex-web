@@ -33,7 +33,8 @@ o se borra un pago registrado por error), regresa solo a **En curso**.
 ## Buscar un proyecto
 
 1. En el menú **Proyectos**, elige **Ver proyectos**.
-2. Escribe el folio o el nombre del cliente en *"Buscar por folio o cliente…"*.
+2. Escribe el folio, el nombre del cliente o el [nombre del proyecto](#ponerle-nombre-a-un-proyecto) en
+   *"Buscar por folio, cliente o nombre del proyecto…"*.
 3. Para ordenar, haz clic en el encabezado **Proyecto**, **Cliente**, **Vendedor**,
    **Etapa**, **Probabilidad**, **Próximo seguimiento**, **Total** o **Abierto**. Otro clic
    invierte el orden. Sin ordenar, van del más reciente al más antiguo.
@@ -58,6 +59,21 @@ tiene el enlace.
   los prospectos sin fecha y al final los proyectos en otras etapas. Esta columna no
   tiene embudo de filtro.
 - Los borradores que nunca se emitieron no tienen proyecto, así que no aparecen aquí.
+
+## Ponerle nombre a un proyecto
+
+Para reconocer un proyecto rápido, sobre todo cuando un cliente tiene varios, ponle un
+nombre o referencia, p. ej. *Capuchinas*. Es opcional y cualquiera lo puede poner o cambiar
+en cualquier momento.
+
+1. Abre el proyecto.
+2. Debajo del cliente, en **Nombre del proyecto (opcional)**, escribe el nombre (hasta 40
+   caracteres; el contador de al lado dice cuántos llevas).
+3. Haz clic en **Guardar nombre**. Para quitarlo, borra el texto y guarda.
+
+El nombre aparece junto al folio, p. ej. **QCCA0053 · Capuchinas**: en el título del
+proyecto, en la lista de proyectos, en el pronóstico, en la página de inicio, en los
+dashboards y en los avisos por correo.
 
 ## Ver el detalle de un proyecto
 

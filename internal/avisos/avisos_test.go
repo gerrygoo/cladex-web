@@ -210,6 +210,18 @@ func TestSeguimientoRounds(t *testing.T) {
 	if subject != "Ana no ha dado seguimiento a QA0001 · EMSA" || !strings.Contains(body, "van 2 días hábiles") {
 		t.Errorf("team's aviso: %q\n%s", subject, body)
 	}
+
+	// A proyecto with a name (issue #73) is called by it next to its folio.
+	if _, err := f.raw.Exec(`UPDATE projects SET name = 'Capuchinas'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, got := f.run(t, "2026-11-19T18:00", 0); got[f.ana] != 1 {
+		t.Fatalf("Thursday 18:00 queued %v, want one for Ana", got)
+	}
+	f.raw.QueryRow(`SELECT subject, body_text FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1`, f.ana).Scan(&subject, &body)
+	if subject != "Seguimiento vencido: QA0001 · Capuchinas · EMSA" || !strings.Contains(body, "Proyecto QA0001 · Capuchinas · cotización") {
+		t.Errorf("named proyecto's aviso: %q\n%s", subject, body)
+	}
 }
 
 func TestSeguimientoStops(t *testing.T) {

@@ -230,6 +230,15 @@
     box.querySelector("[name=oc_esperada]").disabled = lost;
   });
 
+  // A text field with data-char-count="<id>" keeps that element saying how many of its
+  // maxlength characters are used, e.g. "12 / 40" (the proyecto's name, issue #73).
+  document.addEventListener("input", function (e) {
+    var id = e.target.dataset && e.target.dataset.charCount;
+    var out = id && document.getElementById(id);
+    if (!out) return;
+    out.textContent = Array.from(e.target.value).length + " / " + e.target.maxLength;
+  });
+
   // "Registrar pago" (#67) and "Marcar como entregado" (#66): the comprobante's file
   // field shows, and is required, only with "¿Quieres subir un comprobante…?" answered Sí.
   // The server checks it too.

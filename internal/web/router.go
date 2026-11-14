@@ -154,6 +154,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /proyectos/{folio}/seguimiento", authed(projects.Seguimiento))
 	mux.Handle("GET /pronostico", authed(projects.Pronostico))
 	mux.Handle("POST /proyectos/{folio}/comentarios", authed(projects.Comentar))
+	mux.Handle("POST /proyectos/{folio}/nombre", authed(projects.Nombre))
 	mux.Handle("POST /proyectos/{folio}/oc", authed(projects.OC))
 	mux.Handle("POST /proyectos/{folio}/factura", authed(projects.Factura))
 	mux.Handle("POST /proyectos/{folio}/pagos", authed(projects.Pagos))

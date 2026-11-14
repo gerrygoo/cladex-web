@@ -322,6 +322,27 @@ func (p *Projects) Comentar(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/proyectos/"+project.Folio+"#historial", http.StatusSeeOther)
 }
 
+// Nombre handles POST /proyectos/{folio}/nombre: sets or changes the proyecto's "name"
+// (issue #73), up to store.MaxProjectName characters; blank clears it. Any signed-in
+// user can, at any stage.
+func (p *Projects) Nombre(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	project := p.loadProjectOrNotFound(w, r)
+	if project == nil {
+		return
+	}
+	name := strings.Join(strings.Fields(r.FormValue("name")), " ")
+	if utf8.RuneCountInString(name) > store.MaxProjectName {
+		http.Error(w, "el nombre del proyecto no puede pasar de 40 caracteres", http.StatusBadRequest)
+		return
+	}
+	if err := p.store.SetProjectName(ctx, project.ID, name); err != nil {
+		serverError(w, r, err)
+		return
+	}
+	http.Redirect(w, r, "/proyectos/"+project.Folio, http.StatusSeeOther)
+}
+
 // Perder handles POST /proyectos/{folio}/perder: marks the proyecto lost with a required
 // "reason". Any signed-in user can, while it is a prospecto; once en curso, a sale that
 // falls through is cancelled by an admin instead (Cancelar).

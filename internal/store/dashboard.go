@@ -45,6 +45,7 @@ type SellerRow struct {
 type DashboardProject struct {
 	Folio, Customer string
 	Amount          money.Centavos
+	Name            string // the proyecto's name, if it has one (issue #73)
 }
 
 // Dashboard is the home page's Vendedores table.
@@ -64,7 +65,7 @@ func (s *Store) SalesDashboard(ctx context.Context, today string) (*Dashboard, e
 	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT u.username, u.name, p.folio, c.name, q.subtotal, `+quoteProfitSQL+`, p.probability,
-			COALESCE(p.next_followup_date, ''), COALESCE(p.expected_oc_date, '')
+			COALESCE(p.next_followup_date, ''), COALESCE(p.expected_oc_date, ''), COALESCE(p.name, '')
 		FROM projects p
 		JOIN quotes q ON q.project_id = p.id AND q.status != 'revisada'
 		JOIN customers c ON c.id = p.customer_id
@@ -84,17 +85,17 @@ func (s *Store) SalesDashboard(ctx context.Context, today string) (*Dashboard, e
 	}
 	seenName := map[string]bool{}
 	for rows.Next() {
-		var username, name, folio, customer, followUp, expectedOC string
+		var username, name, folio, customer, followUp, expectedOC, projectName string
 		var total, profit money.Centavos
 		var probability int
-		if err := rows.Scan(&username, &name, &folio, &customer, &total, &profit, &probability, &followUp, &expectedOC); err != nil {
+		if err := rows.Scan(&username, &name, &folio, &customer, &total, &profit, &probability, &followUp, &expectedOC, &projectName); err != nil {
 			return nil, fmt.Errorf("store: sales dashboard: %w", err)
 		}
 		row := byUser[username]
 		if !seenName[username] {
 			row.Name, seenName[username] = name, true // the user's own name wins over the fallback
 		}
-		dp := DashboardProject{Folio: folio, Customer: customer, Amount: total}
+		dp := DashboardProject{Folio: folio, Customer: customer, Amount: total, Name: projectName}
 		row.Projects = append(row.Projects, dp)
 		row.Pipeline += total
 		row.Profit += profit

@@ -71,7 +71,8 @@ func (m TeamMember) OnTimeShare() (float64, bool) {
 // TeamOverdue is one proyecto overdue now.
 type TeamOverdue struct {
 	Folio, Customer string
-	UserID          int64 // whose period it is
+	Name            string // the proyecto's name, if it has one (issue #73)
+	UserID          int64  // whose period it is
 	UserName        string
 	Probability     int    // the proyecto's now
 	Day             string // its follow-up day
@@ -167,7 +168,7 @@ func (s *Store) TeamDashboard(ctx context.Context, f TeamFilter, now time.Time) 
 			m.Overdue++
 			m.OverdueValue += pr.value
 			m.OverdueProfit += pr.profit
-			overdue = append(overdue, TeamOverdue{Folio: p.Folio, Customer: p.CustomerName, UserID: m.UserID, UserName: m.Name,
+			overdue = append(overdue, TeamOverdue{Folio: p.Folio, Customer: p.CustomerName, Name: p.ProjectName, UserID: m.UserID, UserName: m.Name,
 				Probability: pr.probability, Day: p.Day, DaysLate: p.DaysLate, Value: pr.value, Profit: pr.profit})
 		}
 		if !keepProb(p.Probability) {

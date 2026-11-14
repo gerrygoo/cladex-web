@@ -30,8 +30,8 @@ templ ProjectsList(projects []store.Project, today string, lv ListView, customer
 				<input
 					type="search"
 					name="q"
-					placeholder="Buscar por folio o cliente…"
-					aria-label="Buscar por folio o cliente"
+					placeholder="Buscar por folio, cliente o nombre del proyecto…"
+					aria-label="Buscar por folio, cliente o nombre del proyecto"
 					value={ lv.Query }
 					hx-get="/proyectos"
 					hx-trigger="keyup changed delay:400ms, search"
@@ -78,7 +78,7 @@ templ ProjectsTableBody(projects []store.Project, today string) {
 		}
 		for _, p := range projects {
 			<tr>
-				<td><a href={ templ.URL(projectPath(p.Folio)) }>{ p.Folio }</a></td>
+				<td><a href={ templ.URL(projectPath(p.Folio)) }>{ p.Label() }</a></td>
 				<td>{ p.CustomerName }</td>
 				<td>{ p.UserName }</td>
 				<td>
@@ -114,17 +114,32 @@ templ ProjectsTableBody(projects []store.Project, today string) {
 	</tbody>
 }
 
+// projectNameForm sets or changes the proyecto's name (issue #73): optional, up to
+// store.MaxProjectName characters, with a count of what's left as it is typed
+// (static/app.js). Any user can, at any stage.
+templ projectNameForm(p store.Project) {
+	<form method="post" action={ templ.URL(projectPath(p.Folio) + "/nombre") } class="stage-form project-name-form">
+		<label>
+			Nombre del proyecto (opcional)
+			<input type="text" name="name" value={ p.Name } maxlength={ strconv.Itoa(store.MaxProjectName) } placeholder="p. ej. Capuchinas" data-char-count={ "nombre-count-" + p.Folio } aria-describedby={ "nombre-count-" + p.Folio }/>
+		</label>
+		<small class="hint" id={ "nombre-count-" + p.Folio } aria-live="polite">{ strconv.Itoa(len([]rune(p.Name))) } / { strconv.Itoa(store.MaxProjectName) }</small>
+		<button type="submit">Guardar nombre</button>
+	</form>
+}
+
 // ProjectPage is a proyecto: where it stands (its stage and, once en curso, its Estado
 // de facturación, de entrega and de cobro), its follow-up and history, its factura,
 // supplier O.C.s, their delivery (Entrega) and payments (Cobro), every quote it has had,
 // and the admin's tools at the bottom.
 templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []store.ProjectFile, receipt store.OCReceipt, comments []store.ProjectComment, commentsLV ListView, facturas []store.Comprobante, factEnabled bool, user *NavUser, supplier SupplierQuoteView, adminPanel *AdminPanel, pos ProjectPOs, entrega ProjectEntrega, cobro ProjectCobro) {
-	@Layout("Proyecto "+p.Folio, user) {
+	@Layout("Proyecto "+p.Label(), user) {
 		<div class="page-title">
-			<h1>Proyecto { p.Folio }</h1>
+			<h1>Proyecto { p.Label() }</h1>
 			@HelpLink(HelpProyecto)
 		</div>
 		<p>Cliente: { p.CustomerName }</p>
+		@projectNameForm(p)
 		<dl class="quote-info">
 			<dt>Etapa</dt>
 			<dd>
@@ -746,7 +761,7 @@ templ ForecastPage(f Forecast, lv ListView, owners []string, user *NavUser) {
 					<tbody data-announce={ countAnnouncement(len(f.Projects), "prospecto", "prospectos") }>
 						for _, p := range f.Projects {
 							<tr id={ "p-" + p.Folio }>
-								<th scope="row"><a href={ templ.URL(projectPath(p.Folio)) }>{ p.Folio }</a></th>
+								<th scope="row"><a href={ templ.URL(projectPath(p.Folio)) }>{ p.Label() }</a></th>
 								<td class="customer">{ p.CustomerName }</td>
 								<td>{ p.UserName }</td>
 								<td>
