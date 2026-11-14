@@ -78,7 +78,9 @@ templ EquipoPage(e Equipo, user *NavUser) {
 								<th scope="row">{ m.Name }</th>
 								<td class="num">{ onTimeText(m) }</td>
 								<td class="num">{ strconv.Itoa(m.Active) }</td>
-								<td class="num">{ strconv.Itoa(m.Overdue) }</td>
+								<td class="num">
+									@memberOverdue(e.Team.Overdue, m)
+								</td>
 								<td class="num">{ m.OverdueValue.String() }</td>
 								<td class="num">{ m.OverdueProfit.String() }</td>
 								<td class="num">{ strconv.Itoa(m.Avisos) }</td>
@@ -169,4 +171,23 @@ func countAnnouncementPlain(n int, one, many string) string {
 		return "1 " + one
 	}
 	return strconv.Itoa(n) + " " + many
+}
+
+// memberOverdue is a person's Vencidos hoy: the count, which opens the list of those
+// proyectos with an arrow, as on the home page (issue #70).
+templ memberOverdue(all []store.TeamOverdue, m store.TeamMember) {
+	if m.Overdue == 0 {
+		0
+	} else {
+		<details class="folio-list">
+			<summary aria-label={ "Vencidos hoy de " + m.Name + ": " + strconv.Itoa(m.Overdue) }>{ strconv.Itoa(m.Overdue) }</summary>
+			<ul>
+				for _, o := range all {
+					if o.UserID == m.UserID {
+						<li><a href={ templ.URL(projectPath(o.Folio)) }>{ store.ProjectLabel(o.Folio, o.Name) }</a>{ " · " + o.Customer + " · " + o.Value.String() }</li>
+					}
+				}
+			</ul>
+		</details>
+	}
 }

@@ -278,8 +278,19 @@ func TestEquipo(t *testing.T) {
 		`<th scope="row">ana</th>`, `<th scope="row">beto</th>`, "Proyectos vencidos hoy",
 		`<a href="/proyectos/`+betos+`">`+betos+`</a>`, "10 días hábiles", "5 días hábiles", "$3,000.00",
 		`<a href="/ajustes/notificaciones?tipo=seguimiento_vencido">Ver el historial de avisos</a>`, `<th scope="row">Equipo</th>`)
-	if strings.Index(body, `href="/proyectos/`+betos+`"`) > strings.Index(body, `href="/proyectos/`+anas+`"`) {
+	overdue := body[strings.Index(body, "Proyectos vencidos hoy"):]
+	if strings.Index(overdue, `href="/proyectos/`+betos+`"`) > strings.Index(overdue, `href="/proyectos/`+anas+`"`) {
 		t.Error("the most days late should come first")
+	}
+	// Each person's Vencidos hoy opens the list of theirs (issue #70).
+	people := body[:strings.Index(body, "Proyectos vencidos hoy")]
+	assertContains(t, people, `<summary aria-label="Vencidos hoy de ana: 1">1</summary>`,
+		`<li><a href="/proyectos/`+anas+`">`+anas+`</a> · EMSA · $1,000.00</li>`,
+		`<li><a href="/proyectos/`+betos+`">`+betos+`</a> · EMSA · $2,000.00</li>`)
+	anaRow := people[strings.Index(people, `<th scope="row">ana</th>`):]
+	anaRow = anaRow[:strings.Index(anaRow, "</tr>")]
+	if strings.Contains(anaRow, betos) {
+		t.Error("Ana's Vencidos hoy lists Beto's proyecto")
 	}
 	for _, gone := range []string{`<th scope="row">carla</th>`, `<th scope="row">gerry</th>`, "Pendiente secreto"} {
 		if strings.Contains(body, gone) {

@@ -113,7 +113,9 @@ ordenadas por **Lugar**:
    lugar; si dos personas empatan, va primero quien tiene menos atraso promedio.
 2. **Proyectos activos**: sus prospectos de hoy.
 3. **Vencidos hoy**, **Valor vencido (sin IVA)** y **Utilidad vencida**: sus proyectos con
-   el seguimiento vencido hoy y lo que suman, sin IVA, igual que en el pronóstico.
+   el seguimiento vencido hoy y lo que suman, sin IVA, igual que en el pronóstico. Haz clic
+   en la flechita junto al número de **Vencidos hoy** para ver cuáles son, cada uno con su
+   enlace, su cliente y su valor.
 4. **Avisos recibidos**: los avisos de seguimiento vencido que la app le mandó en el
    periodo (uno por proyecto y envío, aunque llegue por correo y por WhatsApp; los
    cancelados no cuentan).
