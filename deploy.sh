@@ -77,7 +77,9 @@ point_proxy() {
 	mkdir -p "$(dirname "$UPSTREAM")"
 	printf '%s\n' "$want" >"$UPSTREAM.tmp"
 	mv "$UPSTREAM.tmp" "$UPSTREAM"
-	if running cladex-proxy; then
+	# A proxy created before compose.yaml mounted ./proxy can't see the file; the
+	# `docker compose up -d` below recreates it, so leave it alone until then.
+	if running cladex-proxy && docker exec cladex-proxy test -d /etc/nginx/cladex; then
 		docker exec cladex-proxy nginx -t -q
 		docker exec cladex-proxy nginx -s reload 2>/dev/null
 	fi
