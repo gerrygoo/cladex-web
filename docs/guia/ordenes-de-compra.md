@@ -131,6 +131,7 @@ No se puede confirmar si falta algo; la orden se queda en borrador y el campo di
 | *Elige al menos una partida.* | Marca alguna partida. |
 | *Escribe los días de crédito.* | Con **Crédito**, escribe los días. |
 | *Escribe la forma de pago.* | Con **Otra**, escribe el texto. |
+| *Elige el uso de CFDI con que el proveedor debe facturar.* | Elige el **Uso de CFDI** en Datos de facturación. |
 | *Faltan datos de facturación de Cladex…* | Complétalos en [Configuración del sistema](administracion.md#datos-de-facturación-en-órdenes-de-compra). |
 
 :::
