@@ -1343,7 +1343,7 @@ func draftQuoteDocument(quote store.Quote, lines []views.QuoteLineView, totals p
 
 // letterheads maps a quote type's letterhead (quote_types.letterhead) to the PDF's logo
 // block: ConduCCAsa for CCA (issue #47), copperclad for CCS & AC (issue #16), Alumoclad
-// (issue #48), and the Cladex logo, 20% larger for QL and QI (issue #51). The CHECK on
+// (issue #48), Exceline (issue #60), Astro (issue #68), and the Cladex logo, 20% larger for QL and QI (issue #51). The CHECK on
 // the column keeps it to these; anything else would print the plain Cladex one.
 var letterheads = map[string]pdf.Letterhead{
 	"cladex":       pdf.LetterheadCladex,
@@ -1351,6 +1351,8 @@ var letterheads = map[string]pdf.Letterhead{
 	"conduccasa":   pdf.LetterheadConduCCAsa,
 	"copperclad":   pdf.LetterheadCopperclad,
 	"alumoclad":    pdf.LetterheadAlumoclad,
+	"exceline":     pdf.LetterheadExceline,
+	"astro":        pdf.LetterheadAstro,
 }
 
 // issuedQuoteDocument assembles an issued or revised quote's PDF purely from what

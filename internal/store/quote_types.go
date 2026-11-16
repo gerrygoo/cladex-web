@@ -42,6 +42,8 @@ var Letterheads = []struct{ Value, Label string }{
 	{"conduccasa", "ConduCCAsa"},
 	{"copperclad", "Copperclad"},
 	{"alumoclad", "Alumoclad"},
+	{"exceline", "Exceline"},
+	{"astro", "Astro"},
 }
 
 // ValidLetterhead reports whether v is one of Letterheads.

@@ -376,11 +376,12 @@ sección.
 3. Envíalo al cliente por tu medio habitual (correo, WhatsApp). La app no envía
    correos.
 
-> **Logo del PDF.** Arriba a la izquierda, las cotizaciones de la serie **QA — Cable CCA**
-> llevan el logo de *ConduCCAsa*; las de **QS — Cable CCS & AC**, el de *copperclad*; y
-> las de **QG — Cable Alumoclad**, el de *Alumoclad*. Las de las demás series (**QI**,
-> **QL** y las que agregue un administrador) llevan el logo de CLADEX. La dirección es la
-> misma en todas.
+> **Logo del PDF.** Arriba a la izquierda, cada cotización lleva el logo de su tipo:
+> **Cable CCA**, el de *ConduCCAsa*; **Cable CCS**, el de *copperclad*; **Cable
+> Alumoclad**, el de *Alumoclad*; **Exceline** (QEXL), el de *Exceline*; y **Astro**
+> (QAST), el de *Astro*. Las demás llevan el logo de CLADEX. Un administrador lo cambia
+> en el tipo de cotización (**Membrete del PDF**). Una cotización ya emitida conserva el
+> logo con el que se emitió.
 
 ## Revisar una cotización emitida
 

@@ -115,6 +115,8 @@ func TestQuoteLetterhead(t *testing.T) {
 		{LetterheadCopperclad, "copperclad", coppercladLogoPNG, "4.5cm"},
 		{LetterheadConduCCAsa, "conduccasa", conduCCAsaLogoPNG, "3.8cm"},
 		{LetterheadAlumoclad, "alumoclad", alumocladLogoPNG, "5cm"},
+		{LetterheadExceline, "exceline", excelineLogoPNG, "4.5cm"},
+		{LetterheadAstro, "astro", astroLogoPNG, "3.4cm"},
 	} {
 		doc.Letterhead = c.letterhead
 		src := buildQuoteTypst(doc)

@@ -20,16 +20,24 @@ var conduCCAsaLogoPNG []byte
 //go:embed assets/alumoclad.png
 var alumocladLogoPNG []byte
 
+//go:embed assets/exceline.png
+var excelineLogoPNG []byte
+
+//go:embed assets/astro.png
+var astroLogoPNG []byte
+
 // Letterhead picks the logo block in the PDF's top-left corner. The zero value is the
 // Cladex logo, so a document that doesn't set one renders as it always did.
 type Letterhead int
 
 const (
-	LetterheadCladex     Letterhead = iota // the Cladex logo
-	LetterheadCopperclad                   // the copperclad logo, a little larger (issue #16)
-	LetterheadConduCCAsa                   // the ConduCCAsa logo (issue #47)
-	LetterheadAlumoclad                    // the Alumoclad logo (issue #48)
-	LetterheadCladexLarge                  // the Cladex logo 20% larger (issue #51)
+	LetterheadCladex      Letterhead = iota // the Cladex logo
+	LetterheadCopperclad                    // the copperclad logo, a little larger (issue #16)
+	LetterheadConduCCAsa                    // the ConduCCAsa logo (issue #47)
+	LetterheadAlumoclad                     // the Alumoclad logo (issue #48)
+	LetterheadCladexLarge                   // the Cladex logo 20% larger (issue #51)
+	LetterheadExceline                      // the Exceline logo (issue #60)
+	LetterheadAstro                         // the Astro logo (issue #68)
 )
 
 // QuoteLineDoc is one priced line as it should appear on the rendered PDF — already
@@ -256,6 +264,12 @@ func writeLetterhead(b *strings.Builder, l Letterhead) {
 	case LetterheadAlumoclad:
 		fmt.Fprintf(b, "#let alumoclad = bytes((%s))\n", pngBytesLiteral(alumocladLogoPNG))
 		b.WriteString("#let letterhead = image(alumoclad, width: 5cm)\n")
+	case LetterheadExceline:
+		fmt.Fprintf(b, "#let exceline = bytes((%s))\n", pngBytesLiteral(excelineLogoPNG))
+		b.WriteString("#let letterhead = image(exceline, width: 4.5cm)\n")
+	case LetterheadAstro:
+		fmt.Fprintf(b, "#let astro = bytes((%s))\n", pngBytesLiteral(astroLogoPNG))
+		b.WriteString("#let letterhead = image(astro, width: 3.4cm)\n")
 	case LetterheadCladexLarge:
 		fmt.Fprintf(b, "#let logo = bytes((%s))\n", pngBytesLiteral(cladexLogoPNG))
 		b.WriteString("#let letterhead = image(logo, width: 3.84cm)\n")

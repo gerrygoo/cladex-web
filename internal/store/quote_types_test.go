@@ -175,3 +175,64 @@ func mustTypeID(t *testing.T, s *Store, prefix string) int64 {
 	}
 	return id
 }
+
+// TestMigration0046 replays the Exceline/Astro letterhead migration (issues #60, #68)
+// over production's quote types on 2026-11-16: QEXL and QAST switch to their own logos,
+// the rest keep theirs, ids and counters survive the rebuild, and quotes still point at
+// their type.
+func TestMigration0046(t *testing.T) {
+	ctx := context.Background()
+	dsn := filepath.Join(t.TempDir(), "0046.db")
+	old, err := Open(ctx, dsn, migrationsBefore(t, "0046"))
+	if err != nil {
+		t.Fatalf("open at 0045: %v", err)
+	}
+	if _, err := old.db.ExecContext(ctx, `DELETE FROM quote_types WHERE id NOT IN (SELECT quote_type_id FROM quotes)`); err != nil {
+		t.Fatalf("clear seeded types: %v", err)
+	}
+	for _, q := range []string{
+		`INSERT INTO users (username, name, password_hash, role) VALUES ('ana', 'Ana', 'x', 'admin')`,
+		`INSERT INTO customers (name) VALUES ('ACME')`,
+		`INSERT INTO quote_types (id, prefix, name, letterhead, next_number) VALUES
+			(101, 'QABL', 'Alumbrado', 'cladex_large', 4), (102, 'QCCA', 'Cable CCA', 'conduccasa', 9),
+			(105, 'QALC', 'Cable Alumoclad', 'alumoclad', 2), (106, 'QEXL', 'Exceline', 'cladex', 7),
+			(107, 'QAST', 'Astro', 'cladex', 3)`,
+		`INSERT INTO quotes (folio, prefix, customer_id, user_id, status, quote_type_id, folio_number) VALUES
+			('QEXL0006', 'QEXL', 1, 1, 'borrador', 106, 6), ('QAST0002', 'QAST', 1, 1, 'borrador', 107, 2)`,
+	} {
+		if _, err := old.db.ExecContext(ctx, q); err != nil {
+			t.Fatalf("seed %q: %v", q, err)
+		}
+	}
+	old.Close()
+
+	s, err := Open(ctx, dsn, cladex.MigrationsFS)
+	if err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	defer s.Close()
+
+	want := map[int64]struct {
+		letterhead string
+		next       int
+	}{101: {"cladex_large", 4}, 102: {"conduccasa", 9}, 105: {"alumoclad", 2}, 106: {"exceline", 7}, 107: {"astro", 3}}
+	for id, w := range want {
+		var letterhead string
+		var next int
+		if err := s.db.QueryRowContext(ctx, `SELECT letterhead, next_number FROM quote_types WHERE id = ?`, id).Scan(&letterhead, &next); err != nil {
+			t.Fatalf("type %d: %v", id, err)
+		}
+		if letterhead != w.letterhead || next != w.next {
+			t.Errorf("type %d = %s/%d, want %s/%d", id, letterhead, next, w.letterhead, w.next)
+		}
+	}
+	for folio, want := range map[string]string{"QEXL0006": "exceline", "QAST0002": "astro"} {
+		q, err := s.QuoteByFolio(ctx, folio)
+		if err != nil || q == nil || q.Letterhead != want {
+			t.Errorf("%s letterhead = %v (err %v), want %s", folio, q, err, want)
+		}
+	}
+	if _, err := s.db.ExecContext(ctx, `UPDATE quote_types SET letterhead = 'otro' WHERE id = 101`); err == nil {
+		t.Error("the CHECK accepts an unknown letterhead")
+	}
+}

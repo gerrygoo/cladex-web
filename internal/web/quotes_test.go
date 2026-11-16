@@ -403,6 +403,23 @@ func TestQuotePDFLetterheadByFamilia(t *testing.T) {
 	}
 }
 
+// TestLetterheadsCoverTheTypeForm pins that every membrete the quote type form offers
+// prints its own logo (issues #60, #68): a value missing from letterheads would fall back
+// to the plain Cladex logo without anyone noticing.
+func TestLetterheadsCoverTheTypeForm(t *testing.T) {
+	for _, l := range store.Letterheads {
+		got, ok := letterheads[l.Value]
+		if !ok {
+			t.Errorf("letterhead %q has no PDF logo", l.Value)
+		} else if got == pdf.LetterheadCladex && l.Value != "cladex" {
+			t.Errorf("letterhead %q prints the plain Cladex logo", l.Value)
+		}
+	}
+	if letterheads["exceline"] != pdf.LetterheadExceline || letterheads["astro"] != pdf.LetterheadAstro {
+		t.Error("exceline/astro don't print their own logos")
+	}
+}
+
 // TestQuotesEmitir requires the `typst` CLI (part of the documented local dev
 // toolchain, see docs/PLAN.md 0.0a).
 func TestQuotesEmitir(t *testing.T) {
