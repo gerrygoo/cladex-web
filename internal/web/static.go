@@ -3,14 +3,14 @@ package web
 import (
 	"bytes"
 	"compress/gzip"
-	"crypto/sha256"
-	"encoding/hex"
 	"io/fs"
 	"mime"
 	"net/http"
 	"path"
 	"strings"
 	"time"
+
+	"github.com/gerrygoo/cladex-web"
 )
 
 // staticFile is one embedded asset, prepared once at startup: its bytes, a gzip copy
@@ -21,14 +21,18 @@ type staticFile struct {
 	gz       []byte // nil when compression doesn't help
 	etag     string
 	etagGzip string
+	tag      string // the content tag a versioned URL carries (?v=tag)
 }
 
 // staticHandler serves the embedded /static/ tree. The binary's files carry no
 // modification time, so a browser can't revalidate them; this gives each an ETag (a hash
 // of its content, so it's right on every build, including local dev) and answers
-// If-None-Match with 304. Cache-Control: no-cache means "reuse only after checking",
-// because the URLs aren't fingerprinted and a deploy must show up at once. Text assets
-// are also served gzipped.
+// If-None-Match with 304. Pages link the files through views.Asset, whose URLs carry the
+// content tag (?v=…, issue #80): a request whose tag matches the file is cached as
+// immutable for a year, since a different file gets a different URL. Any other request
+// (no tag, or a page from before a deploy asking for an old one) gets the current file
+// with Cache-Control: no-cache, "reuse only after checking". Text assets are also
+// served gzipped.
 type staticHandler struct {
 	files map[string]*staticFile
 }
@@ -49,9 +53,8 @@ func newStaticHandler(fsys fs.FS) (*staticHandler, error) {
 		if ctype == "" {
 			ctype = http.DetectContentType(raw)
 		}
-		sum := sha256.Sum256(raw)
-		tag := hex.EncodeToString(sum[:8])
-		f := &staticFile{ctype: ctype, raw: raw, etag: `"` + tag + `"`}
+		tag := cladex.AssetTag(raw)
+		f := &staticFile{ctype: ctype, raw: raw, etag: `"` + tag + `"`, tag: tag}
 		if compressible(ctype) {
 			var buf bytes.Buffer
 			zw, _ := gzip.NewWriterLevel(&buf, gzip.BestCompression)
@@ -82,7 +85,11 @@ func (h *staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	hd := w.Header()
 	hd.Set("Content-Type", f.ctype)
-	hd.Set("Cache-Control", "no-cache")
+	if r.URL.Query().Get("v") == f.tag {
+		hd.Set("Cache-Control", "public, max-age=31536000, immutable")
+	} else {
+		hd.Set("Cache-Control", "no-cache")
+	}
 	hd.Add("Vary", "Accept-Encoding")
 	body, tag := f.raw, f.etag
 	if f.gz != nil && acceptsGzip(r) {

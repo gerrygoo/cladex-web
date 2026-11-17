@@ -14,17 +14,22 @@ templ Layout(title string, user *NavUser) {
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ title } · Cladex</title>
-			<link rel="icon" href="/static/favicon.svg" type="image/svg+xml"/>
-			<link rel="icon" href="/static/favicon.ico" sizes="48x48"/>
-			<link rel="apple-touch-icon" href="/static/apple-touch-icon.png"/>
-			<link rel="stylesheet" href="/static/app.css"/>
-			<script src="/static/htmx.min.js" defer></script>
-			<script src="/static/filters.js" defer></script>
-			<script src="/static/time.js" defer></script>
-			<script src="/static/app.js" defer></script>
+			<link rel="icon" href={ Asset("favicon.svg") } type="image/svg+xml"/>
+			<link rel="icon" href={ Asset("favicon.ico") } sizes="48x48"/>
+			<link rel="apple-touch-icon" href={ Asset("apple-touch-icon.png") }/>
+			<link rel="stylesheet" href={ Asset("app.css") }/>
+			<script src={ Asset("htmx.min.js") } defer></script>
+			<script src={ Asset("filters.js") } defer></script>
+			<script src={ Asset("time.js") } defer></script>
+			<script src={ Asset("app.js") } defer></script>
 		</head>
 		<body>
 			<a class="skip-link" href="#contenido">Saltar al contenido</a>
+			// Shown only when app.css didn't load (app.css hides it): the page still works,
+			// but looks broken, so it says how to fix it (issues #79, #80).
+			<p class="css-check">
+				<strong>Esta página no cargó su diseño.</strong> Presiona <kbd>Ctrl</kbd> + <kbd>F5</kbd> para recargarla. Si sigue igual, consulta <a href="/ayuda/acceso#la-página-se-ve-sin-diseño">La página se ve sin diseño</a> en el Manual de usuario.
+			</p>
 			if banner := environmentBanner(ctx); banner != "" {
 				<p class="env-banner" role="note">{ banner }</p>
 			}
@@ -35,7 +40,7 @@ templ Layout(title string, user *NavUser) {
 			</noscript>
 			<header class="app-header">
 				<div class="brand">
-					<a href="/" class="brand-link"><img src="/static/cladex-logo.svg" alt="Cladex" width="168" height="32"/></a>
+					<a href="/" class="brand-link"><img src={ Asset("cladex-logo.svg") } alt="Cladex" width="168" height="32"/></a>
 					if user != nil {
 						<nav class="app-nav">
 							// Each section is a disclosure menu so the bar stays short on a phone. A

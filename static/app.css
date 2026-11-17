@@ -1,3 +1,10 @@
+/* The layout's "esta página no cargó su diseño" notice is for when this file didn't load
+   (issues #79, #80); this file loading is what hides it. First, so nothing above it can
+   keep it from applying. */
+p.css-check {
+  display: none;
+}
+
 /* ==== Palette =============================================================
    Two brand colours from the logo (Cladex.svg) plus five working colours. Change one
    here and every shade derived from it below (tints, borders, hover, dark mode)

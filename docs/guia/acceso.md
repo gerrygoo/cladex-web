@@ -90,6 +90,7 @@ Hazlo siempre que uses una computadora compartida.
 
 Abres la app (por ejemplo, desde el enlace de un correo de aviso) y la página sale con
 texto azul subrayado, sin colores, sin menú y sin logo, aunque sí aparecen los datos.
+Arriba aparece el aviso *"Esta página no cargó su diseño"*.
 La app funciona bien: es tu navegador el que no cargó los archivos de diseño. Pasa sobre
 todo en **Microsoft Edge**, que es donde Outlook abre los enlaces. Prueba en este orden:
 

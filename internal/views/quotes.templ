@@ -752,7 +752,7 @@ templ MarginControls(quote store.Quote, margin MarginPicker, oob bool) {
 
 templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, fieldErrs map[string]string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser, supplier SupplierQuoteView, dup DuplicateQuoteForm, adminPanel *AdminPanel) {
 	@Layout("Cotización "+quote.Folio, user) {
-		<script src="/static/margin.js" defer></script>
+		<script src={ Asset("margin.js") } defer></script>
 		<div class="page-title">
 			<h1>Cotización { quote.Folio }</h1>
 			@HelpLink(quoteHelpTopic(quote.Status))

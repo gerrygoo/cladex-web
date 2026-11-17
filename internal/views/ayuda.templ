@@ -29,6 +29,6 @@ templ Guia(title string, html string, nav []GuiaNavItem, user *NavUser) {
 				@templ.Raw(html)
 			</article>
 		</div>
-		<script src="/static/guia.js" defer></script>
+		<script src={ Asset("guia.js") } defer></script>
 	}
 }
