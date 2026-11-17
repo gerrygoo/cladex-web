@@ -151,6 +151,22 @@ func TestFacturacionEndToEnd(t *testing.T) {
 	if rec := post(admin, f.Guardar, "/facturas/"+id, pv, bad); rec.Code != http.StatusUnprocessableEntity {
 		t.Errorf("Guardar(método contado) = %d, want 422", rec.Code)
 	}
+	// #63: the draft can be checked as a PDF before it is validated or stamped. Ver PDF
+	// saves the form first, so the preview shows what was just typed.
+	if rec := post(admin, f.VerPDF, "/facturas/"+id+"/ver-pdf", pv, form); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/facturas/"+id+"/pdf" {
+		t.Fatalf("VerPDF = %d %s", rec.Code, rec.Header().Get("Location"))
+	}
+	if rec := post(vendedor, f.VerPDF, "/facturas/"+id+"/ver-pdf", pv, form); rec.Code != http.StatusForbidden {
+		t.Errorf("vendedor VerPDF = %d, want 403", rec.Code)
+	}
+	if body := page(admin, id); !strings.Contains(body, "Guardar y ver PDF") {
+		t.Error("the draft form doesn't offer Guardar y ver PDF")
+	}
+	rec = doForm(t, a, vendedor, f.PDF, "GET", "/facturas/"+id+"/pdf", pv, nil, false)
+	if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Body.String(), "%PDF") ||
+		!strings.Contains(rec.Header().Get("Content-Disposition"), "vista-previa.pdf") {
+		t.Fatalf("draft preview = %d %q", rec.Code, rec.Header().Get("Content-Disposition"))
+	}
 	if rec := post(vendedor, f.Validar, "/facturas/"+id+"/validar", pv, form); rec.Code != http.StatusForbidden {
 		t.Fatalf("vendedor Validar = %d, want 403", rec.Code)
 	}
@@ -161,6 +177,14 @@ func TestFacturacionEndToEnd(t *testing.T) {
 	if c.Status != store.CompLista || c.SerieFolio() != "F-1" || !strings.Contains(c.Request, `"CodigoUnidad":"MTR"`) ||
 		strings.Contains(c.Request, "LlavePrivada") || !strings.Contains(c.Request, `"FormaPago":"99"`) {
 		t.Fatalf("validated = %s %s %s", c.Status, c.SerieFolio(), c.Request)
+	}
+	if body := page(admin, id); !strings.Contains(body, "Ver PDF (vista previa, sin timbrar)") {
+		t.Error("a lista factura doesn't offer its preview PDF")
+	}
+	rec = doForm(t, a, admin, f.PDF, "GET", "/facturas/"+id+"/pdf", pv, nil, false)
+	if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Body.String(), "%PDF") ||
+		!strings.Contains(rec.Header().Get("Content-Disposition"), "vista-previa_F-1.pdf") {
+		t.Fatalf("lista preview = %d %q", rec.Code, rec.Header().Get("Content-Disposition"))
 	}
 
 	// The answer is lost: incierto. Retrying sends the same request and gets the same stamp.

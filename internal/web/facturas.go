@@ -264,6 +264,15 @@ func (f *Facturas) Guardar(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, facturaURL(c.ID, "guardado"), http.StatusSeeOther)
 }
 
+// VerPDF handles POST /facturas/{id}/ver-pdf: saves the draft and shows its preview PDF.
+func (f *Facturas) VerPDF(w http.ResponseWriter, r *http.Request) {
+	c := f.load(w, r)
+	if c == nil || !f.save(w, r, c) {
+		return
+	}
+	http.Redirect(w, r, facturaPathURL(c.ID)+"/pdf", http.StatusSeeOther)
+}
+
 // Validar handles POST /facturas/{id}/validar: saves the draft and freezes it as lista.
 func (f *Facturas) Validar(w http.ResponseWriter, r *http.Request) {
 	c := f.load(w, r)
@@ -428,11 +437,23 @@ func (f *Facturas) PDF(w http.ResponseWriter, r *http.Request) {
 	if c == nil {
 		return
 	}
-	if c.XML == "" {
+	var doc pdf.CFDIDocument
+	var err error
+	name := downloadName(c)
+	switch {
+	case c.XML != "":
+		doc, err = facturacion.Printed(c)
+	case c.Origen == store.OrigenManual || c.Status == store.CompTimbrando:
 		http.NotFound(w, r)
 		return
+	default:
+		// Not stamped yet: a preview to check before Timbrar (#63).
+		doc, err = f.svc.Preview(r.Context(), c.ID)
+		name = "vista-previa"
+		if sf := c.SerieFolio(); sf != "" {
+			name += "_" + sf
+		}
 	}
-	doc, err := facturacion.Printed(c)
 	if err != nil {
 		f.logger.Error("factura pdf", slog.Int64("comprobante", c.ID), slog.Any("err", err))
 		http.Error(w, "error interno", http.StatusInternalServerError)
@@ -445,7 +466,7 @@ func (f *Facturas) PDF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": downloadName(c) + ".pdf"}))
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": name + ".pdf"}))
 	w.Write(b)
 }
 

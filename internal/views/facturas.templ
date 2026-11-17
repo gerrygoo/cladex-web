@@ -216,9 +216,11 @@ templ FacturaPage(v FacturaView, user *NavUser) {
 				} else {
 					<p>Un administrador la está preparando.</p>
 					@conceptosTable(c)
+					@previewLink(c)
 				}
 			case store.CompLista:
 				@conceptosTable(c)
+				@previewLink(c)
 				if admin && v.Enabled && !v.WrongEnv {
 					<form method="post" action={ templ.URL(facturaPath(c.ID) + "/timbrar") } class="stage-form">
 						<p>Está validada y lista. Al timbrarla se vuelve un CFDI ante el SAT: ya no se puede editar, solo cancelar.</p>
@@ -245,6 +247,7 @@ templ FacturaPage(v FacturaView, user *NavUser) {
 				}
 			case store.CompRechazada:
 				@conceptosTable(c)
+				@previewLink(c)
 				if admin {
 					@facturaBackToDraft(c)
 				}
@@ -487,9 +490,18 @@ templ facturaDraftForm(v FacturaView) {
 		}
 		<div class="quote-actions">
 			<button type="submit">Guardar borrador</button>
+			<button type="submit" formaction={ templ.URL(facturaPath(c.ID) + "/ver-pdf") } formtarget="_blank">Guardar y ver PDF</button>
 			<button type="submit" class="primary" formaction={ templ.URL(facturaPath(c.ID) + "/validar") }>Guardar y validar</button>
 		</div>
 	</form>
+}
+
+// previewLink opens the PDF of a comprobante not stamped yet, to check it before
+// Timbrar (#63). It says it has no fiscal value.
+templ previewLink(c store.Comprobante) {
+	<p>
+		<a href={ templ.URL(facturaPath(c.ID) + "/pdf") } target="_blank">Ver PDF (vista previa, sin timbrar)</a>
+	</p>
 }
 
 templ facturaStampedActions(v FacturaView) {

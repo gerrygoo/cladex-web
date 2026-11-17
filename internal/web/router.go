@@ -195,6 +195,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /facturas/{id}/complemento-manual", admin(facturas.ComplementoManual))
 	mux.Handle("POST /facturas/{id}", admin(facturas.Guardar))
 	mux.Handle("POST /facturas/{id}/validar", admin(facturas.Validar))
+	mux.Handle("POST /facturas/{id}/ver-pdf", admin(facturas.VerPDF))
 	mux.Handle("POST /facturas/{id}/editar", admin(facturas.Editar))
 	mux.Handle("POST /facturas/{id}/timbrar", admin(facturas.Timbrar))
 	mux.Handle("POST /facturas/{id}/cancelar", admin(facturas.Cancelar))

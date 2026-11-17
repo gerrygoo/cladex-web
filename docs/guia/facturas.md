@@ -100,11 +100,21 @@ Haz clic en **Guardar borrador** para seguir después, o en **Guardar y validar*
 algo, la página dice qué (*"Para validarla falta: …"*), p. ej. una clave que no existe en
 el catálogo del SAT.
 
+### Ver el PDF antes de timbrar
+
+Para revisar cómo va a quedar, haz clic en **Guardar y ver PDF**: guarda el borrador y abre
+en otra pestaña una **vista previa** en PDF, con las partidas, los totales y los datos del
+emisor y del cliente tal como se mandarán a timbrar. Dice **VISTA PREVIA · SIN TIMBRAR**: no
+es un CFDI ni tiene validez fiscal, y no lleva folio fiscal, sellos ni código QR (se agregan
+al timbrar). Ya validada, o si Facturoporti la rechazó, la vista previa está en **Ver PDF
+(vista previa, sin timbrar)**.
+
 ## Timbrar una factura
 
 Validada, la factura queda **lista para timbrar**, con su serie y folio (p. ej. *F-12*).
 
-1. Revisa las partidas y el total.
+1. Revisa las partidas y el total; si quieres verla impresa, abre **Ver PDF (vista previa,
+   sin timbrar)**.
 2. Haz clic en **Timbrar** y confirma.
 
 Si sale bien queda **timbrada**: ves su **folio fiscal (UUID)**, y el

@@ -38,6 +38,9 @@ type CFDIDocument struct {
 
 	// Sandbox CFDIs carry a watermark: they have no fiscal value.
 	Sandbox bool
+	// Draft is a preview of a comprobante not stamped yet (#63): watermarked, with no
+	// QR code, seals or certification data, and a note saying it isn't a CFDI.
+	Draft   bool
 	Created time.Time
 }
 
@@ -84,18 +87,26 @@ func typstList(items []string) string {
 }
 
 func buildCFDITypst(doc CFDIDocument) (string, error) {
-	code, err := qr.Encode(doc.VerificationURL, qr.M)
-	if err != nil {
-		return "", fmt.Errorf("pdf: qr: %w", err)
+	var qrPNG []byte
+	if !doc.Draft {
+		code, err := qr.Encode(doc.VerificationURL, qr.M)
+		if err != nil {
+			return "", fmt.Errorf("pdf: qr: %w", err)
+		}
+		qrPNG = code.PNG()
 	}
 	var b strings.Builder
 	b.WriteString("#set page(paper: \"us-letter\", margin: 1.6cm")
-	if doc.Sandbox {
+	if doc.Draft {
+		b.WriteString(`, background: rotate(-35deg, text(size: 54pt, weight: "bold", fill: rgb(200, 0, 0, 40))[VISTA PREVIA \ SIN TIMBRAR])`)
+	} else if doc.Sandbox {
 		b.WriteString(`, background: rotate(-35deg, text(size: 64pt, weight: "bold", fill: rgb(200, 0, 0, 40))[SIN VALIDEZ FISCAL])`)
 	}
 	b.WriteString(")\n#set text(size: 8.5pt)\n")
 	writeLetterhead(&b, LetterheadCladex)
-	fmt.Fprintf(&b, "#let qrcode = bytes((%s))\n", pngBytesLiteral(code.PNG()))
+	if !doc.Draft {
+		fmt.Fprintf(&b, "#let qrcode = bytes((%s))\n", pngBytesLiteral(qrPNG))
+	}
 	lets := map[string]string{
 		"title": doc.Title, "seriefolio": doc.SerieFolio, "fecha": doc.Fecha, "uuid": doc.UUID, "tipo": doc.TipoLabel,
 		"relacionados": doc.Relacionados, "letra": doc.TotalLetra,
@@ -176,7 +187,15 @@ func buildCFDITypst(doc CFDIDocument) (string, error) {
 ]
 #if letra != "" [ #align(right)[#emph(letra)] ]
 #v(0.4cm)
-#grid(
+`)
+	if doc.Draft {
+		b.WriteString(`#block(width: 100%, inset: 0.8em, stroke: 0.8pt + rgb(200, 0, 0))[
+  *Vista previa: este comprobante todavía no se timbra.* No es un CFDI ni tiene validez fiscal. El folio fiscal, los sellos digitales y el código QR se agregan al timbrarlo.
+]
+`)
+		return b.String(), nil
+	}
+	b.WriteString(`#grid(
   columns: (3.2cm, 1fr),
   gutter: 0.8em,
   image(qrcode, width: 3.2cm),

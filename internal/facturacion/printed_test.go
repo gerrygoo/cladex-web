@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gerrygoo/cladex-web/internal/pdf"
 	"github.com/gerrygoo/cladex-web/internal/store"
@@ -53,6 +54,34 @@ func TestPrintedSandboxFactura(t *testing.T) {
 	b2, _ := pdf.RenderCFDI(context.Background(), doc)
 	if !strings.HasPrefix(string(a), "%PDF") || string(a) != string(b2) {
 		t.Error("the printed PDF is not a deterministic PDF")
+	}
+	if os.Getenv("PREVIEW_OUT") != "" {
+		os.WriteFile(os.Getenv("PREVIEW_OUT"), a, 0o644)
+	}
+}
+
+// TestPreviewDocument lays out a factura that isn't stamped yet from its request (#63):
+// the same partidas and totals the stamped one will have, marked as a preview.
+func TestPreviewDocument(t *testing.T) {
+	c := testFactura()
+	when := time.Date(2026, 11, 17, 18, 0, 0, 0, time.UTC)
+	doc := previewDocument(BuildRequest(c, nil, testEmisor, "TF", 7, when))
+	if !doc.Draft || doc.SerieFolio != "TF-7" || doc.UUID != "se asigna al timbrar" || len(doc.Conceptos) != 3 ||
+		doc.Conceptos[2].Cantidad != "607.800" || doc.Conceptos[2].Unidad != "KGM Kilogramo" || doc.Conceptos[2].Importe != "$123,811.11" ||
+		doc.Totals[0][1] != "$176,427.16" || doc.Totals[1][1] != "$28,228.35" || doc.Totals[2][1] != "$204,655.51" ||
+		!strings.Contains(doc.Details[0][1], "PPD") || doc.Details[1][1] != "99 - Por definir" ||
+		doc.Receptor[0] != "INDISTRIA ILUMINADORA DE ALMACENES" || doc.Fecha != "2026-11-17 12:00:00" {
+		t.Errorf("preview = %+v", doc)
+	}
+	if got := previewDocument(BuildRequest(c, nil, testEmisor, "", 0, when)).SerieFolio; got != "(sin folio)" {
+		t.Errorf("a draft never validated = %q", got)
+	}
+	a, err := pdf.RenderCFDI(context.Background(), doc)
+	if err != nil {
+		t.Fatalf("RenderCFDI: %v", err)
+	}
+	if !strings.HasPrefix(string(a), "%PDF") {
+		t.Error("not a PDF")
 	}
 	if os.Getenv("PREVIEW_OUT") != "" {
 		os.WriteFile(os.Getenv("PREVIEW_OUT"), a, 0o644)
