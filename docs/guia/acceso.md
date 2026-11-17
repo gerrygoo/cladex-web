@@ -71,7 +71,9 @@ Los avisos que hay:
 
 Los fines de semana no se mandan avisos de seguimiento. Los de un proyecto se detienen en
 cuanto alguien registra un comentario o una nueva fecha de seguimiento, o el proyecto deja
-de ser prospecto. Cada correo dice de qué proyecto se trata y trae el enlace.
+de ser prospecto. Cada correo dice de qué proyecto se trata y trae el enlace. Si al abrir
+el enlace la página se ve sin colores ni menú, ve
+[la página se ve sin diseño](#la-página-se-ve-sin-diseño).
 
 Solo tú puedes cambiar tus avisos; nadie más, ni un administrador, los cambia por ti.
 
@@ -81,3 +83,27 @@ Solo tú puedes cambiar tus avisos; nadie más, ni un administrador, los cambia 
 2. Haz clic en **Cerrar sesión**.
 
 Hazlo siempre que uses una computadora compartida.
+
+## Problemas comunes
+
+### La página se ve sin diseño
+
+Abres la app (por ejemplo, desde el enlace de un correo de aviso) y la página sale con
+texto azul subrayado, sin colores, sin menú y sin logo, aunque sí aparecen los datos.
+La app funciona bien: es tu navegador el que no cargó los archivos de diseño. Pasa sobre
+todo en **Microsoft Edge**, que es donde Outlook abre los enlaces. Prueba en este orden:
+
+1. Presiona **Ctrl + F5** para recargar la página por completo.
+2. Si sigue igual, borra la copia guardada del navegador. En Edge: **Configuración →
+   Privacidad, búsqueda y servicios → Borrar datos de exploración**, marca solo
+   **Imágenes y archivos almacenados en caché** y haz clic en **Borrar ahora**. Vuelve a
+   abrir el enlace.
+3. Si aun así sigue igual, abre una ventana **InPrivate** (**Ctrl + Shift + N**) y pega el
+   enlace. Si ahí se ve bien, una extensión de Edge está bloqueando la página:
+   desactívalas una por una en **Extensiones** hasta encontrarla.
+
+Para que los enlaces de los correos se abran en tu navegador de siempre (p. ej. Chrome),
+en Outlook ve a **Archivo → Opciones → Avanzado → Abrir hipervínculos desde Outlook en** y
+elige **Navegador predeterminado**.
+
+Si nada de esto lo arregla, avisa a un administrador con una captura de pantalla.
