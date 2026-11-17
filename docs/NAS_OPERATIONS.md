@@ -34,6 +34,15 @@ past 1 GB per render).
   the NAS itself is behind NAT. The `cotizador` site sets `client_max_body_size 30m`
   (added 2026-10-21, issue #32): nginx's 1 MB default refused Documentos oficiales
   uploads with a bare 413 before they reached the app, which caps them at 25 MB itself.
+- **Request logs live on the VPS.** The NAS `cladex-proxy` logs errors only
+  (`access_log off`). Since 2026-11-17 (issue #80) the VPS's `cotizador` site writes its
+  own `/var/log/nginx/cotizador.access.log` (format `cladex`, defined at the top of
+  `/etc/nginx/sites-available/cotizador.cladex.com.mx`): time, client IP, request,
+  status, bytes, `rt=` request time, `ut=`/`us=` upstream time and status, and `rid=`, the
+  app's `X-Request-Id`, to match a line with the app's own logs. Kept 14 days by the
+  stock nginx logrotate. Before that date, cotizador requests are in the shared
+  `access.log*` (no host field: filter by path or client IP). Example from #79: an Edge
+  that fetched `/proyectos/QS0022` but never its `/static/` files.
 
 ## scp is broken — use `scp -O`
 
