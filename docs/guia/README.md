@@ -14,6 +14,7 @@ parte de este manual que la explica.
 | [Dashboard](dashboard.md) | Mis pendientes: tus seguimientos vencidos y tus pendientes, con su prioridad; lo que completaste |
 | [Clientes](clientes.md) | Dar de alta, buscar, editar y eliminar clientes |
 | [Proveedores](proveedores.md) | Consultar proveedores, sus contactos y las familias que surten; darlos de alta y editarlos (administradores) |
+| [Leads](leads.md) | Dar de alta a quien pide precios sin proyecto, darle seguimiento, marcarlo perdido o convertirlo en proyecto |
 | [Cotizaciones](cotizaciones.md) | Crear una cotización, agregar productos por SKU, líneas libres, guardar, emitir, descargar el PDF, revisar |
 | [Proyectos](proyectos.md) | Dar seguimiento después de emitir: etapas, probabilidad de cierre, fechas, pronóstico, perdidos, historial |
 | [Órdenes de compra a proveedor](ordenes-de-compra.md) | Generar la orden de compra al proveedor desde el proyecto, ver el PDF, confirmar y descargar, revisiones |

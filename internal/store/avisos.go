@@ -55,8 +55,8 @@ func AvisoKindByKey(key string) (AvisoKind, bool) {
 
 // AvisoKinds lists every aviso, in the order the screens show them.
 var AvisoKinds = []AvisoKind{
-	{AvisoSeguimientoVencido, "Seguimiento vencido de sus proyectos",
-		"Si pasa el día de seguimiento de un proyecto suyo sin que se registre nada: el día hábil siguiente a las 9:00, 12:00 y 18:00, y después cada día hábil a las 18:00.", false},
+	{AvisoSeguimientoVencido, "Seguimiento vencido de sus proyectos y leads",
+		"Si pasa el día de seguimiento de un proyecto o un lead suyo sin que se registre nada: el día hábil siguiente a las 9:00, 12:00 y 18:00, y después cada día hábil a las 18:00.", false},
 	{AvisoSeguimientoEscalado, "Seguimientos vencidos del equipo",
 		"Si un vendedor no atiende un seguimiento vencido: el segundo día hábil a las 12:00, y después cada 3 días hábiles.", true},
 	{AvisoOCRecibida, "Orden de compra del cliente recibida",

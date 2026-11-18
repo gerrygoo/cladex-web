@@ -47,8 +47,8 @@ recibir avisos por ese medio.
 
 Los avisos que hay:
 
-- **Seguimiento vencido de sus proyectos**: si pasa el día de seguimiento de un proyecto
-  tuyo y nadie registra un comentario ni una nueva fecha, el día hábil siguiente te llega
+- **Seguimiento vencido de sus proyectos y leads**: si pasa el día de seguimiento de un
+  proyecto o un [lead](leads.md) tuyo y nadie registra un comentario ni una nueva fecha, el día hábil siguiente te llega
   un correo a las 9:00, otro a las 12:00 y otro a las 18:00; después, uno cada día hábil a
   las 18:00.
 - **Orden de compra del cliente recibida**: en cuanto un proyecto pasa a **Orden colocada

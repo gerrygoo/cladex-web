@@ -66,6 +66,8 @@ var StagingTables = map[string]StagingRule{
 	"comprobante_conceptos": StagingSynthetic,
 	"comprobante_events":    StagingSynthetic,
 	"cfdi_folio_sequences":  StagingSynthetic,
+	"leads":                 StagingSynthetic,
+	"lead_comments":         StagingSynthetic,
 
 	"sessions":            StagingEmpty,
 	"login_attempts":      StagingEmpty,

@@ -277,6 +277,7 @@ func TestDeleteCoversEveryReference(t *testing.T) {
 		"comprobantes.quote_id -> quotes",
 		"comprobantes.related_id -> comprobantes",
 		"deliveries.project_id -> projects",
+		"leads.quote_id -> quotes",
 		"notifications.comprobante_id -> comprobantes",
 		"notifications.project_id -> projects",
 		"payments.comprobante_id -> comprobantes",

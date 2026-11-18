@@ -13,6 +13,9 @@
 //
 // Any comment on the proyecto (a follow-up, which a new date also writes, or a note), or
 // its leaving prospecto, stops them: the next round no longer finds it.
+//
+// Open leads (#82) get the owner's avisos on the same days and hours, never the team's:
+// Emilio asked that a lead's seguimiento avisos go only to its vendedor.
 package avisos
 
 import (
@@ -186,7 +189,54 @@ func (s *Service) round(ctx context.Context, slot time.Time) ([]store.NewNotific
 			}
 		}
 	}
+
+	leads, err := s.store.LeadsFollowUpBefore(ctx, today.Format("2006-01-02"))
+	if err != nil {
+		return nil, err
+	}
+	for _, l := range leads {
+		d, err := time.ParseInLocation("2006-01-02", l.NextFollowUp, s.loc)
+		if err != nil || s.attendedAt(l.LastAt, d) {
+			continue
+		}
+		n := weekdaysAfter(d, today)
+		r, ok := ownerByID[l.UserID]
+		if !ok || !ownerDue(n, slot.Hour()) || !r.NotifyEmail || r.Email == "" {
+			continue
+		}
+		subject, text, html := s.leadMessage(r, l, d, n)
+		out = append(out, store.NewNotification{
+			Kind: store.AvisoSeguimientoVencido, Channel: store.ChannelEmail, UserID: r.UserID, Address: r.Email,
+			LeadID: l.ID, Subject: subject, BodyText: text, BodyHTML: html,
+		})
+	}
 	return out, nil
+}
+
+// leadMessage is the owner's aviso about an overdue lead.
+func (s *Service) leadMessage(r store.AvisoRecipient, l store.Lead, d time.Time, n int) (subject, text, html string) {
+	what := fmt.Sprintf("El seguimiento del lead %s era el %s y no se ha registrado nada desde entonces.", l.Label(), day(d))
+	if n > 1 {
+		what += fmt.Sprintf(" Van %d días hábiles.", n)
+	}
+	contact := l.ContactName
+	for _, c := range []string{l.Phone, l.Email} {
+		if c != "" {
+			contact += " · " + c
+		}
+	}
+	last := "Último comentario: no hay ninguno."
+	if l.LastBody != "" {
+		when := l.LastAt
+		if t, err := time.Parse(time.RFC3339Nano, l.LastAt); err == nil {
+			when = day(t.In(s.loc))
+		}
+		last = fmt.Sprintf("Último comentario, de %s el %s: %s", l.LastUserName, when, l.LastBody)
+	}
+	text, html = notify.Email("Hola, "+r.Name+".", what, "Contacto: "+contact+".", last,
+		"Siguiente paso: registra el seguimiento en el lead, con un comentario o una nueva fecha. En cuanto lo hagas, dejan de llegar estos avisos.",
+		fmt.Sprintf("Ver el lead: %s/leads/%d", s.baseURL, l.ID), footer)
+	return "Seguimiento vencido: lead " + l.Label(), text, html
 }
 
 // overdue returns the prospectos whose seguimiento day is before today with nothing on
@@ -210,10 +260,16 @@ func (s *Service) overdue(ctx context.Context, today time.Time) ([]store.Project
 
 // attendedSince reports whether the proyecto's history has an entry from day d on.
 func (s *Service) attendedSince(p store.Project, d time.Time) bool {
-	if p.LastAt == "" {
+	return s.attendedAt(p.LastAt, d)
+}
+
+// attendedAt reports whether a history whose newest entry is at last (RFC 3339, "" for
+// none) has one from day d on.
+func (s *Service) attendedAt(last string, d time.Time) bool {
+	if last == "" {
 		return false
 	}
-	t, err := time.Parse(time.RFC3339Nano, p.LastAt)
+	t, err := time.Parse(time.RFC3339Nano, last)
 	if err != nil {
 		return false
 	}

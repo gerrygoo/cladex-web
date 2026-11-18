@@ -147,7 +147,12 @@ func (p *Projects) Page(w http.ResponseWriter, r *http.Request) {
 			cobro.PPDFactura = true
 		}
 	}
-	views.ProjectPage(*project, today(r), quotes, files, receipt, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user), supplier, panel, pos, entrega, cobro).Render(ctx, w)
+	lead, err := p.store.LeadOfProject(ctx, project.ID)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	views.ProjectPage(*project, today(r), quotes, files, receipt, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user), supplier, panel, pos, entrega, cobro, lead).Render(ctx, w)
 }
 
 // Cancelar handles POST /proyectos/{folio}/cancelar (admin): marks the proyecto cancelado

@@ -244,3 +244,48 @@ func TestSeguimientoStops(t *testing.T) {
 		t.Errorf("a perdido proyecto: %v", got)
 	}
 }
+
+// An overdue lead (#82) gets its owner's avisos on the owner's days and hours, never the
+// team's; a comment on it stops them.
+func TestLeadSeguimientoAvisos(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	// The proyecto is attended, so only the lead is overdue.
+	f.exec(t, `UPDATE quote_comments SET created_at = '2026-11-30T17:00:00.000Z'`)
+	leadID, err := f.s.CreateLead(ctx, store.LeadInput{ContactName: "Juan Pérez", Company: "Sonepar", Phone: "5512345678",
+		UserID: f.ana, NextFollowUp: "2026-11-11"}, "Pidió precios de CCA.", f.ana)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.exec(t, `UPDATE lead_comments SET created_at = '2026-11-10T17:00:00.000Z'`)
+
+	for _, tc := range []struct {
+		slot       string
+		ana, gerry int
+	}{
+		{"2026-11-11T18:00", 0, 0},
+		{"2026-11-12T09:00", 1, 0},
+		{"2026-11-13T12:00", 0, 0}, // the team's step: not for leads
+		{"2026-11-13T18:00", 1, 0},
+	} {
+		_, got := f.run(t, tc.slot, 0)
+		if got[f.ana] != tc.ana || got[f.gerry] != tc.gerry {
+			t.Errorf("%s: queued %v, want Ana %d, Gerardo %d", tc.slot, got, tc.ana, tc.gerry)
+		}
+	}
+	var subject, body string
+	var lead sql.NullInt64
+	f.raw.QueryRow(`SELECT subject, body_text, lead_id FROM notifications WHERE user_id = ? ORDER BY id LIMIT 1`, f.ana).Scan(&subject, &body, &lead)
+	if subject != "Seguimiento vencido: lead Juan Pérez · Sonepar" || lead.Int64 != leadID ||
+		!strings.Contains(body, "https://cotizador.example/leads/") || !strings.Contains(body, "Pidió precios de CCA.") {
+		t.Errorf("lead aviso: %q, lead %v\n%s", subject, lead, body)
+	}
+
+	next := "2026-11-20"
+	if err := f.s.FollowUpLead(ctx, leadID, f.ana, &next, "Le mandé la lista."); err != nil {
+		t.Fatal(err)
+	}
+	if _, got := f.run(t, "2026-11-16T18:00", 0); got[f.ana] != 0 {
+		t.Errorf("after a follow-up: %v", got)
+	}
+}

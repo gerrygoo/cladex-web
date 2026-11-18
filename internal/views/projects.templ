@@ -196,13 +196,16 @@ templ projectNameForm(p store.Project) {
 // de facturación, de entrega and de cobro), its follow-up and history, its factura,
 // supplier O.C.s, their delivery (Entrega) and payments (Cobro), every quote it has had,
 // and the admin's tools at the bottom.
-templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []store.ProjectFile, receipt store.OCReceipt, comments []store.ProjectComment, commentsLV ListView, facturas []store.Comprobante, factEnabled bool, user *NavUser, supplier SupplierQuoteView, adminPanel *AdminPanel, pos ProjectPOs, entrega ProjectEntrega, cobro ProjectCobro) {
+templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []store.ProjectFile, receipt store.OCReceipt, comments []store.ProjectComment, commentsLV ListView, facturas []store.Comprobante, factEnabled bool, user *NavUser, supplier SupplierQuoteView, adminPanel *AdminPanel, pos ProjectPOs, entrega ProjectEntrega, cobro ProjectCobro, lead *store.Lead) {
 	@Layout("Proyecto "+p.Label(), user) {
 		<div class="page-title">
 			<h1>Proyecto { p.Label() }</h1>
 			@HelpLink(HelpProyecto)
 		</div>
 		<p>Cliente: { p.CustomerName }</p>
+		if lead != nil {
+			<p>Viene del lead <a href={ templ.URL(leadPath(lead.ID)) }>{ lead.ContactName }</a>; su historial sigue ahí.</p>
+		}
 		@projectNameForm(p)
 		<dl class="quote-info">
 			<dt>Etapa</dt>

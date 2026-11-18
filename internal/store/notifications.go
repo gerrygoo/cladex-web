@@ -53,10 +53,12 @@ type NewNotification struct {
 	CustomerID int64
 	Address    string
 	ProjectID  int64
-	Subject    string
-	BodyText   string
-	BodyHTML   string
-	CreatedBy  int64
+	// LeadID is the lead a seguimiento aviso is about (#82), 0 for none.
+	LeadID    int64
+	Subject   string
+	BodyText  string
+	BodyHTML  string
+	CreatedBy int64
 }
 
 // Notification is a notifications row, with its recipient's name and, when read alone,
@@ -123,10 +125,10 @@ func (s *Store) QueueNotification(ctx context.Context, n NewNotification, now ti
 func queueNotification(ctx context.Context, tx *sql.Tx, n NewNotification, now time.Time) (int64, error) {
 	res, err := tx.ExecContext(ctx, `
 		INSERT INTO notifications (kind, channel, user_id, customer_id, address, project_id,
-			subject, body_text, body_html, created_by, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			lead_id, subject, body_text, body_html, created_by, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		n.Kind, n.Channel, nullIfZero(n.UserID), nullIfZero(n.CustomerID), n.Address,
-		nullIfZero(n.ProjectID), nullIfEmpty(n.Subject), nullIfEmpty(n.BodyText),
+		nullIfZero(n.ProjectID), nullIfZero(n.LeadID), nullIfEmpty(n.Subject), nullIfEmpty(n.BodyText),
 		nullIfEmpty(n.BodyHTML), nullIfZero(n.CreatedBy), jobTime(now))
 	if err != nil {
 		return 0, err

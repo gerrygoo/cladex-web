@@ -47,6 +47,7 @@ var pageDefs = []pageDef{
 	{"dashboard", "dashboard.md", "Dashboard", false},
 	{"clientes", "clientes.md", "Clientes", false},
 	{"proveedores", "proveedores.md", "Proveedores", false},
+	{"leads", "leads.md", "Leads", false},
 	{"cotizaciones", "cotizaciones.md", "Cotizaciones", false},
 	{"proyectos", "proyectos.md", "Proyectos", false},
 	{"ordenes-de-compra", "ordenes-de-compra.md", "Órdenes de compra a proveedor", false},

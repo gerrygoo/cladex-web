@@ -61,6 +61,9 @@ func (s *Store) DeleteProject(ctx context.Context, projectID int64) error {
 		{"quote lines", `DELETE FROM quote_lines WHERE quote_id IN (SELECT id FROM quotes WHERE project_id = ?1)`},
 		{"supplier quote files", `DELETE FROM supplier_quote_files WHERE root_quote_id IN (SELECT id FROM quotes WHERE project_id = ?1)`},
 		{"supplier quotes", `DELETE FROM supplier_quotes WHERE root_quote_id IN (SELECT id FROM quotes WHERE project_id = ?1)`},
+		// A lead converted into this proyecto is open again: its conversion is gone.
+		{"leads", `UPDATE leads SET quote_id = NULL, status = 'abierto', closed_at = NULL
+			WHERE quote_id IN (SELECT id FROM quotes WHERE project_id = ?1)`},
 	}
 	for _, st := range steps {
 		if _, err := tx.ExecContext(ctx, st.query, projectID); err != nil {
@@ -168,6 +171,8 @@ func (s *Store) DeleteDraftQuote(ctx context.Context, quoteID int64) error {
 		`DELETE FROM quote_lines WHERE quote_id = ?1`,
 		`DELETE FROM supplier_quote_files WHERE root_quote_id = ?1`,
 		`DELETE FROM supplier_quotes WHERE root_quote_id = ?1`,
+		// A lead converted into this draft is open again: its conversion is gone.
+		`UPDATE leads SET quote_id = NULL, status = 'abierto', closed_at = NULL WHERE quote_id = ?1`,
 		`DELETE FROM quotes WHERE id = ?1`,
 	} {
 		if _, err := tx.ExecContext(ctx, q, quoteID); err != nil {

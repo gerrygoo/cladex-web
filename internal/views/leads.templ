@@ -1,0 +1,375 @@
+package views
+
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// leadPath is a lead's page.
+func leadPath(id int64) string {
+	return "/leads/" + strconv.FormatInt(id, 10)
+}
+
+// LeadStatusLabels are how a lead's status reads.
+var LeadStatusLabels = map[string]string{
+	store.LeadAbierto:    "Abierto",
+	store.LeadPerdido:    "Perdido",
+	store.LeadConvertido: "Convertido en proyecto",
+}
+
+// LeadFilter is the leads list's filter: which status ("" for every one) and whether
+// only the viewer's own.
+type LeadFilter struct {
+	Status string
+	Mine   bool
+}
+
+func (f LeadFilter) query(status string, mine bool) string {
+	q := "/leads?estado=" + status
+	if status == "" {
+		q = "/leads?estado=todos"
+	}
+	if mine {
+		q += "&mios=1"
+	}
+	return q
+}
+
+// LeadFormValues is the new and edit lead form, as shown.
+type LeadFormValues struct {
+	ContactName  string
+	CustomerID   string
+	Company      string
+	Phone        string
+	Email        string
+	UserID       string
+	NextFollowUp string
+	Note         string
+}
+
+// LeadsList is /leads: every lead, everyone's (#82, Emilio's answer 5), open ones by
+// seguimiento day.
+templ LeadsList(leads []store.Lead, f LeadFilter, today string, user *NavUser) {
+	@Layout("Leads", user) {
+		<div class="page-title">
+			<h1>Leads</h1>
+			@HelpLink(HelpLeads)
+		</div>
+		<p>Personas que piden precios sin que todavía haya un proyecto. No cuentan en Proyectos ni en Pronóstico; cuando piden algo concreto, se convierten en proyecto.</p>
+		<p><a href="/leads/nuevo" class="button primary">Nuevo lead</a></p>
+		<nav aria-label="Filtrar leads">
+			for _, st := range []string{store.LeadAbierto, store.LeadPerdido, store.LeadConvertido, ""} {
+				if st == f.Status {
+					<strong>{ leadStatusFilterLabel(st) }</strong>
+				} else {
+					<a href={ templ.URL(f.query(st, f.Mine)) }>{ leadStatusFilterLabel(st) }</a>
+				}
+				{ " · " }
+			}
+			if f.Mine {
+				<a href={ templ.URL(f.query(f.Status, false)) }>Ver los de todos</a>
+			} else {
+				<a href={ templ.URL(f.query(f.Status, true)) }>Ver solo los míos</a>
+			}
+		</nav>
+		<div class="table-scroll">
+			<table>
+				<thead>
+					<tr>
+						<th>Contacto</th>
+						<th>Empresa</th>
+						<th>Teléfono / correo</th>
+						<th>Vendedor</th>
+						<th>Próximo seguimiento</th>
+						<th>Estado</th>
+						<th>Último comentario</th>
+					</tr>
+				</thead>
+				<tbody>
+					if len(leads) == 0 {
+						<tr><td colspan="7">No hay leads.</td></tr>
+					}
+					for _, l := range leads {
+						<tr>
+							<td><a href={ templ.URL(leadPath(l.ID)) }>{ l.ContactName }</a></td>
+							<td>{ l.CompanyName() }</td>
+							<td>
+								{ l.Phone }
+								if l.Phone != "" && l.Email != "" {
+									<br/>
+								}
+								{ l.Email }
+							</td>
+							<td>{ l.UserName }</td>
+							<td>
+								if l.Open() {
+									@dateWarningCell(l.NextFollowUp, leadFollowUpWarning(l, today))
+								}
+							</td>
+							<td>{ LeadStatusLabels[l.Status] }</td>
+							<td>
+								if l.LastBody != "" {
+									<small>{ l.LastUserName + ": " + l.LastBody }</small>
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
+
+func leadStatusFilterLabel(st string) string {
+	switch st {
+	case store.LeadAbierto:
+		return "Abiertos"
+	case store.LeadPerdido:
+		return "Perdidos"
+	case store.LeadConvertido:
+		return "Convertidos"
+	}
+	return "Todos"
+}
+
+// leadFollowUpWarning flags an open lead whose seguimiento is due or missing.
+func leadFollowUpWarning(l store.Lead, today string) string {
+	switch {
+	case l.NextFollowUp == "":
+		return "sin seguimiento"
+	case l.FollowUpDue(today):
+		return "toca darle seguimiento"
+	}
+	return ""
+}
+
+// leadFields is the lead form shared by new and edit. The customer picker lists the
+// existing customers; "Ninguno" means the company is typed in.
+templ leadFields(v LeadFormValues, customers []store.Customer, users []store.User, errs map[string]string, creating bool) {
+	<label>
+		Nombre del contacto
+		<input type="text" name="contact_name" value={ v.ContactName } required { errAttrs(errs, "contact_name")... }/>
+	</label>
+	@FieldError(errs, "contact_name")
+	<label>
+		Cliente que ya existe (opcional)
+		<select name="customer_id">
+			<option value="">Ninguno: es una empresa nueva</option>
+			for _, c := range customers {
+				<option value={ strconv.FormatInt(c.ID, 10) } selected?={ v.CustomerID == strconv.FormatInt(c.ID, 10) }>{ c.Name }</option>
+			}
+		</select>
+	</label>
+	<p class="hint">Si la persona trabaja en un cliente que ya existe (p. ej. otro contacto de Sonepar), elígelo aquí.</p>
+	<label>
+		Empresa (si no es cliente)
+		<input type="text" name="company" value={ v.Company }/>
+	</label>
+	<label>
+		Teléfono
+		<input type="tel" name="phone" value={ v.Phone } { errAttrs(errs, "phone")... }/>
+	</label>
+	@FieldError(errs, "phone")
+	<label>
+		Correo
+		<input type="email" name="email" value={ v.Email } { errAttrs(errs, "email")... }/>
+	</label>
+	@FieldError(errs, "email")
+	<label>
+		Vendedor responsable
+		<select name="user_id" required { errAttrs(errs, "user_id")... }>
+			for _, u := range users {
+				<option value={ strconv.FormatInt(u.ID, 10) } selected?={ v.UserID == strconv.FormatInt(u.ID, 10) }>{ u.Name }</option>
+			}
+		</select>
+	</label>
+	@FieldError(errs, "user_id")
+	<p class="hint">Los avisos de seguimiento vencido le llegan solo a él.</p>
+	if creating {
+		<label>
+			Próximo seguimiento
+			<input type="date" name="next_followup" value={ v.NextFollowUp } { errAttrs(errs, "next_followup")... }/>
+		</label>
+		@FieldError(errs, "next_followup")
+		<label>
+			Qué pidió (opcional)
+			<textarea name="note" rows="3" maxlength="2000">{ v.Note }</textarea>
+		</label>
+	}
+}
+
+templ LeadNew(v LeadFormValues, customers []store.Customer, users []store.User, errs map[string]string, user *NavUser) {
+	@Layout("Nuevo lead", user) {
+		<div class="page-title">
+			<h1>Nuevo lead</h1>
+			@HelpLink(HelpLeadNuevo)
+		</div>
+		<form method="post" action="/leads">
+			@leadFields(v, customers, users, errs, true)
+			<button type="submit" class="primary">Guardar lead</button>
+			<a href="/leads">Cancelar</a>
+		</form>
+	}
+}
+
+// LeadPageData is everything the lead's page shows.
+type LeadPageData struct {
+	Lead      store.Lead
+	Comments  []store.LeadComment
+	Types     []store.QuoteType
+	Customers []store.Customer
+	Users     []store.User
+	Form      LeadFormValues
+	Errors    map[string]string
+	Today     string
+	Success   string
+	Error     string
+}
+
+templ LeadPage(d LeadPageData, user *NavUser) {
+	{{ l := d.Lead }}
+	@Layout("Lead "+l.Label(), user) {
+		<div class="page-title">
+			<h1>Lead { l.Label() }</h1>
+			@HelpLink(HelpLeads)
+		</div>
+		@Flash(d.Success)
+		@FormError(d.Error)
+		<dl class="quote-info">
+			<dt>Estado</dt>
+			<dd>{ LeadStatusLabels[l.Status] }</dd>
+			if l.Status == store.LeadPerdido {
+				<dt>Motivo</dt>
+				<dd>{ l.LostReason }</dd>
+			}
+			if l.Status == store.LeadConvertido {
+				<dt>Cotización</dt>
+				<dd>
+					<a href={ templ.URL("/cotizaciones/" + l.QuoteFolio) }>{ l.QuoteFolio }</a>
+					if l.ProjectFolio != "" {
+						{ " · proyecto " }
+						<a href={ templ.URL(projectPath(l.ProjectFolio)) }>{ l.ProjectFolio }</a>
+					} else {
+						{ " · el proyecto se abre al emitirla" }
+					}
+				</dd>
+			}
+			<dt>Empresa</dt>
+			<dd>
+				if l.CustomerID != nil {
+					<a href={ templ.URL("/clientes/" + strconv.FormatInt(*l.CustomerID, 10)) }>{ l.CustomerName }</a> (cliente)
+				} else if l.Company != "" {
+					{ l.Company }
+				} else {
+					Sin empresa
+				}
+			</dd>
+			<dt>Contacto</dt>
+			<dd>
+				{ l.ContactName }
+				if l.Phone != "" {
+					{ " · " + l.Phone }
+				}
+				if l.Email != "" {
+					{ " · " }<a href={ templ.URL("mailto:" + l.Email) }>{ l.Email }</a>
+				}
+			</dd>
+			<dt>Vendedor</dt>
+			<dd>{ l.UserName }</dd>
+			if l.Open() {
+				<dt>Próximo seguimiento</dt>
+				<dd>
+					@dateWarningCell(l.NextFollowUp, leadFollowUpWarning(l, d.Today))
+				</dd>
+			}
+		</dl>
+		if l.Open() {
+			<section id="convertir">
+				<h2>Convertir en proyecto</h2>
+				<p>{ convertHint(l) }</p>
+				<form method="post" action={ templ.URL(leadPath(l.ID) + "/convertir") } class="stage-form">
+					<label>
+						Tipo de cotización
+						<select name="tipo" required>
+							for _, t := range d.Types {
+								<option value={ strconv.FormatInt(t.ID, 10) }>{ t.Prefix }{ tipoNameSuffix(t) }</option>
+							}
+						</select>
+					</label>
+					<button type="submit" class="primary">Convertir en proyecto</button>
+				</form>
+			</section>
+		}
+		<section id="historial">
+			<h2>Seguimiento y comentarios</h2>
+			if l.Open() {
+				<form method="post" action={ templ.URL(leadPath(l.ID) + "/seguimiento") } class="stage-form">
+					<label>
+						Próximo seguimiento
+						<input type="date" name="proximo_seguimiento" value={ l.NextFollowUp } min={ nextDay(d.Today) }/>
+					</label>
+					<label>
+						Comentario
+						<textarea name="note" rows="2" maxlength="2000" required></textarea>
+					</label>
+					<button type="submit">Guardar seguimiento</button>
+				</form>
+				<details>
+					<summary>Marcar como perdido</summary>
+					<form method="post" action={ templ.URL(leadPath(l.ID) + "/perdido") } class="stage-form">
+						<label>
+							Motivo
+							<textarea name="reason" rows="2" maxlength="2000" required></textarea>
+						</label>
+						<button type="submit" class="danger">Marcar como perdido</button>
+					</form>
+				</details>
+			} else if l.Status == store.LeadPerdido {
+				<form method="post" action={ templ.URL(leadPath(l.ID) + "/reabrir") }>
+					<button type="submit">Reabrir lead</button>
+				</form>
+			}
+			if len(d.Comments) == 0 {
+				<p class="comments-empty">Sin comentarios.</p>
+			} else {
+				<ol class="comments">
+					for _, c := range d.Comments {
+						<li>
+							<p class="comment-body">{ c.Body }</p>
+							<p class="comment-meta">
+								{ c.UserName + " · " }
+								@Timestamp(c.CreatedAt)
+							</p>
+						</li>
+					}
+				</ol>
+			}
+		</section>
+		<section id="datos">
+			<details open?={ len(d.Errors) > 0 }>
+				<summary>Editar datos del lead</summary>
+				<form method="post" action={ templ.URL(leadPath(l.ID)) }>
+					@leadFields(d.Form, d.Customers, d.Users, d.Errors, false)
+					<button type="submit">Guardar datos</button>
+				</form>
+			</details>
+		</section>
+	}
+}
+
+func tipoNameSuffix(t store.QuoteType) string {
+	if t.Name == "" {
+		return ""
+	}
+	return " — " + t.Name
+}
+
+// convertHint says what Convertir en proyecto does for this lead.
+func convertHint(l store.Lead) string {
+	what := "se crea una cotización nueva para " + l.CustomerName
+	if l.CustomerID == nil {
+		what = "se crea el cliente con los datos de este lead y una cotización nueva para él"
+	}
+	return "Cuando pida algo concreto para un proyecto, conviértelo: " + what + ". El proyecto se abre al emitirla, como cualquier otro."
+}

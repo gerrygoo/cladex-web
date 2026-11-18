@@ -22,6 +22,8 @@ const (
 	HelpCotizacionBorrador HelpTopic = "/ayuda/cotizaciones#agregar-productos-por-sku"
 	HelpCotizacionEmitida  HelpTopic = "/ayuda/cotizaciones#descargar-y-enviar-el-pdf"
 	HelpProyectos          HelpTopic = "/ayuda/proyectos"
+	HelpLeads              HelpTopic = "/ayuda/leads"
+	HelpLeadNuevo          HelpTopic = "/ayuda/leads#dar-de-alta-un-lead"
 	HelpProyecto           HelpTopic = "/ayuda/proyectos#dar-seguimiento-a-un-proyecto"
 	HelpPronostico         HelpTopic = "/ayuda/proyectos#revisar-el-pronóstico"
 	HelpCotizacionRevisada HelpTopic = "/ayuda/cotizaciones#revisar-una-cotización-emitida"
@@ -70,6 +72,8 @@ var HelpTopics = map[HelpTopic]bool{
 	HelpCotizacionBorrador: false,
 	HelpCotizacionEmitida:  false,
 	HelpProyectos:          false,
+	HelpLeads:              false,
+	HelpLeadNuevo:          false,
 	HelpProyecto:           false,
 	HelpPronostico:         false,
 	HelpCotizacionRevisada: false,

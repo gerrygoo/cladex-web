@@ -1,6 +1,6 @@
 # Leads y listas de precios
 
-**Draft 2026-11-18; Gerry decided margins go on the tipo de cotización, next to its terms. Emilio answered the questions on #82 the same day (§3); L4 is dropped. L1 built 2026-11-18 (migration 0047); L2 and L3 not started.** Driven by
+**Draft 2026-11-18; Gerry decided margins go on the tipo de cotización, next to its terms. Emilio answered the questions on #82 the same day (§3); L4 is dropped. L1 built 2026-11-18 (migration 0047); L2 built 2026-11-18 (0048); L3 not started.** Driven by
 [#82](https://github.com/gerrygoo/cladex-web/issues/82): Emilio wants to give prices to
 people who aren't a real proyecto yet, without creating proyectos that pollute Pronóstico
 (today: `QA0046 · Cotizaciones informativas de producto`, later marked Perdido), and still
@@ -37,7 +37,7 @@ each shippable alone, with the open questions for Emilio and the decisions for G
 | | Slice | Schema | Risk |
 |---|---|---|---|
 | L1 | **Márgenes por tipo de cotización** | `margin_options.quote_type_id` (nullable = global), seeded by copying the 4 current options to every tipo | Pricing: every new quote's margin list changes |
-| L2 | **Leads**: alta, lista, seguimiento with avisos, Perdido with motivo, **Convertir en proyecto** | New `leads` table; `lead_id` on projects | Avisos code gets a second subject |
+| L2 | **Leads**: alta, lista, seguimiento with avisos, Perdido with motivo, **Convertir en proyecto** | New `leads` table; `leads.quote_id` to the converted draft | Avisos code gets a second subject |
 | L3 | **Listas de precios**: PDF of a whole familia at one of its margins, with vigencia and T&C; history on the lead | New `price_lists` (snapshot rows + PDF), per-tipo `validity_rule` | New document; no folio |
 | ~~L4~~ | ~~Cotización de referencia~~: **dropped** (Emilio, §3.4); the price list with editable quantities covers it | | |
 
@@ -84,6 +84,12 @@ Order: **L1 → L2 → L3**. When a lead brings concrete quantities for a real p
 - **Convertir en proyecto** creates (or picks) the customer from the lead's company and
   contact, and opens the new-quote flow for it. The proyecto shows "Viene del lead …" and
   the lead's history stays readable from there.
+- *As built (0048):* `leads` + `lead_comments`, `notifications.lead_id`. Conversion asks
+  only for the tipo de cotización and creates the draft (owned by the lead's vendedor)
+  directly; `leads.quote_id` points at it and the proyecto finds its lead through it.
+  Perdido can be reopened. Seguimiento avisos: the owner's steps only, never the team's
+  (Emilio's answer 5). Not done: leads in Mis pendientes and Equipo; admins see overdue
+  leads in the Leads list (sorted most overdue first) instead.
 
 ### L3 · Listas de precios
 

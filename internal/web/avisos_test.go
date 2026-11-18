@@ -59,7 +59,7 @@ func TestAvisos(t *testing.T) {
 	// ones only an admin may have.
 	body := serve(t, a, mux, ana, "GET", "/mi-cuenta", nil).Body.String()
 	for _, want := range []string{"Avisos", "Correo", "WhatsApp", "Recibir avisos por", `name="notify_email"`,
-		"Seguimiento vencido de sus proyectos", "Orden de compra del cliente recibida", "Resumen mensual de proyectos perdidos",
+		"Seguimiento vencido de sus proyectos y leads", "Orden de compra del cliente recibida", "Resumen mensual de proyectos perdidos",
 		"Todos los avisos empiezan apagados: marca los que te sirvan.", "Guardar avisos"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("Mi cuenta missing %q", want)
