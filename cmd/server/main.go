@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io/fs"
 	"log"
@@ -88,18 +89,23 @@ func main() {
 		return
 	}
 	if len(os.Args) > 1 && os.Args[1] == "seed-staging" {
-		runSeedStaging()
+		runSeedStaging(os.Args[2:])
 		return
 	}
 	runServer()
 }
 
-// runSeedStaging gives the real users in STAGING_USERS their staging passwords (web.StagingPasswords) and
-// adds the test data (web.SeedStaging) to this instance's database:
-// `docker compose run --rm cladex-staging seed-staging`, which staging-refresh.sh runs
-// after copying production's database. It refuses unless APP_ENV is staging or
-// development, so it can never touch production.
-func runSeedStaging() {
+// runSeedStaging gives the real users in STAGING_USERS their staging passwords
+// (web.StagingPasswords) and adds the test data (web.SeedStaging) to this instance's
+// database: `docker compose run --rm cladex-staging seed-staging`, which
+// staging-refresh.sh runs. With `--config-from <path>` it first copies production's
+// configuration from the database at path (a backup of production's) into this one,
+// which must be new (#81): see store.StagingTables. It refuses unless APP_ENV is staging
+// or development, so it can never touch production.
+func runSeedStaging(args []string) {
+	fs := flag.NewFlagSet("seed-staging", flag.ExitOnError)
+	configFrom := fs.String("config-from", "", "copy production's configuration from this database file first (the database being seeded must be new)")
+	fs.Parse(args)
 	env, err := appenv.Parse(os.Getenv("APP_ENV"))
 	if err != nil || env.Name != appenv.Staging && env.Name != appenv.Development {
 		fmt.Fprintln(os.Stderr, "error: seed-staging solo corre con APP_ENV=staging o development")
@@ -111,9 +117,21 @@ func runSeedStaging() {
 		log.Fatalf("store: %v", err)
 	}
 	defer db.Close()
+	stagingUsers := strings.Split(os.Getenv("STAGING_USERS"), ",")
+	if *configFrom != "" {
+		if _, err := os.Stat(*configFrom); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		if err := db.CopyStagingConfig(ctx, *configFrom, stagingUsers); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Configuración copiada de producción (catálogo, tipos de cotización, márgenes, ajustes; costos escalados).")
+	}
 	// Only the real users in STAGING_USERS (comma-separated usernames) can sign in to
 	// staging; the rest keep no password there.
-	if err := web.StagingPasswords(ctx, db, strings.Split(os.Getenv("STAGING_USERS"), ","), os.Stdout); err != nil {
+	if err := web.StagingPasswords(ctx, db, stagingUsers, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
