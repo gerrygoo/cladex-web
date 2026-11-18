@@ -128,12 +128,12 @@ func seedResolve(ctx context.Context, st *store.Store) (map[string]seedKind, err
 // seedDoneKey is the setting SeedStaging writes last: a database that has it is seeded.
 const seedDoneKey = "seed_staging_at"
 
-// SeedStaging adds a small, useful set of test data to a staging database that is a copy
-// of production's, so it becomes a superset: five users, customers (receptores valid in
-// the SAT's sandbox), suppliers and products (with and without SAT codes, in kilos and
-// metres), and proyectos in the states worth trying (prospecto with an overdue follow-up,
-// Inminente, en curso with a confirmed supplier O.C. ready to invoice in kilos, en curso
-// with a P.P.D. factura recorded by hand and an anticipo, Perdido) plus a draft quote.
+// SeedStaging adds the test data to a staging database: five users, customers
+// (receptores valid in the SAT's sandbox), suppliers and products (with and without SAT
+// codes, in kilos and metres), and about twenty proyectos covering every stage and state
+// worth trying (seedMoreProjects), some owned by the real STAGING_USERS, plus a draft
+// quote and pendientes. It builds on production's configuration (catalog, quote types),
+// copied in or present in a full copy.
 // Everything goes through the same code the screens use, quotes priced as they would be.
 //
 // It does nothing when the test users already exist. It never runs on production: the
@@ -301,7 +301,7 @@ func SeedStaging(ctx context.Context, st *store.Store, now time.Time, out io.Wri
 		return fmt.Errorf("anticipo %s: %w", p4.Folio, err)
 	}
 	if _, err := st.RecordManualFactura(withSeedUser(ctx, admin), p4.ID, admin.ID, store.ManualFactura{
-		XML: seedCFDI(seedCustomers[3], p4.Total, "PPD", now)}); err != nil {
+		XML: seedCFDI(seedCustomers[3], p4.Total, "PPD", now, 4)}); err != nil {
 		return fmt.Errorf("factura %s: %w", p4.Folio, err)
 	}
 	folios = append(folios, p4.Folio+": en curso, factura P.P.D. registrada a mano y anticipo del 50% (falta complemento)")
@@ -315,6 +315,13 @@ func SeedStaging(ctx context.Context, st *store.Store, now time.Time, out io.Wri
 		return fmt.Errorf("lose %s: %w", p5.Folio, err)
 	}
 	folios = append(folios, p5.Folio+": perdido")
+
+	more, err := seedMoreProjects(ctx, st, pos, now, issue, seedEnv{admin: admin, vendedores: []*store.AuthenticatedUser{vend1, vend2, vend3},
+		customers: customers, suppliers: suppliers})
+	if err != nil {
+		return err
+	}
+	folios = append(folios, more...)
 
 	// A draft quote, never issued.
 	draft, err := st.CreateDraftQuoteOfType(withSeedUser(ctx, vend3), customers[2], vend3.ID, kinds[seedMetre].typeID)
@@ -518,7 +525,7 @@ func seedSupplierOC(ctx context.Context, pos *PurchaseOrders, st *store.Store, a
 // seedCFDI is a stamped-looking CFDI 4.0 factura from the SAT's test emisor to c for
 // total, as if issued in the PAC's portal, for recording by hand in staging. Its folio
 // fiscal is random; nothing about it is valid outside staging.
-func seedCFDI(c store.Customer, total money.Centavos, metodo string, now time.Time) []byte {
+func seedCFDI(c store.Customer, total money.Centavos, metodo string, now time.Time, folio int) []byte {
 	sub := money.Centavos(money.RoundHalfUp(int64(total)*100, 116))
 	amt := func(x money.Centavos) string { return fmt.Sprintf("%d.%02d", int64(x)/100, int64(x)%100) }
 	forma := "03"
@@ -530,7 +537,7 @@ func seedCFDI(c store.Customer, total money.Centavos, metodo string, now time.Ti
 		return strings.NewReplacer("&", "&amp;", `"`, "&quot;", "<", "&lt;", ">", "&gt;").Replace(s)
 	}
 	return []byte(`<?xml version="1.0" encoding="UTF-8"?>
-<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" Version="4.0" Serie="PRUEBA" Folio="` + strconv.FormatInt(now.Unix()%100000, 10) + `" Fecha="` + stamp + `" FormaPago="` + forma + `" SubTotal="` + amt(sub) + `" Moneda="MXN" Total="` + amt(total) + `" TipoDeComprobante="I" Exportacion="01" MetodoPago="` + metodo + `" LugarExpedicion="42501" Sello="PRUEBA" NoCertificado="30001000000500003416">
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" Version="4.0" Serie="PRUEBA" Folio="` + strconv.Itoa(folio) + `" Fecha="` + stamp + `" FormaPago="` + forma + `" SubTotal="` + amt(sub) + `" Moneda="MXN" Total="` + amt(total) + `" TipoDeComprobante="I" Exportacion="01" MetodoPago="` + metodo + `" LugarExpedicion="42501" Sello="PRUEBA" NoCertificado="30001000000500003416">
   <cfdi:Emisor Rfc="EKU9003173C9" Nombre="ESCUELA KEMPER URGATE" RegimenFiscal="601"/>
   <cfdi:Receptor Rfc="` + c.RFC + `" Nombre="` + esc(c.LegalName) + `" DomicilioFiscalReceptor="` + c.PostalCode + `" RegimenFiscalReceptor="` + c.TaxRegime + `" UsoCFDI="` + c.CFDIUse + `"/>
   <cfdi:Conceptos>
@@ -550,4 +557,3 @@ func seedUUID() string {
 	b[8] = b[8]&0x3f | 0x80
 	return strings.ToUpper(fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:]))
 }
-

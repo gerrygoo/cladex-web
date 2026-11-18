@@ -341,10 +341,13 @@ drops the sessions so production cookies don't open staging, adds the test data
   and one in MTR; two cables by the metre (CCA), one without SAT codes (to see "Faltan
   datos para facturar"); and a piece (a luminaria) in H87. Quote types are found by what
   they do, not by prefix or name, which admins change.
-- Proyectos: a prospecto with an overdue follow-up, one at Inminente, one en curso with a
-  confirmed supplier O.C. ready to invoice (with a KGM line), one en curso with an
-  anticipo and a P.P.D. factura recorded by hand (Pendiente complemento de pago), one
-  Perdido, and a draft quote.
+- About twenty proyectos (`seedMoreProjects`), some owned by the real `STAGING_USERS`:
+  prospectos at every probabilidad (one with an overdue follow-up, one due today, one
+  without a date, one with a revised quote and comments); en curso with a supplier O.C.
+  ready to invoice in kilos, delivered and not invoiced, P.U.E. paid and not delivered,
+  P.P.D. with an anticipo, P.P.D. with one complemento, and one whose factura was
+  cancelled; two Cerrado · Ganado (P.U.E., and P.P.D. paid in two complementos); a
+  Cancelado; two Perdido; a draft quote; and pendientes for each user.
 
 `seed-staging` refuses unless `APP_ENV` is staging or development. It writes the setting
 `seed_staging_at` last and does nothing once it's there; after a run that failed halfway,

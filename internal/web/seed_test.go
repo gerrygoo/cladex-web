@@ -77,8 +77,24 @@ func TestSeedStagingOnCopiedConfig(t *testing.T) {
 	if u, _ := a.store.UserByUsername(ctx, "rfm"); u != nil {
 		t.Error("rfm, not in STAGING_USERS, was copied")
 	}
-	if u, _ := a.store.UserByUsername(ctx, "gerry"); u == nil || u.PasswordHash == NoPasswordHash {
-		t.Error("gerry has no staging password")
+	gerry, _ := a.store.UserByUsername(ctx, "gerry")
+	if gerry == nil || gerry.PasswordHash == NoPasswordHash {
+		t.Fatal("gerry has no staging password")
+	}
+	// The real staging users own some of the seeded proyectos and have pendientes.
+	all, _ := a.store.ListProjects(ctx, "", "", "", store.Filters{"etapa": {store.StageProspecto, store.StageEnCurso,
+		store.StageCerrado, store.StagePerdido, store.StageCancelado}})
+	owned := 0
+	for _, p := range all {
+		if p.UserID == gerry.ID {
+			owned++
+		}
+	}
+	if owned < 3 {
+		t.Errorf("gerry owns %d seeded proyectos, want at least 3", owned)
+	}
+	if ps, _ := a.store.OpenPendientes(ctx, gerry.ID); len(ps) == 0 {
+		t.Error("gerry has no pendientes")
 	}
 }
 
@@ -116,7 +132,9 @@ func TestSeedStaging(t *testing.T) {
 
 	byState := map[string]int{}
 	var qs *store.Project
-	projects, _ := a.store.ListProjects(ctx, "", "", "", store.Filters{"etapa": {store.StageProspecto, store.StageEnCurso, store.StagePerdido}})
+	projects, _ := a.store.ListProjects(ctx, "", "", "", store.Filters{"etapa": {store.StageProspecto, store.StageEnCurso,
+		store.StageCerrado, store.StagePerdido, store.StageCancelado}})
+	probabilities := map[int]bool{}
 	for i := range projects {
 		p := projects[i]
 		key := p.Status
@@ -127,15 +145,29 @@ func TestSeedStaging(t *testing.T) {
 			}
 		}
 		byState[key]++
-	}
-	for _, want := range []string{store.StageProspecto, store.StagePerdido,
-		"en_curso/pendiente/en_proceso/pendiente", "en_curso/pendiente_complemento/sin_oc/parcial"} {
-		if byState[want] == 0 {
-			t.Errorf("no seeded proyecto in %s: %v", want, byState)
+		if p.Status == store.StageProspecto {
+			probabilities[p.Probability] = true
 		}
 	}
-	if byState[store.StageProspecto] != 2 {
-		t.Errorf("prospectos = %d, want 2: %v", byState[store.StageProspecto], byState)
+	// #81: every stage, and the en curso states worth trying, without real data.
+	for want, n := range map[string]int{
+		store.StageProspecto: 9, store.StagePerdido: 2, store.StageCancelado: 1,
+		"en_curso/facturada/entregado/pagado":              2, // shown as Cerrado · Ganado
+		"en_curso/pendiente/en_proceso/pendiente":          1, // supplier O.C. confirmed, to invoice in kilos
+		"en_curso/pendiente/entregado/pendiente":           1, // delivered, not invoiced
+		"en_curso/facturada/en_proceso/pagado":             1, // P.U.E., not delivered
+		"en_curso/pendiente_complemento/entregado/parcial": 1, // P.P.D. with one complemento
+		"en_curso/pendiente_complemento/sin_oc/parcial":    1, // P.P.D. recorded by hand, anticipo
+		"en_curso/pendiente/sin_oc/pendiente":              1, // its factura cancelled
+	} {
+		if byState[want] != n {
+			t.Errorf("seeded proyectos in %s = %d, want %d: %v", want, byState[want], n, byState)
+		}
+	}
+	for _, pct := range []int{10, 25, 50, 75, 90} {
+		if !probabilities[pct] {
+			t.Errorf("no seeded prospecto at %d%%", pct)
+		}
 	}
 
 	// The proyecto ready to invoice gets its KGM line in kilos.
