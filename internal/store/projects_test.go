@@ -50,6 +50,18 @@ func projectFixture(t *testing.T, s *Store) (quote *Quote, userID int64) {
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
+	// Migration tests call this on a database from before 0047, whose margin_options has
+	// no quote_type_id yet; CreateDraftQuote reads it, and 0047 copies the table by named
+	// columns, so adding it here changes nothing else.
+	var hasTypeCol int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('margin_options') WHERE name = 'quote_type_id'`).Scan(&hasTypeCol); err != nil {
+		t.Fatal(err)
+	}
+	if hasTypeCol == 0 {
+		if _, err := s.db.ExecContext(ctx, `ALTER TABLE margin_options ADD COLUMN quote_type_id INTEGER`); err != nil {
+			t.Fatal(err)
+		}
+	}
 	q, err := s.CreateDraftQuote(ctx, customerID, userID, "QA")
 	if err != nil {
 		t.Fatalf("CreateDraftQuote: %v", err)

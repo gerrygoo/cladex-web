@@ -241,7 +241,7 @@ func (q *Quotes) resolveMargin(ctx context.Context, quote *store.Quote, form url
 			selected = &id
 		}
 	}
-	opts, err := q.store.ListMarginOptions(ctx)
+	opts, err := q.store.QuoteMarginOptions(ctx, quote.QuoteTypeID)
 	if err != nil {
 		return draftMargin{}, fmt.Errorf("resolve margin: %w", err)
 	}

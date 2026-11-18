@@ -113,7 +113,7 @@ func (s *Settings) renderWith(w http.ResponseWriter, r *http.Request, successMsg
 		}
 		poBilling = &b
 	}
-	margins, err := s.store.ListMarginOptions(ctx)
+	margins, err := s.marginSettings(r)
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -133,6 +133,41 @@ func (s *Settings) renderWith(w http.ResponseWriter, r *http.Request, successMsg
 	}
 	authUser, _ := UserFromContext(ctx)
 	views.Ajustes(margins, materials, units, s.facturacion, s.notificaciones, *emisor, emisorErrs, *poBilling, poErrs, successMsg, errorMsg, navUserView(authUser)).Render(ctx, w)
+}
+
+// marginSettings is the Márgenes section for the scope the request names in
+// "margenes" (a quote type's id; absent, 0 or not a type with catalog products: the
+// generales).
+func (s *Settings) marginSettings(r *http.Request) (views.MarginSettings, error) {
+	ctx := r.Context()
+	scope, _ := strconv.ParseInt(r.FormValue("margenes"), 10, 64)
+	types, err := s.store.ListQuoteTypes(ctx)
+	if err != nil {
+		return views.MarginSettings{}, err
+	}
+	own, err := s.store.MarginTypeIDs(ctx)
+	if err != nil {
+		return views.MarginSettings{}, err
+	}
+	ms := views.MarginSettings{OwnTypes: own}
+	for _, t := range types {
+		if t.FreeLinesOnly {
+			continue
+		}
+		ms.Types = append(ms.Types, t)
+		if t.ID == scope {
+			ms.Type = &ms.Types[len(ms.Types)-1]
+		}
+	}
+	if ms.Type != nil && !own[ms.Type.ID] {
+		return ms, nil
+	}
+	var typeID *int64
+	if ms.Type != nil {
+		typeID = &ms.Type.ID
+	}
+	ms.Options, err = s.store.ListMarginOptions(ctx, typeID)
+	return ms, err
 }
 
 // parseMarginPercent reads a margin as the percentage an admin types ("12.34", "12.34%")
@@ -170,7 +205,7 @@ func parseMarginForm(r *http.Request) (name string, value money.Micros, errorMsg
 func marginActionError(err error) string {
 	switch {
 	case errors.Is(err, store.ErrDuplicateMarginName):
-		return "Ya existe un margen con ese nombre."
+		return "Ya existe un margen con ese nombre en estos márgenes."
 	case errors.Is(err, store.ErrMarginOptionIsDefault):
 		return "No puedes retirar el margen predeterminado; primero haz predeterminado otro."
 	case errors.Is(err, store.ErrMarginOptionRetired):
@@ -181,9 +216,10 @@ func marginActionError(err error) string {
 	return ""
 }
 
-// marginAction runs one margin change and redirects back to /ajustes, or re-renders it
-// with the reason the change was refused.
-func (s *Settings) marginAction(w http.ResponseWriter, r *http.Request, act func(adminID int64) error) {
+// marginAction runs one margin change of scope (a quote type's id, 0 for the generales)
+// and redirects back to that scope's margins on /ajustes, or re-renders it with the
+// reason the change was refused.
+func (s *Settings) marginAction(w http.ResponseWriter, r *http.Request, scope int64, act func(adminID int64) error) {
 	authUser, _ := UserFromContext(r.Context())
 	if err := act(authUser.ID); err != nil {
 		if msg := marginActionError(err); msg != "" {
@@ -193,7 +229,12 @@ func (s *Settings) marginAction(w http.ResponseWriter, r *http.Request, act func
 		serverError(w, r, err)
 		return
 	}
-	http.Redirect(w, r, "/ajustes?margen=1", http.StatusSeeOther)
+	http.Redirect(w, r, marginsPath(scope)+"&margen=1#margenes", http.StatusSeeOther)
+}
+
+// marginsPath is /ajustes showing scope's margins.
+func marginsPath(scope int64) string {
+	return "/ajustes?margenes=" + strconv.FormatInt(scope, 10)
 }
 
 // marginID reads the {id} path value; a non-numeric id is a margin that doesn't exist.
@@ -202,7 +243,23 @@ func marginID(r *http.Request) int64 {
 	return id
 }
 
-// CreateMargen handles POST /ajustes/margenes: adds a new, non-default option.
+// optionAction is marginAction for a change to the option {id}, in the option's scope.
+func (s *Settings) optionAction(w http.ResponseWriter, r *http.Request, act func(id, adminID int64) error) {
+	id := marginID(r)
+	var scope int64
+	opt, err := s.store.MarginOptionByID(r.Context(), id)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	if opt != nil && opt.QuoteTypeID != nil {
+		scope = *opt.QuoteTypeID
+	}
+	s.marginAction(w, r, scope, func(adminID int64) error { return act(id, adminID) })
+}
+
+// CreateMargen handles POST /ajustes/margenes: adds a new, non-default option to the
+// margins of the quote type in "margenes" (0: the generales).
 func (s *Settings) CreateMargen(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "solicitud inválida", http.StatusBadRequest)
@@ -213,8 +270,22 @@ func (s *Settings) CreateMargen(w http.ResponseWriter, r *http.Request) {
 		s.render(w, r, "", msg)
 		return
 	}
-	s.marginAction(w, r, func(adminID int64) error {
-		_, err := s.store.CreateMarginOption(r.Context(), name, value, adminID)
+	scope, _ := strconv.ParseInt(r.FormValue("margenes"), 10, 64)
+	var typeID *int64
+	if scope > 0 {
+		own, err := s.store.MarginTypeIDs(r.Context())
+		if err != nil {
+			serverError(w, r, err)
+			return
+		}
+		if !own[scope] {
+			s.render(w, r, "", "Ese tipo de cotización usa los márgenes generales; primero dale márgenes propios.")
+			return
+		}
+		typeID = &scope
+	}
+	s.marginAction(w, r, scope, func(adminID int64) error {
+		_, err := s.store.CreateMarginOption(r.Context(), typeID, name, value, adminID)
 		return err
 	})
 }
@@ -231,29 +302,51 @@ func (s *Settings) UpdateMargen(w http.ResponseWriter, r *http.Request) {
 		s.render(w, r, "", msg)
 		return
 	}
-	s.marginAction(w, r, func(adminID int64) error {
-		return s.store.UpdateMarginOption(r.Context(), marginID(r), name, value, adminID)
+	s.optionAction(w, r, func(id, adminID int64) error {
+		return s.store.UpdateMarginOption(r.Context(), id, name, value, adminID)
 	})
 }
 
 // PredeterminarMargen handles POST /ajustes/margenes/{id}/predeterminado.
 func (s *Settings) PredeterminarMargen(w http.ResponseWriter, r *http.Request) {
-	s.marginAction(w, r, func(adminID int64) error {
-		return s.store.SetDefaultMarginOption(r.Context(), marginID(r), adminID)
+	s.optionAction(w, r, func(id, adminID int64) error {
+		return s.store.SetDefaultMarginOption(r.Context(), id, adminID)
 	})
 }
 
 // RetirarMargen handles POST /ajustes/margenes/{id}/retirar.
 func (s *Settings) RetirarMargen(w http.ResponseWriter, r *http.Request) {
-	s.marginAction(w, r, func(adminID int64) error {
-		return s.store.RetireMarginOption(r.Context(), marginID(r), adminID)
+	s.optionAction(w, r, func(id, adminID int64) error {
+		return s.store.RetireMarginOption(r.Context(), id, adminID)
 	})
 }
 
 // RestaurarMargen handles POST /ajustes/margenes/{id}/restaurar.
 func (s *Settings) RestaurarMargen(w http.ResponseWriter, r *http.Request) {
-	s.marginAction(w, r, func(adminID int64) error {
-		return s.store.RestoreMarginOption(r.Context(), marginID(r), adminID)
+	s.optionAction(w, r, func(id, adminID int64) error {
+		return s.store.RestoreMarginOption(r.Context(), id, adminID)
+	})
+}
+
+// MargenesPropios handles POST /ajustes/margenes/tipo/{id}/propios: the quote type
+// stops using the generales and gets its own copy of them (store.UseOwnMargins).
+func (s *Settings) MargenesPropios(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	qt, err := s.store.QuoteTypeByID(r.Context(), id)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	if qt == nil || qt.FreeLinesOnly {
+		http.NotFound(w, r)
+		return
+	}
+	s.marginAction(w, r, id, func(adminID int64) error {
+		err := s.store.UseOwnMargins(r.Context(), id, adminID)
+		if errors.Is(err, store.ErrHasOwnMargins) {
+			return nil
+		}
+		return err
 	})
 }
 

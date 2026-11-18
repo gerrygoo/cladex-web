@@ -35,27 +35,36 @@ func seedPricingSettings(t *testing.T, a *Auth, userID int64) {
 }
 
 // setDefaultMarginPercent revalues the default margin option (the one new drafts start
-// on) to pct percent, so a test's cost-product prices don't depend on the seeded value.
+// on) of the generales and of every quote type to pct percent, so a test's cost-product
+// prices don't depend on the seeded value.
 func setDefaultMarginPercent(t *testing.T, a *Auth, userID int64, pct string) {
 	t.Helper()
 	ctx := context.Background()
-	opts, err := a.store.ListMarginOptions(ctx)
-	if err != nil {
-		t.Fatalf("ListMarginOptions: %v", err)
-	}
 	value, err := parseMarginPercent(pct)
 	if err != nil {
 		t.Fatalf("parseMarginPercent(%q): %v", pct, err)
 	}
-	for _, o := range opts {
-		if o.IsDefault {
-			if err := a.store.UpdateMarginOption(ctx, o.ID, o.Name, value, userID); err != nil {
-				t.Fatalf("UpdateMarginOption: %v", err)
+	types, err := a.store.ListQuoteTypes(ctx)
+	if err != nil {
+		t.Fatalf("ListQuoteTypes: %v", err)
+	}
+	scopes := []*int64{nil}
+	for _, qt := range types {
+		scopes = append(scopes, &qt.ID)
+	}
+	for _, scope := range scopes {
+		opts, err := a.store.ListMarginOptions(ctx, scope)
+		if err != nil {
+			t.Fatalf("ListMarginOptions: %v", err)
+		}
+		for _, o := range opts {
+			if o.IsDefault {
+				if err := a.store.UpdateMarginOption(ctx, o.ID, o.Name, value, userID); err != nil {
+					t.Fatalf("UpdateMarginOption: %v", err)
+				}
 			}
-			return
 		}
 	}
-	t.Fatal("no default margin option")
 }
 
 // seedQuoteBuilderFixtures creates a customer and two products (flat-priced and

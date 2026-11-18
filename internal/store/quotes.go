@@ -158,7 +158,7 @@ func FolioText(prefix string, number int64) string {
 }
 
 // CreateDraftQuote assigns a folio and inserts a new draft quote (status 'borrador',
-// no lines yet) of the quote type whose current prefix is prefix, on the default margin
+// no lines yet) of the quote type whose current prefix is prefix, on the type's default margin
 // option. Folio assignment and the quote insert are two statements, not one
 // transaction: per docs/PLAN.md, a gap in the folio sequence (from a failed insert
 // after a folio was already handed out) is acceptable; a duplicate folio is not, and
@@ -180,9 +180,8 @@ func (s *Store) CreateDraftQuoteOfType(ctx context.Context, customerID, userID, 
 	folio := FolioText(prefix, number)
 	res, err := s.exec(ctx, `
 		INSERT INTO quotes (folio, prefix, quote_type_id, folio_number, customer_id, user_id, status, margin_option_id)
-		VALUES (?, ?, ?, ?, ?, ?, 'borrador',
-			(SELECT id FROM margin_options WHERE is_default = 1 AND retired_at IS NULL))`,
-		folio, prefix, typeID, number, customerID, userID,
+		VALUES (?, ?, ?, ?, ?, ?, 'borrador', `+draftMarginSQL+`)`,
+		append([]any{folio, prefix, typeID, number, customerID, userID}, draftMarginArgs(nil, typeID)...)...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: create draft quote: %w", err)
@@ -845,10 +844,10 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 	}
 	res, err = tx.ExecContext(ctx, `
 		INSERT INTO quotes (folio, prefix, quote_type_id, folio_number, customer_id, user_id, status, supersedes_quote_id, margin_option_id, custom_margin_micros, custom_copper_price_micros, delivery_time, currency, project_id, extra_terms)
-		VALUES (?, ?, ?, ?, ?, ?, 'borrador', ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''))`,
-		newFolio, original.Prefix, original.QuoteTypeID, original.FolioNumber, original.CustomerID, userID, originalID,
-		original.MarginOptionID, original.CustomMarginMicros, original.CustomCopperPriceMicros, original.DeliveryTime, original.Currency,
-		original.ProjectID, original.ExtraTerms,
+		VALUES (?, ?, ?, ?, ?, ?, 'borrador', ?, `+draftMarginSQL+`, ?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''))`,
+		withDraftMargin([]any{newFolio, original.Prefix, original.QuoteTypeID, original.FolioNumber, original.CustomerID, userID, originalID},
+			original, original.CustomMarginMicros, original.CustomCopperPriceMicros, original.DeliveryTime, original.Currency,
+			original.ProjectID, original.ExtraTerms)...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: create revision of quote %d: insert: %w", originalID, err)
@@ -892,10 +891,18 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 	return s.QuoteByID(ctx, newID)
 }
 
+// withDraftMargin is the args of an INSERT that copies original into a new draft: before,
+// then draftMarginSQL's args for original's margin option and type, then after.
+func withDraftMargin(before []any, original *Quote, after ...any) []any {
+	args := append(before, draftMarginArgs(original.MarginOptionID, original.QuoteTypeID)...)
+	return append(args, after...)
+}
+
 // DuplicateQuote copies any quote, in any state, as an independent new draft for
 // customerID, owned by userID (issue #40): a new folio in the same series, not a
 // revision, and no proyecto until it is issued. It starts from the original's lines,
-// margin (its option, or the default one if that was retired since, and any custom
+// margin (its option, or the type's option of that name, or its default one if that was
+// retired since, and any custom
 // margin), delivery time, currency and extra terms; on a free-lines series also its
 // validity date and its cotización del proveedor (data and files, copied onto the new
 // chain). Status, comments, follow-up and the O.C. stay behind, and the original isn't
@@ -940,13 +947,12 @@ func (s *Store) DuplicateQuote(ctx context.Context, originalID, customerID, user
 	res, err := tx.ExecContext(ctx, `
 		INSERT INTO quotes (folio, prefix, quote_type_id, folio_number, customer_id, user_id, status, margin_option_id, custom_margin_micros, custom_copper_price_micros, delivery_time, currency, extra_terms, valid_until, subtotal, iva, total)
 		VALUES (?, ?, ?, ?, ?, ?, 'borrador',
-			COALESCE((SELECT id FROM margin_options WHERE id = ? AND retired_at IS NULL),
-				(SELECT id FROM margin_options WHERE is_default = 1 AND retired_at IS NULL)),
+			`+draftMarginSQL+`,
 			?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?)`,
-		folio, prefix, original.QuoteTypeID, number, customerID, userID,
-		original.MarginOptionID, original.CustomMarginMicros, original.CustomCopperPriceMicros,
-		original.DeliveryTime, original.Currency, original.ExtraTerms, validUntil,
-		int64(original.Subtotal), int64(original.IVA), int64(original.Total),
+		withDraftMargin([]any{folio, prefix, original.QuoteTypeID, number, customerID, userID},
+			original, original.CustomMarginMicros, original.CustomCopperPriceMicros,
+			original.DeliveryTime, original.Currency, original.ExtraTerms, validUntil,
+			int64(original.Subtotal), int64(original.IVA), int64(original.Total))...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: duplicate quote %d: insert: %w", originalID, err)

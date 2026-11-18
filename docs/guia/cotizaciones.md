@@ -97,7 +97,10 @@ solos. La cantidad se captura en la unidad del producto que aparece junto al cam
 ## Elegir el margen
 
 Cada cotización se calcula con un [[margen]] que eliges de una lista, p. ej.
-*Estándar (12.34%)*. Una cotización nueva empieza con el margen predeterminado.
+*Estándar (12.34%)*. La lista es la de su tipo de cotización: cada tipo puede tener sus
+propios márgenes (los define un administrador, ver
+[Márgenes](administracion.md#márgenes)). Una cotización nueva empieza con el margen
+predeterminado de su tipo.
 
 1. En **Margen**, arriba de las líneas, elige otro de la lista.
 2. Los precios y totales se recalculan solos.

@@ -45,7 +45,7 @@ func TestQuoteMaterialPricing(t *testing.T) {
 	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
 	ccsProductID, ccs := seedCCSProduct(t, a)
 	ctx := context.Background()
-	ccsMargin := marginOption(t, a, "CCS & AC")
+	ccsMargin := typeMarginOption(t, a, "QS", "CCS & AC")
 
 	draft, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QS")
 	form := costLineForm(ccsProductID, ccsMargin.ID)
@@ -216,7 +216,7 @@ func TestQuoteCCSShowsKg(t *testing.T) {
 	customerID, flatProductID, _ := seedQuoteBuilderFixtures(t, a)
 	ccsProductID, _ := seedCCSProduct(t, a) // 0.1723 kg of CCS 30% per m
 	ctx := context.Background()
-	ccsMargin := marginOption(t, a, "CCS & AC")
+	ccsMargin := typeMarginOption(t, a, "QS", "CCS & AC")
 
 	draft, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QS")
 	form := costLineForm(ccsProductID, ccsMargin.ID)
@@ -296,7 +296,7 @@ func TestQuoteQGPricesPerMetreFromKg(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateProduct: %v", err)
 	}
-	marginID, err := a.store.CreateMarginOption(ctx, "Diez", 100_000, userID)
+	marginID, err := a.store.CreateMarginOption(ctx, nil, "Diez", 100_000, userID)
 	if err != nil {
 		t.Fatalf("CreateMarginOption: %v", err)
 	}
@@ -403,7 +403,7 @@ func TestQuoteQGOtroMargenPerKg(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateProduct: %v", err)
 	}
-	marginID, err := a.store.CreateMarginOption(ctx, "Diez", 100_000, userID)
+	marginID, err := a.store.CreateMarginOption(ctx, nil, "Diez", 100_000, userID)
 	if err != nil {
 		t.Fatalf("CreateMarginOption: %v", err)
 	}

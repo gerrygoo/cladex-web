@@ -30,7 +30,7 @@ func marginPath(o store.MarginOption, action string) string {
 // edited, made default, retired or restored by its own small form, then the materials
 // and their prices.
 // errorMsg is a refused margin or material action.
-templ Ajustes(margins []store.MarginOption, materials []store.Material, units []store.Unit, facturacion facturoporti.Status, notificaciones notify.Status, emisor store.Emisor, emisorErrs map[string]string, poBilling store.POBilling, poErrs map[string]string, successMsg string, errorMsg string, user *NavUser) {
+templ Ajustes(margins MarginSettings, materials []store.Material, units []store.Unit, facturacion facturoporti.Status, notificaciones notify.Status, emisor store.Emisor, emisorErrs map[string]string, poBilling store.POBilling, poErrs map[string]string, successMsg string, errorMsg string, user *NavUser) {
 	@Layout("Configuración del sistema", user) {
 		<div class="page-title">
 			<h1>Configuración del sistema</h1>
@@ -38,72 +38,47 @@ templ Ajustes(margins []store.MarginOption, materials []store.Material, units []
 		</div>
 		@Flash(successMsg)
 		@FormError(errorMsg)
-		<h2>Márgenes</h2>
-		<p>Cada cotización se calcula con uno de estos márgenes; el vendedor lo elige al armarla.</p>
-		<div class="table-scroll">
-			<table>
-				<thead>
-					<tr>
-						<th>Nombre</th>
-						<th>Margen (%)</th>
-						<th>Estado</th>
-						<th><span class="visually-hidden">Acciones</span></th>
-					</tr>
-				</thead>
-				<tbody>
-					for _, m := range margins {
-						<tr>
-							// The inputs sit in their own cells and join the row's edit form, which
-							// lives in the actions cell, through the form attribute.
-							<td>
-								<input type="text" form={ marginFormID(m) } name="name" value={ m.Name } aria-label={ "Nombre del margen " + m.Name } required/>
-							</td>
-							<td>
-								<input type="text" form={ marginFormID(m) } name="value" value={ MarginPercent(m.ValueMicros) } size="8" aria-label={ "Porcentaje del margen " + m.Name } required/>
-							</td>
-							<td>
-								if !m.Active() {
-									Retirado
-								} else if m.IsDefault {
-									<strong>Predeterminado</strong>
-								} else {
-									Activo
-								}
-							</td>
-							<td class="actions">
-								<form id={ marginFormID(m) } method="post" action={ templ.URL(marginPath(m, "")) }>
-									<button type="submit">Guardar<span class="visually-hidden">{ " " + m.Name }</span></button>
-								</form>
-								if !m.Active() {
-									<form method="post" action={ templ.URL(marginPath(m, "restaurar")) }>
-										<button type="submit">Restaurar<span class="visually-hidden">{ " " + m.Name }</span></button>
-									</form>
-								} else if !m.IsDefault {
-									<form method="post" action={ templ.URL(marginPath(m, "predeterminado")) }>
-										<button type="submit">Hacer predeterminado<span class="visually-hidden">{ " " + m.Name }</span></button>
-									</form>
-									<form method="post" action={ templ.URL(marginPath(m, "retirar")) }>
-										<button type="submit" class="danger">Retirar<span class="visually-hidden">{ " " + m.Name }</span></button>
-									</form>
-								}
-							</td>
-						</tr>
+		<h2 id="margenes">Márgenes</h2>
+		<p>Cada cotización se calcula con uno de los márgenes de su tipo de cotización; el vendedor lo elige al armarla. Un tipo sin márgenes propios usa los generales.</p>
+		<form method="get" action="/ajustes#margenes">
+			<label>
+				Márgenes de
+				<select name="margenes">
+					<option value="0" selected?={ margins.Type == nil }>Generales</option>
+					for _, t := range margins.Types {
+						<option value={ strconv.FormatInt(t.ID, 10) } selected?={ margins.Type != nil && margins.Type.ID == t.ID }>{ margins.TypeLabel(t) }</option>
 					}
-				</tbody>
-			</table>
-		</div>
-		<h3>Nuevo margen</h3>
-		<form method="post" action="/ajustes/margenes">
-			<label>
-				Nombre
-				<input type="text" name="name" placeholder="p. ej. Distribuidor" required/>
+				</select>
 			</label>
-			<label>
-				Margen (%)
-				<input type="text" name="value" placeholder="p. ej. 12.34" required/>
-			</label>
-			<button type="submit">Agregar</button>
+			<button type="submit">Ver</button>
 		</form>
+		if margins.UsesGenerales() {
+			<p>El tipo <strong>{ margins.Type.Prefix }</strong> usa los márgenes generales.</p>
+			<form method="post" action={ templ.URL("/ajustes/margenes/tipo/" + strconv.FormatInt(margins.Type.ID, 10) + "/propios") }>
+				<button type="submit">Darle márgenes propios</button>
+			</form>
+			<p class="hint">Se copian los márgenes generales activos, con sus nombres, porcentajes y predeterminado; luego los cambias aquí sin afectar a los demás tipos.</p>
+		} else {
+			if margins.Type == nil && margins.GeneralTypes() != "" {
+				<p class="hint">Los usan: { margins.GeneralTypes() }.</p>
+			} else if margins.Type == nil {
+				<p class="hint">Todos los tipos de cotización tienen márgenes propios; estos se copian a un tipo nuevo cuando le das márgenes propios.</p>
+			}
+			@marginTable(margins)
+			<h3>Nuevo margen</h3>
+			<form method="post" action="/ajustes/margenes">
+				<input type="hidden" name="margenes" value={ margins.Scope() }/>
+				<label>
+					Nombre
+					<input type="text" name="name" placeholder="p. ej. Distribuidor" required/>
+				</label>
+				<label>
+					Margen (%)
+					<input type="text" name="value" placeholder="p. ej. 12.34" required/>
+				</label>
+				<button type="submit">Agregar</button>
+			</form>
+		}
 		<div class="section-title">
 			<h2>Materiales</h2>
 			@SectionHelpLink(HelpMateriales, "materiales")
@@ -265,4 +240,62 @@ templ Ajustes(margins []store.MarginOption, materials []store.Material, units []
 			<button type="submit">Guardar datos de facturación</button>
 		</form>
 	}
+}
+
+// marginTable is the options of one scope, each edited, made default, retired or
+// restored by its own small form.
+templ marginTable(margins MarginSettings) {
+	<div class="table-scroll">
+		<table>
+			<thead>
+				<tr>
+					<th>Nombre</th>
+					<th>Margen (%)</th>
+					<th>Estado</th>
+					<th><span class="visually-hidden">Acciones</span></th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, m := range margins.Options {
+					<tr>
+						// The inputs sit in their own cells and join the row's edit form, which
+						// lives in the actions cell, through the form attribute.
+						<td>
+							<input type="text" form={ marginFormID(m) } name="name" value={ m.Name } aria-label={ "Nombre del margen " + m.Name } required/>
+						</td>
+						<td>
+							<input type="text" form={ marginFormID(m) } name="value" value={ MarginPercent(m.ValueMicros) } size="8" aria-label={ "Porcentaje del margen " + m.Name } required/>
+						</td>
+						<td>
+							if !m.Active() {
+								Retirado
+							} else if m.IsDefault {
+								<strong>Predeterminado</strong>
+							} else {
+								Activo
+							}
+						</td>
+						<td class="actions">
+							<form id={ marginFormID(m) } method="post" action={ templ.URL(marginPath(m, "")) }>
+								<input type="hidden" name="margenes" value={ margins.Scope() }/>
+								<button type="submit">Guardar<span class="visually-hidden">{ " " + m.Name }</span></button>
+							</form>
+							if !m.Active() {
+								<form method="post" action={ templ.URL(marginPath(m, "restaurar")) }>
+									<button type="submit">Restaurar<span class="visually-hidden">{ " " + m.Name }</span></button>
+								</form>
+							} else if !m.IsDefault {
+								<form method="post" action={ templ.URL(marginPath(m, "predeterminado")) }>
+									<button type="submit">Hacer predeterminado<span class="visually-hidden">{ " " + m.Name }</span></button>
+								</form>
+								<form method="post" action={ templ.URL(marginPath(m, "retirar")) }>
+									<button type="submit" class="danger">Retirar<span class="visually-hidden">{ " " + m.Name }</span></button>
+								</form>
+							}
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
 }

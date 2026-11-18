@@ -29,6 +29,17 @@ Los [[margen|márgenes]] son una lista de opciones con nombre (p. ej. *Estándar
 Cada cotización se calcula con **una** de ellas, que el vendedor elige al armarla. Solo
 un administrador puede cambiar la lista. Están en **Configuración del sistema**, en **Márgenes**.
 
+**Cada tipo de cotización tiene sus márgenes.** Por ejemplo, los de *QCCA — Cable CCA* y
+los de *QCCS* son listas distintas: cambiar uno no cambia el otro. Al principio todos
+tienen los mismos cuatro. En **Márgenes de**, elige el tipo y haz clic en **Ver**; todo
+lo que hagas abajo (agregar, cambiar, predeterminado, retirar) es solo para ese tipo.
+
+Los **Generales** son los que usa un tipo que no tiene márgenes propios, p. ej. un tipo
+nuevo; en la lista aparece como *(usa los generales)*. Para darle los suyos, elígelo y
+haz clic en **Darle márgenes propios**: se copian los generales activos, con su
+predeterminado, y sus borradores pasan a la copia del margen que tenían. Las líneas
+libres (QL) no usan margen, así que no aparecen en la lista.
+
 El margen es sobre el precio de venta: el precio es costo ÷ (1 − margen). Con 35 %, un
 costo de $65.00 se cotiza a $100.00. Afecta a todos los productos del catálogo; las
 líneas libres no lo usan.
@@ -52,7 +63,7 @@ líneas libres no lo usan.
 
 **Margen predeterminado**
 
-Las cotizaciones nuevas empiezan con el margen **Predeterminado**. Para cambiarlo, haz
+Las cotizaciones nuevas de un tipo empiezan con su margen **Predeterminado**. Para cambiarlo, haz
 clic en **Hacer predeterminado** en otro margen.
 
 **Retirar o restaurar un margen**

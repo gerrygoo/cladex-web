@@ -1,6 +1,6 @@
 # Leads y listas de precios
 
-**Draft 2026-11-18; Gerry decided margins go on the tipo de cotización, next to its terms. Emilio answered the questions on #82 the same day (§3); L4 is dropped. Nothing built.** Driven by
+**Draft 2026-11-18; Gerry decided margins go on the tipo de cotización, next to its terms. Emilio answered the questions on #82 the same day (§3); L4 is dropped. L1 built 2026-11-18 (migration 0047); L2 and L3 not started.** Driven by
 [#82](https://github.com/gerrygoo/cladex-web/issues/82): Emilio wants to give prices to
 people who aren't a real proyecto yet, without creating proyectos that pollute Pronóstico
 (today: `QA0046 · Cotizaciones informativas de producto`, later marked Perdido), and still
@@ -52,16 +52,19 @@ Order: **L1 → L2 → L3**. When a lead brings concrete quantities for a real p
 - **Configuración del sistema → Márgenes** gets a familia selector; each familia keeps
   exactly four active options plus its default. The admin edits names and percentages per
   familia.
-- The quote builder lists the margins of the **quote type's default familia**; Otro margen
-  stays for every type (today it's only QA, QS, QI and QG, so this extends it).
+- The quote builder lists the margins of the quote's **tipo**; Otro margen stays as it is
+  (every type with catalog products already has it).
 - Issued quotes are untouched: they carry snapshots.
 - **Decision for Gerry:** key margins on *familia* (as asked) or on *tipo de cotización*
   (where terms and letterhead live). A quote has a tipo, not a familia; a mixed quote (QA
   with products from several familias) has no single familia. *Recommendation: key on
   tipo de cotización* and label it with the familia's name in the UI.
-- *After Emilio's answers:* every tipo with a price list gets its own margins: CCA, CCS,
-  Alumoclad, Exceline, Astro and Alumbrado (QI). Only the mixed and free-line tipos (QA, QL)
-  keep the global four.
+- *As built (0047):* every tipo with catalog products got its own copy of the four;
+  QL (solo líneas libres) prices per line and has none. The generales stay, editable, for
+  a tipo created later, which uses them until an admin clicks **Darle márgenes propios**
+  (copies them and moves its drafts). Drafts moved to their tipo's copy by name; issued
+  quotes keep the general option. Revisions and duplicates pick the tipo's option of the
+  same name, else its default.
 
 ### L2 · Leads
 
@@ -126,6 +129,6 @@ to the responsible vendedor. 6) yes, a new contact linked to the existing custom
 ## 4. Decisions
 
 1. **Margins on the tipo de cotización**, next to its terms (Gerry, 2026-11-18), labelled
-   with the familia's name where that reads better. QA and QL keep the global four; every other tipo, QI (Alumbrado) included, gets its own.
+   with the familia's name where that reads better. Every tipo with catalog products gets its own; QL has none.
 2. Order L1 → L2 → L3; L4 dropped after Emilio's answer 4.
 3. The §3 questions went to Emilio on #82 on 2026-11-18 and he answered the same day.

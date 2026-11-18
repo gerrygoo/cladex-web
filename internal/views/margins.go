@@ -2,6 +2,7 @@ package views
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
 	"github.com/gerrygoo/cladex-web/internal/pricing"
@@ -152,4 +153,54 @@ func KgPriceText(m money.Micros) string {
 
 func marginChoiceValue(id int64) string {
 	return strconv.FormatInt(id, 10)
+}
+
+// MarginSettings is the Márgenes section of /ajustes: the generales, or one quote type's
+// margins (#82). Types are the quote types with catalog products, the ones a margin
+// prices; OwnTypes are those with margins of their own. Type is the one shown (nil: the
+// generales); when it has no margins of its own, Options is empty and the section offers
+// to give it some.
+type MarginSettings struct {
+	Types    []store.QuoteType
+	OwnTypes map[int64]bool
+	Type     *store.QuoteType
+	Options  []store.MarginOption
+}
+
+// Scope is the "margenes" value of the scope shown: the type's id, 0 for the generales.
+func (m MarginSettings) Scope() string {
+	if m.Type == nil {
+		return "0"
+	}
+	return strconv.FormatInt(m.Type.ID, 10)
+}
+
+// UsesGenerales reports whether the type shown has no margins of its own.
+func (m MarginSettings) UsesGenerales() bool {
+	return m.Type != nil && !m.OwnTypes[m.Type.ID]
+}
+
+// TypeLabel names a quote type in the scope picker: "QCCA — Cable CCA", and
+// "(usa los generales)" when it has no margins of its own.
+func (m MarginSettings) TypeLabel(t store.QuoteType) string {
+	label := t.Prefix
+	if t.Name != "" {
+		label += " — " + t.Name
+	}
+	if !m.OwnTypes[t.ID] {
+		label += " (usa los generales)"
+	}
+	return label
+}
+
+// GeneralTypes lists the prefixes of the types that use the generales, for the
+// generales' description.
+func (m MarginSettings) GeneralTypes() string {
+	var out []string
+	for _, t := range m.Types {
+		if !m.OwnTypes[t.ID] {
+			out = append(out, t.Prefix)
+		}
+	}
+	return strings.Join(out, ", ")
 }

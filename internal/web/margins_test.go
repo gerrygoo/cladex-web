@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"strings"
@@ -11,10 +12,27 @@ import (
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-// marginOption finds a seeded margin option by name.
+// marginOption finds a margin option of the QA quote type by name: the one a QA draft
+// is priced with.
 func marginOption(t *testing.T, a *Auth, name string) store.MarginOption {
 	t.Helper()
-	opts, err := a.store.ListMarginOptions(context.Background())
+	return typeMarginOption(t, a, "QA", name)
+}
+
+// typeMarginOption finds a margin option by name among those of the quote type with
+// prefix ("" for the generales).
+func typeMarginOption(t *testing.T, a *Auth, prefix, name string) store.MarginOption {
+	t.Helper()
+	ctx := context.Background()
+	var typeID *int64
+	if prefix != "" {
+		id, err := a.store.QuoteTypeIDByPrefix(ctx, prefix)
+		if err != nil {
+			t.Fatalf("QuoteTypeIDByPrefix(%s): %v", prefix, err)
+		}
+		typeID = &id
+	}
+	opts, err := a.store.ListMarginOptions(ctx, typeID)
 	if err != nil {
 		t.Fatalf("ListMarginOptions: %v", err)
 	}
@@ -201,7 +219,7 @@ func TestAjustesMargenes(t *testing.T) {
 	if code, body := post(adminID, s.CreateMargen, "/ajustes/margenes", nil, url.Values{"name": {"Distribuidor"}, "value": {"8.5%"}}); code != http.StatusSeeOther {
 		t.Fatalf("CreateMargen status = %d; body = %s", code, body)
 	}
-	dist := marginOption(t, a, "Distribuidor")
+	dist := typeMarginOption(t, a, "", "Distribuidor")
 	if dist.ValueMicros != 85_000 || dist.IsDefault || !dist.Active() {
 		t.Fatalf("created option = %+v, want 8.5%%, not default, active", dist)
 	}
@@ -213,7 +231,7 @@ func TestAjustesMargenes(t *testing.T) {
 		{"Otro", "12.345678", invalidMarginMsg},
 		{"Otro", "doce", invalidMarginMsg},
 		{"", "12", "El nombre del margen es obligatorio."},
-		{"Distribuidor", "9", "Ya existe un margen con ese nombre."},
+		{"Distribuidor", "9", "Ya existe un margen con ese nombre en estos márgenes."},
 	} {
 		code, body := post(adminID, s.CreateMargen, "/ajustes/margenes", nil, url.Values{"name": {c.name}, "value": {c.value}})
 		if code != http.StatusUnprocessableEntity || !strings.Contains(body, c.want) {
@@ -225,11 +243,11 @@ func TestAjustesMargenes(t *testing.T) {
 	if code, _ := post(adminID, s.UpdateMargen, "/ajustes/margenes/"+idPath["id"], idPath, url.Values{"name": {"Mayorista"}, "value": {"9.25"}}); code != http.StatusSeeOther {
 		t.Fatalf("UpdateMargen status = %d", code)
 	}
-	if o := marginOption(t, a, "Mayorista"); o.ValueMicros != 92_500 {
+	if o := typeMarginOption(t, a, "", "Mayorista"); o.ValueMicros != 92_500 {
 		t.Fatalf("updated option = %+v, want 9.25%%", o)
 	}
 
-	estandar := marginOption(t, a, "Estándar")
+	estandar := typeMarginOption(t, a, "", "Estándar")
 	defPath := map[string]string{"id": strconv.FormatInt(estandar.ID, 10)}
 	if code, body := post(adminID, s.RetirarMargen, "/ajustes/margenes/"+defPath["id"]+"/retirar", defPath, nil); code != http.StatusUnprocessableEntity ||
 		!strings.Contains(body, "No puedes retirar el margen predeterminado") {
@@ -241,13 +259,13 @@ func TestAjustesMargenes(t *testing.T) {
 	if code, _ := post(adminID, s.RetirarMargen, "/ajustes/margenes/"+defPath["id"]+"/retirar", defPath, nil); code != http.StatusSeeOther {
 		t.Fatalf("RetirarMargen(former default) status = %d", code)
 	}
-	if o := marginOption(t, a, "Estándar"); o.Active() {
+	if o := typeMarginOption(t, a, "", "Estándar"); o.Active() {
 		t.Fatal("Estándar still active after Retirar")
 	}
 	if code, _ := post(adminID, s.RestaurarMargen, "/ajustes/margenes/"+defPath["id"]+"/restaurar", defPath, nil); code != http.StatusSeeOther {
 		t.Fatalf("RestaurarMargen status = %d", code)
 	}
-	if o := marginOption(t, a, "Estándar"); !o.Active() {
+	if o := typeMarginOption(t, a, "", "Estándar"); !o.Active() {
 		t.Fatal("Estándar still retired after Restaurar")
 	}
 }
@@ -262,7 +280,7 @@ func TestQuoteCustomMargin(t *testing.T) {
 	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
 	ccsProductID, _ := seedCCSProduct(t, a) // CCS 30% at $160/kg
 	ctx := context.Background()
-	estandar := marginOption(t, a, "Estándar")
+	estandar := typeMarginOption(t, a, "QS", "Estándar")
 
 	draft, _ := a.store.CreateDraftQuote(ctx, customerID, userID, "QS")
 	customForm := func(fields url.Values) url.Values {
@@ -534,5 +552,72 @@ func TestQuoteOtroMargenFromCopperPrice(t *testing.T) {
 	}
 	if saved, _ := a.store.QuoteByID(ctx, rev.ID); *saved.CustomMarginMicros != 125_000 || saved.CustomCopperPriceMicros != nil {
 		t.Errorf("typed 12.5%% saved margin %v, price %v; want 0.125 and none", *saved.CustomMarginMicros, saved.CustomCopperPriceMicros)
+	}
+}
+
+// /ajustes shows one scope's margins at a time (#82): a type's own, or the generales; a
+// margin added there belongs to that type; a type without its own offers to copy the
+// generales, and a QA draft is priced from QA's margins only.
+func TestAjustesMargenesPorTipo(t *testing.T) {
+	a := newTestAuth(t)
+	s := NewSettings(a.store)
+	adminID := createTestUser(t, a, "ana", "admin", "hunter2")
+	ctx := context.Background()
+	qaID, _ := a.store.QuoteTypeIDByPrefix(ctx, "QA")
+	qa := strconv.FormatInt(qaID, 10)
+	get := func(query string) string {
+		t.Helper()
+		rec := doForm(t, a, adminID, s.Page, "GET", "/ajustes?"+query, nil, nil, false)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET /ajustes?%s = %d", query, rec.Code)
+		}
+		return rec.Body.String()
+	}
+	post := func(h http.HandlerFunc, path string, pathValues map[string]string, form url.Values) *httptest.ResponseRecorder {
+		t.Helper()
+		return doForm(t, a, adminID, h, "POST", path, pathValues, form, false)
+	}
+
+	rec := post(s.CreateMargen, "/ajustes/margenes", nil, url.Values{"margenes": {qa}, "name": {"Distribuidor"}, "value": {"8"}})
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/ajustes?margenes="+qa+"&margen=1#margenes" {
+		t.Fatalf("CreateMargen(QA) = %d → %q", rec.Code, rec.Header().Get("Location"))
+	}
+	dist := marginOption(t, a, "Distribuidor")
+	if body := get("margenes=" + qa); !strings.Contains(body, `value="Distribuidor"`) {
+		t.Error("QA's margins don't list Distribuidor")
+	}
+	if body := get(""); strings.Contains(body, `value="Distribuidor"`) || !strings.Contains(body, "Los usan:") && !strings.Contains(body, "Todos los tipos") {
+		t.Error("the generales list QA's Distribuidor")
+	}
+
+	// Updating an option goes back to its own type's margins.
+	idPath := map[string]string{"id": strconv.FormatInt(dist.ID, 10)}
+	rec = post(s.UpdateMargen, "/ajustes/margenes/"+idPath["id"], idPath, url.Values{"name": {"Distribuidor"}, "value": {"9"}})
+	if rec.Code != http.StatusSeeOther || !strings.HasPrefix(rec.Header().Get("Location"), "/ajustes?margenes="+qa+"&") {
+		t.Fatalf("UpdateMargen = %d → %q", rec.Code, rec.Header().Get("Location"))
+	}
+
+	newID, err := a.store.CreateQuoteType(ctx, store.QuoteType{Prefix: "QEXL", Name: "Exceline"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	exl := strconv.FormatInt(newID, 10)
+	if body := get("margenes=" + exl); !strings.Contains(body, "usa los márgenes generales") || !strings.Contains(body, "Darle márgenes propios") {
+		t.Error("a new type doesn't offer margins of its own")
+	}
+	if rec := post(s.CreateMargen, "/ajustes/margenes", nil, url.Values{"margenes": {exl}, "name": {"X"}, "value": {"8"}}); rec.Code != http.StatusUnprocessableEntity {
+		t.Errorf("CreateMargen on a type without own margins = %d, want 422", rec.Code)
+	}
+	typePath := map[string]string{"id": exl}
+	if rec := post(s.MargenesPropios, "/ajustes/margenes/tipo/"+exl+"/propios", typePath, nil); rec.Code != http.StatusSeeOther {
+		t.Fatalf("MargenesPropios = %d", rec.Code)
+	}
+	if o := typeMarginOption(t, a, "QEXL", "Estándar"); !o.IsDefault {
+		t.Errorf("copied Estándar = %+v, want the default", o)
+	}
+	qlID, _ := a.store.QuoteTypeIDByPrefix(ctx, "QL")
+	ql := strconv.FormatInt(qlID, 10)
+	if rec := post(s.MargenesPropios, "/ajustes/margenes/tipo/"+ql+"/propios", map[string]string{"id": ql}, nil); rec.Code != http.StatusNotFound {
+		t.Errorf("MargenesPropios(QL) = %d, want 404", rec.Code)
 	}
 }
