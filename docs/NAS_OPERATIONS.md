@@ -302,9 +302,19 @@ runner and shows its error under **Notificaciones** (and the job's under **Traba
 
 ## Staging
 
-`cladex-staging` is a second container in the same compose project: the same image,
-LAN-only on **:8091** (`http://192.168.3.169:8091`), with its own `staging/data` and
-`staging/secrets`. Being in the project, the deploy cron updates it with production on
+`cladex-staging` is a second container in the same compose project: the same image, on
+**:8091**, with its own `staging/data` and `staging/secrets`. It is served at
+**`https://pruebas.cladex.com.mx`** (since 2026-11-17), the same way as production: GoDaddy
+A record → VPS nginx (`/etc/nginx/sites-available/pruebas.cladex.com.mx`, certbot webroot
+cert, log `/var/log/nginx/pruebas.access.log`) → frps → the NAS `frp_client` proxy
+`cladex-staging` → `127.0.0.1:8091`. The VPS site asks for **HTTP basic auth** first
+(user `cladex`, `/etc/nginx/pruebas.htpasswd`, password in 1Password) and sends
+`X-Robots-Tag: noindex`: staging's database is a copy of production's, real users'
+password hashes included, so the app's own login isn't enough of a gate. Its session
+cookie is Secure (`COOKIE_SECURE` unset) and `APP_URL` is the domain, so signing in at
+`http://192.168.3.169:8091` no longer works; `curl localhost:8091/healthz` on the NAS still
+does. To change the basic-auth password: `openssl passwd -apr1` locally, then write
+`cladex:<hash>` to the htpasswd file on the VPS (`root:www-data`, mode 640). Being in the project, the deploy cron updates it with production on
 every push to `main`. `APP_ENV=staging` puts a banner on every page, a *PRUEBA*
 watermark on every PDF, and keeps facturación on the sandbox.
 
