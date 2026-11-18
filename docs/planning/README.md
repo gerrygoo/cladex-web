@@ -39,4 +39,4 @@ documentation of shipped behavior.
 | [Notificaciones y trabajos en segundo plano](notificaciones-y-trabajos.md) | Designed 2026-10-23, N1 (runner) and N2 (email) built 2026-10-26: the SQLite job runner (#19) and WhatsApp + email notifications (#18), first used for the seguimiento reminder |
 | [Tipos de cotización](tipos-de-cotizacion.md) | Designed 2026-10-28 for #53, not started: split the quote series (numbering, terms, PDF and builder behavior) from the catalog familia, so prefixes are labels, not keys |
 | [Estados del proyecto](estados-del-proyecto.md) | Decided 2026-11-03, not started: facturación, entrega and cobro as three states derived in a view (#63, #66, #67), real stamping plus manual mode, supplier per familia |
-| [Leads y listas de precios](leads-y-listas-de-precios.md) | Draft 2026-11-18 for #82, not started: leads outside Pronóstico, margins per familia, price lists by familia, and reference quotes, as four slices |
+| [Leads y listas de precios](leads-y-listas-de-precios.md) | Draft 2026-11-18 for #82, Emilio answered; not started: margins per tipo de cotización, leads outside Pronóstico, and price lists by familia, as three slices |
