@@ -1,6 +1,6 @@
 # Leads y listas de precios
 
-**Draft for Gerry (2026-11-18). Nothing built.** Driven by
+**Draft 2026-11-18; Gerry decided margins go on the tipo de cotización, next to its terms. Questions for Emilio posted on #82 the same day. Nothing built.** Driven by
 [#82](https://github.com/gerrygoo/cladex-web/issues/82): Emilio wants to give prices to
 people who aren't a real proyecto yet, without creating proyectos that pollute Pronóstico
 (today: `QA0046 · Cotizaciones informativas de producto`, later marked Perdido), and still
@@ -36,7 +36,7 @@ each shippable alone, with the open questions for Emilio and the decisions for G
 
 | | Slice | Schema | Risk |
 |---|---|---|---|
-| L1 | **Márgenes por familia** | `margin_options.family_id` (nullable = global), seeded by copying the 4 current options to every familia | Pricing: every new quote's margin list changes |
+| L1 | **Márgenes por tipo de cotización** | `margin_options.quote_type_id` (nullable = global), seeded by copying the 4 current options to every tipo | Pricing: every new quote's margin list changes |
 | L2 | **Leads**: alta, lista, seguimiento with avisos, Perdido with motivo, **Convertir en proyecto** | New `leads` table; `lead_id` on projects | Avisos code gets a second subject |
 | L3 | **Listas de precios**: PDF of a whole familia at one of its margins, with vigencia and T&C; history on the lead | New `price_lists` (snapshot rows + PDF), per-tipo `validity_rule` | New document; no folio |
 | L4 | **Cotización de referencia** tied to a lead, not a proyecto | Quotes with `lead_id` instead of `project_id` | Touches the quote→proyecto state machine |
@@ -48,8 +48,8 @@ probability) already covers it. L4 is the costly one.
 
 ### L1 · Márgenes por familia
 
-- Add `family_id` to `margin_options` (NULL = the current global four, kept for history).
-  The migration copies the four current options to each familia, with the same names and
+- Add `quote_type_id` to `margin_options` (NULL = the current global four, kept for history).
+  The migration copies the four current options to each tipo, with the same names and
   values, so on day one nothing changes in price.
 - **Configuración del sistema → Márgenes** gets a familia selector; each familia keeps
   exactly four active options plus its default. The admin edits names and percentages per
@@ -109,9 +109,9 @@ the quote state machine, so it's the biggest slice. Defer until L2/L3 have been 
 6. **Existing customers**: can a lead be someone from a company that's already a customer
    (a new contact)?
 
-## 4. Decisions for Gerry
+## 4. Decisions
 
-1. Margins keyed on tipo de cotización (recommended) or familia.
+1. **Margins on the tipo de cotización**, next to its terms (Gerry, 2026-11-18), labelled
+   with the familia's name where that reads better. QA, QL and QI keep the global four.
 2. Order L1 → L2 → L3, with L4 deferred until the others have been used.
-3. Whether to ask Emilio §3 now, or start L1 (it doesn't depend on the answers) while
-   he answers.
+3. The §3 questions went to Emilio on #82 on 2026-11-18.
