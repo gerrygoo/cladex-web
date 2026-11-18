@@ -23,6 +23,9 @@ import (
 // names start with it, so test data is easy to tell from the copy of production's.
 const SeedPrefix = "PRUEBA"
 
+// SeedTestUser is a test user; they all share one password, so its hash is theirs.
+const SeedTestUser = "prueba-admin"
+
 // seedUsers are the test users: two admins and three vendedores.
 var seedUsers = []struct{ username, name, role string }{
 	{"prueba-admin", "Prueba Administrador", store.RoleAdmin},
@@ -139,6 +142,13 @@ const seedDoneKey = "seed_staging_at"
 // It does nothing when the test users already exist. It never runs on production: the
 // caller checks APP_ENV. The test users' password is generated and written to out.
 func SeedStaging(ctx context.Context, st *store.Store, now time.Time, out io.Writer) error {
+	return SeedStagingKeeping(ctx, st, now, "", out)
+}
+
+// SeedStagingKeeping is SeedStaging giving the test users testHash, the hash of their
+// shared password in the staging database being replaced, instead of a new password;
+// "" makes a new one.
+func SeedStagingKeeping(ctx context.Context, st *store.Store, now time.Time, testHash string, out io.Writer) error {
 	if done, err := st.SettingValues(ctx, []string{seedDoneKey}); err != nil {
 		return err
 	} else if done[seedDoneKey] != "" {
@@ -146,13 +156,15 @@ func SeedStaging(ctx context.Context, st *store.Store, now time.Time, out io.Wri
 		return nil
 	}
 
-	password, err := seedPassword()
-	if err != nil {
-		return err
-	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), 12)
-	if err != nil {
-		return err
+	password, hash := "", []byte(testHash)
+	if testHash == "" {
+		var err error
+		if password, err = seedPassword(); err != nil {
+			return err
+		}
+		if hash, err = bcrypt.GenerateFromPassword([]byte(password), 12); err != nil {
+			return err
+		}
 	}
 	users := make([]*store.AuthenticatedUser, len(seedUsers))
 	for i, u := range seedUsers {
@@ -334,7 +346,11 @@ func SeedStaging(ctx context.Context, st *store.Store, now time.Time, out io.Wri
 		return err
 	}
 	fmt.Fprintln(out, "Datos de prueba agregados a staging.")
-	fmt.Fprintln(out, "Usuarios (contraseña para todos: "+password+"):")
+	if password == "" {
+		fmt.Fprintln(out, "Usuarios (la misma contraseña de antes para todos):")
+	} else {
+		fmt.Fprintln(out, "Usuarios (contraseña para todos: "+password+"):")
+	}
 	for _, u := range seedUsers {
 		fmt.Fprintf(out, "  %s (%s)\n", u.username, u.role)
 	}
@@ -357,7 +373,11 @@ const NoPasswordHash = "!"
 // users whose password the staging refresh removed are touched, so the test users keep
 // theirs and running it again (a seed resumed after failing) changes nothing; disabled
 // users stay without one.
-func StagingPasswords(ctx context.Context, st *store.Store, allow []string, out io.Writer) error {
+//
+// keep (store.StagingPasswordHashes of the staging database being replaced) maps
+// usernames to the hash they had there: a listed user found in it keeps that password
+// instead of getting a new one, so staging passwords survive refreshes.
+func StagingPasswords(ctx context.Context, st *store.Store, allow []string, keep map[string]string, out io.Writer) error {
 	users, err := st.ListUsers(ctx, "", "", nil)
 	if err != nil {
 		return err
@@ -370,13 +390,20 @@ func StagingPasswords(ctx context.Context, st *store.Store, allow []string, out 
 	}
 	type cred struct{ username, name, password string }
 	var given []cred
-	var without []string
+	var without, kept []string
 	for _, u := range users {
 		if u.PasswordHash != NoPasswordHash || u.DisabledAt != nil {
 			continue
 		}
 		if !allowed[u.Username] {
 			without = append(without, u.Username)
+			continue
+		}
+		if h := keep[u.Username]; h != "" {
+			if err := st.UpdatePassword(ctx, u.ID, h); err != nil {
+				return err
+			}
+			kept = append(kept, u.Username)
 			continue
 		}
 		password, err := seedPassword()
@@ -397,6 +424,9 @@ func StagingPasswords(ctx context.Context, st *store.Store, allow []string, out 
 		for _, c := range given {
 			fmt.Fprintf(out, "  %s (%s): %s\n", c.username, c.name, c.password)
 		}
+	}
+	if len(kept) > 0 {
+		fmt.Fprintln(out, "Conservan su contraseña de staging: "+strings.Join(kept, ", "))
 	}
 	if len(without) > 0 {
 		fmt.Fprintln(out, "Sin acceso a staging (no están en STAGING_USERS): "+strings.Join(without, ", "))

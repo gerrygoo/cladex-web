@@ -378,9 +378,12 @@ refuses a database that already has users, customers or proyectos.
 
 **Who can sign in.** Only the real users listed in the service's `STAGING_USERS`
 (compose, comma-separated usernames; `ggo,efs` since 2026-11-17) are copied, without
-passwords; `seed-staging` gives each a staging-only one and prints them with the test
-users' shared one. Production's passwords never reach staging. To add someone, add them to
-`STAGING_USERS` and refresh. Cookies don't tell ports apart, so with production also open
+passwords; `seed-staging` gives each a staging-only one. **Staging passwords survive
+refreshes** (`--keep-passwords-from`, the database being replaced): a user who already
+had one keeps it, and so does the test users' shared one; only a user new to staging gets
+a new password, printed by the refresh. Production's passwords never reach staging. To
+add someone, add them to `STAGING_USERS` and refresh. To reset someone's staging
+password, set their hash to `!` in staging's database and refresh. Cookies don't tell ports apart, so with production also open
 by LAN IP (`:8090`) in the same browser, signing in to one signs you out of the other;
 production through `cotizador.cladex.com.mx` is unaffected.
 

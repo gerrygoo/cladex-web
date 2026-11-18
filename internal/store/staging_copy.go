@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"strings"
 )
 
@@ -366,4 +367,35 @@ func placeholderPDF() []byte {
 	}
 	fmt.Fprintf(&b, "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(objs)+1, xref)
 	return []byte(b.String())
+}
+
+// StagingPasswordHashes reads the password hashes of the staging database at path (the
+// one a refresh replaces), by username, so the rebuilt staging keeps them: people's
+// staging passwords survive refreshes. Users without a working password are left out. A
+// missing file (the first build) gives none.
+func StagingPasswordHashes(ctx context.Context, path string) (map[string]string, error) {
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return map[string]string{}, nil
+	}
+	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro&_pragma=busy_timeout(5000)")
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+	rows, err := db.QueryContext(ctx, `SELECT username, password_hash FROM users WHERE disabled_at IS NULL`)
+	if err != nil {
+		return nil, fmt.Errorf("store: staging passwords from %s: %w", path, err)
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var u, h string
+		if err := rows.Scan(&u, &h); err != nil {
+			return nil, err
+		}
+		if strings.HasPrefix(h, "$2") {
+			out[u] = h
+		}
+	}
+	return out, rows.Err()
 }

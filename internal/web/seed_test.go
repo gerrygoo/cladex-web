@@ -62,7 +62,7 @@ func TestSeedStagingOnCopiedConfig(t *testing.T) {
 		t.Fatalf("CopyStagingConfig: %v", err)
 	}
 	var out bytes.Buffer
-	if err := StagingPasswords(ctx, a.store, []string{"gerry"}, &out); err != nil {
+	if err := StagingPasswords(ctx, a.store, []string{"gerry"}, nil, &out); err != nil {
 		t.Fatal(err)
 	}
 	if err := SeedStaging(ctx, a.store, time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC), &out); err != nil {
@@ -204,7 +204,7 @@ func TestStagingPasswordsOnlyListedUsers(t *testing.T) {
 	}
 	keeps := createTestUser(t, a, "prueba-admin", "admin", "hunter2")
 	var out bytes.Buffer
-	if err := StagingPasswords(ctx, a.store, []string{" ggo", "efs ", "", "nadie"}, &out); err != nil {
+	if err := StagingPasswords(ctx, a.store, []string{" ggo", "efs ", "", "nadie"}, nil, &out); err != nil {
 		t.Fatal(err)
 	}
 	hash := func(id int64) string {
@@ -228,7 +228,67 @@ func TestStagingPasswordsOnlyListedUsers(t *testing.T) {
 		t.Errorf("output = %s", out.String())
 	}
 	before := hash(ids["ggo"])
-	if err := StagingPasswords(ctx, a.store, []string{"ggo"}, &bytes.Buffer{}); err != nil || hash(ids["ggo"]) != before {
+	if err := StagingPasswords(ctx, a.store, []string{"ggo"}, nil, &bytes.Buffer{}); err != nil || hash(ids["ggo"]) != before {
 		t.Error("a second run changed a staging password")
+	}
+}
+
+// A refresh keeps everyone's staging password (--keep-passwords-from): a STAGING_USER
+// found in the staging database being replaced, and the test users' shared one. Only a
+// user new to staging gets a new password.
+func TestStagingRefreshKeepsPasswords(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	prodPath := filepath.Join(dir, "prod.db")
+	prod, err := store.Open(ctx, prodPath, cladex.MigrationsFS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pa := NewAuth(prod, false)
+	seedStagingCatalog(t, pa)
+	createTestUser(t, pa, "efs", "admin", "prod-password")
+	prod.Close()
+	now := time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)
+
+	build := func(path string, users []string, keepFrom string) (string, map[string]string) {
+		t.Helper()
+		keep := map[string]string{}
+		if keepFrom != "" {
+			var err error
+			if keep, err = store.StagingPasswordHashes(ctx, keepFrom); err != nil {
+				t.Fatal(err)
+			}
+		}
+		st, err := store.Open(ctx, path, cladex.MigrationsFS)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer st.Close()
+		var out bytes.Buffer
+		if err := st.CopyStagingConfig(ctx, prodPath, users); err != nil {
+			t.Fatal(err)
+		}
+		if err := StagingPasswords(ctx, st, users, keep, &out); err != nil {
+			t.Fatal(err)
+		}
+		if err := SeedStagingKeeping(ctx, st, now, keep[SeedTestUser], &out); err != nil {
+			t.Fatalf("seed: %v\n%s", err, out.String())
+		}
+		hashes, err := store.StagingPasswordHashes(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out.String(), hashes
+	}
+
+	first := filepath.Join(dir, "staging1.db")
+	_, before := build(first, []string{"gerry"}, filepath.Join(dir, "no-such.db"))
+	out, after := build(filepath.Join(dir, "staging2.db"), []string{"gerry", "efs"}, first)
+	if after["gerry"] != before["gerry"] || after[SeedTestUser] != before[SeedTestUser] || after["prueba-vend3"] != before["prueba-vend3"] {
+		t.Error("a refresh changed passwords that should have been kept")
+	}
+	if after["efs"] == "" || !strings.Contains(out, "  efs (") || !strings.Contains(out, "Conservan su contraseña de staging: gerry") ||
+		!strings.Contains(out, "la misma contraseña de antes") || strings.Contains(out, "contraseña para todos:") {
+		t.Errorf("output:\n%s", out)
 	}
 }

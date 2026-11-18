@@ -98,13 +98,15 @@ func main() {
 // runSeedStaging gives the real users in STAGING_USERS their staging passwords
 // (web.StagingPasswords) and adds the test data (web.SeedStaging) to this instance's
 // database: `docker compose run --rm cladex-staging seed-staging`, which
-// staging-refresh.sh runs. With `--config-from <path>` it first copies production's
+// staging-refresh.sh runs. With `--keep-passwords-from <path>` (the staging database
+// being replaced) users keep the staging password they had there. With `--config-from <path>` it first copies production's
 // configuration from the database at path (a backup of production's) into this one,
 // which must be new (#81): see store.StagingTables. It refuses unless APP_ENV is staging
 // or development, so it can never touch production.
 func runSeedStaging(args []string) {
 	fs := flag.NewFlagSet("seed-staging", flag.ExitOnError)
 	configFrom := fs.String("config-from", "", "copy production's configuration from this database file first (the database being seeded must be new)")
+	keepFrom := fs.String("keep-passwords-from", "", "give users the staging password they have in this database file (the staging database being replaced)")
 	fs.Parse(args)
 	env, err := appenv.Parse(os.Getenv("APP_ENV"))
 	if err != nil || env.Name != appenv.Staging && env.Name != appenv.Development {
@@ -118,6 +120,13 @@ func runSeedStaging(args []string) {
 	}
 	defer db.Close()
 	stagingUsers := strings.Split(os.Getenv("STAGING_USERS"), ",")
+	keep := map[string]string{}
+	if *keepFrom != "" {
+		if keep, err = store.StagingPasswordHashes(ctx, *keepFrom); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+	}
 	if *configFrom != "" {
 		if _, err := os.Stat(*configFrom); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
@@ -131,11 +140,11 @@ func runSeedStaging(args []string) {
 	}
 	// Only the real users in STAGING_USERS (comma-separated usernames) can sign in to
 	// staging; the rest keep no password there.
-	if err := web.StagingPasswords(ctx, db, stagingUsers, os.Stdout); err != nil {
+	if err := web.StagingPasswords(ctx, db, stagingUsers, keep, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
-	if err := web.SeedStaging(ctx, db, time.Now(), os.Stdout); err != nil {
+	if err := web.SeedStagingKeeping(ctx, db, time.Now(), keep[web.SeedTestUser], os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}

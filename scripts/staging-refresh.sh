@@ -7,8 +7,8 @@
 # configuration copied in (catalog, quote types, margins, settings; product costs scaled
 # by a random factor; documentos oficiales as placeholder PDFs) and synthetic data on
 # top: test customers, suppliers and about twenty proyectos. Only the real users in the
-# service's STAGING_USERS can sign in, each with a staging-only password printed at the
-# end. See store.StagingTables for what each table gets.
+# service's STAGING_USERS can sign in, each with a staging-only password that survives
+# refreshes (a new user's is printed at the end). See store.StagingTables for what each table gets.
 #
 # The new database is built next to the live one, so a failed build leaves staging as
 # it was. Production keeps running throughout: its configuration is read from sqlite3's
@@ -32,9 +32,11 @@ sqlite3 "$PROD_DB" ".backup '$STAGING_DATA/$SOURCE'"
 sqlite3 "$STAGING_DATA/$SOURCE" "PRAGMA integrity_check;" | grep -qx ok
 
 cd "$APP_DIR"
-# Builds and seeds the new database; prints the staging passwords. It refuses unless the
+# Builds and seeds the new database. Staging passwords carry over from the database it
+# replaces; only a user new to staging gets one, printed here. It refuses unless the
 # service's APP_ENV is staging, and unless the database it builds is new.
-if ! docker compose run --rm --no-deps -e DB_PATH="/data/$NEW" cladex-staging seed-staging --config-from "/data/$SOURCE"; then
+if ! docker compose run --rm --no-deps -e DB_PATH="/data/$NEW" cladex-staging seed-staging \
+	--config-from "/data/$SOURCE" --keep-passwords-from /data/cladex.db; then
 	rm -f "$STAGING_DATA/$NEW" "$STAGING_DATA/$NEW-wal" "$STAGING_DATA/$NEW-shm"
 	echo "ERROR: staging was not rebuilt; it keeps its current data" >&2
 	exit 1
