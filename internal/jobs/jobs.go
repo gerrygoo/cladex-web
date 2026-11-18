@@ -120,6 +120,22 @@ func (r *Runner) Run(ctx context.Context) {
 	}
 }
 
+// Drain runs every job that is due now, one after another, and returns how many ran.
+// Jobs scheduled for later stay queued. It is for a process that isn't the server
+// (seed-staging), so a database starts without a backlog.
+func (r *Runner) Drain(ctx context.Context) int {
+	kinds := make([]string, 0, len(r.handlers))
+	for k := range r.handlers {
+		kinds = append(kinds, k)
+	}
+	slices.Sort(kinds)
+	n := 0
+	for ctx.Err() == nil && r.runOne(ctx, kinds) {
+		n++
+	}
+	return n
+}
+
 // runOne claims and runs one due job, and reports whether there was one.
 func (r *Runner) runOne(ctx context.Context, kinds []string) bool {
 	if err := r.store.ReleaseExpiredJobs(ctx, r.now()); err != nil {

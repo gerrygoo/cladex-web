@@ -345,7 +345,9 @@ ssh cladex-nas 'sh /volume1/docker/cladex/staging-refresh.sh'
 
 It takes sqlite3's online backup of production (production keeps running) only as the
 source of configuration, builds `staging/data/cladex.db.new` with
-`cladex seed-staging --config-from`, then stops staging, swaps the file in and starts it.
+`cladex seed-staging --config-from`, which also runs the background jobs its seed queued
+(so staging doesn't start with a backlog holding the write lock while people sign in),
+then stops staging, swaps the file in and starts it.
 The backup is deleted when it finishes. **A failed build changes nothing**: staging keeps
 its current data and the script exits non-zero. Everything done in staging since the last
 refresh is lost; staging has no Litestream and no backups.

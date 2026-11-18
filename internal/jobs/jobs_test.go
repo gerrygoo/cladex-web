@@ -203,3 +203,33 @@ func TestRetryDelay(t *testing.T) {
 		}
 	}
 }
+
+// Drain runs what's due now and leaves what's scheduled for later (seed-staging).
+func TestDrainRunsOnlyDueJobs(t *testing.T) {
+	ctx := context.Background()
+	s := openStore(t, filepath.Join(t.TempDir(), "jobs.db"))
+	c := &clock{t: time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)}
+	r := newRunner(s, c)
+	r.Register(KindPrueba, Prueba)
+	var later int64
+	for i := range 4 {
+		j := store.NewJob{Kind: KindPrueba}
+		if i == 3 {
+			j.RunAt = c.t.Add(time.Hour)
+		}
+		id, err := r.Enqueue(ctx, j)
+		if err != nil {
+			t.Fatal(err)
+		}
+		later = id
+	}
+	if n := r.Drain(ctx); n != 3 {
+		t.Errorf("Drain ran %d jobs, want 3", n)
+	}
+	if j := job(t, s, later); j.Status == "done" {
+		t.Errorf("the job scheduled for later ran: %+v", j)
+	}
+	if n := r.Drain(ctx); n != 0 {
+		t.Errorf("a second Drain ran %d jobs", n)
+	}
+}

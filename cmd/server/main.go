@@ -148,6 +148,31 @@ func runSeedStaging(args []string) {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
+	// Run the jobs the seed queued (avisos for each O.C. received, …) now, so the rebuilt
+	// staging doesn't start with a backlog holding the write lock while people sign in.
+	runner, _ := newJobRunner(db, notify.Load(env, os.Getenv), newLogger())
+	if n := runner.Drain(ctx); n > 0 {
+		fmt.Printf("Trabajos en cola corridos: %d.\n", n)
+	}
+}
+
+// newJobRunner is the background job runner with every handler registered, for the
+// server and for seed-staging, which runs the jobs its seed queued before staging starts.
+func newJobRunner(db *store.Store, notifyCfg *notify.Config, logger *slog.Logger) (*jobs.Runner, *avisos.Service) {
+	runner := jobs.New(db, logger)
+	runner.Register(jobs.KindPrueba, jobs.Prueba)
+	runner.Register(store.NotificationJobKind, notify.New(db, notifyCfg, logger).Handle)
+	// The seguimiento avisos (internal/avisos) link to the proyecto at APP_URL.
+	appURL := os.Getenv("APP_URL")
+	if appURL == "" {
+		appURL = "https://cotizador.cladex.com.mx"
+	}
+	seguimiento := avisos.New(db, runner, appURL, logger)
+	runner.Register(avisos.JobKind, seguimiento.Handle)
+	runner.Register(avisos.OCJobKind, seguimiento.HandleOC)
+	runner.Register(avisos.SupplierJobKind, seguimiento.HandleSupplier)
+	runner.Register(avisos.PerdidosJobKind, seguimiento.HandlePerdidos)
+	return runner, seguimiento
 }
 
 // runMigrateCLI answers deploy.sh's question to a new image before it rolls production
@@ -260,19 +285,7 @@ func runServer() {
 
 	// The background job runner lives in this process, its queue in the same database
 	// (internal/jobs). It stops claiming jobs on SIGTERM, with ctx.
-	runner := jobs.New(db, logger)
-	runner.Register(jobs.KindPrueba, jobs.Prueba)
-	runner.Register(store.NotificationJobKind, notify.New(db, notifyCfg, logger).Handle)
-	// The seguimiento avisos (internal/avisos) link to the proyecto at APP_URL.
-	appURL := os.Getenv("APP_URL")
-	if appURL == "" {
-		appURL = "https://cotizador.cladex.com.mx"
-	}
-	seguimiento := avisos.New(db, runner, appURL, logger)
-	runner.Register(avisos.JobKind, seguimiento.Handle)
-	runner.Register(avisos.OCJobKind, seguimiento.HandleOC)
-	runner.Register(avisos.SupplierJobKind, seguimiento.HandleSupplier)
-	runner.Register(avisos.PerdidosJobKind, seguimiento.HandlePerdidos)
+	runner, seguimiento := newJobRunner(db, notifyCfg, logger)
 	if err := seguimiento.Schedule(ctx); err != nil {
 		logger.Error("avisos: schedule the next seguimiento round", slog.Any("err", err))
 	}
