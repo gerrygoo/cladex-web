@@ -425,7 +425,7 @@ func TestProjectsList(t *testing.T) {
 	third := issueTestQuote(t, a, q, ana, customerID, costProductID)
 	fourth := issueTestQuote(t, a, q, ana, customerID, costProductID)
 	// Next follow-ups (#71): first's is past, third's ahead, fourth has none, and second's
-	// stops showing once its O.C. arrives.
+	// still shows once its O.C. arrives, without a warning (#77).
 	setFollowUp := func(folio, day string) {
 		t.Helper()
 		pr, err := a.store.ProjectByFolio(context.Background(), folio)
@@ -449,32 +449,45 @@ func TestProjectsList(t *testing.T) {
 
 	link := func(folio string) string { return `href="/proyectos/` + folio + `"` }
 	body := list("", false)
-	for _, want := range []string{link(first), link(second), "Inicial (10%)", "En curso", "<h1>Proyectos</h1>"} {
+	// Issue #77: the Pronóstico columns plus Etapa and Cobro, in this order, without the
+	// old Total and Abierto.
+	head := body[strings.Index(body, "<thead"):strings.Index(body, "</thead>")]
+	last := -1
+	for _, col := range []string{"Proyecto", "Cliente", "Vendedor", "Etapa", "Probabilidad de cierre", "Próximo seguimiento",
+		"O.C. esperada", "Vigencia", "Días sin actualizar", "Costo sin IVA", "Precio de venta sin IVA", "Utilidad", "Margen",
+		"Cobro", "Último comentario"} {
+		at := strings.Index(head, ">"+col)
+		if at < 0 || at < last {
+			t.Errorf("column %q is missing or out of order", col)
+		}
+		last = at
+	}
+	for _, gone := range []string{">Total", ">Abierto"} {
+		if strings.Contains(head, gone) {
+			t.Errorf("the list still has the %q column", gone)
+		}
+	}
+	// The vendedor by initials, the full name as its tooltip; the probability in two
+	// lines, and Orden colocada 100% on the en curso one, not the 90% it had.
+	for _, want := range []string{link(first), link(second), "<h1>Proyectos</h1>", "En curso",
+		`<abbr title="ana">A</abbr>`, "Inicial<br>10%", "Orden colocada<br>100%", "$64.29", "30.0%", "Pendiente de pago"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("list missing %q", want)
 		}
 	}
-	// Past prospecto, the probability isn't shown.
-	if strings.Contains(body, "Inminente (90%)") {
-		t.Error("the list shows a probability for a proyecto past prospecto")
-	}
-	// The next follow-up shows for prospectos only, and a past one says it is overdue.
-	head := body[strings.Index(body, "<thead"):strings.Index(body, "</thead>")]
-	if !strings.Contains(head, "Próximo seguimiento") || strings.Index(head, "Próximo seguimiento") < strings.Index(head, "Probabilidad") {
-		t.Error("the list has no Próximo seguimiento column after Probabilidad")
-	}
-	for _, want := range []string{"09/01/2020", "04/03/2099", "Sin fecha"} {
+	// The next follow-up shows for open proyectos; only a prospecto's is flagged.
+	for _, want := range []string{"09/01/2020", "04/03/2099", "05/05/2030", `<strong class="overdue">Sin fecha</strong>`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("list missing follow-up %q", want)
 		}
 	}
-	if strings.Contains(body, "05/05/2030") {
-		t.Error("the list shows the follow-up date of a proyecto past prospecto")
+	if strings.Contains(body, "Inminente<br>90%") {
+		t.Error("the en curso proyecto shows the probability it had before its O.C.")
 	}
 	if n := strings.Count(body, `<strong class="overdue">Vencido</strong>`); n != 1 {
 		t.Errorf("list marks %d follow-ups as overdue, want 1 (the past one)", n)
 	}
-	// Sorting by it: soonest first, prospectos without a date next, then other stages.
+	// Sorting by it: soonest first, open proyectos without a date next, then closed ones.
 	order := func(body string, folios ...string) bool {
 		last := -1
 		for _, f := range folios {
@@ -486,11 +499,29 @@ func TestProjectsList(t *testing.T) {
 		}
 		return true
 	}
-	if body := list("sort=seguimiento", false); !order(body, first, third, fourth, second) {
-		t.Error("sorting by Próximo seguimiento doesn't put the soonest first and other stages last")
+	if body := list("sort=seguimiento", false); !order(body, first, second, third, fourth) {
+		t.Error("sorting by Próximo seguimiento doesn't put the soonest first and undated last")
 	}
-	if body := list("sort=seguimiento&dir=desc", false); !order(body, second, fourth, third, first) {
+	if body := list("sort=seguimiento&dir=desc", false); !order(body, fourth, third, second, first) {
 		t.Error("sorting by Próximo seguimiento descending isn't the reverse")
+	}
+	// Without a sort, newest first.
+	if body := list("", false); !order(body, fourth, third, second, first) {
+		t.Error("the list isn't newest first")
+	}
+	for _, col := range []string{"folio", "cliente", "vendedor", "etapa", "probabilidad", "seguimiento", "oc", "vigencia",
+		"dias", "costo", "precio", "utilidad", "margen", "cobro", "comentario"} {
+		if b := list("sort="+col+"&dir=desc", false); strings.Count(b, `<tr id="p-`) != 4 {
+			t.Errorf("list sorted by %s lost a row", col)
+		}
+	}
+	// A closed proyecto shows a dash for probabilidad and the dates.
+	fourthProject, _ := a.store.ProjectByFolio(context.Background(), fourth)
+	if err := a.store.LoseProject(context.Background(), fourthProject.ID, ana, store.StageProspecto, "Sin presupuesto"); err != nil {
+		t.Fatalf("LoseProject: %v", err)
+	}
+	if body := list("f.etapa=perdido", false); !strings.Contains(body, link(fourth)) || strings.Count(body, "<td>—</td>") != 5 {
+		t.Errorf("a lost proyecto doesn't show a dash in probabilidad, the three dates and cobro")
 	}
 	if body := list("f.etapa=en_curso", false); strings.Contains(body, link(first)) || !strings.Contains(body, link(second)) {
 		t.Error("the stage filter doesn't narrow the list to En curso")
@@ -614,22 +645,14 @@ func TestProjectsFollowUpDatesAndForecast(t *testing.T) {
 	if rec := save(first, url.Values{"probabilidad": {"75"}, "oc_esperada": {"15/10/2026"}}); rec.Code != http.StatusBadRequest {
 		t.Errorf("Seguimiento(malformed date) status = %d, want 400", rec.Code)
 	}
-	// A new prospecto is not in the forecast, but is among all prospectos.
+	// A new prospecto is not in the forecast. Every prospecto is now Proyectos filtered
+	// by Etapa (#77), where an old "todos" link goes.
 	if body := forecast(""); strings.Contains(body, `id="p-`+first+`"`) {
 		t.Error("a prospecto at Inicial is in the forecast")
 	}
-	body := forecast("todos=1")
-	for _, want := range []string{`id="p-` + first + `"`, `id="p-` + second + `"`, "Ver solo los relevantes para pronóstico",
-		"Sin fecha", "Sin comentarios"} {
-		if !strings.Contains(body, want) {
-			t.Errorf("all-prospects page missing %q", want)
-		}
-	}
-	// It is a table to read, not a form: nothing is edited here.
-	for _, gone := range []string{"Guardar seguimiento", `name="probabilidad"`, `name="note"`} {
-		if strings.Contains(body, gone) {
-			t.Errorf("forecast page still has %q", gone)
-		}
+	if rec := doForm(t, a, ana, p.Pronostico, "GET", "/pronostico?todos=1", nil, nil, false); rec.Code != http.StatusSeeOther ||
+		rec.Header().Get("Location") != "/proyectos?f.etapa=prospecto" {
+		t.Errorf("/pronostico?todos=1 = %d to %q, want a redirect to Proyectos' prospectos", rec.Code, rec.Header().Get("Location"))
 	}
 
 	// The first proyecto's follow-up day is already past, which the form no longer takes, so
@@ -658,9 +681,15 @@ func TestProjectsFollowUpDatesAndForecast(t *testing.T) {
 		t.Error("the comment-only follow-up isn't in the history, or the form doesn't come with the current next follow-up")
 	}
 
-	body = forecast("")
-	for _, want := range []string{`id="p-` + first + `"`, `id="p-` + second + `"`, "Ver todos los prospectos",
-		"Alta (75%)", "Inminente (90%)", "15/10/2020", "09/01/2020",
+	body := forecast("")
+	// It is a table to read, not a form: nothing is edited here.
+	for _, gone := range []string{"Guardar seguimiento", `name="probabilidad"`, `name="note"`, "Ver todos los prospectos"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("forecast page still has %q", gone)
+		}
+	}
+	for _, want := range []string{`id="p-` + first + `"`, `id="p-` + second + `"`, `href="/proyectos"`,
+		"Alta<br>75%", "Inminente<br>90%", `<abbr title="ana">A</abbr>`, "15/10/2020", "09/01/2020",
 		"Compras pidió ajustar entrega", "Solo un comentario"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("forecast page missing %q", want)
@@ -726,10 +755,6 @@ func TestProjectsFollowUpDatesAndForecast(t *testing.T) {
 	}
 	if b := forecast("f.vendedor.is=nadie"); strings.Contains(b, `id="p-`) || !strings.Contains(b, "Ningún prospecto coincide con el filtro.") {
 		t.Error("filtering by another vendedor still lists proyectos or doesn't say none match")
-	}
-	// The all-prospects toggle survives sorting.
-	if b := forecast("todos=1&sort=folio"); !strings.Contains(b, "todos=1") || !strings.Contains(b, `href="/pronostico?dir=desc&amp;sort=folio&amp;todos=1"`) {
-		t.Error("sort links drop the todos=1 toggle")
 	}
 
 	// The proyecto page shows the dates and that the follow-up is due.

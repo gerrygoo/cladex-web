@@ -21,7 +21,7 @@ type ListView struct {
 	Pager   Pager  // the page shown; the zero value means one unpaged page
 	Anchor  string // fragment the pager's links and form jump to, for lists inside a longer page
 	// Keep is extra query state the page carries through every sort, filter and pager link
-	// (the Pronóstico's "todos=1"); clearing filters leaves it alone.
+	// (the Equipo dashboard's "periodo"); clearing filters leaves it alone.
 	Keep url.Values
 }
 

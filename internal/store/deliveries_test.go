@@ -172,7 +172,7 @@ func TestDeliveries(t *testing.T) {
 		t.Errorf("after the revision = %q, %q", p.States.Entrega, p.Stage())
 	}
 
-	// Facturada, entregado and pagado: Cerrado · Ganado, out of the default list.
+	// Facturada, entregado and pagado: Cerrado · Ganado, still in the default list (issue #77).
 	if err := s.RecordInvoice(ctx, project, user, testInvoice, "PUE", ""); err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func TestDeliveries(t *testing.T) {
 		}
 		return len(ps)
 	}
-	if list(nil) != 0 || list(Filters{"etapa": {"cerrado"}}) != 1 {
+	if list(nil) != 1 || list(Filters{"etapa": {"cerrado"}}) != 1 {
 		t.Errorf("list = %d, with the Cerrado · Ganado filter = %d", list(nil), list(Filters{"etapa": {"cerrado"}}))
 	}
 	// Undoing the delivery reopens it.

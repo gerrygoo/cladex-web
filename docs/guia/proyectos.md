@@ -35,29 +35,44 @@ o se borra un pago registrado por error), regresa solo a **En curso**.
 1. En el menú **Proyectos**, elige **Ver proyectos**.
 2. Escribe el folio, el nombre del cliente o el [nombre del proyecto](#ponerle-nombre-a-un-proyecto) en
    *"Buscar por folio, cliente o nombre del proyecto…"*.
-3. Para ordenar, haz clic en el encabezado **Proyecto**, **Cliente**, **Vendedor**,
-   **Etapa**, **Probabilidad**, **Próximo seguimiento**, **Total** o **Abierto**. Otro clic
-   invierte el orden. Sin ordenar, van del más reciente al más antiguo.
+3. Para ordenar, haz clic en el encabezado de cualquier columna. Otro clic invierte el
+   orden. Sin ordenar, van del más reciente al más antiguo.
 4. Para acotar más, [filtra por columna](README.md#filtrar-las-tablas) con el embudo de
-   cada encabezado. Por ejemplo, en **Etapa** elige *Prospecto* y en **Probabilidad**
-   elige *Alta* e *Inminente* para ver solo los [[relevante para pronóstico|relevantes para pronóstico]].
+   **Proyecto**, **Cliente**, **Vendedor**, **Etapa**, **Probabilidad de cierre** o
+   **Cobro**. Por ejemplo, en **Etapa** elige *Prospecto* para ver todos los prospectos, y
+   en **Probabilidad de cierre** elige *Alta* e *Inminente* para ver solo los
+   [[relevante para pronóstico|relevantes para pronóstico]].
 5. Haz clic en el folio para abrir el proyecto.
 
 También llegas a un proyecto desde las listas de **Proyectos totales** y **Sin seguimiento** de la
 [página de inicio](README.md#la-página-de-inicio) y desde cualquiera de sus cotizaciones: en el resumen de la cotización, **Proyecto**
 tiene el enlace.
 
-- La columna **Total** es el total de la cotización vigente del proyecto.
-- La columna **Cobro** muestra el [[estado de cobro]] de los proyectos en curso. Se puede
-  filtrar con su embudo.
-- Los proyectos **Cerrado · Ganado** no aparecen en la lista. Para verlos, en el embudo de
-  **Etapa** elige *Cerrado · Ganado*. Si buscas uno por su folio o su cliente, sí aparece.
-- La columna **Probabilidad** solo se llena mientras el proyecto es prospecto.
-- La columna **Próximo seguimiento** también se llena solo mientras el proyecto es
-  prospecto: la fecha que anotaste, o *Sin fecha* si no tiene. Si esa fecha ya pasó,
-  dice *Vencido* debajo. Al ordenar por ella, primero van las fechas más cercanas, luego
-  los prospectos sin fecha y al final los proyectos en otras etapas. Esta columna no
-  tiene embudo de filtro.
+La lista muestra los proyectos de todas las etapas, con las mismas columnas que el
+[pronóstico](#revisar-el-pronóstico) más **Etapa** y **Cobro**:
+
+1. **Proyecto**: el folio y su nombre, con enlace. Queda fijo a la izquierda si la tabla
+   se desliza de lado.
+2. **Cliente**.
+3. **Vendedor**, con sus iniciales (por ejemplo *RFM*); al pasar el mouse se ve el nombre
+   completo. Las iniciales salen del nombre del usuario en **Usuarios**, una letra por palabra.
+4. **Etapa**.
+5. **Probabilidad de cierre**, en dos renglones: el nombre arriba y el porcentaje abajo
+   (*Inicial* / *10%*). Un proyecto en curso dice *Orden colocada* / *100%*.
+6. **Próximo seguimiento**, **O.C. esperada** y **Vigencia** de la cotización vigente.
+7. **Días sin actualizar**, **Costo sin IVA**, **Precio de venta sin IVA**, **Utilidad** y
+   **Margen**, como en el pronóstico.
+8. **Cobro**: el [[estado de cobro]] de los proyectos en curso.
+9. **Último comentario**.
+
+- **Probabilidad de cierre** y las tres fechas se llenan en los proyectos [[prospecto|prospectos]]
+  y [[en curso]]. En un prospecto, lo que necesita atención se marca con una palabra en
+  rojo, igual que en el pronóstico (*Vencido*, *Sin fecha*, *Vencida*, *Vence en N días*).
+  En un proyecto en curso solo se ve la fecha, sin aviso.
+- En los proyectos **Cerrado · Ganado**, **Perdido** y **Cancelado** esas columnas llevan
+  una raya (—), porque ya no tienen seguimiento.
+- Al ordenar por una fecha, primero van las más cercanas, luego los proyectos sin fecha y
+  al final los cerrados.
 - Los borradores que nunca se emitieron no tienen proyecto, así que no aparecen aquí.
 
 ## Ponerle nombre a un proyecto
@@ -376,8 +391,8 @@ Las columnas, en orden:
 
 1. **No. de proyecto**: el folio, con enlace al proyecto. Queda fijo a la izquierda si la
    tabla se desliza de lado.
-2. **Cliente** y **Vendedor**.
-3. **Probabilidad de cierre**.
+2. **Cliente** y **Vendedor** (con sus iniciales, como en Proyectos).
+3. **Probabilidad de cierre**, con el nombre arriba y el porcentaje abajo.
 4. **Próximo seguimiento**, **O.C. esperada** y **Vigencia** de la cotización vigente.
 5. **Días sin actualizar**: cuántos días hace del último movimiento del proyecto (su
    último comentario o cambio).
@@ -408,8 +423,8 @@ el proyecto desde su número y hazlo en **Seguimiento**.
   no tienen fecha.
 - Para ver solo los de un vendedor, usa el embudo del encabezado **Vendedor**, como en
   [Proyectos](#buscar-un-proyecto).
-- Para ver un prospecto que no aparece, haz clic en **Ver todos los prospectos**.
-  **Ver solo los relevantes para pronóstico** regresa a la lista corta.
+- Para ver todos los prospectos, no solo los relevantes, ve a [Proyectos](#buscar-un-proyecto)
+  y en el embudo de **Etapa** elige *Prospecto*: tiene las mismas columnas.
 - Si le bajas la probabilidad a un proyecto, deja de aparecer en la lista corta.
 
 ## Marcar un proyecto como perdido

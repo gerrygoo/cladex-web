@@ -6,7 +6,6 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"net/url"
 	"path"
 	"strconv"
 	"strings"
@@ -274,15 +273,19 @@ func today(r *http.Request) string {
 	return time.Now().In(store.LocationFromContext(r.Context())).Format("2006-01-02")
 }
 
-// Pronostico handles GET /pronostico: the prospectos relevante para pronóstico, or every
-// prospecto with ?todos=1, as a table sortable by every column and filterable by vendedor.
-// Nothing is edited here; follow-up is kept on the proyecto's page.
+// Pronostico handles GET /pronostico: the prospectos relevante para pronóstico, as a
+// table sortable by every column and filterable by vendedor. Nothing is edited here;
+// follow-up is kept on the proyecto's page. Every prospecto, the old ?todos=1, is now the
+// Proyectos list filtered by Etapa (issue #77), where an old link is sent.
 func (p *Projects) Pronostico(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	all := r.URL.Query().Get("todos") == "1"
+	if r.URL.Query().Get("todos") == "1" {
+		http.Redirect(w, r, "/proyectos?f.etapa="+store.StageProspecto, http.StatusSeeOther)
+		return
+	}
 	sortCol, dir := sortParams(r)
 	filters := filterParams(r)
-	projects, err := p.store.ListProspects(ctx, all, sortCol, dir, filters)
+	projects, err := p.store.ListProspects(ctx, false, sortCol, dir, filters)
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -293,11 +296,8 @@ func (p *Projects) Pronostico(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	lv := views.ListView{Base: "/pronostico", Sort: sortCol, Dir: dir, Filters: filters}
-	if all {
-		lv.Keep = url.Values{"todos": {"1"}}
-	}
 	user, _ := UserFromContext(ctx)
-	views.ForecastPage(views.Forecast{Projects: projects, All: all, Today: today(r)}, lv, owners, navUserView(user)).Render(ctx, w)
+	views.ForecastPage(views.Forecast{Projects: projects, Today: today(r)}, lv, owners, navUserView(user)).Render(ctx, w)
 }
 
 // Comentar handles POST /proyectos/{folio}/comentarios: any signed-in user adds a note

@@ -83,3 +83,19 @@ func TestHomeSellerTable(t *testing.T) {
 		t.Error("only a count above zero opens a list of folios")
 	}
 }
+
+// TestSellerInitials pins the Vendedor column's initials (issue #77): the first letter of
+// each word of the name, in capitals, accents kept.
+func TestSellerInitials(t *testing.T) {
+	for name, want := range map[string]string{
+		"Rodolfo Flores Martínez": "RFM",
+		"Gerardo Galván Rosillo":  "GGR",
+		"  emilio  flores ":       "EF",
+		"Óscar":                   "Ó",
+		"":                        "",
+	} {
+		if got := SellerInitials(name); got != want {
+			t.Errorf("SellerInitials(%q) = %q, want %q", name, got, want)
+		}
+	}
+}

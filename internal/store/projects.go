@@ -924,6 +924,13 @@ func (p Project) Stage() string {
 	return p.Status
 }
 
+// Open is whether the proyecto is still being worked: a prospecto, or en curso and not
+// yet Cerrado · Ganado. It is the Go side of projectOpenSQL.
+func (p Project) Open() bool {
+	s := p.Stage()
+	return s == StageProspecto || s == StageEnCurso
+}
+
 // Balance is what the client still owes: the total with IVA less what was paid, never
 // below zero.
 func (p Project) Balance() money.Centavos {
@@ -1080,19 +1087,42 @@ const projectStageSQL = `CASE WHEN p.status = 'en_curso' AND ps.cerrado THEN 'ce
 const projectStageOrder = `CASE ` + projectStageSQL + ` WHEN 'prospecto' THEN 1 WHEN 'en_curso' THEN 2
 	WHEN 'cerrado' THEN 3 WHEN 'cancelado' THEN 4 ELSE 5 END`
 
-// projectSortColumns is the sortable-column whitelist for ListProjects. When sort
-// doesn't match a known column, ListProjects uses projectDefaultOrder instead.
+// projectOpenSQL is true for a proyecto still being worked, prospecto or en curso (not
+// Cerrado · Ganado): the stages whose probabilidad and follow-up dates the Proyectos
+// list shows. The others show a dash there.
+const projectOpenSQL = `(p.status = 'prospecto' OR (p.status = 'en_curso' AND NOT ps.cerrado))`
+
+// openOnly is expr for an open proyecto (projectOpenSQL) and missing for the rest.
+func openOnly(expr, missing string) string {
+	return "CASE WHEN " + projectOpenSQL + " THEN " + expr + " ELSE " + missing + " END"
+}
+
+// lastCommentAtSQL is when the proyecto's latest comment was written, on any of its quotes.
+const lastCommentAtSQL = `(SELECT lc.created_at FROM quote_comments lc JOIN quotes lq ON lq.id = lc.quote_id
+		WHERE lq.project_id = p.id ORDER BY lc.created_at DESC, lc.id DESC LIMIT 1)`
+
+// projectSortColumns is the sortable-column whitelist for ListProjects: the Pronóstico
+// columns (forecastSortColumns) plus Etapa and Cobro. Probabilidad and the three dates
+// only count for an open proyecto (projectOpenSQL): an open one without a date sorts
+// after the dated ones, and the closed ones at the far end. When sort doesn't match a known column, ListProjects uses
+// projectDefaultOrder instead.
 var projectSortColumns = []sortColumn{
 	{"folio", "p.folio"},
-	{"cliente", "c.name"},
+	{"cliente", "c.name COLLATE NOCASE"},
 	{"vendedor", "u.name COLLATE NOCASE"},
 	{"etapa", projectStageOrder},
-	{"probabilidad", "p.probability"},
-	// Only a prospecto shows its next follow-up: those without a date come after the
-	// dated ones, and every other stage after them.
-	{"seguimiento", "CASE WHEN p.status = 'prospecto' THEN COALESCE(p.next_followup_date, '9999-12-30') ELSE '9999-12-31' END"},
-	{"total", "q.total"},
-	{"fecha", "p.created_at"},
+	// En curso is Orden colocada 100%, whatever was stored before the purchase order.
+	{"probabilidad", openOnly("CASE WHEN p.status = 'prospecto' THEN p.probability ELSE 100 END", "-1")},
+	{"seguimiento", openOnly("COALESCE(p.next_followup_date, '9999-12-30')", "'9999-12-31'")},
+	{"oc", openOnly("COALESCE(p.expected_oc_date, '9999-12-30')", "'9999-12-31'")},
+	{"vigencia", openOnly("COALESCE(q.valid_until, '9999-12-30')", "'9999-12-31'")},
+	{"dias", "-julianday(COALESCE(" + lastCommentAtSQL + ", p.created_at))"},
+	{"costo", "(q.subtotal - " + quoteProfitSQL + ")"},
+	{"precio", "q.subtotal"},
+	{"utilidad", quoteProfitSQL},
+	{"margen", "CASE WHEN q.subtotal = 0 THEN 0 ELSE 1.0 * " + quoteProfitSQL + " / q.subtotal END"},
+	{"cobro", "CASE WHEN p.status = 'en_curso' THEN ps.cobro ELSE '' END"},
+	{"comentario", "COALESCE(" + lastCommentAtSQL + ", '')"},
 }
 
 // projectDefaultOrder is the list's order when no sort column is chosen: newest first.
@@ -1108,28 +1138,21 @@ var projectFilterColumns = []filterColumn{
 	{name: "etapa", expr: projectStageSQL, kind: FilterEnum},
 	{name: "cobro", expr: "CASE WHEN p.status = 'en_curso' THEN ps.cobro END", kind: FilterEnum},
 	{name: "probabilidad", expr: "CASE WHEN p.status = 'prospecto' THEN CAST(p.probability AS TEXT) END", kind: FilterEnum},
-	{name: "total", expr: "q.total", kind: FilterNumber, scale: 100},
-	{name: "fecha", expr: "p.created_at", kind: FilterDate},
 }
 
 // ListProjects returns proyectos, optionally filtered by a case-insensitive substring
 // match on folio, customer name or the proyecto's name and by per-column filters (see projectFilterColumns),
-// sorted per sort/dir (see projectSortColumns). The list is of the proyectos still being
-// worked: a Cerrado · Ganado one is left out unless the etapa filter asks for it or a
-// search is typed (looking a proyecto up by its folio finds it whatever its stage).
+// sorted per sort/dir (see projectSortColumns), every stage included (issue #77).
 func (s *Store) ListProjects(ctx context.Context, query, sort, dir string, filters Filters) ([]Project, error) {
 	like := "%" + escapeLike(query) + "%"
 	order := projectDefaultOrder
 	for _, c := range projectSortColumns {
 		if c.name == sort {
-			order = orderByClause(projectSortColumns, sort, dir)
+			order = orderByClause(projectSortColumns, sort, dir) + ", p.id DESC"
 			break
 		}
 	}
 	extra, extraArgs := filterWhere(ctx, projectFilterColumns, filters)
-	if query == "" && len(filters["etapa"]) == 0 {
-		extra += ` AND NOT (p.status = 'en_curso' AND ps.cerrado)`
-	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+projectSelectCols+projectFrom+`
 		WHERE (? = '' OR p.folio LIKE ? ESCAPE '\' COLLATE NOCASE OR c.name LIKE ? ESCAPE '\' COLLATE NOCASE
@@ -1162,14 +1185,12 @@ var forecastSortColumns = []sortColumn{
 	{"seguimiento", "COALESCE(p.next_followup_date, '9999-12-31')"},
 	{"oc", "COALESCE(p.expected_oc_date, '9999-12-31')"},
 	{"vigencia", "COALESCE(q.valid_until, '9999-12-31')"},
-	{"dias", "-julianday(COALESCE((" + `SELECT lc.created_at FROM quote_comments lc JOIN quotes lq ON lq.id = lc.quote_id
-		WHERE lq.project_id = p.id ORDER BY lc.created_at DESC, lc.id DESC LIMIT 1` + "), p.created_at))"},
+	{"dias", "-julianday(COALESCE(" + lastCommentAtSQL + ", p.created_at))"},
 	{"costo", "(q.subtotal - " + quoteProfitSQL + ")"},
 	{"precio", "q.subtotal"},
 	{"utilidad", quoteProfitSQL},
 	{"margen", "CASE WHEN q.subtotal = 0 THEN 0 ELSE 1.0 * " + quoteProfitSQL + " / q.subtotal END"},
-	{"comentario", "COALESCE((" + `SELECT lc.created_at FROM quote_comments lc JOIN quotes lq ON lq.id = lc.quote_id
-		WHERE lq.project_id = p.id ORDER BY lc.created_at DESC, lc.id DESC LIMIT 1` + "), '')"},
+	{"comentario", "COALESCE(" + lastCommentAtSQL + ", '')"},
 }
 
 // forecastDefaultOrder is the Pronóstico order when no column is chosen: soonest expected

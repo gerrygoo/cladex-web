@@ -300,8 +300,10 @@ func TestEntrega(t *testing.T) {
 	list := func(query string) string {
 		return doForm(t, a, ana, p.List, "GET", "/proyectos?"+query, nil, nil, false).Body.String()
 	}
-	if strings.Contains(list(""), `href="/proyectos/`+folio+`"`) {
-		t.Error("the default list shows a Cerrado · Ganado proyecto")
+	// Every stage is listed (issue #77), Cerrado · Ganado included, with a dash where
+	// probabilidad and the follow-up dates would go.
+	if !strings.Contains(list(""), `href="/proyectos/`+folio+`"`) {
+		t.Error("the default list leaves out a Cerrado · Ganado proyecto")
 	}
 	if !strings.Contains(list("f.etapa=cerrado"), `href="/proyectos/`+folio+`"`) {
 		t.Error("the Etapa filter doesn't find the Cerrado · Ganado proyecto")

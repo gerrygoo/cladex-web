@@ -453,8 +453,10 @@ func TestProjectReads(t *testing.T) {
 		filters                Filters
 		want                   string
 	}{
-		{"by total", "", "total", "desc", nil, "QA0001,QS0001,QA0002"},
-		{"by stage, in lifecycle order", "", "etapa", "desc", nil, "QS0001,QA0001,QA0002"},
+		{"by price before IVA", "", "precio", "desc", nil, "QS0001,QA0002,QA0001"},
+		// Within a stage, newest first.
+		{"by stage, in lifecycle order", "", "etapa", "desc", nil, "QS0001,QA0002,QA0001"},
+		{"by stage, ascending", "", "etapa", "asc", nil, "QA0002,QA0001,QS0001"},
 		{"search by customer", "constructora", "folio", "asc", nil, "QA0002,QS0001"},
 		{"search by folio", "qs", "", "", nil, "QS0001"},
 		{"stage filter", "", "folio", "asc", Filters{"etapa": {"prospecto"}}, "QA0001,QA0002"},

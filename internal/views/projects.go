@@ -3,7 +3,10 @@ package views
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/gerrygoo/cladex-web/internal/money"
 	"github.com/gerrygoo/cladex-web/internal/store"
@@ -60,12 +63,22 @@ func fileSizeText(size int64) string {
 	return strconv.FormatFloat(float64(size)/(1<<20), 'f', 1, 64) + " MB"
 }
 
-// Forecast is the Pronóstico page's data: the prospectos shown, whether that is every
-// prospecto or only the ones relevante para pronóstico, and the viewer's today.
+// Forecast is the Pronóstico page's data: the prospectos relevante para pronóstico and
+// the viewer's today.
 type Forecast struct {
 	Projects []store.Project
-	All      bool
 	Today    string
+}
+
+// SellerInitials is a vendedor's initials, the first letter of each word of the name in
+// capitals ("Gerardo Galván Rosillo" → "GGR"), so the column stays narrow (issue #77).
+func SellerInitials(name string) string {
+	var b strings.Builder
+	for _, w := range strings.Fields(name) {
+		r, _ := utf8.DecodeRuneInString(w)
+		b.WriteRune(unicode.ToUpper(r))
+	}
+	return b.String()
 }
 
 // ForecastTotals is what the listed proyectos add up to before IVA: cost, price and

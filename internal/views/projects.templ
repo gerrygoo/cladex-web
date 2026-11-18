@@ -46,18 +46,24 @@ templ ProjectsList(projects []store.Project, today string, lv ListView, customer
 		</div>
 		@listActiveFilters(lv)
 		<div class="table-scroll">
-			<table>
+			<table class="forecast-table">
 				<thead>
 					<tr>
 						@columnHeader(lv, "Proyecto", "folio", textFilter)
 						@columnHeader(lv, "Cliente", "cliente", choiceFilter(customers))
 						@columnHeader(lv, "Vendedor", "vendedor", choiceFilter(owners))
 						@columnHeader(lv, "Etapa", "etapa", projectStageFilter)
-						@columnHeader(lv, "Probabilidad", "probabilidad", projectProbabilityFilter)
+						@columnHeader(lv, "Probabilidad de cierre", "probabilidad", projectProbabilityFilter)
 						@sortHeader(lv, "Próximo seguimiento", "seguimiento", false)
+						@sortHeader(lv, "O.C. esperada", "oc", false)
+						@sortHeader(lv, "Vigencia", "vigencia", false)
+						@sortHeader(lv, "Días sin actualizar", "dias", true)
+						@sortHeader(lv, "Costo sin IVA", "costo", true)
+						@sortHeader(lv, "Precio de venta sin IVA", "precio", true)
+						@sortHeader(lv, "Utilidad", "utilidad", true)
+						@sortHeader(lv, "Margen", "margen", true)
 						@columnHeader(lv, "Cobro", "cobro", projectCobroFilter)
-						@columnHeader(lv, "Total", "total", numberFilter)
-						@columnHeader(lv, "Abierto", "fecha", dateFilter)
+						@sortHeader(lv, "Último comentario", "comentario", false)
 					</tr>
 				</thead>
 				@ProjectsTableBody(projects, today)
@@ -67,51 +73,109 @@ templ ProjectsList(projects []store.Project, today string, lv ListView, customer
 	}
 }
 
-// ProjectsTableBody is the rows of the Proyectos list. today is the viewer's day, to
-// mark a prospecto whose next follow-up has already passed.
+// ProjectsTableBody is the rows of the Proyectos list: the Pronóstico's columns for
+// every proyecto, plus its Etapa and Cobro (issue #77). Probabilidad and the three dates
+// show for an open proyecto (store.Project.Open), with warnings only on a prospecto, and
+// a dash on the closed ones. today is the viewer's day.
 templ ProjectsTableBody(projects []store.Project, today string) {
 	<tbody id="proyectos-tbody" data-announce={ countAnnouncement(len(projects), "proyecto", "proyectos") }>
 		if len(projects) == 0 {
 			<tr>
-				<td colspan="9">No se encontraron proyectos. Un proyecto se abre al emitir una cotización.</td>
+				<td colspan="15">No se encontraron proyectos. Un proyecto se abre al emitir una cotización.</td>
 			</tr>
 		}
 		for _, p := range projects {
-			<tr>
-				<td><a href={ templ.URL(projectPath(p.Folio)) }>{ p.Label() }</a></td>
-				<td>{ p.CustomerName }</td>
-				<td>{ p.UserName }</td>
+			<tr id={ "p-" + p.Folio }>
+				<th scope="row"><a href={ templ.URL(projectPath(p.Folio)) }>{ p.Label() }</a></th>
+				<td class="customer">{ p.CustomerName }</td>
+				<td>
+					@sellerCell(p.UserName)
+				</td>
 				<td>
 					@StatusBadge(p.Stage())
 				</td>
 				<td>
-					if p.Status == "prospecto" {
-						{ probabilityText(p.Probability) }
-						if p.ForecastRelevant() {
-							<br/>
-							<strong class="forecast">{ forecastLabel }</strong>
-						}
+					if p.Status == store.StageProspecto {
+						@probabilityCell(p.Probability)
+					} else if p.Open() {
+						// Receiving the purchase order ended the guess.
+						Orden colocada
+						<br/>
+						100%
+					} else {
+						{ noValue }
 					}
 				</td>
 				<td>
-					// As on the proyecto's page, the follow-up date only means something
-					// while it is a prospecto (#61).
-					if p.Status == "prospecto" {
-						@dateWarningCell(p.NextFollowUpDate, FollowUpOverdue(p, today))
-					}
+					@openDateCell(p, p.NextFollowUpDate, FollowUpWarning(p, today))
 				</td>
+				<td>
+					@openDateCell(p, p.ExpectedOCDate, OCWarning(p, today))
+				</td>
+				<td>
+					@openDateCell(p, p.QuoteValidUntil, VigenciaWarning(p, today))
+				</td>
+				<td class="num">{ DaysWithoutUpdate(p, today) }</td>
+				<td class="num">{ p.Cost().String() }</td>
+				<td class="num">{ p.Subtotal.String() }</td>
+				<td class="num">{ p.Profit.String() }</td>
+				<td class="num">{ ProjectMargin(p) }</td>
 				<td>
 					if p.Status == store.StageEnCurso {
 						{ store.CobroLabels[p.States.Cobro] }
+					} else {
+						{ noValue }
 					}
 				</td>
-				<td class="num">{ p.Total.String() }</td>
-				<td>
-					@Timestamp(p.CreatedAt)
+				<td class="last-comment">
+					@lastComment(p)
 				</td>
 			</tr>
 		}
 	</tbody>
+}
+
+// noValue fills a cell that doesn't apply to the proyecto's stage.
+const noValue = "—"
+
+// sellerCell shows a vendedor by initials (RFM) to keep the column narrow, with the
+// full name as its tooltip and for screen readers (issue #77).
+templ sellerCell(name string) {
+	<abbr title={ name }>{ SellerInitials(name) }</abbr>
+}
+
+// probabilityCell is a probabilidad de cierre in two lines: the step's name over its
+// percentage (issue #77).
+templ probabilityCell(percent int) {
+	{ store.ProbabilityLabel(percent) }
+	<br/>
+	{ strconv.Itoa(percent) + "%" }
+}
+
+// openDateCell is one of a proyecto's follow-up dates in the Proyectos list: on a
+// prospecto the day with its warning, as in Pronóstico; on a proyecto en curso the day
+// alone, if it has one; on a closed one, a dash.
+templ openDateCell(p store.Project, day, warning string) {
+	if p.Status == store.StageProspecto {
+		@dateWarningCell(day, warning)
+	} else if p.Open() && day != "" {
+		{ dateText(day) }
+	} else {
+		{ noValue }
+	}
+}
+
+// lastComment is the proyecto's latest comment, with who wrote it and when under it.
+templ lastComment(p store.Project) {
+	if p.LastBody != "" {
+		<span class="comment-body">{ p.LastBody }</span>
+		<small class="comment-meta">
+			{ p.LastUserName + " · " }
+			@Timestamp(p.LastAt)
+		</small>
+	} else {
+		Sin comentarios
+	}
 }
 
 // projectNameForm sets or changes the proyecto's name (issue #73): optional, up to
@@ -684,24 +748,15 @@ templ ForecastPage(f Forecast, lv ListView, owners []string, user *NavUser) {
 			<h1>Pronóstico</h1>
 			@HelpLink(HelpPronostico)
 		</div>
-		if f.All {
-			<p>
-				Todos los prospectos.
-				<a href="/pronostico">Ver solo los relevantes para pronóstico</a>
-			</p>
-		} else {
-			<p>
-				Prospectos relevantes para pronóstico (probabilidad Alta o Inminente).
-				<a href="/pronostico?todos=1">Ver todos los prospectos</a>
-			</p>
-		}
+		<p>
+			Prospectos relevantes para pronóstico (probabilidad Alta o Inminente). Todos los
+			proyectos, con estas mismas columnas, están en <a href="/proyectos">Proyectos</a>.
+		</p>
 		<p class="hint">Para actualizar la probabilidad, las fechas o comentar, abre el proyecto desde su número.</p>
 		@listActiveFilters(lv)
 		if len(f.Projects) == 0 {
 			if lv.HasFilters() {
 				<p>Ningún prospecto coincide con el filtro.</p>
-			} else if f.All {
-				<p>No hay prospectos. Un proyecto se abre al emitir una cotización.</p>
 			} else {
 				<p>Ningún prospecto es relevante para pronóstico todavía.</p>
 			}
@@ -732,9 +787,11 @@ templ ForecastPage(f Forecast, lv ListView, owners []string, user *NavUser) {
 							<tr id={ "p-" + p.Folio }>
 								<th scope="row"><a href={ templ.URL(projectPath(p.Folio)) }>{ p.Label() }</a></th>
 								<td class="customer">{ p.CustomerName }</td>
-								<td>{ p.UserName }</td>
 								<td>
-									{ probabilityText(p.Probability) }
+									@sellerCell(p.UserName)
+								</td>
+								<td>
+									@probabilityCell(p.Probability)
 								</td>
 								<td>
 									@dateWarningCell(p.NextFollowUpDate, FollowUpWarning(p, f.Today))
@@ -751,15 +808,7 @@ templ ForecastPage(f Forecast, lv ListView, owners []string, user *NavUser) {
 								<td class="num">{ p.Profit.String() }</td>
 								<td class="num">{ ProjectMargin(p) }</td>
 								<td class="last-comment">
-									if p.LastBody != "" {
-										<span class="comment-body">{ p.LastBody }</span>
-										<small class="comment-meta">
-											{ p.LastUserName + " · " }
-											@Timestamp(p.LastAt)
-										</small>
-									} else {
-										Sin comentarios
-									}
+									@lastComment(p)
 								</td>
 							</tr>
 						}
