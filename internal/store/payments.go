@@ -38,7 +38,33 @@ type Payment struct {
 	FileName      string
 	CreatedByName string
 	CreatedAt     string
+	// The comprobante linked to it (ComprobanteID; #83): its tipo, status and folio
+	// fiscal, "" when none.
+	ComprobanteTipo   string
+	ComprobanteStatus string
+	ComprobanteUUID   string
 }
+
+// Covered reports whether a comprobante in force (a stamped factura or complemento whose
+// cancellation hasn't gone through) covers the payment. A draft doesn't, nor a cancelled
+// one: that payment still needs its complemento.
+func (p Payment) Covered() bool {
+	return p.ComprobanteStatus == CompTimbrada || p.ComprobanteStatus == CompCancelPend
+}
+
+// PagoDraft reports whether the payment's complemento de pago is on its way: a draft, or
+// being stamped.
+func (p Payment) PagoDraft() bool {
+	return p.ComprobanteTipo == TipoPago && p.ComprobanteStatus != "" && !p.Covered() && p.ComprobanteStatus != CompCancelada
+}
+
+// ErrPaymentHasComplemento is returned when deleting a payment that a complemento de pago
+// in force (or being stamped) covers: it is cancelled first.
+var ErrPaymentHasComplemento = errors.New("store: payment has a complemento de pago")
+
+// uncoveredPayment is the SQL condition of a payment (alias pm) that no comprobante in
+// force covers.
+const uncoveredPayment = `NOT EXISTS (SELECT 1 FROM comprobantes uc WHERE uc.id = pm.comprobante_id AND uc.status IN ('timbrada', 'cancelacion_pendiente'))`
 
 // ErrPaymentOverBalance is returned when a payment would take what the client paid past
 // the proyecto's total with IVA.
@@ -49,10 +75,12 @@ var ErrPaymentOverBalance = errors.New("store: payment is more than the balance"
 func (s *Store) ListPayments(ctx context.Context, projectID int64) ([]Payment, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT pm.id, pm.project_id, pm.amount, pm.paid_on, pm.source, COALESCE(pm.comprobante_id, 0),
-			COALESCE(pm.file_id, 0), COALESCE(f.filename, ''), u.name, pm.created_at
+			COALESCE(pm.file_id, 0), COALESCE(f.filename, ''), u.name, pm.created_at,
+			COALESCE(c.tipo, ''), COALESCE(c.status, ''), COALESCE(c.uuid, '')
 		FROM payments pm
 		JOIN users u ON u.id = pm.created_by
 		LEFT JOIN project_files f ON f.id = pm.file_id
+		LEFT JOIN comprobantes c ON c.id = pm.comprobante_id
 		WHERE pm.project_id = ? AND pm.deleted_at IS NULL
 		ORDER BY pm.paid_on, pm.id`, projectID)
 	if err != nil {
@@ -63,7 +91,8 @@ func (s *Store) ListPayments(ctx context.Context, projectID int64) ([]Payment, e
 	for rows.Next() {
 		var p Payment
 		if err := rows.Scan(&p.ID, &p.ProjectID, &p.Amount, &p.PaidOn, &p.Source, &p.ComprobanteID,
-			&p.FileID, &p.FileName, &p.CreatedByName, &p.CreatedAt); err != nil {
+			&p.FileID, &p.FileName, &p.CreatedByName, &p.CreatedAt,
+			&p.ComprobanteTipo, &p.ComprobanteStatus, &p.ComprobanteUUID); err != nil {
 			return nil, fmt.Errorf("store: payments of project %d: %w", projectID, err)
 		}
 		out = append(out, p)
@@ -133,7 +162,8 @@ func (s *Store) RecordPayment(ctx context.Context, projectID, userID int64, amou
 // and the history gets "Pago eliminado: $X del [fecha]." plus the reason. Its comprobante
 // file stays with the proyecto's files. Who may delete (an admin) is the caller's
 // decision. A payment that isn't the proyecto's, or is already deleted, is
-// ErrBadTransition.
+// ErrBadTransition. One with a complemento de pago in force or being stamped is
+// ErrPaymentHasComplemento; a complemento still in draft is discarded with it (#83).
 func (s *Store) DeletePayment(ctx context.Context, projectID, paymentID, userID int64, reason string) error {
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
@@ -141,15 +171,33 @@ func (s *Store) DeletePayment(ctx context.Context, projectID, paymentID, userID 
 	}
 	return s.inTx(ctx, "delete payment", func(tx *sql.Tx) error {
 		var amount money.Centavos
-		var paidOn string
+		var paidOn, tipo, status string
+		var compID int64
 		err := tx.QueryRowContext(ctx, `
-			SELECT amount, paid_on FROM payments WHERE id = ? AND project_id = ? AND deleted_at IS NULL`,
-			paymentID, projectID).Scan(&amount, &paidOn)
+			SELECT pm.amount, pm.paid_on, COALESCE(c.id, 0), COALESCE(c.tipo, ''), COALESCE(c.status, '')
+			FROM payments pm LEFT JOIN comprobantes c ON c.id = pm.comprobante_id
+			WHERE pm.id = ? AND pm.project_id = ? AND pm.deleted_at IS NULL`,
+			paymentID, projectID).Scan(&amount, &paidOn, &compID, &tipo, &status)
 		if err == sql.ErrNoRows {
 			return ErrBadTransition
 		}
 		if err != nil {
 			return err
+		}
+		if tipo == TipoPago {
+			switch status {
+			case CompBorrador, CompLista, CompRechazada:
+				if _, err := tx.ExecContext(ctx, `UPDATE comprobantes SET status = 'cancelada', request = NULL, request_sha256 = NULL,
+					updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?`, compID); err != nil {
+					return err
+				}
+				if err := addEvent(ctx, tx, compID, userID, "discarded", map[string]any{"payment": paymentID}); err != nil {
+					return err
+				}
+			case CompCancelada:
+			default:
+				return ErrPaymentHasComplemento
+			}
 		}
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE payments SET deleted_by = ?, deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), delete_reason = ?

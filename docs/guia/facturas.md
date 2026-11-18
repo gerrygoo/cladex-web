@@ -143,18 +143,31 @@ En una factura timbrada, **Descargar PDF** y **Descargar XML**. El XML es el doc
 legal; el PDF es su representación impresa (con el código QR para verificarla en el SAT) y
 siempre se genera a partir del XML.
 
-## Registrar el pago de una factura P.P.D.
+## Emitir el complemento de pago de una factura P.P.D.
 
-Cuando el cliente termina de pagar una factura P.P.D.:
+Cada pago del cliente lleva su propio complemento de pago, siempre sobre la misma factura
+P.P.D. Si el cliente paga todo de una vez, es un solo complemento.
 
-1. En la factura timbrada, haz clic en **Crear comprobante de pago**.
-2. Escribe la **fecha en que se recibió el pago** y la **forma de pago**. El monto es el
-   total de la factura, en un solo pago.
-3. **Guardar y validar**, y luego **Timbrar**.
+1. Registra el pago en la sección **Cobro** del proyecto
+   ([Registrar un pago](proyectos.md#registrar-un-pago)).
+2. En la fila de ese pago, haz clic en **Emitir complemento de pago**. Se abre el
+   complemento en borrador con la **fecha** y el **monto** del pago, su número de
+   **parcialidad**, el **saldo anterior** de la factura y el **saldo insoluto** (lo que
+   queda después de este pago).
+3. Elige la **forma de pago** (transferencia, cheque…).
+4. Haz clic en **Guardar y ver PDF** para revisarlo. Todavía no se timbra.
+5. **Validar**, y luego **Timbrar**.
 
-Al timbrarlo, el Estado de facturación del proyecto queda *Facturada*. El comprobante no
-registra el pago en el Estado de cobro: regístralo en la sección **Cobro** del proyecto
-([Registrar un pago](proyectos.md#registrar-un-pago)), si no lo registraste ya.
+Al timbrarlo, la fila del pago en Cobro muestra el folio fiscal del complemento. Cuando los
+complementos cubren el total de la factura, el Estado de facturación del proyecto queda
+*Facturada*.
+
+- La fecha y el monto son los del pago. Si están mal, elimina el pago en Cobro (el
+  borrador se descarta con él) y regístralo de nuevo.
+- Se hace un complemento a la vez: si otro pago tiene su complemento en borrador,
+  termínalo primero.
+- Un pago no puede ser mayor que el saldo pendiente de la factura.
+- La página de la factura lista sus complementos y su saldo pendiente.
 
 ## Corregir una factura timbrada
 

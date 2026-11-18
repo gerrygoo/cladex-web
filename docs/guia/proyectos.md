@@ -353,11 +353,23 @@ enlace si se subió, y **Registró**, quién y cuándo) y debajo el **Total del 
 IVA)**, lo **Pagado** y el **Saldo pendiente**. En el historial queda *"Pago registrado: $X
 el [fecha] por [usuario]."*, y *"con comprobante"* si se subió.
 
+Si el proyecto tiene una factura P.P.D. timbrada, la tabla tiene además la columna
+**Complemento de pago**: el folio fiscal del complemento que cubre ese pago (abre el
+complemento), *Complemento: Borrador* si ya se empezó, o *Sin complemento*.
+
 :::admin
+**Emitir el complemento de pago de un pago.** Con una factura P.P.D. timbrada, cada pago
+lleva su propio complemento sobre esa misma factura. En la fila del pago, haz clic en
+**Emitir complemento de pago**: se abre el complemento en borrador con la fecha y el monto
+de ese pago, y el saldo anterior y el saldo insoluto ya calculados. Sigue en
+[Emitir el complemento de pago de una factura P.P.D.](facturas.md#emitir-el-complemento-de-pago-de-una-factura-ppd).
+
 **Eliminar un pago registrado por error.** En su fila, haz clic en **Eliminar**, escribe
 el **Motivo** (obligatorio), haz clic en **Eliminar pago** y confirma. El pago deja de
 contar, el estado de cobro se recalcula y en el historial queda *"Pago eliminado: $X del
-[fecha]."* con el motivo. Su comprobante se conserva con los archivos del proyecto.
+[fecha]."* con el motivo. Su comprobante se conserva con los archivos del proyecto. Si el
+pago tenía un complemento en borrador, el borrador se descarta. Un pago con un complemento
+timbrado no se puede eliminar: primero cancela el complemento.
 :::
 
 ### Los estados de un proyecto en curso
@@ -367,7 +379,7 @@ se escoge: cada uno sale de lo que está registrado.
 
 - **Estado de facturación**: *Pendiente* hasta que hay factura. Con una factura P.U.E.
   timbrada (o registrada a mano), *Facturada*. Con una P.P.D. timbrada, *Pendiente
-  complemento de pago* hasta que sus comprobantes de pago timbrados cubren el total; luego
+  complemento de pago* hasta que sus complementos de pago timbrados cubren el total; luego
   *Facturada*. Si se cancela la factura, regresa a *Pendiente*.
 - **Estado de entrega**: *Sin emitir O.C.* hasta que un administrador confirma la
   [orden de compra al proveedor](ordenes-de-compra.md); entonces *En proceso de entrega*,

@@ -230,27 +230,126 @@ func TestFacturacionEndToEnd(t *testing.T) {
 		t.Errorf("XML = %d %s", rec.Code, rec.Header().Get("Content-Disposition"))
 	}
 
-	// The comprobante de pago: once stamped, it covers the factura and the proyecto is
-	// Facturada.
-	rec = post(admin, f.Pago, "/facturas/"+id+"/pago", pv, nil)
+	// #83: each payment in Cobro takes its own complemento de pago, from its row, in
+	// parcialidades over the same factura. The proyecto is Facturada once they cover it.
+	if body := page(admin, id); strings.Contains(body, "Crear comprobante de pago") || !strings.Contains(body, "Emitir complemento de pago") {
+		t.Errorf("the factura page should send to Cobro for its complementos")
+	}
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	first := c.Total / 2
+	if err := a.store.RecordPayment(ctx, project.ID, admin, first, yesterday, nil); err != nil {
+		t.Fatal(err)
+	}
+	payments, _ := a.store.ListPayments(ctx, project.ID)
+	pay1 := strconv.FormatInt(payments[0].ID, 10)
+	if body := projectPage(); !strings.Contains(body, "/pagos/"+pay1+"/complemento") {
+		t.Fatalf("Cobro offers no Emitir complemento de pago for the payment")
+	}
+	complemento := func(pay string) *httptest.ResponseRecorder {
+		return post(admin, f.Complemento, "/proyectos/"+folio+"/pagos/"+pay+"/complemento", map[string]string{"folio": folio, "id": pay}, nil)
+	}
+	if rec := doForm(t, a, vendedor, a.RequireAdmin(http.HandlerFunc(f.Complemento)).ServeHTTP, "POST", "/proyectos/"+folio+"/pagos/"+pay1+"/complemento",
+		map[string]string{"folio": folio, "id": pay1}, nil, false); rec.Code != http.StatusForbidden {
+		t.Errorf("vendedor Complemento = %d, want 403", rec.Code)
+	}
+	rec = complemento(pay1)
 	pagoID := strings.TrimPrefix(rec.Header().Get("Location"), "/facturas/")
 	ppv := map[string]string{"id": pagoID}
 	if rec.Code != http.StatusSeeOther || pagoID == "" {
-		t.Fatalf("Pago = %d", rec.Code)
+		t.Fatalf("Complemento = %d: %s", rec.Code, rec.Body.String())
 	}
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
-	if rec := post(admin, f.Validar, "/facturas/"+pagoID+"/validar", ppv, url.Values{"pago_fecha": {yesterday}, "forma_pago": {"03"}}); rec.Code != http.StatusSeeOther {
+	if again := complemento(pay1); again.Header().Get("Location") != "/facturas/"+pagoID {
+		t.Errorf("a second click should open the same draft, got %d %s", again.Code, again.Header().Get("Location"))
+	}
+	pago, _ := a.store.ComprobanteByID(ctx, mustAtoi(t, pagoID))
+	if pago.Total != first || pago.PagoFecha != yesterday || pago.Parcialidad != 1 || pago.SaldoAnterior != c.Total || pago.PaymentID != payments[0].ID {
+		t.Fatalf("pago draft = %s %s #%d saldo %s payment %d", pago.Total, pago.PagoFecha, pago.Parcialidad, pago.SaldoAnterior, pago.PaymentID)
+	}
+	if body := projectPage(); !strings.Contains(body, "Complemento: Borrador") {
+		t.Errorf("Cobro should link the payment's draft")
+	}
+	// Deleting the payment discards its draft; recorded again, it starts a new one.
+	if rec := doForm(t, a, admin, a.RequireAdmin(http.HandlerFunc(p.EliminarPago)).ServeHTTP, "POST", "/proyectos/"+folio+"/pagos/"+pay1+"/eliminar",
+		map[string]string{"folio": folio, "id": pay1}, url.Values{"reason": {"fecha equivocada"}}, false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("deleting a payment with a draft complemento = %d: %s", rec.Code, rec.Body.String())
+	}
+	if d, _ := a.store.ComprobanteByID(ctx, pago.ID); d.Status != store.CompCancelada {
+		t.Errorf("the deleted payment's draft = %s, want cancelada", d.Status)
+	}
+	if err := a.store.RecordPayment(ctx, project.ID, admin, first, yesterday, nil); err != nil {
+		t.Fatal(err)
+	}
+	payments, _ = a.store.ListPayments(ctx, project.ID)
+	pay1 = strconv.FormatInt(payments[0].ID, 10)
+	rec = complemento(pay1)
+	pagoID = strings.TrimPrefix(rec.Header().Get("Location"), "/facturas/")
+	ppv = map[string]string{"id": pagoID}
+	if rec.Code != http.StatusSeeOther || pagoID == strconv.FormatInt(pago.ID, 10) {
+		t.Fatalf("Complemento after re-recording = %d %s", rec.Code, pagoID)
+	}
+	pago, _ = a.store.ComprobanteByID(ctx, mustAtoi(t, pagoID))
+	if pago.Parcialidad != 1 || pago.PaymentID != payments[0].ID {
+		t.Fatalf("new draft = #%d payment %d", pago.Parcialidad, pago.PaymentID)
+	}
+	// The day is the payment's: the form can't change it.
+	if rec := post(admin, f.Validar, "/facturas/"+pagoID+"/validar", ppv, url.Values{"pago_fecha": {"2020-01-01"}, "forma_pago": {"03"}}); rec.Code != http.StatusSeeOther {
 		t.Fatalf("Validar pago = %d: %s", rec.Code, rec.Body.String())
+	}
+	pago, _ = a.store.ComprobanteByID(ctx, pago.ID)
+	saldo := c.Total - first
+	for _, want := range []string{`"FechaPago":"` + yesterday + `T12:00:00"`, `"NumeroParcialidad":1`,
+		`"ImporteSaldoAnterior":` + facturoporti.Dec(int64(c.Total), 2).String(), `"ImportePagado":` + facturoporti.Dec(int64(first), 2).String(),
+		`"ImporteSaldoInsoluto":` + facturoporti.Dec(int64(saldo), 2).String(), `"MontoTotalPagos":` + facturoporti.Dec(int64(first), 2).String()} {
+		if !strings.Contains(pago.Request, want) {
+			t.Errorf("pago request lacks %s: %s", want, pago.Request)
+		}
+	}
+	if rec := doForm(t, a, admin, f.PDF, "GET", "/facturas/"+pagoID+"/pdf", ppv, nil, false); rec.Code != http.StatusOK || !strings.HasPrefix(rec.Body.String(), "%PDF") {
+		t.Errorf("pago preview PDF = %d", rec.Code)
+	}
+	// A second payment can't start its complemento while this one is on its way.
+	if err := a.store.RecordPayment(ctx, project.ID, admin, saldo, yesterday, nil); err != nil {
+		t.Fatal(err)
+	}
+	payments, _ = a.store.ListPayments(ctx, project.ID)
+	pay2 := strconv.FormatInt(payments[1].ID, 10)
+	if rec := complemento(pay2); rec.Code != http.StatusConflict {
+		t.Errorf("second complemento while the first is lista = %d, want 409", rec.Code)
 	}
 	if rec := post(admin, f.Timbrar, "/facturas/"+pagoID+"/timbrar", ppv, nil); !strings.HasSuffix(rec.Header().Get("Location"), "ok=timbrada") {
 		t.Fatalf("Timbrar pago = %d %s", rec.Code, rec.Header().Get("Location"))
 	}
+	pago, _ = a.store.ComprobanteByID(ctx, pago.ID)
 	project, _ = a.store.ProjectByFolio(ctx, folio)
-	if project.States.Facturacion != store.FacturacionFacturada || !strings.HasPrefix(project.LastBody, "Comprobante de pago P-1 timbrado · Folio fiscal ") {
-		t.Errorf("after pago: %+v %q", project.States, project.LastBody)
+	if project.States.Facturacion != store.FacturacionPendienteComplemento || !strings.HasPrefix(project.LastBody, "Comprobante de pago P-1 timbrado · Folio fiscal ") ||
+		!strings.Contains(pago.XML, `NumParcialidad="1"`) {
+		t.Errorf("after the first pago: %+v %q", project.States, project.LastBody)
 	}
-	if rec := doForm(t, a, admin, f.PDF, "GET", "/facturas/"+pagoID+"/pdf", ppv, nil, false); rec.Code != http.StatusOK {
-		t.Errorf("pago PDF = %d", rec.Code)
+	if body := projectPage(); !strings.Contains(body, pago.UUID) || !strings.Contains(body, "/pagos/"+pay2+"/complemento") {
+		t.Errorf("Cobro should show the first payment's folio fiscal and offer the second's complemento")
+	}
+	if rec := doForm(t, a, admin, a.RequireAdmin(http.HandlerFunc(p.EliminarPago)).ServeHTTP, "POST", "/proyectos/"+folio+"/pagos/"+pay1+"/eliminar",
+		map[string]string{"folio": folio, "id": pay1}, url.Values{"reason": {"error"}}, false); rec.Code != http.StatusConflict {
+		t.Errorf("deleting a payment with a stamped complemento = %d, want 409", rec.Code)
+	}
+	rec = complemento(pay2)
+	pago2ID := strings.TrimPrefix(rec.Header().Get("Location"), "/facturas/")
+	p2pv := map[string]string{"id": pago2ID}
+	if rec := post(admin, f.Validar, "/facturas/"+pago2ID+"/validar", p2pv, url.Values{"forma_pago": {"03"}}); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Validar pago 2 = %d: %s", rec.Code, rec.Body.String())
+	}
+	pago2, _ := a.store.ComprobanteByID(ctx, mustAtoi(t, pago2ID))
+	if pago2.Parcialidad != 2 || pago2.SaldoAnterior != saldo || !strings.Contains(pago2.Request, `"NumeroParcialidad":2`) ||
+		!strings.Contains(pago2.Request, `"ImporteSaldoInsoluto":0.00`) {
+		t.Fatalf("pago 2 = #%d saldo %s: %s", pago2.Parcialidad, pago2.SaldoAnterior, pago2.Request)
+	}
+	post(admin, f.Timbrar, "/facturas/"+pago2ID+"/timbrar", p2pv, nil)
+	project, _ = a.store.ProjectByFolio(ctx, folio)
+	if project.States.Facturacion != store.FacturacionFacturada {
+		t.Errorf("after both pagos: %+v", project.States)
+	}
+	if body := page(admin, id); !strings.Contains(body, "P-1") || !strings.Contains(body, "P-2") || strings.Contains(body, "Emitir complemento de pago") {
+		t.Errorf("the factura page should list both complementos and nothing left to issue")
 	}
 
 	// Replace the factura (first refused by the SAT, then fixed), then cancel the original

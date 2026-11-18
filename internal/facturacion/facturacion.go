@@ -137,6 +137,9 @@ func (s *Service) Problems(ctx context.Context, c *store.Comprobante, related *s
 		if !store.ValidSATCode(store.PaymentForms, c.FormaPago) || c.FormaPago == "99" {
 			p = append(p, "Elige la forma de pago.")
 		}
+		if related != nil && c.Parcialidad > 0 && c.Total > c.SaldoAnterior {
+			p = append(p, fmt.Sprintf("El pago (%s) es mayor que el saldo pendiente de la factura (%s).", c.Total, c.SaldoAnterior))
+		}
 		if d, err := time.Parse("2006-01-02", c.PagoFecha); err != nil {
 			p = append(p, "Escribe la fecha del pago.")
 		} else if d.After(s.Now().In(mexicoCity)) {
@@ -249,15 +252,20 @@ func BuildRequest(c, related *store.Comprobante, emisor store.Emisor, serie stri
 				return money.Centavos(money.RoundHalfUp(int64(v)*int64(*c.TipoCambioMicros), 1_000_000))
 			}
 		}
-		traslado := facturoporti.TrasladoPago{Impuesto: 2, Factor: 1, Base: facturoporti.Dec(int64(related.Subtotal), 2),
-			Tasa: facturoporti.IVA16, Importe: facturoporti.Dec(int64(related.IVA), 2)}
+		pagado, saldo, parcialidad, base, iva := PagoAmounts(c, related)
+		folioDR := ""
+		if related.Folio != 0 {
+			folioDR = strconv.FormatInt(related.Folio, 10)
+		}
+		traslado := facturoporti.TrasladoPago{Impuesto: 2, Factor: 1, Base: facturoporti.Dec(int64(base), 2),
+			Tasa: facturoporti.IVA16, Importe: facturoporti.Dec(int64(iva), 2)}
 		pago := facturoporti.Pago{
 			FechaPago: c.PagoFecha + "T12:00:00", FormaPago: c.FormaPago, Moneda: c.Moneda, TipoCambio: tc,
 			DocumentosRelacionados: []facturoporti.DocumentoRelacionado{{
-				IdDocumento: related.UUID, Serie: related.Serie, Folio: strconv.FormatInt(related.Folio, 10),
-				Moneda: related.Moneda, Equivalencia: equiv, NumeroParcialidad: 1,
-				ImporteSaldoAnterior: facturoporti.Dec(int64(related.Total), 2), ImportePagado: facturoporti.Dec(int64(related.Total), 2),
-				ImporteSaldoInsoluto: facturoporti.Dec(0, 2), ObjetoDeImpuesto: "02",
+				IdDocumento: related.UUID, Serie: related.Serie, Folio: folioDR,
+				Moneda: related.Moneda, Equivalencia: equiv, NumeroParcialidad: parcialidad,
+				ImporteSaldoAnterior: facturoporti.Dec(int64(saldo), 2), ImportePagado: facturoporti.Dec(int64(pagado), 2),
+				ImporteSaldoInsoluto: facturoporti.Dec(int64(saldo-pagado), 2), ObjetoDeImpuesto: "02",
 				Impuestos: facturoporti.ImpuestosPago{Trasladados: []facturoporti.TrasladoPago{traslado}},
 			}},
 			Impuestos: facturoporti.ImpuestosPago{Trasladados: []facturoporti.TrasladoPago{traslado}},
@@ -265,9 +273,9 @@ func BuildRequest(c, related *store.Comprobante, emisor store.Emisor, serie stri
 		r.Complemento = &facturoporti.Complemento{TipoComplemento: facturoporti.TipoComplementoPagos20, PagosV20: &facturoporti.PagosV20{
 			Pagos: []facturoporti.Pago{pago},
 			Totales: facturoporti.PagosTotales{
-				TotalTrasladosBaseIVA16:     facturoporti.Dec(int64(toMXN(related.Subtotal)), 2),
-				TotalTrasladosImpuestoIVA16: facturoporti.Dec(int64(toMXN(related.IVA)), 2),
-				MontoTotalPagos:             facturoporti.Dec(int64(toMXN(related.Total)), 2),
+				TotalTrasladosBaseIVA16:     facturoporti.Dec(int64(toMXN(base)), 2),
+				TotalTrasladosImpuestoIVA16: facturoporti.Dec(int64(toMXN(iva)), 2),
+				MontoTotalPagos:             facturoporti.Dec(int64(toMXN(pagado)), 2),
 			},
 		}}
 		return r
@@ -294,6 +302,26 @@ func BuildRequest(c, related *store.Comprobante, emisor store.Emisor, serie stri
 		})
 	}
 	return r
+}
+
+// PagoAmounts are what a comprobante de pago c says about the factura it pays (#83): the
+// amount paid, the saldo before it, its parcialidad, and the IVA base and tax of the
+// amount paid. A payment of the whole factura carries the factura's own subtotal and IVA;
+// a partial one, the subtotal in proportion to the amount paid and 16% of that. A pago
+// made before #83 (no Total or Parcialidad) pays the whole factura in one.
+func PagoAmounts(c, related *store.Comprobante) (pagado, saldo money.Centavos, parcialidad int, base, iva money.Centavos) {
+	pagado, saldo, parcialidad = c.Total, c.SaldoAnterior, c.Parcialidad
+	if pagado == 0 {
+		pagado = related.Total
+	}
+	if parcialidad == 0 {
+		parcialidad, saldo = 1, related.Total
+	}
+	if pagado == related.Total || related.Total == 0 {
+		return pagado, saldo, parcialidad, related.Subtotal, related.IVA
+	}
+	base = money.Centavos(money.RoundHalfUp(int64(pagado)*int64(related.Subtotal), int64(related.Total)))
+	return pagado, saldo, parcialidad, base, money.Centavos(money.RoundHalfUp(int64(base)*16, 100))
 }
 
 // Stamp sends a lista (or incierto) comprobante's stored request and records the outcome.

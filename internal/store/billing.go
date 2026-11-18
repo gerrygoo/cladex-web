@@ -88,7 +88,7 @@ func (s *Store) ListBilling(ctx context.Context, sort, dir string, filters Filte
 			COALESCE((`+billingFactura("bf.id")+`), 0),
 			COALESCE((`+billingFactura("bf.uuid")+`), p.invoice_ref, ''),
 			COALESCE((SELECT MIN(pm.paid_on) FROM payments pm
-				WHERE pm.project_id = p.id AND pm.deleted_at IS NULL AND pm.comprobante_id IS NULL), '')`+projectFrom+`
+				WHERE pm.project_id = p.id AND pm.deleted_at IS NULL AND `+uncoveredPayment+`), '')`+projectFrom+`
 		WHERE p.status = 'en_curso'`+extra+`
 		`+order, extraArgs...)
 	if err != nil {

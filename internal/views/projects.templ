@@ -421,6 +421,44 @@ type ProjectCobro struct {
 	Payments  []store.Payment
 	CanRecord bool
 	CanDelete bool
+	// PPDFactura is whether the proyecto has a stamped P.P.D. factura, whose payments each
+	// take a complemento de pago (#83), which CanComplemento may issue (an admin, with
+	// facturación on).
+	PPDFactura     bool
+	CanComplemento bool
+}
+
+// showComplementos is whether the Cobro table has a Complemento de pago column.
+func (c ProjectCobro) showComplementos() bool {
+	if c.PPDFactura {
+		return true
+	}
+	for _, p := range c.Payments {
+		if p.ComprobanteTipo == store.TipoPago {
+			return true
+		}
+	}
+	return false
+}
+
+// paymentComplemento is a payment's Complemento de pago cell (#83): the folio fiscal of the
+// complemento that covers it, linked to it; the draft on its way; or, for an admin, the
+// button that starts it.
+templ paymentComplemento(p store.Project, c ProjectCobro, pm store.Payment) {
+	switch {
+		case pm.ComprobanteTipo == store.TipoPago && pm.Covered():
+			<a href={ templ.URL(facturaPath(pm.ComprobanteID)) }>Folio fiscal <code>{ pm.ComprobanteUUID }</code></a>
+		case pm.Covered():
+			Lo cubre la factura
+		case pm.PagoDraft():
+			<a href={ templ.URL(facturaPath(pm.ComprobanteID)) }>{ "Complemento: " + store.ComprobanteStatusLabels[pm.ComprobanteStatus] }</a>
+		case c.CanComplemento && c.PPDFactura && p.Status == store.StageEnCurso:
+			<form method="post" action={ templ.URL(projectPath(p.Folio) + "/pagos/" + strconv.FormatInt(pm.ID, 10) + "/complemento") }>
+				<button type="submit">Emitir complemento de pago<span class="visually-hidden">{ " del pago de " + pm.Amount.String() + " del " + dateText(pm.PaidOn) }</span></button>
+			</form>
+		default:
+			Sin complemento
+	}
 }
 
 // ProjectCobroSection lists the client's payments with the total with IVA, what is paid
@@ -442,6 +480,9 @@ templ ProjectCobroSection(p store.Project, c ProjectCobro, today string) {
 							<th scope="col" class="num">Monto</th>
 							<th scope="col">Comprobante</th>
 							<th scope="col">Registró</th>
+							if c.showComplementos() {
+								<th scope="col">Complemento de pago</th>
+							}
 							if c.CanDelete {
 								<th scope="col">Eliminar</th>
 							}
@@ -463,6 +504,11 @@ templ ProjectCobroSection(p store.Project, c ProjectCobro, today string) {
 									{ pm.CreatedByName + " · " }
 									@Timestamp(pm.CreatedAt)
 								</td>
+								if c.showComplementos() {
+									<td>
+										@paymentComplemento(p, c, pm)
+									</td>
+								}
 								if c.CanDelete {
 									<td>
 										<details class="disclosure">

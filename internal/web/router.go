@@ -158,6 +158,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /proyectos/{folio}/oc", authed(projects.OC))
 	mux.Handle("POST /proyectos/{folio}/pagos", authed(projects.Pagos))
 	mux.Handle("POST /proyectos/{folio}/pagos/{id}/eliminar", admin(projects.EliminarPago))
+	mux.Handle("POST /proyectos/{folio}/pagos/{id}/complemento", admin(facturas.Complemento))
 	mux.Handle("GET /proyectos/{folio}/archivos/{id}", authed(projects.Archivo))
 	mux.Handle("POST /proyectos/{folio}/proveedor", authed(projects.Proveedor))
 	mux.Handle("POST /proyectos/{folio}/reasignar", admin(projects.Reasignar))
@@ -201,7 +202,6 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /facturas/{id}/cancelar", admin(facturas.Cancelar))
 	mux.Handle("POST /facturas/{id}/consultar", admin(facturas.Consultar))
 	mux.Handle("POST /facturas/{id}/sustituir", admin(facturas.Sustituir))
-	mux.Handle("POST /facturas/{id}/pago", admin(facturas.Pago))
 
 	mux.Handle("GET /documentos", authed(documentos.List))
 	mux.Handle("GET /documentos/{id}", authed(documentos.Archivo))

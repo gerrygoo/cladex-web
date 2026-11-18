@@ -384,7 +384,8 @@ func (s *Store) RecordManualComplemento(ctx context.Context, facturaID, userID i
 		if m.LinkPaymentID != 0 {
 			res, err := tx.ExecContext(ctx, `
 				UPDATE payments SET comprobante_id = ?
-				WHERE id = ? AND project_id = ? AND deleted_at IS NULL AND comprobante_id IS NULL AND amount = ?`,
+				WHERE id = ? AND project_id = ? AND deleted_at IS NULL AND amount = ?
+					AND NOT EXISTS (SELECT 1 FROM comprobantes lc WHERE lc.id = payments.comprobante_id AND lc.status != 'cancelada')`,
 				id, m.LinkPaymentID, projectID, amount)
 			if err != nil {
 				return err

@@ -140,7 +140,13 @@ func (p *Projects) Page(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	cobro := views.ProjectCobro{Payments: payments, CanRecord: canEditPO(user, project), CanDelete: user != nil && user.Role == store.RoleAdmin}
+	cobro := views.ProjectCobro{Payments: payments, CanRecord: canEditPO(user, project), CanDelete: user != nil && user.Role == store.RoleAdmin,
+		CanComplemento: user != nil && user.Role == store.RoleAdmin && p.fact != nil && p.fact.Enabled()}
+	for _, f := range facturas {
+		if f.Tipo == store.TipoFactura && f.MetodoPago == "PPD" && f.Status == store.CompTimbrada {
+			cobro.PPDFactura = true
+		}
+	}
 	views.ProjectPage(*project, today(r), quotes, files, receipt, comments, commentsLV, facturas, p.fact != nil && p.fact.Enabled(), navUserView(user), supplier, panel, pos, entrega, cobro).Render(ctx, w)
 }
 
@@ -666,6 +672,10 @@ func (p *Projects) EliminarPago(w http.ResponseWriter, r *http.Request) {
 	if err := p.store.DeletePayment(ctx, project.ID, id, user.ID, reason); err != nil {
 		if errors.Is(err, store.ErrBadTransition) {
 			http.Error(w, "ese pago no existe o ya se eliminó", http.StatusConflict)
+			return
+		}
+		if errors.Is(err, store.ErrPaymentHasComplemento) {
+			http.Error(w, "ese pago tiene un complemento de pago timbrado (o timbrándose): cancélalo antes de eliminar el pago", http.StatusConflict)
 			return
 		}
 		serverError(w, r, err)

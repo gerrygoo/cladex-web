@@ -77,13 +77,19 @@ func TestSandboxFacturaYPago(t *testing.T) {
 	}
 	f.Status, f.UUID, f.Serie, f.Folio = store.CompTimbrada, r.UUID, "TF", folio
 
-	p := &store.Comprobante{Tipo: store.TipoPago, Moneda: "MXN", FormaPago: "03", PagoFecha: time.Now().AddDate(0, 0, -1).Format("2006-01-02"), Customer: f.Customer}
-	body, _ = facturoporti.Marshal(BuildRequest(p, f, testEmisor, "TP", folio, time.Now()))
-	r = client.Stamp(ctx, body)
-	if r.Outcome != facturoporti.Done {
-		t.Fatalf("pago: %+v\n%s", r, body)
+	// #83: two complementos in parcialidades, an odd third first so the IVA in proportion
+	// rounds, then the rest.
+	first := f.Total / 3
+	for i, amount := range []money.Centavos{first, f.Total - first} {
+		p := &store.Comprobante{Tipo: store.TipoPago, Moneda: "MXN", FormaPago: "03", PagoFecha: time.Now().AddDate(0, 0, -1).Format("2006-01-02"),
+			Customer: f.Customer, Total: amount, Parcialidad: i + 1, SaldoAnterior: f.Total - first*money.Centavos(i)}
+		body, _ = facturoporti.Marshal(BuildRequest(p, f, testEmisor, "TP", folio+int64(i), time.Now()))
+		r = client.Stamp(ctx, body)
+		if r.Outcome != facturoporti.Done {
+			t.Fatalf("pago %d: %+v\n%s", i+1, r, body)
+		}
+		t.Logf("pago %d %s", i+1, r.UUID)
 	}
-	t.Logf("pago %s", r.UUID)
 
 	// Replace the factura (relación 04), then cancel the original with motivo 01.
 	rep := testFactura()

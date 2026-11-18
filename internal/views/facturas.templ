@@ -20,7 +20,8 @@ type FacturaView struct {
 	C           store.Comprobante
 	Related     *store.Comprobante
 	Replacement *store.Comprobante
-	Pago        *store.Comprobante
+	// HasStampedPago is whether any of its complementos de pago is stamped and in force.
+	HasStampedPago bool
 	// Pagos are every complemento de pago of this factura, cancelled ones included, oldest
 	// first; Saldo is what they still leave unpaid. Unlinked are the proyecto's payments in
 	// Cobro that no comprobante covers, which a complemento recorded by hand can link to.
@@ -90,6 +91,7 @@ var eventLabels = map[string]string{
 	"cancel_vigente":    "El receptor rechazó la cancelación: sigue vigente",
 	"manual_recorded":   "Registrada a mano con su XML",
 	"manual_cancelled":  "Marcada como cancelada",
+	"discarded":         "Borrador descartado: se eliminó su pago en Cobro",
 }
 
 func eventLabel(e string) string {
@@ -160,10 +162,6 @@ templ FacturaPage(v FacturaView, user *NavUser) {
 				<dt>Sustituida por</dt>
 				<dd><a href={ templ.URL(facturaPath(v.Replacement.ID)) }>{ ComprobanteTitle(*v.Replacement) }</a> · { store.ComprobanteStatusLabels[v.Replacement.Status] }</dd>
 			}
-			if v.Pago != nil {
-				<dt>Comprobante de pago</dt>
-				<dd><a href={ templ.URL(facturaPath(v.Pago.ID)) }>{ ComprobanteTitle(*v.Pago) }</a> · { store.ComprobanteStatusLabels[v.Pago.Status] }</dd>
-			}
 			if c.UUID != "" {
 				<dt>Folio fiscal (UUID)</dt>
 				<dd><code>{ c.UUID }</code></dd>
@@ -190,11 +188,22 @@ templ FacturaPage(v FacturaView, user *NavUser) {
 				<dd>{ dateText(c.PagoFecha) }</dd>
 			}
 			if c.Tipo == store.TipoPago {
+				if c.Origen != store.OrigenManual {
+					<dt>Parcialidad</dt>
+					<dd>{ strconv.Itoa(c.Parcialidad) }</dd>
+					<dt>Saldo anterior</dt>
+					<dd>{ c.SaldoAnterior.String() } { c.Moneda }</dd>
+				}
 				<dt>Monto pagado</dt>
+				<dd>{ c.Total.String() } { c.Moneda }</dd>
+				if c.Origen != store.OrigenManual {
+					<dt>Saldo insoluto</dt>
+					<dd>{ (c.SaldoAnterior - c.Total).String() } { c.Moneda }</dd>
+				}
 			} else {
 				<dt>Total</dt>
+				<dd>{ c.Total.String() } { c.Moneda }</dd>
 			}
-			<dd>{ c.Total.String() } { c.Moneda }</dd>
 		</dl>
 		if v.WrongEnv {
 			<p class="error" role="alert">Este comprobante se validó para el otro ambiente de Facturoporti (pruebas o producción) y aquí no se puede timbrar ni cancelar.</p>
@@ -393,10 +402,12 @@ templ facturaDraftForm(v FacturaView) {
 				</label>
 			}
 		} else {
-			<label>
-				Fecha en que se recibió el pago
-				<input type="date" name="pago_fecha" value={ c.PagoFecha } max={ v.Today }/>
-			</label>
+			if c.PaymentID == 0 {
+				<label>
+					Fecha en que se recibió el pago
+					<input type="date" name="pago_fecha" value={ c.PagoFecha } max={ v.Today }/>
+				</label>
+			}
 			<label>
 				Forma de pago
 				<select name="forma_pago">
@@ -408,7 +419,11 @@ templ facturaDraftForm(v FacturaView) {
 					}
 				</select>
 			</label>
-			<p>Monto: { c.Total.String() } { c.Moneda }, el total de la factura, en un solo pago.</p>
+			if c.PaymentID != 0 {
+				<p>La fecha y el monto son los del pago registrado en Cobro. Si no son correctos, elimina ese pago en Cobro y regístralo de nuevo.</p>
+			} else {
+				<p>Monto: { c.Total.String() } { c.Moneda }, el total de la factura, en un solo pago.</p>
+			}
 		}
 		if c.Moneda == "USD" {
 			<label>
@@ -507,13 +522,6 @@ templ previewLink(c store.Comprobante) {
 templ facturaStampedActions(v FacturaView) {
 	{{ c := v.C }}
 	if c.Status == store.CompTimbrada {
-		if c.Tipo == store.TipoFactura && c.MetodoPago == "PPD" && v.Pago == nil {
-			<form method="post" action={ templ.URL(facturaPath(c.ID) + "/pago") } class="stage-form">
-				<h2>Pago</h2>
-				<p>Cuando el cliente termine de pagar, emite el comprobante de pago. Al timbrarlo, el proyecto queda pagado.</p>
-				<button type="submit" class="primary">Crear comprobante de pago</button>
-			</form>
-		}
 		<section id="cancelar">
 			<h2>Corregir o cancelar</h2>
 			if c.Tipo == store.TipoFactura && v.Replacement == nil {
@@ -538,8 +546,8 @@ templ facturaStampedActions(v FacturaView) {
 					<input type="hidden" name="sustitucion" value={ v.Replacement.UUID }/>
 					<p class="hint">Con el motivo 01 se indica que la sustituye { ComprobanteTitle(*v.Replacement) }.</p>
 				}
-				if v.Pago != nil && v.Pago.Status == store.CompTimbrada {
-					<p class="hint">Esta factura tiene un comprobante de pago timbrado: el SAT no la cancela hasta que se cancele el pago.</p>
+				if v.HasStampedPago {
+					<p class="hint">Esta factura tiene un complemento de pago timbrado: el SAT no la cancela hasta que se cancelen sus complementos.</p>
 				}
 				<button type="submit" class="danger" data-confirm="¿Pedir la cancelación ante el SAT? No se puede deshacer.">Cancelar ante el SAT</button>
 			</form>
@@ -845,6 +853,9 @@ templ complementosSection(v FacturaView, admin bool) {
 			<dt>Saldo pendiente</dt>
 			<dd>{ v.Saldo.String() }</dd>
 		</dl>
+		if admin && c.Status == store.CompTimbrada && v.Saldo > 0 && c.ProjectStatus == store.StageEnCurso {
+			<p>Para emitir un complemento, registra el pago en <a href={ templ.URL(projectPath(c.ProjectFolio) + "#cobro") }>Cobro</a> y haz clic en <strong>Emitir complemento de pago</strong> en su fila.</p>
+		}
 		if admin && c.Status == store.CompTimbrada && v.Saldo > 0 && c.ProjectStatus == store.StageEnCurso {
 			<form method="post" action={ templ.URL(facturaPath(c.ID) + "/complemento-manual") } enctype="multipart/form-data" class="stage-form">
 				<h3>Registrar complemento de pago</h3>

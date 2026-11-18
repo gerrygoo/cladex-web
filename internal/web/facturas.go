@@ -114,6 +114,7 @@ func (f *Facturas) render(w http.ResponseWriter, r *http.Request, c *store.Compr
 			v.Pagos = append(v.Pagos, s)
 			if s.Status == store.CompTimbrada || s.Status == store.CompCancelPend {
 				v.Saldo -= s.Total
+				v.HasStampedPago = true
 			}
 		}
 		if c.MetodoPago == "PPD" && c.Status == store.CompTimbrada {
@@ -123,7 +124,7 @@ func (f *Facturas) render(w http.ResponseWriter, r *http.Request, c *store.Compr
 				return
 			}
 			for _, p := range payments {
-				if p.ComprobanteID == 0 {
+				if !p.Covered() && !p.PagoDraft() {
 					v.Unlinked = append(v.Unlinked, p)
 				}
 			}
@@ -134,9 +135,7 @@ func (f *Facturas) render(w http.ResponseWriter, r *http.Request, c *store.Compr
 		if s.RelatedID != c.ID || s.Status == store.CompCancelada {
 			continue
 		}
-		if s.Tipo == store.TipoPago && v.Pago == nil {
-			v.Pago = &s
-		} else if s.Tipo == store.TipoFactura && v.Replacement == nil {
+		if s.Tipo == store.TipoFactura && v.Replacement == nil {
 			v.Replacement = &s
 		}
 	}
@@ -194,6 +193,9 @@ func draftEdit(r *http.Request, c *store.Comprobante) (store.DraftEdit, string) 
 		FormaPago:  r.FormValue("forma_pago"),
 		Recipients: facturacion.NormalizeRecipients(r.FormValue("recipients")),
 		PagoFecha:  strings.TrimSpace(r.FormValue("pago_fecha")),
+	}
+	if c.Tipo == store.TipoPago && c.PaymentID != 0 { // the payment's day, from Cobro (#83)
+		e.PagoFecha = c.PagoFecha
 	}
 	if m := r.FormValue("metodo_pago"); c.Tipo == store.TipoFactura && c.RelatedID == 0 && m != "" {
 		if store.PaymentMethodLabels[m] == "" {
@@ -400,19 +402,35 @@ func (f *Facturas) Sustituir(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, facturaPathURL(id), http.StatusSeeOther)
 }
 
-// Pago handles POST /facturas/{id}/pago: starts the comprobante de pago of a P.P.D. factura.
-func (f *Facturas) Pago(w http.ResponseWriter, r *http.Request) {
-	c := f.load(w, r)
-	if c == nil {
-		return
-	}
-	user, _ := UserFromContext(r.Context())
-	id, err := f.store.CreatePagoDraft(r.Context(), c.ID, user.ID, today(r))
+// Complemento handles POST /proyectos/{folio}/pagos/{id}/complemento (admin): starts the
+// complemento de pago for that payment in Cobro, on the proyecto's P.P.D. factura (#83),
+// or opens the one already started for it.
+func (f *Facturas) Complemento(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	project, err := f.store.ProjectByFolio(ctx, r.PathValue("folio"))
 	if err != nil {
-		f.stateError(w, r, c.ID, err)
+		serverError(w, r, err)
 		return
 	}
-	http.Redirect(w, r, facturaPathURL(id), http.StatusSeeOther)
+	paymentID, perr := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if project == nil || perr != nil {
+		http.NotFound(w, r)
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	id, err := f.store.CreatePagoDraft(ctx, project.ID, paymentID, user.ID)
+	switch {
+	case errors.Is(err, store.ErrComprobanteState):
+		http.Error(w, "ese pago ya tiene su complemento, o el proyecto no tiene una factura P.P.D. timbrada", http.StatusConflict)
+	case errors.Is(err, store.ErrPagoOverSaldo):
+		http.Error(w, "el pago es mayor que el saldo pendiente de la factura", http.StatusConflict)
+	case errors.Is(err, store.ErrPagoInProgress):
+		http.Error(w, "la factura ya tiene otro complemento de pago en borrador: termínalo (o elimina su pago en Cobro) antes de empezar otro", http.StatusConflict)
+	case err != nil:
+		serverError(w, r, err)
+	default:
+		http.Redirect(w, r, facturaPathURL(id), http.StatusSeeOther)
+	}
 }
 
 // XML handles GET /facturas/{id}/xml: the stamped CFDI, the legal document.

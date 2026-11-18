@@ -93,6 +93,13 @@ type Comprobante struct {
 	PDFFileID int64
 	// QuoteTotal is the total of the quote it bills, with IVA.
 	QuoteTotal money.Centavos
+	// For a comprobante de pago (#83): PaymentID is the payment in Cobro it covers (0 for
+	// one made before payments were linked), Parcialidad its number among the factura's
+	// complementos, and SaldoAnterior what the factura still owed before it (Total is what
+	// it pays). ComprobanteByID fills them.
+	PaymentID     int64
+	Parcialidad   int
+	SaldoAnterior money.Centavos
 	// Customer is the receptor, read live from the customer while the comprobante is a
 	// draft (the stamped XML is what counts after).
 	Customer  Customer
@@ -201,6 +208,11 @@ func (s *Store) ComprobanteByID(ctx context.Context, id int64) (*Comprobante, er
 		}
 	}
 	c.Customer = *cust
+	if c.Tipo == TipoPago {
+		if err := s.pagoPlace(ctx, c); err != nil {
+			return nil, err
+		}
+	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT cc.id, cc.line_no, COALESCE(cc.sat_product_code, ''), COALESCE(cc.sat_unit_code, ''), COALESCE(cc.unit_name, ''),
 			cc.description, cc.qty_milli, cc.unit_price_micros, cc.importe, cc.iva, COALESCE(pr.id, 0), COALESCE(pr.sku, '')
@@ -221,6 +233,35 @@ func (s *Store) ComprobanteByID(ctx context.Context, id int64) (*Comprobante, er
 		c.Conceptos = append(c.Conceptos, l)
 	}
 	return c, rows.Err()
+}
+
+// validComprobante is the SQL condition of a comprobante that counts: stamped, and not
+// cancelled (a cancellation still waiting on the receptor counts until it goes through).
+const validComprobante = `status IN ('timbrada', 'cancelacion_pendiente')`
+
+// pagoPlace fills a comprobante de pago's PaymentID, Parcialidad and SaldoAnterior. The
+// complementos before it are the factura's valid ones other than itself (for a stamped
+// one, those made before it): it is the next parcialidad, and the saldo anterior is the
+// factura's total less what they paid.
+func (s *Store) pagoPlace(ctx context.Context, c *Comprobante) error {
+	var factura money.Centavos
+	if err := s.db.QueryRowContext(ctx, `SELECT total FROM comprobantes WHERE id = ?`, c.RelatedID).Scan(&factura); err != nil {
+		return fmt.Errorf("store: comprobante %d factura: %w", c.ID, err)
+	}
+	var n int
+	var paid money.Centavos
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT count(*), COALESCE(SUM(total), 0) FROM comprobantes
+		WHERE related_id = ? AND tipo = 'pago' AND id != ? AND `+validComprobante+`
+			AND NOT (? AND id > ?)`, c.RelatedID, c.ID, c.Status == CompTimbrada || c.Status == CompCancelPend || c.Status == CompCancelada, c.ID).Scan(&n, &paid); err != nil {
+		return fmt.Errorf("store: comprobante %d parcialidad: %w", c.ID, err)
+	}
+	c.Parcialidad, c.SaldoAnterior = n+1, factura-paid
+	err := s.db.QueryRowContext(ctx, `SELECT id FROM payments WHERE comprobante_id = ? AND deleted_at IS NULL`, c.ID).Scan(&c.PaymentID)
+	if err != nil && err != sql.ErrNoRows {
+		return fmt.Errorf("store: comprobante %d payment: %w", c.ID, err)
+	}
+	return nil
 }
 
 // ListComprobantes returns comprobantes, newest first, without conceptos: a proyecto's
@@ -488,45 +529,86 @@ func recomputeTotals(ctx context.Context, tx *sql.Tx, id int64) error {
 	return err
 }
 
-// CreatePagoDraft starts the comprobante de pago for a stamped P.P.D. factura: one payment
-// for its whole total, dated today, its forma de pago still to pick.
-func (s *Store) CreatePagoDraft(ctx context.Context, facturaID, userID int64, today string) (int64, error) {
+// ErrPagoOverSaldo is returned when a payment is more than what its factura still owes.
+var ErrPagoOverSaldo = errors.New("store: payment is more than the factura's saldo")
+
+// ErrPagoInProgress is returned when the factura already has a complemento de pago on
+// its way (a draft, or one being stamped) for another payment: one at a time, so each
+// gets the right parcialidad and saldo.
+var ErrPagoInProgress = errors.New("store: another complemento de pago is in progress")
+
+// CreatePagoDraft starts the complemento de pago for a payment in Cobro (#83): it pays the
+// proyecto's stamped P.P.D. factura that payment's amount, on that payment's day, its forma
+// de pago still to pick, and the payment is linked to it. A payment that already has a
+// draft returns that draft. A payment covered by a valid complemento, or with none of its
+// proyecto's factura stamped P.P.D., is ErrComprobanteState; more than the factura's
+// saldo, ErrPagoOverSaldo; another payment's complemento under way, ErrPagoInProgress.
+func (s *Store) CreatePagoDraft(ctx context.Context, projectID, paymentID, userID int64) (int64, error) {
 	var id int64
 	err := s.inTx(ctx, "create pago draft", func(tx *sql.Tx) error {
-		var projectID int64
-		var status, method, moneda string
-		var tc sql.NullInt64
-		var total money.Centavos
+		var amount money.Centavos
+		var paidOn, linkedStatus, linkedTipo string
+		var linked int64
 		err := tx.QueryRowContext(ctx, `
-			SELECT project_id, status, COALESCE(metodo_pago, ''), moneda, tipo_cambio_micros, total
-			FROM comprobantes WHERE id = ? AND tipo = 'factura'`, facturaID).Scan(&projectID, &status, &method, &moneda, &tc, &total)
-		if err == sql.ErrNoRows || err == nil && (status != CompTimbrada || method != "PPD") {
+			SELECT pm.amount, pm.paid_on, COALESCE(pm.comprobante_id, 0), COALESCE(c.status, ''), COALESCE(c.tipo, '')
+			FROM payments pm LEFT JOIN comprobantes c ON c.id = pm.comprobante_id
+			WHERE pm.id = ? AND pm.project_id = ? AND pm.deleted_at IS NULL`, paymentID, projectID).
+			Scan(&amount, &paidOn, &linked, &linkedStatus, &linkedTipo)
+		if err == sql.ErrNoRows {
 			return ErrComprobanteState
 		}
 		if err != nil {
 			return err
 		}
-		var n int
-		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM comprobantes WHERE related_id = ? AND tipo = 'pago' AND status != 'cancelada'`,
-			facturaID).Scan(&n); err != nil {
-			return err
-		}
-		if n > 0 {
+		if linked != 0 && linkedStatus != CompCancelada {
+			if linkedTipo == TipoPago && linkedStatus != CompTimbrada && linkedStatus != CompCancelPend {
+				id = linked
+				return nil
+			}
 			return ErrComprobanteState
 		}
-		var email string
-		tx.QueryRowContext(ctx, `SELECT COALESCE(recipients, '') FROM comprobantes WHERE id = ?`, facturaID).Scan(&email)
+		var facturaID int64
+		var moneda, email string
+		var tc sql.NullInt64
+		var total money.Centavos
+		err = tx.QueryRowContext(ctx, `
+			SELECT id, moneda, tipo_cambio_micros, total, COALESCE(recipients, '') FROM comprobantes
+			WHERE project_id = ? AND tipo = 'factura' AND status = 'timbrada' AND metodo_pago = 'PPD'
+			ORDER BY id DESC LIMIT 1`, projectID).Scan(&facturaID, &moneda, &tc, &total, &email)
+		if err == sql.ErrNoRows {
+			return ErrComprobanteState
+		}
+		if err != nil {
+			return err
+		}
+		var open int
+		var covered money.Centavos
+		if err := tx.QueryRowContext(ctx, `
+			SELECT COALESCE(SUM(status NOT IN ('timbrada', 'cancelacion_pendiente', 'cancelada')), 0),
+				COALESCE(SUM(CASE WHEN `+validComprobante+` THEN total END), 0)
+			FROM comprobantes WHERE related_id = ? AND tipo = 'pago'`, facturaID).Scan(&open, &covered); err != nil {
+			return err
+		}
+		if open > 0 {
+			return ErrPagoInProgress
+		}
+		if amount > total-covered {
+			return ErrPagoOverSaldo
+		}
 		res, err := tx.ExecContext(ctx, `
 			INSERT INTO comprobantes (tipo, project_id, related_id, moneda, tipo_cambio_micros, recipients, pago_fecha, subtotal, iva, total, created_by)
 			VALUES ('pago', ?, ?, ?, ?, NULLIF(?, ''), ?, 0, 0, ?, ?)`,
-			projectID, facturaID, moneda, tc, email, today, total, userID)
+			projectID, facturaID, moneda, tc, email, paidOn, amount, userID)
 		if err != nil {
 			return err
 		}
 		if id, err = res.LastInsertId(); err != nil {
 			return err
 		}
-		return addEvent(ctx, tx, id, userID, "created", nil)
+		if _, err := tx.ExecContext(ctx, `UPDATE payments SET comprobante_id = ? WHERE id = ?`, id, paymentID); err != nil {
+			return err
+		}
+		return addEvent(ctx, tx, id, userID, "created", map[string]any{"payment": paymentID})
 	})
 	return id, err
 }
