@@ -106,8 +106,12 @@ services:
       EMAIL_PROVIDER: "resend"
       EMAIL_FROM: "Cladex pruebas <noreply@cladex.com.mx>"
       NOTIFY_ALLOW: ""
-      # Plain HTTP on the LAN: a Secure cookie would never come back.
-      COOKIE_SECURE: "false"
+      # Served at https://pruebas.cladex.com.mx (VPS nginx, basic auth, FRP); plain-HTTP
+      # LAN access on :8091 can no longer sign in, since the session cookie is Secure.
+      APP_URL: "https://pruebas.cladex.com.mx"
+      # The real users who get a staging password at each refresh (seed-staging),
+      # comma-separated usernames; the rest can't sign in to staging.
+      STAGING_USERS: "ggo,efs"
       LOG_FORMAT: "json"
       LOG_LEVEL: "info"
     logging:

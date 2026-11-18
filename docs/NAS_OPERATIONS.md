@@ -309,8 +309,9 @@ A record → VPS nginx (`/etc/nginx/sites-available/pruebas.cladex.com.mx`, cert
 cert, log `/var/log/nginx/pruebas.access.log`) → frps → the NAS `frp_client` proxy
 `cladex-staging` → `127.0.0.1:8091`. The VPS site asks for **HTTP basic auth** first
 (user `cladex`, `/etc/nginx/pruebas.htpasswd`, password in 1Password) and sends
-`X-Robots-Tag: noindex`: staging's database is a copy of production's, real users'
-password hashes included, so the app's own login isn't enough of a gate. Its session
+`X-Robots-Tag: noindex`: staging's data is a copy of production's (customers, prices,
+proyectos), and the gate keeps it from strangers and crawlers even though production's
+passwords don't work there (see "Who can sign in" below). Its session
 cookie is Secure (`COOKIE_SECURE` unset) and `APP_URL` is the domain, so signing in at
 `http://192.168.3.169:8091` no longer works; `curl localhost:8091/healthz` on the NAS still
 does. To change the basic-auth password: `openssl passwd -apr1` locally, then write
@@ -353,7 +354,13 @@ refresh from starting staging: it prints a warning; re-run it with
 Everything done in staging since the last refresh is lost. Staging has no Litestream and
 no backups: its data is disposable.
 
-Sign in with your production user and password, as of the last refresh. Cookies don't
+**Who can sign in.** The refresh replaces every copied password with `!`
+(`web.NoPasswordHash`, which no password matches), so production's passwords never work on
+staging. Then `seed-staging` gives only the real users listed in the service's
+`STAGING_USERS` (compose, comma-separated usernames; `ggo,efs` since 2026-11-17) a
+staging-only password, and prints them with the test users' shared one. Everyone else
+can't sign in to staging. To give someone access between refreshes, add them to
+`STAGING_USERS`, set their hash back to `!`, and re-run `seed-staging`. Cookies don't
 tell ports apart, so with production also open by LAN IP (`:8090`) in the same browser,
 signing in to one signs you out of the other; production through
 `cotizador.cladex.com.mx` is unaffected.

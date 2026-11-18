@@ -4,7 +4,9 @@
 # (docs/NAS_OPERATIONS.md#staging). Whatever was done in staging is lost.
 #
 # The copy is sqlite3's online backup of the live database, so production keeps running.
-# Sessions are dropped from the copy: production's login cookies don't open staging.
+# Sessions are dropped from the copy: production's login cookies don't open staging. So
+# are the passwords: only the users in the service's STAGING_USERS get a staging-only one,
+# printed at the end; the rest can't sign in to staging.
 # Then the test data is added on top (seed-staging).
 set -eu
 
@@ -18,6 +20,9 @@ rm -f "$NEW"
 sqlite3 "$PROD_DB" ".backup '$NEW'"
 sqlite3 "$NEW" "PRAGMA integrity_check;" | grep -qx ok
 sqlite3 "$NEW" "DELETE FROM sessions;"
+# Production's passwords never reach staging: no password matches '!' (web.NoPasswordHash).
+# seed-staging then gives the users in STAGING_USERS a staging-only password and prints it.
+sqlite3 "$NEW" "UPDATE users SET password_hash = '!';"
 # Staging stamps with the SAT's test CSD (ESCUELA KEMPER URGATE), so its emisor is that
 # company, and its CFDIs get their own series so they never look like production's.
 sqlite3 "$NEW" "INSERT INTO settings (key, value) VALUES
@@ -31,7 +36,8 @@ rm -f "$STAGING_DATA/cladex.db-wal" "$STAGING_DATA/cladex.db-shm"
 mv "$NEW" "$STAGING_DATA/cladex.db"
 # Add the test data (users, customers valid in the SAT's sandbox, suppliers, products and
 # proyectos in several states; cladex seed-staging, web.SeedStaging) so staging is a
-# superset of production. The test users' password is printed here. It refuses to run
+# superset of production. The staging passwords of the real users in STAGING_USERS
+# and the test users' password are printed here. It refuses to run
 # unless the service's APP_ENV is staging.
 # A failed seed must not leave staging down: warn, start it anyway, and re-run the seed
 # by hand (it resumes): docker compose run --rm --no-deps cladex-staging seed-staging

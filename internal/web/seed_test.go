@@ -103,3 +103,46 @@ func TestSeedStaging(t *testing.T) {
 		t.Errorf("second SeedStaging = %v, %q", err, out.String())
 	}
 }
+
+// StagingPasswords gives staging passwords only to the real users in STAGING_USERS; the
+// others keep the refresh's NoPasswordHash and can't sign in.
+func TestStagingPasswordsOnlyListedUsers(t *testing.T) {
+	a := newTestAuth(t)
+	ctx := context.Background()
+	ids := map[string]int64{}
+	for _, u := range []string{"ggo", "efs", "rfm", "ggr"} {
+		ids[u] = createTestUser(t, a, u, "admin", "prod-password")
+		if err := a.store.UpdatePassword(ctx, ids[u], NoPasswordHash); err != nil {
+			t.Fatal(err)
+		}
+	}
+	keeps := createTestUser(t, a, "prueba-admin", "admin", "hunter2")
+	var out bytes.Buffer
+	if err := StagingPasswords(ctx, a.store, []string{" ggo", "efs ", "", "nadie"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	hash := func(id int64) string {
+		u, err := a.store.UserByID(ctx, id)
+		if err != nil || u == nil {
+			t.Fatalf("user %d: %v", id, err)
+		}
+		return u.PasswordHash
+	}
+	for _, u := range []string{"ggo", "efs"} {
+		if hash(ids[u]) == NoPasswordHash || !strings.Contains(out.String(), "  "+u+" (") {
+			t.Errorf("%s didn't get a staging password:\n%s", u, out.String())
+		}
+	}
+	for _, u := range []string{"rfm", "ggr"} {
+		if hash(ids[u]) != NoPasswordHash || strings.Contains(out.String(), "  "+u+" (") {
+			t.Errorf("%s got a staging password", u)
+		}
+	}
+	if !strings.Contains(out.String(), "Sin acceso a staging (no están en STAGING_USERS): ") || hash(keeps) == NoPasswordHash {
+		t.Errorf("output = %s", out.String())
+	}
+	before := hash(ids["ggo"])
+	if err := StagingPasswords(ctx, a.store, []string{"ggo"}, &bytes.Buffer{}); err != nil || hash(ids["ggo"]) != before {
+		t.Error("a second run changed a staging password")
+	}
+}

@@ -94,7 +94,8 @@ func main() {
 	runServer()
 }
 
-// runSeedStaging adds the test data (web.SeedStaging) to this instance's database:
+// runSeedStaging gives the real users in STAGING_USERS their staging passwords (web.StagingPasswords) and
+// adds the test data (web.SeedStaging) to this instance's database:
 // `docker compose run --rm cladex-staging seed-staging`, which staging-refresh.sh runs
 // after copying production's database. It refuses unless APP_ENV is staging or
 // development, so it can never touch production.
@@ -110,6 +111,12 @@ func runSeedStaging() {
 		log.Fatalf("store: %v", err)
 	}
 	defer db.Close()
+	// Only the real users in STAGING_USERS (comma-separated usernames) can sign in to
+	// staging; the rest keep no password there.
+	if err := web.StagingPasswords(ctx, db, strings.Split(os.Getenv("STAGING_USERS"), ","), os.Stdout); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
 	if err := web.SeedStaging(ctx, db, time.Now(), os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)

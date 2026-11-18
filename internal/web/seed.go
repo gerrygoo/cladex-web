@@ -339,6 +339,64 @@ func SeedStaging(ctx context.Context, st *store.Store, now time.Time, out io.Wri
 	return nil
 }
 
+// NoPasswordHash is the password hash staging-refresh.sh gives every user in its copy of
+// production's database: no password matches it, so production's passwords never work
+// on staging. StagingPasswords replaces it with a staging-only one.
+const NoPasswordHash = "!"
+
+// StagingPasswords gives the real users listed in allow (usernames, from STAGING_USERS)
+// a new random password of their own, valid only on staging, and writes them to out to
+// hand out. Every other real user keeps NoPasswordHash and can't sign in to staging. Only
+// users whose password the staging refresh removed are touched, so the test users keep
+// theirs and running it again (a seed resumed after failing) changes nothing; disabled
+// users stay without one.
+func StagingPasswords(ctx context.Context, st *store.Store, allow []string, out io.Writer) error {
+	users, err := st.ListUsers(ctx, "", "", nil)
+	if err != nil {
+		return err
+	}
+	allowed := map[string]bool{}
+	for _, u := range allow {
+		if u = strings.TrimSpace(u); u != "" {
+			allowed[u] = true
+		}
+	}
+	type cred struct{ username, name, password string }
+	var given []cred
+	var without []string
+	for _, u := range users {
+		if u.PasswordHash != NoPasswordHash || u.DisabledAt != nil {
+			continue
+		}
+		if !allowed[u.Username] {
+			without = append(without, u.Username)
+			continue
+		}
+		password, err := seedPassword()
+		if err != nil {
+			return err
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+		if err != nil {
+			return err
+		}
+		if err := st.UpdatePassword(ctx, u.ID, string(hash)); err != nil {
+			return err
+		}
+		given = append(given, cred{u.Username, u.Name, password})
+	}
+	if len(given) > 0 {
+		fmt.Fprintln(out, "Contraseñas de staging (solo sirven en pruebas; las de producción no):")
+		for _, c := range given {
+			fmt.Fprintf(out, "  %s (%s): %s\n", c.username, c.name, c.password)
+		}
+	}
+	if len(without) > 0 {
+		fmt.Fprintln(out, "Sin acceso a staging (no están en STAGING_USERS): "+strings.Join(without, ", "))
+	}
+	return nil
+}
+
 func seedProductSKUs() []string {
 	var out []string
 	for _, p := range seedProducts {
