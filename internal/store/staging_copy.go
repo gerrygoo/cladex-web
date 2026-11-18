@@ -117,6 +117,13 @@ var stagingCopies = []stagingCopy{
 		"uploaded_by": "{uploader}", "deleted_by": "{userref:deleted_by}"}},
 }
 
+// StagingEmisor is the emisor and CFDI series staging uses: the SAT's test company
+// (ESCUELA KEMPER URGATE), whose CSD the Facturoporti sandbox accepts.
+var StagingEmisor = map[string]string{
+	"emisor_rfc": "EKU9003173C9", "emisor_nombre": "ESCUELA KEMPER URGATE", "emisor_regimen": "601",
+	"emisor_cp": "42501", "factura_serie": "PRUEBAF", "pago_serie": "PRUEBAP",
+}
+
 // ErrStagingNotEmpty is returned when the database to build staging in already has data.
 var ErrStagingNotEmpty = errors.New("store: staging database already has data; build it in a new one")
 
@@ -233,6 +240,14 @@ func (s *Store) copyStagingConfig(ctx context.Context, srcPath string, users []s
 		}
 		if _, err := tx.ExecContext(ctx, q, args...); err != nil {
 			return fmt.Errorf("store: staging copy %s: %w", c.table, err)
+		}
+	}
+	// Staging stamps with the SAT's test CSD, so its emisor is that company, and its CFDIs
+	// get their own series so they never look like production's.
+	for k, v := range StagingEmisor {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO main.settings (key, value) VALUES (?, ?)
+			ON CONFLICT (key) DO UPDATE SET value = excluded.value`, k, v); err != nil {
+			return err
 		}
 	}
 	// The copy writes audit rows through the triggers (audit_log is append-only): they

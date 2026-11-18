@@ -3,19 +3,20 @@ package web
 import (
 	"bytes"
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	cladex "github.com/gerrygoo/cladex-web"
 	"github.com/gerrygoo/cladex-web/internal/money"
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
-// SeedStaging adds the test data to a database shaped like production's (the CCA, CCS &
-// AC and ABASTILUM familias with products to copy), through the same code as the
-// screens, and does nothing the second time.
-func TestSeedStaging(t *testing.T) {
-	a := newTestAuth(t)
+// seedStagingCatalog is the production catalog SeedStaging builds on (the CCA, CCS & AC
+// and ABASTILUM familias with products to copy, and pricing), with an admin "gerry".
+func seedStagingCatalog(t *testing.T, a *Auth) int64 {
+	t.Helper()
 	ctx := context.Background()
 	admin := createTestUser(t, a, "gerry", "admin", "hunter2")
 	_, _, ccaID := seedQuoteBuilderFixtures(t, a)
@@ -35,6 +36,59 @@ func TestSeedStaging(t *testing.T) {
 	if _, err := a.store.CreateProduct(ctx, store.Product{FamilyID: abl, SKU: "ABL-FL-50w", Description: "Luminaria 50 W", CostMicros: &cost}); err != nil {
 		t.Fatal(err)
 	}
+
+	return admin
+}
+
+// #81: staging built from production's configuration only (store.CopyStagingConfig)
+// still takes the whole seed, and holds no data that wasn't copied or seeded.
+func TestSeedStagingOnCopiedConfig(t *testing.T) {
+	ctx := context.Background()
+	prodPath := filepath.Join(t.TempDir(), "prod.db")
+	prod, err := store.Open(ctx, prodPath, cladex.MigrationsFS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pa := NewAuth(prod, false)
+	seedStagingCatalog(t, pa)
+	if _, err := prod.CreateCustomer(ctx, store.Customer{Name: "Cliente Real"}); err != nil {
+		t.Fatal(err)
+	}
+	createTestUser(t, pa, "rfm", "vendedor", "hunter2")
+	prod.Close()
+
+	a := newTestAuth(t)
+	if err := a.store.CopyStagingConfig(ctx, prodPath, []string{"gerry"}); err != nil {
+		t.Fatalf("CopyStagingConfig: %v", err)
+	}
+	var out bytes.Buffer
+	if err := StagingPasswords(ctx, a.store, []string{"gerry"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if err := SeedStaging(ctx, a.store, time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC), &out); err != nil {
+		t.Fatalf("SeedStaging on copied config: %v\n%s", err, out.String())
+	}
+	customers, _ := a.store.ListCustomers(ctx, "", "", "", nil)
+	for _, c := range customers {
+		if !strings.HasPrefix(c.Name, SeedPrefix) {
+			t.Errorf("customer %q on staging isn't seeded", c.Name)
+		}
+	}
+	if u, _ := a.store.UserByUsername(ctx, "rfm"); u != nil {
+		t.Error("rfm, not in STAGING_USERS, was copied")
+	}
+	if u, _ := a.store.UserByUsername(ctx, "gerry"); u == nil || u.PasswordHash == NoPasswordHash {
+		t.Error("gerry has no staging password")
+	}
+}
+
+// SeedStaging adds the test data to a database shaped like production's (the CCA, CCS &
+// AC and ABASTILUM familias with products to copy), through the same code as the
+// screens, and does nothing the second time.
+func TestSeedStaging(t *testing.T) {
+	a := newTestAuth(t)
+	ctx := context.Background()
+	admin := seedStagingCatalog(t, a)
 
 	// A seed that failed halfway left a user and a customer behind: the next run reuses them.
 	if _, err := a.store.CreateUser(ctx, "prueba-admin", "Prueba Administrador", "x", store.RoleAdmin); err != nil {
