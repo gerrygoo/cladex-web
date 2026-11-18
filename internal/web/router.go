@@ -69,6 +69,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	familias := NewFamilias(db)
 	tipos := NewTipos(db)
 	leads := NewLeads(db)
+	priceLists := NewPriceLists(quotes)
 	documentos := NewDocumentos(db)
 	help := NewHelp(guide)
 	trabajos := NewTrabajos(db, runner)
@@ -151,6 +152,10 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /cotizaciones/{folio}/proveedor/{id}/eliminar", authed(quotes.ProveedorEliminar))
 
 	mux.Handle("GET /proyectos", authed(projects.List))
+	mux.Handle("GET /listas-de-precios", authed(priceLists.List))
+	mux.Handle("GET /listas-de-precios/nueva", authed(priceLists.NewPage))
+	mux.Handle("POST /listas-de-precios/nueva", authed(priceLists.Build))
+	mux.Handle("GET /listas-de-precios/{id}/pdf/{name}", authed(priceLists.PDF))
 	mux.Handle("GET /leads", authed(leads.List))
 	mux.Handle("GET /leads/nuevo", authed(leads.NewPage))
 	mux.Handle("POST /leads", authed(leads.Create))

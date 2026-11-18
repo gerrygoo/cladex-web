@@ -80,6 +80,9 @@ type QuoteDocument struct {
 	// ShowKg adds Kg por metro and Kg columns, with quantity and unit price per metre
 	// (CCS quotes, issue #34).
 	ShowKg bool
+	// PriceList prints the document as a lista de precios (#82): "Para", "Lista de
+	// precios" (Folio holds the familia) and "Precios vigentes hasta" in the header.
+	PriceList bool
 	// Created is the PDF's embedded creation date: issued_at for an issued quote, so
 	// every reprint is byte-identical; zero (render time) for a draft preview.
 	Created time.Time
@@ -146,6 +149,14 @@ func buildQuoteTypst(doc QuoteDocument) string {
 	}
 	if doc.HideAddress {
 		layout = strings.Replace(layout, quoteAddress, "[]", 1)
+	}
+	if doc.PriceList {
+		layout = strings.NewReplacer(
+			"[*Cliente:* #customerName]", "[*Para:* #customerName]",
+			"[*Número de cotización:* #folio]", "[*Lista de precios:* #folio]",
+			"[*Fecha de cotización:* #fecha]", "[*Fecha:* #fecha]",
+			"[*Vencimiento:* #vencimiento]", "[*Precios vigentes hasta:* #vencimiento]",
+		).Replace(layout)
 	}
 	b.WriteString(currencyLabels(doc.Currency, layout))
 

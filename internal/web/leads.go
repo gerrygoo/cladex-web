@@ -199,6 +199,8 @@ func (h *Leads) Page(w http.ResponseWriter, r *http.Request) {
 		success = "Lead guardado."
 	case r.URL.Query().Get("seguimiento") == "1":
 		success = "Seguimiento guardado."
+	case r.URL.Query().Get("lista") != "":
+		success = "Lista de precios generada; descárgala en Listas de precios."
 	}
 	h.render(w, r, *l, leadFormValues(*l), nil, success, "", http.StatusOK)
 }
@@ -220,10 +222,16 @@ func (h *Leads) render(w http.ResponseWriter, r *http.Request, l store.Lead, for
 		serverError(w, r, err)
 		return
 	}
+	lists, err := h.store.ListPriceLists(ctx, l.ID)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
 	user, _ := UserFromContext(ctx)
 	w.WriteHeader(status)
 	views.LeadPage(views.LeadPageData{
 		Lead: l, Comments: comments, Types: types, Customers: customers, Users: users,
+		ListTypes: priceListTypes(types), PriceLists: lists,
 		Form: form, Errors: errs, Today: today(r), Success: success, Error: errMsg,
 	}, navUserView(user)).Render(ctx, w)
 }

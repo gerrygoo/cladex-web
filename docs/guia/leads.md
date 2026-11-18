@@ -65,3 +65,37 @@ lleva a ella. Si el lead no era de un cliente que ya existe, también se crea el
 [cliente](clientes.md) con su empresa (o su nombre) y sus datos de contacto. El
 [proyecto](proyectos.md) se abre al emitir la cotización, como cualquier otro; en él
 dice de qué lead viene. El lead queda como *Convertido en proyecto*, con su historial.
+
+## Listas de precios
+
+Una **lista de precios** es un PDF con todos los productos de una familia, con su precio
+al margen que elijas, su vigencia y los términos y condiciones de su tipo de cotización.
+Los precios se calculan igual que en una cotización de ese tipo. Todo va en pesos (MXN).
+
+- **CCA**: precio por metro.
+- **CCS y Alumoclad**: precio por metro y su equivalente en kilos, con el precio por kilo
+  de **Configuración del sistema**, como en sus cotizaciones.
+- **Astro**: precio por caja. **Exceline y Alumbrado**: precio por pieza.
+
+Una lista vale **hasta el último día del mes** en que se hace. El PDF se guarda tal
+como salió: aunque después cambie el precio por kilo o un margen, la lista ya enviada no
+cambia.
+
+En el menú **Leads**, **Listas de precios** muestra todas las que se han hecho, con su
+PDF. Las de un lead también aparecen en su página.
+
+### Armar una lista de precios
+
+1. Desde la página de un lead (sección **Listas de precios**) o desde **Leads → Listas de
+   precios**, elige la **Familia (tipo de cotización)** y haz clic en **Armar lista de
+   precios**.
+2. Todos los productos de la familia salen con cantidad 1. Cambia la cantidad de los que
+   quieras (p. ej. `1000` metros) para que la lista muestre ese total; pon `0` para
+   quitar un producto.
+3. Elige el **Margen**. Para uno que no está en la lista, elige **Otro margen** y escribe
+   el porcentaje en **Otro margen (%)**.
+4. Si los términos de ese tipo llevan tiempo de entrega, escríbelo.
+5. Revisa **Para** (desde un lead ya viene su nombre) y haz clic en **Recalcular** para
+   ver los precios.
+6. Haz clic en **Generar PDF**. Si es para un lead, queda en su historial (y cuenta como
+   seguimiento) y en su sección **Listas de precios**, de donde descargas el PDF.

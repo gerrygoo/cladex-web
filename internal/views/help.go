@@ -10,35 +10,37 @@ import "github.com/gerrygoo/cladex-web/internal/store"
 type HelpTopic string
 
 const (
-	HelpInicio             HelpTopic = "/ayuda#la-página-de-inicio"
-	HelpMisPendientes      HelpTopic = "/ayuda/dashboard#mis-pendientes"
-	HelpMiCuenta           HelpTopic = "/ayuda/acceso#cambiar-tu-contraseña"
-	HelpAvisos             HelpTopic = "/ayuda/acceso#recibir-avisos"
-	HelpClientes           HelpTopic = "/ayuda/clientes"
-	HelpClienteNuevo       HelpTopic = "/ayuda/clientes#dar-de-alta-un-cliente"
-	HelpClienteEditar      HelpTopic = "/ayuda/clientes#editar-un-cliente"
-	HelpCotizaciones       HelpTopic = "/ayuda/cotizaciones"
-	HelpCotizacionNueva    HelpTopic = "/ayuda/cotizaciones#crear-una-cotización"
-	HelpCotizacionBorrador HelpTopic = "/ayuda/cotizaciones#agregar-productos-por-sku"
-	HelpCotizacionEmitida  HelpTopic = "/ayuda/cotizaciones#descargar-y-enviar-el-pdf"
-	HelpProyectos          HelpTopic = "/ayuda/proyectos"
-	HelpLeads              HelpTopic = "/ayuda/leads"
-	HelpLeadNuevo          HelpTopic = "/ayuda/leads#dar-de-alta-un-lead"
-	HelpProyecto           HelpTopic = "/ayuda/proyectos#dar-seguimiento-a-un-proyecto"
-	HelpPronostico         HelpTopic = "/ayuda/proyectos#revisar-el-pronóstico"
-	HelpCotizacionRevisada HelpTopic = "/ayuda/cotizaciones#revisar-una-cotización-emitida"
-	HelpCotizacionDuplicar HelpTopic = "/ayuda/cotizaciones#duplicar-una-cotización"
-	HelpProductos          HelpTopic = "/ayuda/productos"
-	HelpProductoNuevo      HelpTopic = "/ayuda/productos#dar-de-alta-un-producto"
-	HelpProductoEditar     HelpTopic = "/ayuda/productos#editar-un-producto"
-	HelpConversiones       HelpTopic = "/ayuda/productos#conversiones-de-unidades"
-	HelpProductoMateriales HelpTopic = "/ayuda/productos#materiales-de-un-producto"
-	HelpProductoSAT        HelpTopic = "/ayuda/productos#datos-para-facturar-sat"
-	HelpDocumentos         HelpTopic = "/ayuda/documentos"
-	HelpFacturas           HelpTopic = "/ayuda/facturas"
-	HelpFactura            HelpTopic = "/ayuda/facturas#timbrar-una-factura"
-	HelpProveedores        HelpTopic = "/ayuda/proveedores"
-	HelpOrdenCompra        HelpTopic = "/ayuda/ordenes-de-compra"
+	HelpInicio              HelpTopic = "/ayuda#la-página-de-inicio"
+	HelpMisPendientes       HelpTopic = "/ayuda/dashboard#mis-pendientes"
+	HelpMiCuenta            HelpTopic = "/ayuda/acceso#cambiar-tu-contraseña"
+	HelpAvisos              HelpTopic = "/ayuda/acceso#recibir-avisos"
+	HelpClientes            HelpTopic = "/ayuda/clientes"
+	HelpClienteNuevo        HelpTopic = "/ayuda/clientes#dar-de-alta-un-cliente"
+	HelpClienteEditar       HelpTopic = "/ayuda/clientes#editar-un-cliente"
+	HelpCotizaciones        HelpTopic = "/ayuda/cotizaciones"
+	HelpCotizacionNueva     HelpTopic = "/ayuda/cotizaciones#crear-una-cotización"
+	HelpCotizacionBorrador  HelpTopic = "/ayuda/cotizaciones#agregar-productos-por-sku"
+	HelpCotizacionEmitida   HelpTopic = "/ayuda/cotizaciones#descargar-y-enviar-el-pdf"
+	HelpProyectos           HelpTopic = "/ayuda/proyectos"
+	HelpLeads               HelpTopic = "/ayuda/leads"
+	HelpLeadNuevo           HelpTopic = "/ayuda/leads#dar-de-alta-un-lead"
+	HelpListasDePrecios     HelpTopic = "/ayuda/leads#listas-de-precios"
+	HelpListaDePreciosArmar HelpTopic = "/ayuda/leads#armar-una-lista-de-precios"
+	HelpProyecto            HelpTopic = "/ayuda/proyectos#dar-seguimiento-a-un-proyecto"
+	HelpPronostico          HelpTopic = "/ayuda/proyectos#revisar-el-pronóstico"
+	HelpCotizacionRevisada  HelpTopic = "/ayuda/cotizaciones#revisar-una-cotización-emitida"
+	HelpCotizacionDuplicar  HelpTopic = "/ayuda/cotizaciones#duplicar-una-cotización"
+	HelpProductos           HelpTopic = "/ayuda/productos"
+	HelpProductoNuevo       HelpTopic = "/ayuda/productos#dar-de-alta-un-producto"
+	HelpProductoEditar      HelpTopic = "/ayuda/productos#editar-un-producto"
+	HelpConversiones        HelpTopic = "/ayuda/productos#conversiones-de-unidades"
+	HelpProductoMateriales  HelpTopic = "/ayuda/productos#materiales-de-un-producto"
+	HelpProductoSAT         HelpTopic = "/ayuda/productos#datos-para-facturar-sat"
+	HelpDocumentos          HelpTopic = "/ayuda/documentos"
+	HelpFacturas            HelpTopic = "/ayuda/facturas"
+	HelpFactura             HelpTopic = "/ayuda/facturas#timbrar-una-factura"
+	HelpProveedores         HelpTopic = "/ayuda/proveedores"
+	HelpOrdenCompra         HelpTopic = "/ayuda/ordenes-de-compra"
 
 	// Admin-only screens link to the admin-only guide page.
 	HelpAjustes        HelpTopic = "/ayuda/administracion#márgenes"
@@ -60,48 +62,50 @@ const (
 
 // HelpTopics lists every topic with whether it is only linked from admin screens.
 var HelpTopics = map[HelpTopic]bool{
-	HelpInicio:             false,
-	HelpMisPendientes:      false,
-	HelpMiCuenta:           false,
-	HelpAvisos:             false,
-	HelpClientes:           false,
-	HelpClienteNuevo:       false,
-	HelpClienteEditar:      false,
-	HelpCotizaciones:       false,
-	HelpCotizacionNueva:    false,
-	HelpCotizacionBorrador: false,
-	HelpCotizacionEmitida:  false,
-	HelpProyectos:          false,
-	HelpLeads:              false,
-	HelpLeadNuevo:          false,
-	HelpProyecto:           false,
-	HelpPronostico:         false,
-	HelpCotizacionRevisada: false,
-	HelpCotizacionDuplicar: false,
-	HelpProductos:          false,
-	HelpProductoNuevo:      false,
-	HelpProductoEditar:     false,
-	HelpConversiones:       false,
-	HelpProductoMateriales: false,
-	HelpProductoSAT:        false,
-	HelpDocumentos:         false,
-	HelpFacturas:           false,
-	HelpFactura:            false,
-	HelpProveedores:        false,
-	HelpOrdenCompra:        false,
-	HelpAjustes:            true,
-	HelpMateriales:         true,
-	HelpUsuarios:           true,
-	HelpUnidades:           true,
-	HelpFamilias:           true,
-	HelpFamiliaEditar:      true,
-	HelpTipoNuevo:          true,
-	HelpTipoEditar:         true,
-	HelpProveedorNuevo:     true,
-	HelpProveedorEditar:    true,
-	HelpTrabajos:           true,
-	HelpNotificaciones:     true,
-	HelpEquipo:             true,
+	HelpInicio:              false,
+	HelpMisPendientes:       false,
+	HelpMiCuenta:            false,
+	HelpAvisos:              false,
+	HelpClientes:            false,
+	HelpClienteNuevo:        false,
+	HelpClienteEditar:       false,
+	HelpCotizaciones:        false,
+	HelpCotizacionNueva:     false,
+	HelpCotizacionBorrador:  false,
+	HelpCotizacionEmitida:   false,
+	HelpProyectos:           false,
+	HelpLeads:               false,
+	HelpLeadNuevo:           false,
+	HelpListasDePrecios:     false,
+	HelpListaDePreciosArmar: false,
+	HelpProyecto:            false,
+	HelpPronostico:          false,
+	HelpCotizacionRevisada:  false,
+	HelpCotizacionDuplicar:  false,
+	HelpProductos:           false,
+	HelpProductoNuevo:       false,
+	HelpProductoEditar:      false,
+	HelpConversiones:        false,
+	HelpProductoMateriales:  false,
+	HelpProductoSAT:         false,
+	HelpDocumentos:          false,
+	HelpFacturas:            false,
+	HelpFactura:             false,
+	HelpProveedores:         false,
+	HelpOrdenCompra:         false,
+	HelpAjustes:             true,
+	HelpMateriales:          true,
+	HelpUsuarios:            true,
+	HelpUnidades:            true,
+	HelpFamilias:            true,
+	HelpFamiliaEditar:       true,
+	HelpTipoNuevo:           true,
+	HelpTipoEditar:          true,
+	HelpProveedorNuevo:      true,
+	HelpProveedorEditar:     true,
+	HelpTrabajos:            true,
+	HelpNotificaciones:      true,
+	HelpEquipo:              true,
 }
 
 func quoteHelpTopic(status string) HelpTopic {

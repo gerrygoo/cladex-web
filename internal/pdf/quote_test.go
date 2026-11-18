@@ -215,3 +215,15 @@ func TestQuoteLargeLogoWithoutAddress(t *testing.T) {
 		t.Fatalf("RenderQuote: %v", err)
 	}
 }
+
+func TestPriceListHeader(t *testing.T) {
+	src := buildQuoteTypst(QuoteDocument{Folio: "Cable CCA", CustomerName: "Juan", PriceList: true})
+	for _, want := range []string{"[*Para:* #customerName]", "[*Lista de precios:* #folio]", "[*Precios vigentes hasta:* #vencimiento]"} {
+		if !strings.Contains(src, want) {
+			t.Errorf("price list source missing %q", want)
+		}
+	}
+	if strings.Contains(src, "Número de cotización") {
+		t.Error("price list still says Número de cotización")
+	}
+}

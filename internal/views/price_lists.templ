@@ -1,0 +1,275 @@
+package views
+
+import (
+	"net/url"
+	"strconv"
+	"strings"
+
+	"github.com/gerrygoo/cladex-web/internal/pricing"
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
+
+// PriceListRow is one product of a price list being built: Qty as typed, Excluded when
+// it is 0 or blank (left off the list), and its priced line otherwise (Priced, whose
+// Error says why it can't be priced).
+type PriceListRow struct {
+	ProductID int64
+	Label     string
+	Qty       string
+	Excluded  bool
+	Error     string
+	Line      int
+	Priced    *QuoteLineView
+}
+
+// PriceListBuilder is the price list being built (#82, slice L3).
+type PriceListBuilder struct {
+	Type             store.QuoteType
+	Lead             *store.Lead
+	Recipient        string
+	DeliveryTime     string
+	AsksDeliveryTime bool
+	Margin           MarginPicker
+	Rows             []PriceListRow
+	Totals           pricing.Totals
+	ShowKg           bool
+	ValidUntil       string
+	Error            string
+}
+
+// PriceListPDFName is the list's file name: "Lista de precios Cable CCA 2026-11-18.pdf".
+func PriceListPDFName(pl store.PriceList) string {
+	name := "Lista de precios " + pdfNamePart(pl.TypePrefix)
+	if len(pl.CreatedAt) >= 10 {
+		name += " " + pl.CreatedAt[:10]
+	}
+	return name + ".pdf"
+}
+
+// PriceListPDFPath is the list's PDF URL, ending in its file name (see QuotePDFPath).
+func PriceListPDFPath(pl store.PriceList) string {
+	return "/listas-de-precios/" + strconv.FormatInt(pl.ID, 10) + "/pdf/" + url.PathEscape(PriceListPDFName(pl))
+}
+
+func priceListTypeLabel(t store.QuoteType) string {
+	return t.Prefix + tipoNameSuffix(t)
+}
+
+// priceListFor is who a kept list was for: its lead, else what was typed.
+func priceListFor(pl store.PriceList) string {
+	if strings.TrimSpace(pl.Recipient) != "" {
+		return pl.Recipient
+	}
+	return "—"
+}
+
+// PriceListTypePicker is the "make a list" form: a tipo and, for a lead's, its id.
+templ PriceListTypePicker(types []store.QuoteType, leadID int64) {
+	<form method="get" action="/listas-de-precios/nueva" class="stage-form">
+		if leadID != 0 {
+			<input type="hidden" name="lead" value={ strconv.FormatInt(leadID, 10) }/>
+		}
+		<label>
+			Familia (tipo de cotización)
+			<select name="tipo" required>
+				for _, t := range types {
+					<option value={ strconv.FormatInt(t.ID, 10) }>{ priceListTypeLabel(t) }</option>
+				}
+			</select>
+		</label>
+		<button type="submit">Armar lista de precios</button>
+	</form>
+}
+
+// PriceListsTable lists kept price lists, newest first.
+templ PriceListsTable(lists []store.PriceList, withLead bool) {
+	<div class="table-scroll">
+		<table>
+			<thead>
+				<tr>
+					<th>Fecha</th>
+					<th>Lista</th>
+					<th>Para</th>
+					<th>Margen</th>
+					<th>Vigente hasta</th>
+					<th>Hecha por</th>
+					<th><span class="visually-hidden">PDF</span></th>
+				</tr>
+			</thead>
+			<tbody>
+				if len(lists) == 0 {
+					<tr><td colspan="7">No hay listas de precios.</td></tr>
+				}
+				for _, pl := range lists {
+					<tr>
+						<td>@Timestamp(pl.CreatedAt)</td>
+						<td>{ pl.TypePrefix } · { strconv.Itoa(pl.Lines) } productos</td>
+						<td>
+							if withLead && pl.LeadID != nil {
+								<a href={ templ.URL(leadPath(*pl.LeadID)) }>{ priceListFor(pl) }</a>
+							} else {
+								{ priceListFor(pl) }
+							}
+						</td>
+						<td>{ MarginLabel(pl.MarginName, pl.MarginMicros) }</td>
+						<td>{ dateText(pl.ValidUntil) }</td>
+						<td>{ pl.UserName }</td>
+						<td><a href={ templ.URL(PriceListPDFPath(pl)) } target="_blank" rel="noopener">PDF</a></td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+// PriceListsPage is /listas-de-precios.
+templ PriceListsPage(lists []store.PriceList, types []store.QuoteType, lv ListView, user *NavUser) {
+	@Layout("Listas de precios", user) {
+		<div class="page-title">
+			<h1>Listas de precios</h1>
+			@HelpLink(HelpListasDePrecios)
+		</div>
+		<p>Todos los productos de una familia con su precio, su vigencia y los términos y condiciones de su tipo de cotización. Para enviársela a un lead, ármala desde su página: queda en su historial.</p>
+		@PriceListTypePicker(types, 0)
+		<h2>Listas hechas</h2>
+		@PriceListsTable(lists, true)
+		@listPager(lv, false)
+	}
+}
+
+// PriceListBuilderPage is /listas-de-precios/nueva: every product of the familia with
+// its quantity (1 to start; 0 leaves it off), priced at the chosen margin. Recalcular is
+// the form's default button; Generar PDF keeps the list.
+templ PriceListBuilderPage(b PriceListBuilder, user *NavUser) {
+	@Layout("Lista de precios "+b.Type.Prefix, user) {
+		<div class="page-title">
+			<h1>Lista de precios { priceListTypeLabel(b.Type) }</h1>
+			@HelpLink(HelpListaDePreciosArmar)
+		</div>
+		if b.Lead != nil {
+			<p>Para el lead <a href={ templ.URL(leadPath(b.Lead.ID)) }>{ b.Lead.Label() }</a>; queda en su historial.</p>
+		}
+		@FormError(b.Error)
+		<form method="post" action="/listas-de-precios/nueva">
+			<input type="hidden" name="tipo" value={ strconv.FormatInt(b.Type.ID, 10) }/>
+			if b.Lead != nil {
+				<input type="hidden" name="lead" value={ strconv.FormatInt(b.Lead.ID, 10) }/>
+			}
+			<label>
+				Para
+				<input type="text" name="para" value={ b.Recipient } placeholder="p. ej. Juan Pérez · Eléctrica Norte"/>
+			</label>
+			<div class="margin-controls">
+				<label>
+					Margen
+					<select name="margin_option_id">
+						if b.Margin.NoneChosen && !b.Margin.Custom {
+							<option value="" selected>— Elige un margen —</option>
+						}
+						for _, c := range b.Margin.Choices {
+							<option value={ marginChoiceValue(c.ID) } selected?={ c.Selected && !b.Margin.Custom }>{ c.Label }</option>
+						}
+						<option value={ CustomMarginValue } selected?={ b.Margin.Custom }>{ b.Margin.CustomOptionLabel() }</option>
+					</select>
+				</label>
+				<label>
+					Otro margen (%)
+					<input type="text" inputmode="decimal" name="margin_pct" value={ customPctValue(b.Margin) } size="6"/>
+				</label>
+				if b.Margin.Error != "" {
+					<p class="error">{ b.Margin.Error }</p>
+				}
+			</div>
+			<p class="hint">"Otro margen (%)" solo cuenta con <em>Otro margen</em> elegido.</p>
+			if b.AsksDeliveryTime {
+				<label>
+					Tiempo de entrega
+					<input type="text" name="delivery_time" value={ b.DeliveryTime } placeholder="p. ej. 3 a 4 semanas"/>
+				</label>
+			}
+			<p>Precios en pesos (MXN), vigentes hasta el <strong>{ dateText(b.ValidUntil) }</strong>.</p>
+			<div class="table-scroll">
+				<table class={ templ.KV("kg-lines", b.ShowKg) }>
+					<thead>
+						<tr>
+							<th>Producto</th>
+							if b.ShowKg {
+								<th class="num">Cantidad (m)</th>
+								<th class="num">Kg por metro</th>
+								<th class="num">Kg</th>
+							} else {
+								<th class="num">Cantidad</th>
+							}
+							<th class="num">Precio unitario</th>
+							<th class="num">Total</th>
+						</tr>
+					</thead>
+					<tbody>
+						if len(b.Rows) == 0 {
+							<tr><td colspan="6">Esta familia no tiene productos.</td></tr>
+						}
+						for _, row := range b.Rows {
+							<tr class={ templ.KV("excluded", row.Excluded) }>
+								<td>
+									{ row.Label }
+									if row.Error != "" {
+										<p class="error">{ row.Error }</p>
+									} else if row.Priced != nil && row.Priced.Error != "" {
+										<p class="error">{ row.Priced.Error }</p>
+									}
+								</td>
+								<td class="num">
+									<input type="text" inputmode="decimal" size="7" name={ "qty_" + strconv.FormatInt(row.ProductID, 10) } value={ row.Qty } aria-label={ "Cantidad de " + row.Label }/>
+									if row.Priced != nil && !b.ShowKg && row.Priced.UnitCode != "" {
+										{ " " + row.Priced.UnitCode }
+									}
+								</td>
+								if b.ShowKg {
+									<td class="num">
+										if row.Priced != nil {
+											{ KgPerUnitText(*row.Priced) }
+										}
+									</td>
+									<td class="num">
+										if row.Priced != nil {
+											{ KgText(*row.Priced) }
+										}
+									</td>
+								}
+								<td class="num">
+									if row.Priced != nil && row.Priced.Error == "" {
+										{ row.Priced.UnitPriceMicros.ToCentavosHalfUp().String() }
+									}
+								</td>
+								<td class="num">
+									if row.Priced != nil && row.Priced.Error == "" {
+										{ row.Priced.LineTotal.String() }
+									} else if row.Excluded {
+										<small>No va en la lista</small>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+					@quoteTotals(b.Totals, priceListTotalsLead(b.ShowKg), 0)
+				</table>
+			</div>
+			<p class="hint">Cambia una cantidad (p. ej. 1,000 m) para que la lista muestre ese total; pon 0 para quitar un producto.</p>
+			<button type="submit">Recalcular</button>
+			<button type="submit" name="generar" value="1" class="primary">Generar PDF</button>
+		</form>
+	}
+}
+
+func priceListTotalsLead(kg bool) int {
+	if kg {
+		return 5
+	}
+	return 3
+}
+
+// customPctValue is the Otro margen field's value: the typed one while it is picked, the
+// chosen option's percentage otherwise.
+func customPctValue(p MarginPicker) string {
+	return p.CustomPct
+}

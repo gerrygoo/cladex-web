@@ -68,6 +68,7 @@ var StagingTables = map[string]StagingRule{
 	"cfdi_folio_sequences":  StagingSynthetic,
 	"leads":                 StagingSynthetic,
 	"lead_comments":         StagingSynthetic,
+	"price_lists":           StagingSynthetic,
 
 	"sessions":            StagingEmpty,
 	"login_attempts":      StagingEmpty,

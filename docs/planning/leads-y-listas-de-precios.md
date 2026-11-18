@@ -1,6 +1,6 @@
 # Leads y listas de precios
 
-**Draft 2026-11-18; Gerry decided margins go on the tipo de cotización, next to its terms. Emilio answered the questions on #82 the same day (§3); L4 is dropped. L1 built 2026-11-18 (migration 0047); L2 built 2026-11-18 (0048); L3 not started.** Driven by
+**Draft 2026-11-18; Gerry decided margins go on the tipo de cotización, next to its terms. Emilio answered the questions on #82 the same day (§3); L4 is dropped. L1 built 2026-11-18 (migration 0047); L2 built 2026-11-18 (0048); L3 built 2026-11-18 (0049).** Driven by
 [#82](https://github.com/gerrygoo/cladex-web/issues/82): Emilio wants to give prices to
 people who aren't a real proyecto yet, without creating proyectos that pollute Pronóstico
 (today: `QA0046 · Cotizaciones informativas de producto`, later marked Perdido), and still
@@ -110,6 +110,14 @@ Order: **L1 → L2 → L3**. When a lead brings concrete quantities for a real p
   was sent: familia, margin, date, who.
 - Vigencia rule per tipo, editable by the admin: every familia starts at *end of the
   issuing month*; *N days* is the other option for later.
+- *As built (0049):* the list is priced by the quote builder's own code: an in-memory
+  draft of the tipo goes through `Quotes.resolveMargin` and `Quotes.computeQuoteLines`
+  (so tipo margins, Otro margen, CCS kilos from the material price, QG per-kg costs all
+  behave as in a quote), and the PDF is the quote layout with `QuoteDocument.PriceList`
+  relabelling the header. `price_lists` keeps the rendered PDF (the price holds) plus
+  tipo, lead, recipient, margin, vigencia and line count; a lead's list writes an entry
+  to its history. Lists are made from a lead's page or from Leads → Listas de precios.
+  Vigencia is fixed at end of month for now; the per-familia admin rule is not built.
 - Can a price list be made without a lead, e.g. for a customer? Probably yes (lead
   optional), but the issue only asks for leads.
 

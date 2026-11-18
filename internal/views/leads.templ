@@ -218,6 +218,9 @@ type LeadPageData struct {
 	Lead      store.Lead
 	Comments  []store.LeadComment
 	Types     []store.QuoteType
+	// ListTypes are the tipos a price list can be made of; PriceLists those sent.
+	ListTypes  []store.QuoteType
+	PriceLists []store.PriceList
 	Customers []store.Customer
 	Users     []store.User
 	Form      LeadFormValues
@@ -301,6 +304,17 @@ templ LeadPage(d LeadPageData, user *NavUser) {
 				</form>
 			</section>
 		}
+		<section id="listas">
+			<h2>Listas de precios</h2>
+			if l.Open() && len(d.ListTypes) > 0 {
+				@PriceListTypePicker(d.ListTypes, l.ID)
+			}
+			if len(d.PriceLists) > 0 {
+				@PriceListsTable(d.PriceLists, false)
+			} else {
+				<p>Todavía no se le ha enviado ninguna.</p>
+			}
+		</section>
 		<section id="historial">
 			<h2>Seguimiento y comentarios</h2>
 			if l.Open() {
