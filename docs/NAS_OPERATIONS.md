@@ -303,70 +303,86 @@ runner and shows its error under **Notificaciones** (and the job's under **Traba
 ## Staging
 
 `cladex-staging` is a second container in the same compose project: the same image, on
-**:8091**, with its own `staging/data` and `staging/secrets`. It is served at
-**`https://pruebas.cladex.com.mx`** (since 2026-11-17), the same way as production: GoDaddy
-A record → VPS nginx (`/etc/nginx/sites-available/pruebas.cladex.com.mx`, certbot webroot
-cert, log `/var/log/nginx/pruebas.access.log`) → frps → the NAS `frp_client` proxy
-`cladex-staging` → `127.0.0.1:8091`. The VPS site asks for **HTTP basic auth** first
-(user `cladex`, `/etc/nginx/pruebas.htpasswd`, password in 1Password) and sends
-`X-Robots-Tag: noindex`: staging's data is a copy of production's (customers, prices,
-proyectos), and the gate keeps it from strangers and crawlers even though production's
-passwords don't work there (see "Who can sign in" below). Its session
-cookie is Secure (`COOKIE_SECURE` unset) and `APP_URL` is the domain, so signing in at
-`http://192.168.3.169:8091` no longer works; `curl localhost:8091/healthz` on the NAS still
-does. To change the basic-auth password: `openssl passwd -apr1` locally, then write
-`cladex:<hash>` to the htpasswd file on the VPS (`root:www-data`, mode 640). Being in the project, the deploy cron updates it with production on
-every push to `main`. `APP_ENV=staging` puts a banner on every page, a *PRUEBA*
-watermark on every PDF, and keeps facturación on the sandbox.
+**:8091**, with its own `staging/data` and `staging/secrets`. Being in the project, the
+deploy cron updates it with production on every push to `main`. `APP_ENV=staging` puts a
+banner on every page, a *PRUEBA* watermark on every PDF, and keeps facturación on the
+sandbox.
 
-Its database is a copy of production's, refreshed on demand:
+It is served at **`https://pruebas.cladex.com.mx`** (since 2026-11-17), the same way as
+production: GoDaddy A record → VPS nginx (`/etc/nginx/sites-available/pruebas.cladex.com.mx`,
+certbot webroot cert, log `/var/log/nginx/pruebas.access.log`, `X-Robots-Tag: noindex`) →
+frps → the NAS `frp_client` proxy `cladex-staging` → `127.0.0.1:8091`. There is no gate
+in front of the app's own login: staging holds no customer data (below). Its session
+cookie is Secure (`COOKIE_SECURE` unset) and `APP_URL` is the domain, so signing in at
+`http://192.168.3.169:8091` doesn't work; `curl localhost:8091/healthz` on the NAS does.
+
+### What staging holds (#81)
+
+Staging is **not a copy of production**. Every refresh builds a new database:
+production's **configuration** copied in, and **synthetic data** on top. Every table is
+classified in `store.StagingTables`, and a test fails when a migration adds one that
+isn't, so a new table can't put real data on staging unnoticed.
+
+- **Copied** (`store.CopyStagingConfig`): quote types, familias, products, materials,
+  units, margins and settings. Product and material **costs are scaled by one random
+  factor** per refresh, so margins keep their proportions but amounts aren't
+  production's. **Documentos oficiales** keep their sections and titles, each file
+  replaced by a one-page placeholder PDF. The emisor is the SAT's test company (ESCUELA
+  KEMPER URGATE), with series `PRUEBAF` / `PRUEBAP`. Settings' and documents' references
+  to users who aren't on staging are dropped.
+- **Synthetic**: customers, suppliers, proyectos, quotes, O.C.s, payments, facturas and
+  files are only what `seed-staging` makes. Rows migrations seed into those tables (0033
+  adds a real supplier and its contacts) are cleared.
+- **Empty**: sessions, login attempts, jobs, notifications, avisos rounds. The audit log
+  starts with the rows the build itself writes.
+
+Refresh on demand:
 
 ```bash
 scp -O scripts/staging-refresh.sh cladex-nas:/volume1/docker/cladex/
 ssh cladex-nas 'sh /volume1/docker/cladex/staging-refresh.sh'
 ```
 
-It copies the live database with sqlite3's online backup (production keeps running),
-drops the sessions so production cookies don't open staging, adds the test data
-(`cladex seed-staging`) and restarts staging.
+It takes sqlite3's online backup of production (production keeps running) only as the
+source of configuration, builds `staging/data/cladex.db.new` with
+`cladex seed-staging --config-from`, then stops staging, swaps the file in and starts it.
+The backup is deleted when it finishes. **A failed build changes nothing**: staging keeps
+its current data and the script exits non-zero. Everything done in staging since the last
+refresh is lost; staging has no Litestream and no backups.
 
-**Test data** (`internal/web/seed.go`), everything named or prefixed `PRUEBA`:
+To rehearse a build without touching live staging, run the same command with another
+`DB_PATH` (e.g. `/data/rehearsal.db`) and delete it and the backup after.
+
+**Test data** (`internal/web/seed.go`, `seed_more.go`), everything named or prefixed
+`PRUEBA`:
 
 - Users `prueba-admin`, `prueba-admin2` (admin) and `prueba-vend1`–`3` (vendedor), with
   one random password the refresh prints.
 - Five customers with SAT test RFCs that Facturoporti's sandbox accepts (601 and 612), so
   facturas to them stamp in staging; five suppliers.
-- Five products copied from real ones (same cost, weight and materials) with SAT codes:
-  two from the quote type priced by the copper price (CCS), one in KGM (invoiced in kilos)
-  and one in MTR; two cables by the metre (CCA), one without SAT codes (to see "Faltan
-  datos para facturar"); and a piece (a luminaria) in H87. Quote types are found by what
-  they do, not by prefix or name, which admins change.
-- About twenty proyectos (`seedMoreProjects`), some owned by the real `STAGING_USERS`:
-  prospectos at every probabilidad (one with an overdue follow-up, one due today, one
-  without a date, one with a revised quote and comments); en curso with a supplier O.C.
-  ready to invoice in kilos, delivered and not invoiced, P.U.E. paid and not delivered,
-  P.P.D. with an anticipo, P.P.D. with one complemento, and one whose factura was
-  cancelled; two Cerrado · Ganado (P.U.E., and P.P.D. paid in two complementos); a
-  Cancelado; two Perdido; a draft quote; and pendientes for each user.
+- Five products copied from real ones (same weight and materials, cost as scaled) with
+  SAT codes: two from the quote type priced by the copper price (CCS), one in KGM
+  (invoiced in kilos) and one in MTR; two cables by the metre (CCA), one without SAT codes
+  (to see "Faltan datos para facturar"); and a piece (a luminaria) in H87. Quote types are
+  found by what they do, not by prefix or name, which admins change.
+- Twenty proyectos, some owned by the real `STAGING_USERS`: prospectos at every
+  probabilidad (one with an overdue follow-up, one due today, one without a date, one
+  with a revised quote and comments); en curso with a supplier O.C. ready to invoice in
+  kilos, delivered and not invoiced, P.U.E. paid and not delivered, P.P.D. with an
+  anticipo, P.P.D. with one complemento, and one whose factura was cancelled; two Cerrado
+  · Ganado (P.U.E., and P.P.D. paid in two complementos); a Cancelado; two Perdido; a draft
+  quote; and pendientes for each user.
 
-`seed-staging` refuses unless `APP_ENV` is staging or development. It writes the setting
-`seed_staging_at` last and does nothing once it's there; after a run that failed halfway,
-running it again reuses what was created and finishes. A failed seed doesn't keep the
-refresh from starting staging: it prints a warning; re-run it with
-`docker compose run --rm --no-deps cladex-staging seed-staging`.
-Everything done in staging since the last refresh is lost. Staging has no Litestream and
-no backups: its data is disposable.
+`seed-staging` refuses unless `APP_ENV` is staging or development, and `--config-from`
+refuses a database that already has users, customers or proyectos.
 
-**Who can sign in.** The refresh replaces every copied password with `!`
-(`web.NoPasswordHash`, which no password matches), so production's passwords never work on
-staging. Then `seed-staging` gives only the real users listed in the service's
-`STAGING_USERS` (compose, comma-separated usernames; `ggo,efs` since 2026-11-17) a
-staging-only password, and prints them with the test users' shared one. Everyone else
-can't sign in to staging. To give someone access between refreshes, add them to
-`STAGING_USERS`, set their hash back to `!`, and re-run `seed-staging`. Cookies don't
-tell ports apart, so with production also open by LAN IP (`:8090`) in the same browser,
-signing in to one signs you out of the other; production through
-`cotizador.cladex.com.mx` is unaffected.
+**Who can sign in.** Only the real users listed in the service's `STAGING_USERS`
+(compose, comma-separated usernames; `ggo,efs` since 2026-11-17) are copied, without
+passwords; `seed-staging` gives each a staging-only one and prints them with the test
+users' shared one. Production's passwords never reach staging. To add someone, add them to
+`STAGING_USERS` and refresh. Cookies don't tell ports apart, so with production also open
+by LAN IP (`:8090`) in the same browser, signing in to one signs you out of the other;
+production through `cotizador.cladex.com.mx` is unaffected.
 
 ## Running one-off commands against production
 

@@ -1,46 +1,49 @@
 #!/bin/sh
-# Replace the staging database with a fresh copy of production's. Runs on the NAS, from
-# anywhere: ssh cladex-nas 'sh /volume1/docker/cladex/staging-refresh.sh'
+# Rebuild the staging database (#81). Runs on the NAS, from anywhere:
+# ssh cladex-nas 'sh /volume1/docker/cladex/staging-refresh.sh'
 # (docs/NAS_OPERATIONS.md#staging). Whatever was done in staging is lost.
 #
-# The copy is sqlite3's online backup of the live database, so production keeps running.
-# Sessions are dropped from the copy: production's login cookies don't open staging. So
-# are the passwords: only the users in the service's STAGING_USERS get a staging-only one,
-# printed at the end; the rest can't sign in to staging.
-# Then the test data is added on top (seed-staging).
+# Staging is not a copy of production. It is a new database with production's
+# configuration copied in (catalog, quote types, margins, settings; product costs scaled
+# by a random factor; documentos oficiales as placeholder PDFs) and synthetic data on
+# top: test customers, suppliers and about twenty proyectos. Only the real users in the
+# service's STAGING_USERS can sign in, each with a staging-only password printed at the
+# end. See store.StagingTables for what each table gets.
+#
+# The new database is built next to the live one, so a failed build leaves staging as
+# it was. Production keeps running throughout: its configuration is read from sqlite3's
+# online backup, which is deleted afterwards.
 set -eu
 
 APP_DIR=/volume1/docker/cladex
 PROD_DB="$APP_DIR/data/cladex.db"
 STAGING_DATA="$APP_DIR/staging/data"
-NEW="$STAGING_DATA/cladex.db.refresh"
+# Paths inside the staging container, where staging/data is /data.
+SOURCE=prod-config.db
+NEW=cladex.db.new
+
+cleanup() { rm -f "$STAGING_DATA/$SOURCE" "$STAGING_DATA/$SOURCE-wal" "$STAGING_DATA/$SOURCE-shm"; }
+trap cleanup EXIT
 
 mkdir -p "$STAGING_DATA"
-rm -f "$NEW"
-sqlite3 "$PROD_DB" ".backup '$NEW'"
-sqlite3 "$NEW" "PRAGMA integrity_check;" | grep -qx ok
-sqlite3 "$NEW" "DELETE FROM sessions;"
-# Production's passwords never reach staging: no password matches '!' (web.NoPasswordHash).
-# seed-staging then gives the users in STAGING_USERS a staging-only password and prints it.
-sqlite3 "$NEW" "UPDATE users SET password_hash = '!';"
-# Staging stamps with the SAT's test CSD (ESCUELA KEMPER URGATE), so its emisor is that
-# company, and its CFDIs get their own series so they never look like production's.
-sqlite3 "$NEW" "INSERT INTO settings (key, value) VALUES
-  ('emisor_rfc', 'EKU9003173C9'), ('emisor_nombre', 'ESCUELA KEMPER URGATE'), ('emisor_regimen', '601'),
-  ('emisor_cp', '42501'), ('factura_serie', 'PRUEBAF'), ('pago_serie', 'PRUEBAP')
-  ON CONFLICT (key) DO UPDATE SET value = excluded.value;"
+cleanup
+rm -f "$STAGING_DATA/$NEW" "$STAGING_DATA/$NEW-wal" "$STAGING_DATA/$NEW-shm"
+sqlite3 "$PROD_DB" ".backup '$STAGING_DATA/$SOURCE'"
+sqlite3 "$STAGING_DATA/$SOURCE" "PRAGMA integrity_check;" | grep -qx ok
 
 cd "$APP_DIR"
+# Builds and seeds the new database; prints the staging passwords. It refuses unless the
+# service's APP_ENV is staging, and unless the database it builds is new.
+if ! docker compose run --rm --no-deps -e DB_PATH="/data/$NEW" cladex-staging seed-staging --config-from "/data/$SOURCE"; then
+	rm -f "$STAGING_DATA/$NEW" "$STAGING_DATA/$NEW-wal" "$STAGING_DATA/$NEW-shm"
+	echo "ERROR: staging was not rebuilt; it keeps its current data" >&2
+	exit 1
+fi
+# Fold the new database's WAL into it, so the swap moves a single file.
+sqlite3 "$STAGING_DATA/$NEW" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null
+
 docker compose stop cladex-staging
-rm -f "$STAGING_DATA/cladex.db-wal" "$STAGING_DATA/cladex.db-shm"
-mv "$NEW" "$STAGING_DATA/cladex.db"
-# Add the test data (users, customers valid in the SAT's sandbox, suppliers, products and
-# proyectos in several states; cladex seed-staging, web.SeedStaging) so staging is a
-# superset of production. The staging passwords of the real users in STAGING_USERS
-# and the test users' password are printed here. It refuses to run
-# unless the service's APP_ENV is staging.
-# A failed seed must not leave staging down: warn, start it anyway, and re-run the seed
-# by hand (it resumes): docker compose run --rm --no-deps cladex-staging seed-staging
-docker compose run --rm --no-deps cladex-staging seed-staging || echo "AVISO: los datos de prueba no se agregaron completos"
+rm -f "$STAGING_DATA/cladex.db-wal" "$STAGING_DATA/cladex.db-shm" "$STAGING_DATA/$NEW-wal" "$STAGING_DATA/$NEW-shm"
+mv "$STAGING_DATA/$NEW" "$STAGING_DATA/cladex.db"
 docker compose up -d cladex-staging
-echo "staging refreshed from production at $(date '+%Y-%m-%d %H:%M')"
+echo "staging rebuilt from production's configuration at $(date '+%Y-%m-%d %H:%M')"
