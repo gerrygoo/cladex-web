@@ -150,7 +150,10 @@ func runSeedStaging(args []string) {
 	}
 	// Run the jobs the seed queued (avisos for each O.C. received, …) now, so the rebuilt
 	// staging doesn't start with a backlog holding the write lock while people sign in.
-	runner, _ := newJobRunner(db, notify.Load(env, os.Getenv), newLogger())
+	// Only a job that fails is worth a line here, next to the passwords; each job's
+	// result stays in the jobs table (Trabajos).
+	quiet := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	runner, _ := newJobRunner(db, notify.Load(env, os.Getenv), quiet)
 	if n := runner.Drain(ctx); n > 0 {
 		fmt.Printf("Trabajos en cola corridos: %d.\n", n)
 	}
