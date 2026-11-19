@@ -1,6 +1,6 @@
 # Notificaciones y trabajos en segundo plano
 
-**Design approved (Gerry, 2026-10-23). N1 (the runner) and N2 (notifications and email) built 2026-10-26; N3 (avisos de seguimiento, #69 A+B) built 2026-11-10; #69 C, D, F built 2026-11-14; N4 (WhatsApp) in progress; N5–N6 not started.** One design for
+**Design approved (Gerry, 2026-10-23). N1 (the runner) and N2 (notifications and email) built 2026-10-26; N3 (avisos de seguimiento, #69 A+B) built 2026-11-10; #69 C, D, F built 2026-11-14; N4 (WhatsApp) blocked on Meta's business verification, tracked in #84; N5–N6 not started, unscheduled. #18 and #19 closed 2026-11-18.** One design for
 [#19](https://github.com/gerrygoo/cladex-web/issues/19) (background jobs) and
 [#18](https://github.com/gerrygoo/cladex-web/issues/18) (outbound notifications), because
 the second is the first real consumer of the first. A notification is a row written in the
