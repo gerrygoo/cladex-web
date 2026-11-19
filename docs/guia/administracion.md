@@ -357,6 +357,12 @@ Puedes cambiar su **serie**, p. ej. de `QA` a `QCCA`:
 - Una serie que ya tiene o usó **otro** tipo no se puede usar, para que nunca haya dos
   cotizaciones con el mismo folio.
 
+**Vigencia de sus cotizaciones y listas de precios**: elige *Hasta el último día del
+mes en que se emiten* (lo normal) o *Un número de días desde que se emiten* y escribe
+cuántos (de 1 a 365). Cuenta para las cotizaciones que se emitan y las
+[listas de precios](leads.md#listas-de-precios) que se generen de ahora en adelante; las
+que ya salieron conservan su fecha.
+
 Los cambios de términos, membrete y lo demás se ven en los borradores y en las
 cotizaciones que se emitan de ahora en adelante. Las ya emitidas conservan los términos y
 el PDF con que se emitieron.

@@ -155,6 +155,9 @@ func (h *PriceLists) build(w http.ResponseWriter, r *http.Request) *priceListSta
 			qty = strings.TrimSpace(form.Get("qty_" + strconv.FormatInt(p.ID, 10)))
 		}
 		row := views.PriceListRow{ProductID: p.ID, Label: p.SKU + " — " + p.Description, Qty: qty}
+		if p.UnitCode == "" && !qt.KgPriced {
+			st.view.NoUnit = append(st.view.NoUnit, p.SKU)
+		}
 		if m, err := money.ParseMilli(qty); qty == "" || (err == nil && m == 0) {
 			row.Excluded = true
 		} else if err != nil || m < 0 {
@@ -188,7 +191,7 @@ func (h *PriceLists) build(w http.ResponseWriter, r *http.Request) *priceListSta
 	st.view.Margin = st.margin.picker
 	st.view.Totals = computeQuoteTotals(st.lines)
 	st.view.ShowKg = views.ShowsKg(*st.quote)
-	st.view.ValidUntil = endOfMonth(time.Now().In(store.LocationFromContext(ctx)))
+	st.view.ValidUntil = store.ValidUntil(time.Now().In(store.LocationFromContext(ctx)), qt.ValidityDays)
 	return st
 }
 

@@ -316,8 +316,8 @@ func TestEndOfMonth(t *testing.T) {
 		{"2026-12-31", "2026-12-31"},
 	} {
 		day, _ := time.Parse("2006-01-02", c.day)
-		if got := endOfMonth(day); got != c.want {
-			t.Errorf("endOfMonth(%s) = %s, want %s", c.day, got, c.want)
+		if got := store.ValidUntil(day, 0); got != c.want {
+			t.Errorf("store.ValidUntil(%s, 0) = %s, want %s", c.day, got, c.want)
 		}
 	}
 }
@@ -472,7 +472,7 @@ func TestQuotesEmitir(t *testing.T) {
 		t.Fatalf("issue didn't record name snapshots/hash: %+v", issued)
 	}
 	// The vigencia is the last day of the month it was issued in (issue #26).
-	if want := endOfMonth(time.Now().In(store.LocationFromContext(context.Background()))); *issued.ValidUntil != want {
+	if want := store.ValidUntil(time.Now().In(store.LocationFromContext(context.Background())), 0); *issued.ValidUntil != want {
 		t.Errorf("ValidUntil = %s, want %s", *issued.ValidUntil, want)
 	}
 

@@ -50,18 +50,12 @@ func projectFixture(t *testing.T, s *Store) (quote *Quote, userID int64) {
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
-	// Migration tests call this on a database from before 0047, whose margin_options has
-	// no quote_type_id yet; CreateDraftQuote reads it, and 0047 copies the table by named
-	// columns, so adding it here changes nothing else.
-	var hasTypeCol int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('margin_options') WHERE name = 'quote_type_id'`).Scan(&hasTypeCol); err != nil {
-		t.Fatal(err)
-	}
-	if hasTypeCol == 0 {
-		if _, err := s.db.ExecContext(ctx, `ALTER TABLE margin_options ADD COLUMN quote_type_id INTEGER`); err != nil {
-			t.Fatal(err)
-		}
-	}
+	// Migration tests call this on a database from an older schema, without columns the
+	// current quote code reads (margin_options.quote_type_id, 0047;
+	// quote_types.validity_days, 0050). They're added empty and taken off again by
+	// closeShimmed, before the test runs the migrations that add them for real.
+	addColumnIfMissing(t, s, "margin_options", "quote_type_id", "INTEGER")
+	addColumnIfMissing(t, s, "quote_types", "validity_days", "INTEGER")
 	q, err := s.CreateDraftQuote(ctx, customerID, userID, "QA")
 	if err != nil {
 		t.Fatalf("CreateDraftQuote: %v", err)
@@ -310,7 +304,7 @@ func TestMigration0016(t *testing.T) {
 	if err := old.db.QueryRowContext(ctx, `SELECT count(*) FROM audit_log`).Scan(&auditBefore); err != nil {
 		t.Fatalf("audit count: %v", err)
 	}
-	old.Close()
+	closeShimmed(t, old)
 
 	s, err := Open(ctx, dsn, cladex.MigrationsFS)
 	if err != nil {
@@ -1269,7 +1263,7 @@ func TestMigration0041(t *testing.T) {
 			t.Fatalf("seed %q: %v", stmt, err)
 		}
 	}
-	old.Close()
+	closeShimmed(t, old)
 
 	s, err := Open(ctx, dsn, cladex.MigrationsFS)
 	if err != nil {
@@ -1322,5 +1316,38 @@ func TestMigration0041(t *testing.T) {
 	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM audit_log WHERE table_name = 'projects'
 		AND json_extract(new_values, '$.status') = 'cancelado' AND json_type(new_values, '$.cancel_reason') = 'null'`).Scan(&n); err != nil || n != 1 {
 		t.Errorf("audit rows for the new stage = %d, %v", n, err)
+	}
+}
+
+// shimColumns are the columns addColumnIfMissing added, per store, so closeShimmed can
+// take them off again before the test migrates the database past the migration that
+// really adds them.
+var shimColumns = map[*Store][][2]string{}
+
+// closeShimmed drops the columns addColumnIfMissing added to s and closes it.
+func closeShimmed(t *testing.T, s *Store) {
+	t.Helper()
+	for _, c := range shimColumns[s] {
+		if _, err := s.db.Exec(`ALTER TABLE ` + c[0] + ` DROP COLUMN ` + c[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	delete(shimColumns, s)
+	s.Close()
+}
+
+// addColumnIfMissing adds column to table on an older schema, for migration tests that
+// run today's store code against it. Close such a store with closeShimmed.
+func addColumnIfMissing(t *testing.T, s *Store, table, column, decl string) {
+	t.Helper()
+	var n int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?`, table, column).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n == 0 {
+		if _, err := s.db.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + column + ` ` + decl); err != nil {
+			t.Fatal(err)
+		}
+		shimColumns[s] = append(shimColumns[s], [2]string{table, column})
 	}
 }

@@ -71,6 +71,13 @@ func parseTipoForm(r *http.Request) store.QuoteType {
 	if id, err := strconv.ParseInt(r.FormValue("family_id"), 10, 64); err == nil && id > 0 {
 		qt.FamilyID = &id
 	}
+	// "Fin de mes" sends no days; a number that doesn't parse is refused by the store.
+	if r.FormValue("vigencia") == "dias" {
+		qt.ValidityDays = -1
+		if n, err := strconv.Atoi(strings.TrimSpace(r.FormValue("validity_days"))); err == nil && n >= 1 {
+			qt.ValidityDays = n
+		}
+	}
 	return qt
 }
 
@@ -82,6 +89,8 @@ func tipoErrors(err error) (map[string]string, bool) {
 		return map[string]string{"prefix": "La serie es una Q seguida de 1 a 5 letras, p. ej. QCCA."}, true
 	case errors.Is(err, store.ErrDuplicateSeries):
 		return map[string]string{"prefix": "Esa serie ya la tiene o la usó otro tipo de cotización; elige otra."}, true
+	case errors.Is(err, store.ErrBadValidity):
+		return map[string]string{"validity_days": "Escribe un número de días de 1 a 365, o elige hasta el fin de mes."}, true
 	case errors.Is(err, store.ErrBadLetterhead):
 		return map[string]string{"letterhead": "Elige un membrete de la lista."}, true
 	}

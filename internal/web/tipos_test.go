@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gerrygoo/cladex-web/internal/store"
 )
@@ -190,4 +191,46 @@ func typeIDOf(t *testing.T, a *Auth, prefix string) string {
 		t.Fatalf("quote type %s: %v", prefix, err)
 	}
 	return strconv.FormatInt(id, 10)
+}
+
+// A type's vigencia is set on its form (a number of days, or the end of the month) and
+// dates its price lists (#82 follow-up).
+func TestTipoVigencia(t *testing.T) {
+	a := newTestAuth(t)
+	mux := newTestMux(t, a)
+	ctx := context.Background()
+	admin := createNamedUser(t, a, "ana", "Ana", "admin")
+	qaID, _ := a.store.QuoteTypeIDByPrefix(ctx, "QA")
+	qt, _ := a.store.QuoteTypeByID(ctx, qaID)
+	path := "/tipos-de-cotizacion/" + strconv.FormatInt(qaID, 10)
+	form := func(vigencia, days string) url.Values {
+		f := url.Values{"prefix": {qt.Prefix}, "name": {qt.Name}, "letterhead": {qt.Letterhead}, "terms": {qt.Terms}, "vigencia": {vigencia}, "validity_days": {days}}
+		if qt.FamilyID != nil {
+			f.Set("family_id", strconv.FormatInt(*qt.FamilyID, 10))
+		}
+		return f
+	}
+	if rec := muxDo(t, a, mux, admin, "POST", path, form("dias", "0")); rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), "número de días de 1 a 365") {
+		t.Errorf("0 days = %d", rec.Code)
+	}
+	if rec := muxDo(t, a, mux, admin, "POST", path, form("dias", "15")); rec.Code != http.StatusSeeOther {
+		t.Fatalf("15 days = %d: %s", rec.Code, rec.Body.String())
+	}
+	if got, _ := a.store.QuoteTypeByID(ctx, qaID); got.ValidityDays != 15 {
+		t.Fatalf("ValidityDays = %d", got.ValidityDays)
+	}
+	if body := muxDo(t, a, mux, admin, "GET", path, nil).Body.String(); !strings.Contains(body, `value="15"`) {
+		t.Error("the form doesn't show the 15 days")
+	}
+	until, _ := time.Parse("2006-01-02", store.ValidUntil(time.Now().In(store.LocationFromContext(ctx)), 15))
+	want := until.Format("02/01/2006")
+	if body := muxDo(t, a, mux, admin, "GET", "/listas-de-precios/nueva?tipo="+strconv.FormatInt(qaID, 10), nil).Body.String(); !strings.Contains(body, want) {
+		t.Errorf("the price list isn't valid until %s", want)
+	}
+	if rec := muxDo(t, a, mux, admin, "POST", path, form("fin_de_mes", "15")); rec.Code != http.StatusSeeOther {
+		t.Fatalf("fin de mes = %d", rec.Code)
+	}
+	if got, _ := a.store.QuoteTypeByID(ctx, qaID); got.ValidityDays != 0 {
+		t.Errorf("back to fin de mes: %d", got.ValidityDays)
+	}
 }

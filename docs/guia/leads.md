@@ -77,7 +77,13 @@ Los precios se calculan igual que en una cotización de ese tipo. Todo va en pes
   de **Configuración del sistema**, como en sus cotizaciones.
 - **Astro**: precio por caja. **Exceline y Alumbrado**: precio por pieza.
 
-Una lista vale **hasta el último día del mes** en que se hace. El PDF se guarda tal
+La cantidad de cada producto sale con su unidad (`1 m`, `1 pza`, `1 caja`). Si un
+producto no tiene unidad en el catálogo, la página lo avisa y un administrador se la pone
+en [Productos](productos.md).
+
+Una lista vale lo que diga la vigencia de su tipo de cotización: **hasta el último día
+del mes** en que se hace, salvo que un administrador le haya puesto un número de días
+(ver [Administración](administracion.md)). El PDF se guarda tal
 como salió: aunque después cambie el precio por kilo o un margen, la lista ya enviada no
 cambia.
 

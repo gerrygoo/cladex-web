@@ -276,9 +276,11 @@ Qué pasa al emitir:
   referirte a ella en comentarios. En un borrador se renumeran si quitas o agregas
   líneas. Las cotizaciones emitidas antes de este cambio también salen numeradas al
   volver a descargarlas; nada más cambia.
-- La [[vigencia]] es el último día del mes en que la emites (emitida el 16/10, vence el
-  31/10; emitida el 31/10, vence ese mismo día); aparece en el PDF y en la página. En
-  la serie **QL** no es automática: tú escribes la [fecha de vigencia](#moneda-y-vigencia-en-ql).
+- La [[vigencia]] es, salvo que un administrador le haya puesto otra al tipo de
+  cotización, el último día del mes en que la emites (emitida el 16/10, vence el 31/10;
+  emitida el 31/10, vence ese mismo día). Si el tipo tiene una vigencia en días, vence
+  esos días después de emitirla. Aparece en el PDF y en la página. En la serie **QL** no
+  es automática: tú escribes la [fecha de vigencia](#moneda-y-vigencia-en-ql).
 
 > Para emitir, la cotización necesita al menos una línea, ninguna línea con error y un
 > margen disponible. En las series cuyos términos incluyen el tiempo de entrega (como

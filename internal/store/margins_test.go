@@ -235,7 +235,7 @@ func TestMigration0007AssignsDraftMargins(t *testing.T) {
 	if err := old.SetSetting(ctx, "default_margin", "123400", userID); err != nil {
 		t.Fatalf("SetSetting: %v", err)
 	}
-	old.Close()
+	closeShimmed(t, old)
 
 	s, err := Open(ctx, dsn, cladex.MigrationsFS)
 	if err != nil {
@@ -400,7 +400,7 @@ func TestMigration0047(t *testing.T) {
 	if _, err := old.db.ExecContext(ctx, `UPDATE quotes SET margin_option_id = ? WHERE id IN (?, ?)`, altoID, draft.ID, issued.ID); err != nil {
 		t.Fatal(err)
 	}
-	old.Close()
+	closeShimmed(t, old)
 
 	s, err := Open(ctx, dsn, cladex.MigrationsFS)
 	if err != nil {

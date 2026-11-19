@@ -35,6 +35,8 @@ type PriceListBuilder struct {
 	ShowKg           bool
 	ValidUntil       string
 	Error            string
+	// NoUnit are the SKUs without a unit: the list prints a bare quantity for them.
+	NoUnit []string
 }
 
 // PriceListPDFName is the list's file name: "Lista de precios Cable CCA 2026-11-18.pdf".
@@ -188,6 +190,9 @@ templ PriceListBuilderPage(b PriceListBuilder, user *NavUser) {
 				</label>
 			}
 			<p>Precios en pesos (MXN), vigentes hasta el <strong>{ dateText(b.ValidUntil) }</strong>.</p>
+			if len(b.NoUnit) > 0 && !b.ShowKg {
+				<p class="hint">Sin unidad en el catálogo, la lista no dice si es metro, pieza o caja: { strings.Join(b.NoUnit, ", ") }. Un administrador la pone en Productos.</p>
+			}
 			<div class="table-scroll">
 				<table class={ templ.KV("kg-lines", b.ShowKg) }>
 					<thead>

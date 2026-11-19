@@ -104,6 +104,21 @@ templ tipoFields(t store.QuoteType, families []store.Family, fieldErrors map[str
 		Términos y condiciones del PDF (uno por línea)
 		<textarea name="terms" rows="8">{ t.Terms }</textarea>
 	</label>
+	if !t.FreeLinesOnly {
+		<fieldset>
+			<legend>Vigencia de sus cotizaciones y listas de precios</legend>
+			<label>
+				<input type="radio" name="vigencia" value="fin_de_mes" checked?={ t.ValidityDays == 0 }/>
+				Hasta el último día del mes en que se emiten
+			</label>
+			<label>
+				<input type="radio" name="vigencia" value="dias" checked?={ t.ValidityDays != 0 }/>
+				Un número de días desde que se emiten:
+				<input type="number" name="validity_days" min="1" max="365" size="4" value={ validityDaysValue(t) } aria-label="Días de vigencia" { errAttrs(fieldErrors, "validity_days")... }/>
+			</label>
+			@FieldError(fieldErrors, "validity_days")
+		</fieldset>
+	}
 	<label>
 		Membrete del PDF
 		<select name="letterhead" { errAttrs(fieldErrors, "letterhead")... }>
@@ -140,4 +155,12 @@ templ tipoFields(t store.QuoteType, families []store.Family, fieldErrors map[str
 			Al final de la lista de cotizaciones
 		</label>
 	</fieldset>
+}
+
+// validityDaysValue is the days field's value: empty for "fin de mes".
+func validityDaysValue(t store.QuoteType) string {
+	if t.ValidityDays <= 0 {
+		return ""
+	}
+	return strconv.Itoa(t.ValidityDays)
 }

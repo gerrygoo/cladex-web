@@ -117,7 +117,7 @@ Order: **L1 → L2 → L3**. When a lead brings concrete quantities for a real p
   relabelling the header. `price_lists` keeps the rendered PDF (the price holds) plus
   tipo, lead, recipient, margin, vigencia and line count; a lead's list writes an entry
   to its history. Lists are made from a lead's page or from Leads → Listas de precios.
-  Vigencia is fixed at end of month for now; the per-familia admin rule is not built.
+  Vigencia: `quote_types.validity_days` (0050), NULL = end of month, else N days; set on the tipo's form and used by both its quotes and its lists. 0050 also fills a NULL product unit by brand (m for CCA/CCS/Alumoclad, pza for Exceline/Alumbrado) so lists print it.
 - Can a price list be made without a lead, e.g. for a customer? Probably yes (lead
   optional), but the issue only asks for leads.
 

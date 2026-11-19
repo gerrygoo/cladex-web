@@ -285,7 +285,7 @@ func TestMigration0042(t *testing.T) {
 	move("QS0003", "facturado", user)
 	move("QS0003", "en_entrega", admin)
 	move("QS0003", "facturado", admin)
-	old.Close()
+	closeShimmed(t, old)
 
 	s, err := Open(ctx, dsn, cladex.MigrationsFS)
 	if err != nil {

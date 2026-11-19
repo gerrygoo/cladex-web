@@ -478,7 +478,7 @@ func TestGuiaVigenciaFinDeMes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("QuoteByID: %v", err)
 	}
-	want := endOfMonth(time.Now().In(store.LocationFromContext(ctx)))
+	want := store.ValidUntil(time.Now().In(store.LocationFromContext(ctx)), 0)
 	if issued.ValidUntil == nil || *issued.ValidUntil != want {
 		t.Errorf("ValidUntil = %v, want %s (el último día del mes)", issued.ValidUntil, want)
 	}

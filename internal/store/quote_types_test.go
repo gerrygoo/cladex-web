@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gerrygoo/cladex-web"
 )
@@ -234,5 +235,78 @@ func TestMigration0046(t *testing.T) {
 	}
 	if _, err := s.db.ExecContext(ctx, `UPDATE quote_types SET letterhead = 'otro' WHERE id = 101`); err == nil {
 		t.Error("the CHECK accepts an unknown letterhead")
+	}
+}
+
+func TestValidUntil(t *testing.T) {
+	day := time.Date(2026, 11, 18, 10, 0, 0, 0, MexicoCity())
+	if got := ValidUntil(day, 0); got != "2026-11-30" {
+		t.Errorf("end of month = %s", got)
+	}
+	if got := ValidUntil(day, 15); got != "2026-12-03" {
+		t.Errorf("15 days = %s", got)
+	}
+}
+
+// A type's vigencia is kept and read back; outside 0–365 days it's refused.
+func TestQuoteTypeValidityDays(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	id, err := s.CreateQuoteType(ctx, QuoteType{Prefix: "QEXL", Name: "Exceline", ValidityDays: 15})
+	if err != nil {
+		t.Fatal(err)
+	}
+	qt, _ := s.QuoteTypeByID(ctx, id)
+	if qt.ValidityDays != 15 {
+		t.Errorf("ValidityDays = %d", qt.ValidityDays)
+	}
+	qt.ValidityDays = 0
+	if err := s.UpdateQuoteType(ctx, *qt); err != nil {
+		t.Fatal(err)
+	}
+	if qt, _ = s.QuoteTypeByID(ctx, id); qt.ValidityDays != 0 {
+		t.Errorf("back to end of month: %d", qt.ValidityDays)
+	}
+	qt.ValidityDays = 400
+	if err := s.UpdateQuoteType(ctx, *qt); !errors.Is(err, ErrBadValidity) {
+		t.Errorf("400 days: %v", err)
+	}
+}
+
+// TestMigration0050 fills a missing unit by brand, metres for cables and pieces for
+// Exceline and Alumbrado, and leaves a unit someone chose alone.
+func TestMigration0050(t *testing.T) {
+	ctx := context.Background()
+	dsn := filepath.Join(t.TempDir(), "up.db")
+	old, err := Open(ctx, dsn, migrationsBefore(t, "0050"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := old.db.ExecContext(ctx, q, args...); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	exec(`INSERT OR IGNORE INTO product_families (name) VALUES ('CCA'), ('Exceline')`)
+	exec(`UPDATE quote_types SET family_id = (SELECT id FROM product_families WHERE name = 'CCA'), letterhead = 'conduccasa' WHERE prefix = 'QA'`)
+	exec(`INSERT INTO quote_types (prefix, name, family_id, letterhead) VALUES ('QEXL', 'Exceline', (SELECT id FROM product_families WHERE name = 'Exceline'), 'exceline')`)
+	exec(`INSERT INTO products (family_id, sku, description) VALUES
+		((SELECT id FROM product_families WHERE name = 'CCA'), 'cca-1', 'Cable'),
+		((SELECT id FROM product_families WHERE name = 'Exceline'), 'exl-1', 'Lámpara')`)
+	exec(`INSERT INTO products (family_id, sku, description, unit_id) VALUES
+		((SELECT id FROM product_families WHERE name = 'CCA'), 'cca-2', 'Rollo', (SELECT id FROM units WHERE code = 'rollo'))`)
+	old.Close()
+
+	s, err := Open(ctx, dsn, cladex.MigrationsFS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	for sku, want := range map[string]string{"cca-1": "m", "exl-1": "pza", "cca-2": "rollo"} {
+		var code string
+		if err := s.db.QueryRowContext(ctx, `SELECT u.code FROM products p JOIN units u ON u.id = p.unit_id WHERE p.sku = ?`, sku).Scan(&code); err != nil || code != want {
+			t.Errorf("%s unit = %q, %v; want %s", sku, code, err, want)
+		}
 	}
 }

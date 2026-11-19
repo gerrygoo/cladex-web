@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"time"
 )
 
 // QuoteType is a quote_types row (migrations/0029_quote_types.sql): a kind of quote,
@@ -20,7 +21,21 @@ type QuoteType struct {
 	NextNumber int64
 	FamilyID   *int64
 	FamilyName string
+	// ValidityDays is how many days a quote or price list of the type is valid from the
+	// day it's issued; 0 means until the last day of that month (see ValidUntil).
+	ValidityDays int
 	QuoteTypeBehavior
+}
+
+// ValidUntil is the last day (YYYY-MM-DD) a quote or price list of a type with
+// validityDays, issued on day, is valid: day + validityDays, or the last day of day's
+// month when validityDays is 0 (issue #26).
+func ValidUntil(day time.Time, validityDays int) string {
+	if validityDays > 0 {
+		return day.AddDate(0, 0, validityDays).Format("2006-01-02")
+	}
+	y, m, _ := day.Date()
+	return time.Date(y, m+1, 0, 0, 0, 0, 0, day.Location()).Format("2006-01-02")
 }
 
 // QuoteTypeBehavior is what a quote type does differently from a plain one.
@@ -81,12 +96,15 @@ var (
 	// ErrDuplicateSeries means another quote type has the prefix now, or had it when it
 	// issued a folio: reusing it would hand out folios that exist.
 	ErrDuplicateSeries = errors.New("store: another quote type has or had this prefix")
+	// ErrBadValidity means validity days outside 0 (end of month) to 365.
+	ErrBadValidity = errors.New("store: validity is 0 (end of month) to 365 days")
 	// ErrBadLetterhead means the letterhead isn't one of Letterheads.
 	ErrBadLetterhead = errors.New("store: unknown letterhead")
 )
 
 const quoteTypeCols = `t.id, t.prefix, t.name, t.terms, t.next_number, t.family_id, COALESCE(f.name, ''),
-	t.free_lines_only, t.hide_address, t.sort_last, t.kg_priced, t.copper_price_margin, t.letterhead`
+	t.free_lines_only, t.hide_address, t.sort_last, t.kg_priced, t.copper_price_margin, t.letterhead,
+	COALESCE(t.validity_days, 0)`
 
 const quoteTypeFrom = ` FROM quote_types t LEFT JOIN product_families f ON f.id = t.family_id`
 
@@ -94,7 +112,8 @@ func scanQuoteType(row interface{ Scan(...any) error }) (QuoteType, error) {
 	var t QuoteType
 	var familyID sql.NullInt64
 	err := row.Scan(&t.ID, &t.Prefix, &t.Name, &t.Terms, &t.NextNumber, &familyID, &t.FamilyName,
-		&t.FreeLinesOnly, &t.HideAddress, &t.SortLast, &t.KgPriced, &t.CopperPriceMargin, &t.Letterhead)
+		&t.FreeLinesOnly, &t.HideAddress, &t.SortLast, &t.KgPriced, &t.CopperPriceMargin, &t.Letterhead,
+		&t.ValidityDays)
 	if familyID.Valid {
 		t.FamilyID = &familyID.Int64
 	}
@@ -175,6 +194,9 @@ func (s *Store) checkQuoteType(ctx context.Context, t QuoteType, self int64) err
 // CreateQuoteType inserts a quote type, numbering from 1, and returns its id. It
 // returns ErrBadPrefix, ErrDuplicateSeries or ErrBadLetterhead without writing.
 func (s *Store) CreateQuoteType(ctx context.Context, t QuoteType) (int64, error) {
+	if t.ValidityDays < 0 || t.ValidityDays > 365 {
+		return 0, ErrBadValidity
+	}
 	if err := s.checkQuoteType(ctx, t, 0); err != nil {
 		return 0, err
 	}
@@ -183,10 +205,10 @@ func (s *Store) CreateQuoteType(ctx context.Context, t QuoteType) (int64, error)
 	}
 	res, err := s.exec(ctx, `
 		INSERT INTO quote_types (prefix, name, terms, family_id, free_lines_only, hide_address,
-			sort_last, kg_priced, copper_price_margin, letterhead)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			sort_last, kg_priced, copper_price_margin, letterhead, validity_days)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULLIF(?, 0))`,
 		t.Prefix, t.Name, t.Terms, t.FamilyID, t.FreeLinesOnly, t.HideAddress,
-		t.SortLast, t.KgPriced, t.CopperPriceMargin, t.Letterhead)
+		t.SortLast, t.KgPriced, t.CopperPriceMargin, t.Letterhead, t.ValidityDays)
 	if err != nil {
 		return 0, fmt.Errorf("store: create quote type %q: %w", t.Prefix, err)
 	}
@@ -201,6 +223,9 @@ func (s *Store) CreateQuoteType(ctx context.Context, t QuoteType) (int64, error)
 // ErrDuplicateSeries or ErrBadLetterhead without writing, and sql.ErrNoRows when there
 // is no such type.
 func (s *Store) UpdateQuoteType(ctx context.Context, t QuoteType) error {
+	if t.ValidityDays < 0 || t.ValidityDays > 365 {
+		return ErrBadValidity
+	}
 	if err := s.checkQuoteType(ctx, t, t.ID); err != nil {
 		return err
 	}
@@ -209,10 +234,10 @@ func (s *Store) UpdateQuoteType(ctx context.Context, t QuoteType) error {
 	}
 	res, err := s.exec(ctx, `
 		UPDATE quote_types SET prefix = ?, name = ?, terms = ?, family_id = ?, hide_address = ?,
-			sort_last = ?, kg_priced = ?, copper_price_margin = ?, letterhead = ?
+			sort_last = ?, kg_priced = ?, copper_price_margin = ?, letterhead = ?, validity_days = NULLIF(?, 0)
 		WHERE id = ?`,
 		t.Prefix, t.Name, t.Terms, t.FamilyID, t.HideAddress,
-		t.SortLast, t.KgPriced, t.CopperPriceMargin, t.Letterhead, t.ID)
+		t.SortLast, t.KgPriced, t.CopperPriceMargin, t.Letterhead, t.ValidityDays, t.ID)
 	if err != nil {
 		return fmt.Errorf("store: update quote type %d: %w", t.ID, err)
 	}

@@ -85,7 +85,10 @@ type Quote struct {
 	// material, and its factura is in metros. CopperPriceMargin: "Otro margen" can be
 	// typed as the CCS 30% price per kg (issue #38). HideAddress and Letterhead shape
 	// the PDF's letterhead (issues #16, #47, #48, #51).
-	KgPriced          bool
+	KgPriced bool
+	// ValidityDays is the type's vigencia rule now (store.ValidUntil): it sets valid_until
+	// when the quote is issued.
+	ValidityDays      int
 	CopperPriceMargin bool
 	HideAddress       bool
 	Letterhead        string
@@ -206,7 +209,7 @@ const quoteSelectCols = `
 	COALESCE(q.kg_priced_snapshot, t.kg_priced), COALESCE(q.copper_price_margin_snapshot, t.copper_price_margin),
 	COALESCE(q.hide_address_snapshot, t.hide_address), COALESCE(q.letterhead_snapshot, t.letterhead),
 	q.project_id, COALESCE(p.folio, ''), COALESCE(p.status, ''), COALESCE(p.probability, 0),
-	COALESCE(q.extra_terms, '')`
+	COALESCE(q.extra_terms, ''), COALESCE(t.validity_days, 0)`
 
 const quoteFrom = `
 	FROM quotes q
@@ -229,7 +232,7 @@ func scanQuote(row interface{ Scan(...any) error }) (*Quote, error) {
 		&supersedesFolio, &supersededByFolio, &seriesFamily, &q.SeriesTerms, &q.DeliveryTime,
 		&q.Currency, &q.SeriesFreeLines,
 		&q.KgPriced, &q.CopperPriceMargin, &q.HideAddress, &q.Letterhead,
-		&projectID, &q.ProjectFolio, &q.Stage, &q.Probability, &q.ExtraTerms)
+		&projectID, &q.ProjectFolio, &q.Stage, &q.Probability, &q.ExtraTerms, &q.ValidityDays)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
