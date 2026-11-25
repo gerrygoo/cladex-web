@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
 )
 
 type testUpload struct {
@@ -90,7 +92,8 @@ func TestSupplierQuote(t *testing.T) {
 
 	// The section shows, empty, on a QL draft only.
 	body := page(folio, "")
-	for _, want := range []string{"Cotización del proveedor", "Todavía no hay archivos.", `name="proveedor"`, `name="numero"`, `form="proveedor-form"`, `enctype="multipart/form-data"`} {
+	for _, want := range []string{"Cotización del proveedor", "Todavía no hay archivos.", `name="proveedor" form="linea-form"`, `name="numero" form="linea-form"`, `name="archivos" form="linea-form"`,
+		`formenctype="multipart/form-data"`, `name="con_borrador" value="1"`, `enctype="multipart/form-data"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("QL draft page missing %q", want)
 		}
@@ -297,5 +300,46 @@ func TestSupplierQuoteRequestTooLarge(t *testing.T) {
 		testUpload{"a.pdf", chunk}, testUpload{"b.pdf", chunk}, testUpload{"c.pdf", chunk}, testUpload{"d.pdf", chunk})
 	if rec.Code != http.StatusSeeOther || !strings.Contains(rec.Header().Get("Location"), "proveedor_error=total") {
 		t.Fatalf("40 MB post = %d %q", rec.Code, rec.Header().Get("Location"))
+	}
+}
+
+// #88: in a draft, saving the supplier's quote saves what was typed in the quote too.
+func TestSupplierQuoteSavesDraft(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	ctx := context.Background()
+	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
+	customerID, _, _ := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, ana)
+	ql, err := a.store.CreateDraftQuote(ctx, customerID, ana, "QL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := "/cotizaciones/" + ql.Folio
+	validUntil := time.Now().AddDate(0, 0, 15).Format("2006-01-02")
+	fields := map[string]string{"con_borrador": "1", "proveedor": "Ingram", "valid_until": validUntil,
+		"extra_terms": "Flete por cuenta del cliente", "delivery_time": "3 semanas"}
+	rec := postSupplier(t, a, ana, q.Proveedor, base+"/proveedor", ql.Folio, fields, testUpload{"cotizacion.pdf", testPDF})
+	if rec.Code != http.StatusSeeOther || !strings.Contains(rec.Header().Get("Location"), "proveedor=guardado") {
+		t.Fatalf("upload = %d %q; body = %s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
+	}
+	got, _ := a.store.QuoteByFolio(ctx, ql.Folio)
+	if got.ValidUntil == nil || *got.ValidUntil != validUntil || got.ExtraTerms != "Flete por cuenta del cliente" {
+		t.Errorf("draft after the upload: valid until %v, extra terms %q", got.ValidUntil, got.ExtraTerms)
+	}
+	if store.RequiresDeliveryTime(got.SeriesTerms) && got.DeliveryTime != "3 semanas" {
+		t.Errorf("draft delivery time = %q", got.DeliveryTime)
+	}
+	if sq, _ := a.store.SupplierQuoteOf(ctx, ql.ID); sq == nil || len(sq.Files) != 1 || sq.Supplier != "Ingram" {
+		t.Errorf("supplier quote = %+v", sq)
+	}
+
+	// Without con_borrador (the proyecto's section, an issued quote) the quote is untouched.
+	fields = map[string]string{"proveedor": "Ingram", "extra_terms": "otra cosa"}
+	if rec := postSupplier(t, a, ana, q.Proveedor, base+"/proveedor", ql.Folio, fields); rec.Code != http.StatusSeeOther {
+		t.Fatalf("upload without the draft = %d", rec.Code)
+	}
+	if got, _ := a.store.QuoteByFolio(ctx, ql.Folio); got.ExtraTerms != "Flete por cuenta del cliente" {
+		t.Errorf("a plain supplier save changed the quote: %q", got.ExtraTerms)
 	}
 }

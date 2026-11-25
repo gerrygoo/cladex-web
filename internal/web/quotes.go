@@ -1203,7 +1203,6 @@ func (q *Quotes) BuscarProductos(w http.ResponseWriter, r *http.Request) {
 // lines get written, per the M2.2 design (no per-edit log row). Re-renders the full
 // builder with row-level errors, without saving, if any line is currently invalid.
 func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	quote := q.loadQuoteOrNotFound(w, r)
 	if quote == nil {
 		return
@@ -1216,11 +1215,22 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "solicitud inválida", http.StatusBadRequest)
 		return
 	}
+	if !q.saveDraft(w, r, quote) {
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/cotizaciones/%s?guardado=1", quote.Folio), http.StatusSeeOther)
+}
+
+// saveDraft writes the posted lines, margin and terms onto the draft quote, from a form
+// already parsed. With a line in error (or a bad custom margin) it saves nothing and
+// renders the builder with the errors; false means a response was written.
+func (q *Quotes) saveDraft(w http.ResponseWriter, r *http.Request, quote *store.Quote) bool {
+	ctx := r.Context()
 	inputs := parseQuoteLineInputs(r)
 	margin, err := q.resolveMargin(ctx, quote, r.Form, inputs)
 	if err != nil {
 		serverError(w, r, err)
-		return
+		return false
 	}
 	takeTermsInputs(r, quote)
 	lines := q.computeQuoteLines(ctx, inputs, margin, quote.SeriesFreeLines, quote.SeriesFamily, quote.KgPriced)
@@ -1228,24 +1238,24 @@ func (q *Quotes) Guardar(w http.ResponseWriter, r *http.Request) {
 
 	if margin.badCustom {
 		q.renderBuilder(w, r, quote, lines, totals, margin.picker, "", http.StatusUnprocessableEntity, nil)
-		return
+		return false
 	}
 	for _, l := range lines {
 		if l.Error != "" {
 			q.renderBuilder(w, r, quote, lines, totals, margin.picker, "", http.StatusUnprocessableEntity, nil)
-			return
+			return false
 		}
 	}
 
 	if err := q.store.ReplaceQuoteLines(ctx, quote.ID, margin.id(), margin.customRow(), storeLinesFrom(lines), totals); err != nil {
 		serverError(w, r, err)
-		return
+		return false
 	}
 	if err := q.saveTermsInputs(ctx, quote); err != nil {
 		serverError(w, r, err)
-		return
+		return false
 	}
-	http.Redirect(w, r, fmt.Sprintf("/cotizaciones/%s?guardado=1", quote.Folio), http.StatusSeeOther)
+	return true
 }
 
 // storeLinesFrom is the priced lines as Guardar writes them.

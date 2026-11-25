@@ -118,6 +118,7 @@ func parseSupplierForm(w http.ResponseWriter, r *http.Request, page string) bool
 // Proveedor handles POST /cotizaciones/{folio}/proveedor: on any quote of the chain it
 // saves "proveedor" and "numero" and adds the files in "archivos" (PDF, JPG or PNG, 10 MB
 // each). A refused file leaves out all of them, but the supplier's data is still saved.
+// With "con_borrador" (the draft builder's button) the quote's own fields are saved too.
 func (q *Quotes) Proveedor(w http.ResponseWriter, r *http.Request) {
 	quote := q.loadQuoteOrNotFound(w, r)
 	if quote == nil {
@@ -129,6 +130,12 @@ func (q *Quotes) Proveedor(w http.ResponseWriter, r *http.Request) {
 	}
 	page := "/cotizaciones/" + quote.Folio
 	if !parseSupplierForm(w, r, page) {
+		return
+	}
+	// From a draft's builder the post carries the whole quote (#88): it is saved first,
+	// so what was typed and not yet saved isn't lost. With a line in error nothing is
+	// saved and the builder shows the errors.
+	if r.PostForm.Get("con_borrador") == "1" && quote.Status == store.QuoteBorrador && !q.saveDraft(w, r, quote) {
 		return
 	}
 	saveSupplierQuote(w, r, q.store, quote.ID, page)

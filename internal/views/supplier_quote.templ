@@ -21,6 +21,18 @@ type SupplierQuoteView struct {
 
 const supplierFormID = "proveedor-form"
 
+// builderFormID is the draft quote builder's form (QuoteBuilderPage).
+const builderFormID = "linea-form"
+
+// supplierDataForm is the form the supplier's data and files belong to: the builder's in
+// a draft (editable), so they're posted with the quote, else SupplierQuoteForm.
+func supplierDataForm(editable bool) string {
+	if editable {
+		return builderFormID
+	}
+	return supplierFormID
+}
+
 func supplierFilePath(v SupplierQuoteView, f store.SupplierQuoteFile) string {
 	return v.FilesBase + "/proveedor/" + strconv.FormatInt(f.ID, 10)
 }
@@ -33,6 +45,11 @@ func supplierFilePath(v SupplierQuoteView, f store.SupplierQuoteFile) string {
 // attribute, so the section can sit inside the quote builder's own form without
 // nesting one form in another. data-guard-ignore keeps typing here from counting as an
 // unsaved change to the quote.
+//
+// In a draft's builder (editable) the data, the files and the save button belong to the
+// builder's form instead, posted as multipart to the section's action with
+// con_borrador=1: saving the supplier's quote saves the draft too (#88), so nothing
+// typed in the quote is lost. The files' Eliminar stays on SupplierQuoteForm.
 templ SupplierQuoteSection(v SupplierQuoteView, editable bool) {
 	if v.Quote != nil {
 		<section id="cotizacion-proveedor" class="supplier-quote" aria-labelledby="cotizacion-proveedor-titulo" data-guard-ignore>
@@ -40,17 +57,19 @@ templ SupplierQuoteSection(v SupplierQuoteView, editable bool) {
 			<p class="hint">Opcional y solo para uso interno: no aparece en el PDF que se le manda al cliente.</p>
 			// Enter in a text field submits through the form's first submit button: make
 			// it the save button, not a file's "Eliminar".
-			<button type="submit" form={ supplierFormID } class="visually-hidden" tabindex="-1" aria-hidden="true">Guardar</button>
+			if !editable {
+				<button type="submit" form={ supplierFormID } class="visually-hidden" tabindex="-1" aria-hidden="true">Guardar</button>
+			}
 			@Flash(v.Message)
 			@FormError(v.Error)
 			<div class="quote-meta">
 				<label>
 					Proveedor (opcional)
-					<input type="text" name="proveedor" form={ supplierFormID } value={ v.Quote.Supplier } maxlength="200" placeholder="Quién nos mandó la cotización"/>
+					<input type="text" name="proveedor" form={ supplierDataForm(editable) } value={ v.Quote.Supplier } maxlength="200" placeholder="Quién nos mandó la cotización"/>
 				</label>
 				<label>
 					No. de cotización del proveedor (opcional)
-					<input type="text" name="numero" form={ supplierFormID } value={ v.Quote.Number } maxlength="100"/>
+					<input type="text" name="numero" form={ supplierDataForm(editable) } value={ v.Quote.Number } maxlength="100"/>
 				</label>
 			</div>
 			if len(v.Quote.Files) == 0 {
@@ -81,9 +100,22 @@ templ SupplierQuoteSection(v SupplierQuoteView, editable bool) {
 			}
 			<label>
 				Agregar archivos (PDF, JPG o PNG de hasta 10 MB cada uno)
-				<input type="file" name="archivos" form={ supplierFormID } multiple accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"/>
+				<input type="file" name="archivos" form={ supplierDataForm(editable) } multiple accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"/>
 			</label>
-			<button type="submit" form={ supplierFormID }>Guardar cotización del proveedor</button>
+			if editable {
+				<button
+					type="submit"
+					form={ builderFormID }
+					formaction={ templ.URL(v.Action) }
+					formenctype="multipart/form-data"
+					name="con_borrador"
+					value="1"
+					data-guard-save
+				>Guardar cotización del proveedor</button>
+				<p class="hint">También guarda el borrador de la cotización.</p>
+			} else {
+				<button type="submit" form={ supplierFormID }>Guardar cotización del proveedor</button>
+			}
 		</section>
 	}
 }
