@@ -299,3 +299,66 @@ func (s *Store) ActiveUsers(ctx context.Context) ([]User, error) {
 	}
 	return out, rows.Err()
 }
+
+// DeleteRevision removes a revision created by mistake (#89): the newest quote of its
+// chain, a borrador, or an emitida whose proyecto is still a prospecto (once en curso, a
+// factura or an O.C. may hang from it). The quote it revised is the chain's current
+// one again (emitida). The revision's lines go; its comments, which are the proyecto's
+// history, move to that quote, with "Revisión X eliminada por [usuario]." from userID.
+// Who may (its creator for a borrador, an admin for either) is the caller's decision.
+// Anything else is ErrNotDeletable. It returns the folio that is current again.
+//
+// An emitida's folio is never handed out again (nextRevisionNumber reads the deleted
+// ones from the audit log): its PDF may be with the client.
+func (s *Store) DeleteRevision(ctx context.Context, quoteID, userID int64) (string, error) {
+	var prevFolio string
+	err := s.inTx(ctx, "delete revision", func(tx *sql.Tx) error {
+		var folio, status, stage string
+		var prevID int64
+		err := tx.QueryRowContext(ctx, `
+			SELECT q.folio, q.status, COALESCE(p.status, ''), q.supersedes_quote_id, prev.folio
+			FROM quotes q
+			JOIN quotes prev ON prev.id = q.supersedes_quote_id AND prev.status = 'revisada'
+			LEFT JOIN projects p ON p.id = q.project_id
+			WHERE q.id = ? AND q.status IN ('borrador', 'emitida')
+				AND NOT EXISTS (SELECT 1 FROM quotes n WHERE n.supersedes_quote_id = q.id)`, quoteID).
+			Scan(&folio, &status, &stage, &prevID, &prevFolio)
+		if err == sql.ErrNoRows {
+			return ErrNotDeletable
+		}
+		if err != nil {
+			return err
+		}
+		if status == QuoteEmitida && stage != "" && stage != StageProspecto {
+			return ErrNotDeletable
+		}
+		var used int
+		if err := tx.QueryRowContext(ctx, `
+			SELECT (SELECT COUNT(*) FROM comprobantes WHERE quote_id = ?1)
+				+ (SELECT COUNT(*) FROM purchase_orders WHERE quote_id = ?1)
+				+ (SELECT COUNT(*) FROM comprobante_conceptos WHERE quote_line_id IN (SELECT id FROM quote_lines WHERE quote_id = ?1))`,
+			quoteID).Scan(&used); err != nil {
+			return err
+		}
+		if used > 0 {
+			return ErrNotDeletable
+		}
+		var name string
+		if err := tx.QueryRowContext(ctx, `SELECT name FROM users WHERE id = ?`, userID).Scan(&name); err != nil {
+			return err
+		}
+		for _, q := range []string{
+			`UPDATE quote_comments SET quote_id = ?2 WHERE quote_id = ?1`,
+			`UPDATE leads SET quote_id = ?2 WHERE quote_id = ?1`,
+			`DELETE FROM quote_lines WHERE quote_id = ?1`,
+			`DELETE FROM quotes WHERE id = ?1`,
+			`UPDATE quotes SET status = 'emitida' WHERE id = ?2 AND status = 'revisada'`,
+		} {
+			if _, err := tx.ExecContext(ctx, q, quoteID, prevID); err != nil {
+				return err
+			}
+		}
+		return addProjectComment(ctx, tx, prevID, userID, "Revisión "+folio+" eliminada por "+name+".")
+	})
+	return prevFolio, err
+}

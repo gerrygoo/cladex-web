@@ -147,6 +147,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("GET /cotizaciones/{folio}/pdf/{name}", authed(quotes.PDF))
 	mux.Handle("POST /cotizaciones/{folio}/reasignar", admin(quotes.Reasignar))
 	mux.Handle("POST /cotizaciones/{folio}/eliminar", admin(quotes.Eliminar))
+	mux.Handle("POST /cotizaciones/{folio}/eliminar-revision", authed(quotes.EliminarRevision))
 	mux.Handle("POST /cotizaciones/{folio}/proveedor", authed(quotes.Proveedor))
 	mux.Handle("GET /cotizaciones/{folio}/proveedor/{id}", authed(quotes.ProveedorArchivo))
 	mux.Handle("POST /cotizaciones/{folio}/proveedor/{id}/eliminar", authed(quotes.ProveedorEliminar))

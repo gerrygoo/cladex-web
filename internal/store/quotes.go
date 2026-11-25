@@ -771,21 +771,41 @@ func nextRevisionNumber(ctx context.Context, tx *sql.Tx, base string) (int, erro
 		SELECT folio FROM quotes WHERE folio LIKE ? ORDER BY id DESC LIMIT 1`,
 		base+"-R%",
 	).Scan(&lastFolio)
-	if err == sql.ErrNoRows {
-		return 1, nil
+	if err != nil && err != sql.ErrNoRows {
+		return 0, err
 	}
+	n := revisionNumber(lastFolio)
+	// An issued revision deleted by mistake (#89) keeps its number: its PDF may be with
+	// the client.
+	rows, err := tx.QueryContext(ctx, `
+		SELECT json_extract(old_values, '$.folio') FROM audit_log
+		WHERE table_name = 'quotes' AND op = 'delete' AND json_extract(old_values, '$.status') = 'emitida'
+			AND json_extract(old_values, '$.folio') LIKE ?`, base+"-R%")
 	if err != nil {
 		return 0, err
 	}
-	m := revisionSuffixRe.FindStringSubmatch(lastFolio)
+	defer rows.Close()
+	for rows.Next() {
+		var f string
+		if err := rows.Scan(&f); err != nil {
+			return 0, err
+		}
+		n = max(n, revisionNumber(f))
+	}
+	return n + 1, rows.Err()
+}
+
+// revisionNumber is a revision folio's N ("QL0027-R2" is 2), 0 for anything else.
+func revisionNumber(folio string) int {
+	m := revisionSuffixRe.FindStringSubmatch(folio)
 	if m == nil {
-		return 1, nil
+		return 0
 	}
 	n, err := strconv.Atoi(m[2])
 	if err != nil {
-		return 1, nil
+		return 0
 	}
-	return n + 1, nil
+	return n
 }
 
 // CreateRevision makes an editable copy of an issued quote as a new draft: a new

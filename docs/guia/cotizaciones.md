@@ -354,7 +354,10 @@ le manda al cliente.
 
 1. Escribe **Proveedor (opcional)** y **No. de cotización del proveedor (opcional)**.
 2. En **Agregar archivos**, elige uno o varios PDF, JPG o PNG de hasta 10 MB cada uno.
-3. Haz clic en **Guardar cotización del proveedor**.
+3. Haz clic en **Guardar cotización del proveedor**. En un borrador, ese botón también
+   guarda el borrador: lo que escribiste en la cotización (tiempo de entrega, vigencia,
+   líneas) no se pierde. Si una línea tiene un error, no se guarda nada y la cotización
+   te muestra qué corregir; vuelve a elegir el archivo después de corregirlo.
 
 Cada archivo aparece con su nombre, tipo, tamaño, quién lo subió y cuándo. Haz clic en
 el nombre para abrirlo en otra pestaña, o en **Descargar**. Si un archivo no es PDF, JPG
@@ -415,12 +418,28 @@ Qué pasa al revisar:
 - Arriba del borrador de la revisión, **Proyecto** tiene el enlace a su proyecto.
 - Una revisión de la `-R1` (ya emitida) será `-R2`, y así sucesivamente. Solo se puede
   revisar la versión emitida más reciente.
-- No se puede deshacer: al hacer clic en **Revisar**, la original queda como revisada.
+- Si la creaste por error, [elimínala](#eliminar-una-revisión-creada-por-error): la
+  original vuelve a ser la vigente.
 
 > **Importante:** la revisión es un borrador. Empieza con el mismo margen que la
 > original, pero sus precios se recalculan con el catálogo, el porcentaje de ese margen
 > y los ajustes **actuales**, no con los de la original. Revisa los precios antes de
 > emitirla.
+
+### Eliminar una revisión creada por error
+
+1. Abre la revisión (p. ej. `QL0027-R1`).
+2. Haz clic en **Eliminar revisión**, abajo, y confirma.
+
+La revisión desaparece y la versión anterior (`QL0027`) vuelve a ser la cotización
+vigente del proyecto. Su historial dice *"Revisión QL0027-R1 eliminada por …"*, con la
+fecha; los comentarios que tenía la revisión pasan a la anterior.
+
+- **En borrador** la puede eliminar quien la creó o un administrador.
+- **Ya emitida**, solo un administrador, y solo mientras el proyecto es prospecto. Su
+  folio no se vuelve a usar (su PDF pudo llegar al cliente): la siguiente revisión será
+  `-R2`. El folio de un borrador eliminado sí se vuelve a usar.
+- Solo se elimina la revisión más reciente; la original y las demás no se tocan.
 
 ## Cambiar el costo de una cotización emitida
 

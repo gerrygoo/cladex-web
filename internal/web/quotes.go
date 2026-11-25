@@ -998,13 +998,15 @@ func (q *Quotes) Builder(w http.ResponseWriter, r *http.Request) {
 		successMsg = "Cotización emitida."
 	case quote.Status == store.QuoteBorrador && duplicatedFolio.MatchString(r.URL.Query().Get("duplicada")):
 		successMsg = "Copia de " + r.URL.Query().Get("duplicada") + " creada. Revísala y emítela cuando esté lista."
+	case duplicatedFolio.MatchString(r.URL.Query().Get("revision_eliminada")):
+		successMsg = "Revisión " + r.URL.Query().Get("revision_eliminada") + " eliminada. " + quote.Folio + " vuelve a ser la cotización vigente."
 	}
 	q.renderBuilder(w, r, quote, lines, totals, margin.picker, successMsg, http.StatusOK, nil)
 }
 
 // duplicatedFolio is what Duplicar's redirect may name as the original: a folio, so the
 // message can't be made to say anything else.
-var duplicatedFolio = regexp.MustCompile(`^Q[A-Z][0-9]{4,}(-R[0-9]+)?$`)
+var duplicatedFolio = regexp.MustCompile(`^Q[A-Z]+[0-9]{4,}(-R[0-9]+)?$`)
 
 // maxDeliveryTime caps the free-text delivery time, which is printed on the PDF.
 const maxDeliveryTime = 120
@@ -1128,7 +1130,8 @@ func (q *Quotes) renderBuilder(w http.ResponseWriter, r *http.Request, quote *st
 		}
 	}
 	w.WriteHeader(status)
-	views.QuoteBuilder(*quote, lines, totals, margin, successMsg, fieldErrs, picker, comments, commentsLV, navUserView(user), supplier, dup, panel).Render(ctx, w)
+	views.QuoteBuilder(*quote, lines, totals, margin, successMsg, fieldErrs, picker, comments, commentsLV, navUserView(user), supplier, dup, panel,
+		canDeleteRevision(user, quote)).Render(ctx, w)
 }
 
 // amountInput tidies a typed amount for parsing: no "$" and no thousands commas, so
@@ -1762,4 +1765,47 @@ func (q *Quotes) Eliminar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/cotizaciones", http.StatusSeeOther)
+}
+
+// canDeleteRevision is whether user may delete quote, a revision created by mistake
+// (#89): in borrador its creator or an admin; emitida, an admin, while its proyecto is a
+// prospecto. Store.DeleteRevision checks the rest (it is the newest of its chain, and
+// nothing hangs from it).
+func canDeleteRevision(user *store.AuthenticatedUser, quote *store.Quote) bool {
+	if user == nil || quote.SupersedesQuoteID == nil {
+		return false
+	}
+	admin := user.Role == store.RoleAdmin
+	switch quote.Status {
+	case store.QuoteBorrador:
+		return admin || quote.UserID == user.ID
+	case store.QuoteEmitida:
+		return admin && (quote.Stage == "" || quote.Stage == store.StageProspecto)
+	}
+	return false
+}
+
+// EliminarRevision handles POST /cotizaciones/{folio}/eliminar-revision (#89): deletes a
+// revision created by mistake and goes to the quote that is current again.
+func (q *Quotes) EliminarRevision(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	quote := q.loadQuoteOrNotFound(w, r)
+	if quote == nil {
+		return
+	}
+	user, _ := UserFromContext(ctx)
+	if !canDeleteRevision(user, quote) {
+		http.Error(w, "solo quien creó la revisión o un administrador elimina un borrador de revisión; una revisión emitida, solo un administrador mientras el proyecto es prospecto", http.StatusForbidden)
+		return
+	}
+	prev, err := q.store.DeleteRevision(ctx, quote.ID, user.ID)
+	if errors.Is(err, store.ErrNotDeletable) {
+		http.Error(w, "esta revisión ya no se puede eliminar: ya hay otra revisión después de ella, o su proyecto ya tiene factura u órdenes de compra", http.StatusConflict)
+		return
+	}
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	http.Redirect(w, r, "/cotizaciones/"+prev+"?revision_eliminada="+url.QueryEscape(quote.Folio), http.StatusSeeOther)
 }

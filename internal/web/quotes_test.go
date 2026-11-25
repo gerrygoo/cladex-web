@@ -1417,3 +1417,78 @@ func TestQLCostAndMargin(t *testing.T) {
 		t.Error("a QA free line's cost doesn't count toward the profit")
 	}
 }
+
+// #89: Eliminar revisión. A draft revision, by whoever created it or an admin; an issued
+// one, by an admin only. The quote it revised is current again.
+func TestEliminarRevision(t *testing.T) {
+	a := newTestAuth(t)
+	q := newTestQuotes(t, a)
+	ctx := context.Background()
+	ana := createTestUser(t, a, "ana", "vendedor", "hunter2")
+	beto := createTestUser(t, a, "beto", "vendedor", "hunter2")
+	admin := createTestUser(t, a, "gerardo", "admin", "hunter2")
+	customerID, _, costProductID := seedQuoteBuilderFixtures(t, a)
+	seedPricingSettings(t, a, ana)
+	folio := issueTestQuote(t, a, q, ana, customerID, costProductID)
+	original, _ := a.store.QuoteByFolio(ctx, folio)
+
+	page := func(user int64, f string) string {
+		return doForm(t, a, user, q.Builder, "GET", "/cotizaciones/"+f, map[string]string{"folio": f}, nil, false).Body.String()
+	}
+	del := func(user int64, f string) *httptest.ResponseRecorder {
+		return doForm(t, a, user, q.EliminarRevision, "POST", "/cotizaciones/"+f+"/eliminar-revision", map[string]string{"folio": f}, url.Values{}, false)
+	}
+	if strings.Contains(page(admin, folio), "Eliminar revisión") {
+		t.Error("a first quote offers Eliminar revisión")
+	}
+	if rec := del(admin, folio); rec.Code != http.StatusForbidden {
+		t.Errorf("deleting a first quote = %d, want 403", rec.Code)
+	}
+
+	rev, err := a.store.CreateRevision(ctx, original.ID, ana)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body := page(ana, rev.Folio); !strings.Contains(body, "Eliminar revisión") || !strings.Contains(body, folio+" vuelve a ser la cotización vigente") {
+		t.Error("the revision's creator isn't offered Eliminar revisión, with its confirmation")
+	}
+	if strings.Contains(page(beto, rev.Folio), "Eliminar revisión") {
+		t.Error("another vendedor is offered Eliminar revisión")
+	}
+	if rec := del(beto, rev.Folio); rec.Code != http.StatusForbidden {
+		t.Errorf("another vendedor deleting = %d, want 403", rec.Code)
+	}
+	rec := del(ana, rev.Folio)
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/cotizaciones/"+folio+"?revision_eliminada="+rev.Folio {
+		t.Fatalf("creator deleting = %d %q; %s", rec.Code, rec.Header().Get("Location"), rec.Body.String())
+	}
+	body := doForm(t, a, ana, q.Builder, "GET", "/cotizaciones/"+folio+"?revision_eliminada="+rev.Folio, map[string]string{"folio": folio}, nil, false).Body.String()
+	if !strings.Contains(body, "Revisión "+rev.Folio+" eliminada. "+folio+" vuelve a ser la cotización vigente.") {
+		t.Error("no message after deleting the revision")
+	}
+	if back, _ := a.store.QuoteByID(ctx, original.ID); back.Status != store.QuoteEmitida {
+		t.Errorf("original = %s, want emitida", back.Status)
+	}
+
+	// Issued: the vendedor can't, an admin can.
+	rev, _ = a.store.CreateRevision(ctx, original.ID, ana)
+	form := url.Values{"line_keys": {"0"}, "lines[0][kind]": {"product"}, "lines[0][product_id]": {strconv.FormatInt(costProductID, 10)}, "lines[0][qty]": {"2"}}
+	if rec := doForm(t, a, ana, q.Emitir, "POST", "/cotizaciones/"+rev.Folio+"/emitir", map[string]string{"folio": rev.Folio}, form, false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("Emitir revision = %d: %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(page(ana, rev.Folio), "Eliminar revisión") {
+		t.Error("the vendedor is offered deleting an issued revision")
+	}
+	if rec := del(ana, rev.Folio); rec.Code != http.StatusForbidden {
+		t.Errorf("vendedor deleting an issued revision = %d, want 403", rec.Code)
+	}
+	if !strings.Contains(page(admin, rev.Folio), "Eliminar revisión") {
+		t.Error("an admin isn't offered deleting an issued revision")
+	}
+	if rec := del(admin, rev.Folio); rec.Code != http.StatusSeeOther {
+		t.Fatalf("admin deleting an issued revision = %d: %s", rec.Code, rec.Body.String())
+	}
+	if back, _ := a.store.QuoteByID(ctx, original.ID); back.Status != store.QuoteEmitida {
+		t.Errorf("original after deleting the issued revision = %s, want emitida", back.Status)
+	}
+}

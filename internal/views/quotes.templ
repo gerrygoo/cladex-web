@@ -750,7 +750,7 @@ templ MarginControls(quote store.Quote, margin MarginPicker, oob bool) {
 	</div>
 }
 
-templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, fieldErrs map[string]string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser, supplier SupplierQuoteView, dup DuplicateQuoteForm, adminPanel *AdminPanel) {
+templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Totals, margin MarginPicker, successMsg string, fieldErrs map[string]string, picker ProductPicker, comments []store.QuoteComment, commentsLV ListView, user *NavUser, supplier SupplierQuoteView, dup DuplicateQuoteForm, adminPanel *AdminPanel, canDeleteRevision bool) {
 	@Layout("Cotización "+quote.Folio, user) {
 		<script src={ Asset("margin.js") } defer></script>
 		<div class="page-title">
@@ -919,6 +919,9 @@ templ QuoteBuilder(quote store.Quote, lines []QuoteLineView, totals pricing.Tota
 		}
 		@SupplierQuoteForm(supplier)
 		@DuplicateQuoteButton(dup)
+		if canDeleteRevision {
+			@deleteRevisionButton(quote)
+		}
 		<p>
 			<a href={ templ.URL(QuotePDFPath(quote)) } target="_blank">Descargar PDF</a> ·
 			<a href="/cotizaciones">Volver a cotizaciones</a>
@@ -1066,4 +1069,16 @@ templ QuoteComments(projectFolio string, comments []store.QuoteComment, lv ListV
 // rewrites it in the browser's zone.
 templ Timestamp(iso string) {
 	<time class="ts" datetime={ iso }>{ timestampFallback(iso) }</time>
+}
+
+// deleteRevisionButton deletes a revision created by mistake (#89); the quote it revised
+// is the current one again.
+templ deleteRevisionButton(quote store.Quote) {
+	<form method="post" action={ templ.URL("/cotizaciones/" + quote.Folio + "/eliminar-revision") } class="delete-revision">
+		<button
+			type="submit"
+			class="danger"
+			data-confirm={ "¿Eliminar la revisión " + quote.Folio + "? " + quote.SupersedesFolio + " vuelve a ser la cotización vigente. No se puede deshacer." }
+		>Eliminar revisión</button>
+	</form>
 }

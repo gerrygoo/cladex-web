@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gerrygoo/cladex-web/internal/pricing"
 )
 
 // rowCount is COUNT(*) of table; the name is the test's own, never user input.
@@ -294,5 +296,82 @@ func TestDeleteCoversEveryReference(t *testing.T) {
 	}
 	if fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Errorf("foreign keys into quotes/projects/comprobantes changed; teach DeleteProject and DeleteDraftQuote about the new one, then update this list.\n got: %v\nwant: %v", got, want)
+	}
+}
+
+// #89: a revision created by mistake is deleted; the quote it revised is current again.
+func TestDeleteRevision(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	customerID, userID, flatProductID, _ := seedQuoteFixtures(t, s, ctx)
+	issue := func(id int64, sha string) {
+		t.Helper()
+		lines := []QuoteLine{{ProductID: &flatProductID, DescriptionSnapshot: "Foco", QtyMilli: 1000, UnitPriceMicros: 100_000_000, LineTotal: 10_000, Source: "manual"}}
+		totals := pricing.ComputeTotals([]pricing.Line{{UnitPriceMicros: lines[0].UnitPriceMicros, QtyMilli: lines[0].QtyMilli}})
+		if err := s.ReplaceQuoteLines(ctx, id, nil, nil, lines, totals); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.IssueQuote(ctx, id, testIssue(sha)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	q, _ := s.CreateDraftQuote(ctx, customerID, userID, "QA")
+	if _, err := s.DeleteRevision(ctx, q.ID, userID); !errors.Is(err, ErrNotDeletable) {
+		t.Errorf("DeleteRevision(a first draft) = %v, want ErrNotDeletable", err)
+	}
+	issue(q.ID, "sha1")
+	if _, err := s.DeleteRevision(ctx, q.ID, userID); !errors.Is(err, ErrNotDeletable) {
+		t.Errorf("DeleteRevision(an issued first quote) = %v, want ErrNotDeletable", err)
+	}
+
+	// A draft revision: gone, the original is emitida again, its comments moved over.
+	rev, err := s.CreateRevision(ctx, q.ID, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddQuoteComment(ctx, rev.ID, userID, "comentario en la revisión"); err != nil {
+		t.Fatal(err)
+	}
+	prev, err := s.DeleteRevision(ctx, rev.ID, userID)
+	if err != nil || prev != q.Folio {
+		t.Fatalf("DeleteRevision(draft) = %q, %v", prev, err)
+	}
+	if gone, _ := s.QuoteByID(ctx, rev.ID); gone != nil {
+		t.Error("the revision is still there")
+	}
+	back, _ := s.QuoteByID(ctx, q.ID)
+	if back.Status != QuoteEmitida {
+		t.Errorf("original status = %s, want emitida", back.Status)
+	}
+	comments, _ := s.ListQuoteComments(ctx, q.ID)
+	var bodies []string
+	for _, c := range comments {
+		bodies = append(bodies, c.Body)
+	}
+	all := strings.Join(bodies, "|")
+	if !strings.Contains(all, "comentario en la revisión") || !strings.Contains(all, "Revisión "+rev.Folio+" eliminada por ") {
+		t.Errorf("history = %q", all)
+	}
+
+	// A draft's folio is handed out again; an issued one's never is.
+	rev, _ = s.CreateRevision(ctx, q.ID, userID)
+	if rev.Folio != "QA0001-R1" {
+		t.Errorf("revision after deleting a draft one = %s, want QA0001-R1 again", rev.Folio)
+	}
+	issue(rev.ID, "sha2")
+	rev2, _ := s.CreateRevision(ctx, rev.ID, userID)
+	// Not the newest of its chain.
+	if _, err := s.DeleteRevision(ctx, rev.ID, userID); !errors.Is(err, ErrNotDeletable) {
+		t.Errorf("DeleteRevision(revised) = %v, want ErrNotDeletable", err)
+	}
+	if _, err := s.DeleteRevision(ctx, rev2.ID, userID); err != nil {
+		t.Fatal(err)
+	}
+	if prev, err := s.DeleteRevision(ctx, rev.ID, userID); err != nil || prev != q.Folio {
+		t.Fatalf("DeleteRevision(issued R1) = %q, %v", prev, err)
+	}
+	next, _ := s.CreateRevision(ctx, q.ID, userID)
+	if next.Folio != "QA0001-R2" {
+		t.Errorf("revision after deleting an issued R1 = %s, want QA0001-R2", next.Folio)
 	}
 }
