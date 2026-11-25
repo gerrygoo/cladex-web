@@ -212,6 +212,8 @@ func marginActionError(err error) string {
 		return "Un margen retirado no puede ser el predeterminado; primero restáuralo."
 	case errors.Is(err, store.ErrMarginOptionNotFound):
 		return "Ese margen no existe."
+	case errors.Is(err, store.ErrMarginOptionActive):
+		return "Solo se puede eliminar un margen retirado; primero retíralo."
 	}
 	return ""
 }
@@ -318,6 +320,14 @@ func (s *Settings) PredeterminarMargen(w http.ResponseWriter, r *http.Request) {
 func (s *Settings) RetirarMargen(w http.ResponseWriter, r *http.Request) {
 	s.optionAction(w, r, func(id, adminID int64) error {
 		return s.store.RetireMarginOption(r.Context(), id, adminID)
+	})
+}
+
+// EliminarMargen handles POST /ajustes/margenes/{id}/eliminar (#86): a retired margin
+// leaves Márgenes for good.
+func (s *Settings) EliminarMargen(w http.ResponseWriter, r *http.Request) {
+	s.optionAction(w, r, func(id, adminID int64) error {
+		return s.store.DeleteMarginOption(r.Context(), id, adminID)
 	})
 }
 

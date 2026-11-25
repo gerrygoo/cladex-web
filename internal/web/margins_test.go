@@ -621,3 +621,50 @@ func TestAjustesMargenesPorTipo(t *testing.T) {
 		t.Errorf("MargenesPropios(QL) = %d, want 404", rec.Code)
 	}
 }
+
+// #86: a retired margin has Eliminar, with a confirmation; an active one doesn't, and
+// once deleted it's gone from the list.
+func TestAjustesEliminarMargen(t *testing.T) {
+	a := newTestAuth(t)
+	s := NewSettings(a.store)
+	adminID := createTestUser(t, a, "ana", "admin", "hunter2")
+	ctx := context.Background()
+	qaID, _ := a.store.QuoteTypeIDByPrefix(ctx, "QA")
+	qa := strconv.FormatInt(qaID, 10)
+	get := func() string {
+		return doForm(t, a, adminID, s.Page, "GET", "/ajustes?margenes="+qa, nil, nil, false).Body.String()
+	}
+	if _, err := a.store.CreateMarginOption(ctx, &qaID, "Medio/Alto", 202_800, adminID); err != nil {
+		t.Fatal(err)
+	}
+	var m *store.MarginOption
+	opts, _ := a.store.ListMarginOptions(ctx, &qaID)
+	for i := range opts {
+		if opts[i].Name == "Medio/Alto" {
+			m = &opts[i]
+		}
+	}
+	id := strconv.FormatInt(m.ID, 10)
+	path := "/ajustes/margenes/" + id + "/eliminar"
+	if strings.Contains(get(), `action="`+path+`"`) {
+		t.Error("an active margin offers Eliminar")
+	}
+	del := func() *httptest.ResponseRecorder {
+		return doForm(t, a, adminID, s.EliminarMargen, "POST", path, map[string]string{"id": id}, url.Values{}, false)
+	}
+	if rec := del(); rec.Code == http.StatusSeeOther || !strings.Contains(rec.Body.String(), "Solo se puede eliminar un margen retirado") {
+		t.Errorf("deleting an active margin = %d", rec.Code)
+	}
+	if err := a.store.RetireMarginOption(ctx, m.ID, adminID); err != nil {
+		t.Fatal(err)
+	}
+	if body := get(); !strings.Contains(body, `action="`+path+`"`) || !strings.Contains(body, "¿Eliminar el margen Medio/Alto (20.28%)?") {
+		t.Error("a retired margin doesn't offer Eliminar with its confirmation")
+	}
+	if rec := del(); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/ajustes?margenes="+qa+"&margen=1#margenes" {
+		t.Fatalf("EliminarMargen = %d → %q", rec.Code, rec.Header().Get("Location"))
+	}
+	if strings.Contains(get(), `value="Medio/Alto"`) {
+		t.Error("the deleted margin is still listed")
+	}
+}

@@ -433,3 +433,77 @@ func mustOptions(t *testing.T, s *Store, ctx context.Context, prefix string) []M
 	}
 	return opts
 }
+
+// #86: a retired margin is deleted. It leaves the lists, its name is free again, drafts on
+// it move to Otro margen with its value, issued quotes keep their snapshot, and a revision
+// of one starts on Otro margen with the margin it was issued with.
+func TestDeleteMarginOption(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	customerID, userID, _, _ := seedQuoteFixtures(t, s, ctx)
+	qaID, _ := s.QuoteTypeIDByPrefix(ctx, "QA")
+	alto := typeMarginByName(t, s, ctx, "QA", "Alto")
+
+	issued, _ := s.CreateDraftQuote(ctx, customerID, userID, "QA")
+	if err := s.ReplaceQuoteLines(ctx, issued.ID, &alto.ID, nil, nil, pricing.Totals{}); err != nil {
+		t.Fatal(err)
+	}
+	is := testIssue("sha")
+	is.MarginName, is.MarginMicros = alto.Name, 200_000 // as it was the day it was issued
+	if err := s.IssueQuote(ctx, issued.ID, is); err != nil {
+		t.Fatal(err)
+	}
+	draft, _ := s.CreateDraftQuote(ctx, customerID, userID, "QA")
+	if err := s.ReplaceQuoteLines(ctx, draft.ID, &alto.ID, nil, nil, pricing.Totals{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.DeleteMarginOption(ctx, alto.ID, userID); !errors.Is(err, ErrMarginOptionActive) {
+		t.Fatalf("DeleteMarginOption(active) = %v, want ErrMarginOptionActive", err)
+	}
+	if err := s.RetireMarginOption(ctx, alto.ID, userID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteMarginOption(ctx, alto.ID, userID); err != nil {
+		t.Fatalf("DeleteMarginOption: %v", err)
+	}
+	if err := s.DeleteMarginOption(ctx, alto.ID, userID); !errors.Is(err, ErrMarginOptionNotFound) {
+		t.Errorf("deleting twice = %v, want ErrMarginOptionNotFound", err)
+	}
+	if err := s.RestoreMarginOption(ctx, alto.ID, userID); !errors.Is(err, ErrMarginOptionNotFound) {
+		t.Errorf("restoring a deleted margin = %v, want ErrMarginOptionNotFound", err)
+	}
+	opts, _ := s.QuoteMarginOptions(ctx, qaID)
+	for _, o := range opts {
+		if o.ID == alto.ID {
+			t.Error("the deleted margin is still listed")
+		}
+	}
+
+	if d, _ := s.QuoteByID(ctx, draft.ID); d.CustomMarginMicros == nil || *d.CustomMarginMicros != alto.ValueMicros {
+		t.Errorf("draft on the deleted margin: custom = %v, want %d", d.CustomMarginMicros, alto.ValueMicros)
+	}
+	if q, _ := s.QuoteByID(ctx, issued.ID); *q.MarginNameSnapshot != "Alto" || *q.MarginSnapshotMicros != 200_000 {
+		t.Errorf("issued quote's margin changed: %v %v", q.MarginNameSnapshot, q.MarginSnapshotMicros)
+	}
+	rev, err := s.CreateRevision(ctx, issued.ID, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rev.CustomMarginMicros == nil || *rev.CustomMarginMicros != 200_000 {
+		t.Errorf("revision of a quote on a deleted margin: custom = %v, want the issued 200000", rev.CustomMarginMicros)
+	}
+
+	// The name is free again; with an active "Alto" back, a duplicate takes it.
+	newAlto, err := s.CreateMarginOption(ctx, &qaID, "Alto", 250_000, userID)
+	if err != nil {
+		t.Fatalf("a new Alto after deleting the old one: %v", err)
+	}
+	dup, err := s.DuplicateQuote(ctx, issued.ID, customerID, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dup.CustomMarginMicros != nil || dup.MarginOptionID == nil || *dup.MarginOptionID != newAlto {
+		t.Errorf("duplicate = option %v custom %v, want the new Alto", dup.MarginOptionID, dup.CustomMarginMicros)
+	}
+}

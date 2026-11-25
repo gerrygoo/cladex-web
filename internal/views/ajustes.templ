@@ -284,6 +284,13 @@ templ marginTable(margins MarginSettings) {
 								<form method="post" action={ templ.URL(marginPath(m, "restaurar")) }>
 									<button type="submit">Restaurar<span class="visually-hidden">{ " " + m.Name }</span></button>
 								</form>
+								<form method="post" action={ templ.URL(marginPath(m, "eliminar")) }>
+									<button
+										type="submit"
+										class="danger"
+										data-confirm={ "¿Eliminar el margen " + m.Name + " (" + MarginPercent(m.ValueMicros) + "%)? Deja de aparecer aquí. Las cotizaciones y listas que ya lo usaron no cambian." }
+									>Eliminar<span class="visually-hidden">{ " " + m.Name }</span></button>
+								</form>
 							} else if !m.IsDefault {
 								<form method="post" action={ templ.URL(marginPath(m, "predeterminado")) }>
 									<button type="submit">Hacer predeterminado<span class="visually-hidden">{ " " + m.Name }</span></button>

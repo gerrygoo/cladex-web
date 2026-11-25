@@ -239,6 +239,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	mux.Handle("POST /ajustes/margenes/{id}/predeterminado", admin(settings.PredeterminarMargen))
 	mux.Handle("POST /ajustes/margenes/{id}/retirar", admin(settings.RetirarMargen))
 	mux.Handle("POST /ajustes/margenes/{id}/restaurar", admin(settings.RestaurarMargen))
+	mux.Handle("POST /ajustes/margenes/{id}/eliminar", admin(settings.EliminarMargen))
 	mux.Handle("POST /ajustes/margenes/tipo/{id}/propios", admin(settings.MargenesPropios))
 	mux.Handle("POST /ajustes/emisor", admin(settings.Emisor))
 	mux.Handle("POST /ajustes/ordenes-de-compra", admin(settings.POBilling))

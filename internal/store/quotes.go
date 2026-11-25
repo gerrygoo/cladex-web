@@ -840,6 +840,12 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 	if err != nil {
 		return nil, fmt.Errorf("store: create revision of quote %d: %w", originalID, err)
 	}
+	customMargin := original.CustomMarginMicros
+	if carry, err := s.deletedMarginCarry(ctx, original); err != nil {
+		return nil, err
+	} else if carry != nil {
+		customMargin = carry
+	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -869,7 +875,7 @@ func (s *Store) CreateRevision(ctx context.Context, originalID, userID int64) (*
 		INSERT INTO quotes (folio, prefix, quote_type_id, folio_number, customer_id, user_id, status, supersedes_quote_id, margin_option_id, custom_margin_micros, custom_copper_price_micros, delivery_time, currency, project_id, extra_terms)
 		VALUES (?, ?, ?, ?, ?, ?, 'borrador', ?, `+draftMarginSQL+`, ?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''))`,
 		withDraftMargin([]any{newFolio, original.Prefix, original.QuoteTypeID, original.FolioNumber, original.CustomerID, userID, originalID},
-			original, original.CustomMarginMicros, original.CustomCopperPriceMicros, original.DeliveryTime, original.Currency,
+			original, customMargin, original.CustomCopperPriceMicros, original.DeliveryTime, original.Currency,
 			original.ProjectID, original.ExtraTerms)...,
 	)
 	if err != nil {
@@ -944,6 +950,12 @@ func (s *Store) DuplicateQuote(ctx context.Context, originalID, customerID, user
 	if err != nil {
 		return nil, fmt.Errorf("store: duplicate quote %d: %w", originalID, err)
 	}
+	customMargin := original.CustomMarginMicros
+	if carry, err := s.deletedMarginCarry(ctx, original); err != nil {
+		return nil, err
+	} else if carry != nil {
+		customMargin = carry
+	}
 	root, err := s.QuoteChainRoot(ctx, originalID)
 	if err != nil {
 		return nil, fmt.Errorf("store: duplicate quote %d: %w", originalID, err)
@@ -973,7 +985,7 @@ func (s *Store) DuplicateQuote(ctx context.Context, originalID, customerID, user
 			`+draftMarginSQL+`,
 			?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?)`,
 		withDraftMargin([]any{folio, prefix, original.QuoteTypeID, number, customerID, userID},
-			original, original.CustomMarginMicros, original.CustomCopperPriceMicros,
+			original, customMargin, original.CustomCopperPriceMicros,
 			original.DeliveryTime, original.Currency, original.ExtraTerms, validUntil,
 			int64(original.Subtotal), int64(original.IVA), int64(original.Total))...,
 	)

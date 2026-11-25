@@ -102,7 +102,7 @@ func (s *Store) QuoteMarginOptions(ctx context.Context, quoteTypeID int64) ([]Ma
 
 // MarginTypeIDs lists the quote types that have margins of their own.
 func (s *Store) MarginTypeIDs(ctx context.Context) (map[int64]bool, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT quote_type_id FROM margin_options WHERE quote_type_id IS NOT NULL`)
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT quote_type_id FROM margin_options WHERE quote_type_id IS NOT NULL AND deleted_at IS NULL`)
 	if err != nil {
 		return nil, fmt.Errorf("store: margin type ids: %w", err)
 	}
@@ -121,7 +121,7 @@ func (s *Store) MarginTypeIDs(ctx context.Context) (map[int64]bool, error) {
 func (s *Store) listMarginOptions(ctx context.Context, where string, args ...any) ([]MarginOption, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+marginOptionCols+` FROM margin_options
-		WHERE `+where+`
+		WHERE deleted_at IS NULL AND `+where+`
 		ORDER BY retired_at IS NOT NULL, value_micros, id`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: list margin options: %w", err)
@@ -175,7 +175,7 @@ func (s *Store) UpdateMarginOption(ctx context.Context, id int64, name string, v
 		UPDATE margin_options SET
 			name = ?, value_micros = ?, updated_by = ?,
 			updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-		WHERE id = ?`,
+		WHERE id = ? AND deleted_at IS NULL`,
 		name, int64(value), nullIfZero(updatedBy), id)
 	if isMarginNameViolation(err) {
 		return ErrDuplicateMarginName
@@ -309,7 +309,7 @@ func (s *Store) RestoreMarginOption(ctx context.Context, id int64, updatedBy int
 		UPDATE margin_options SET
 			retired_at = NULL, updated_by = ?,
 			updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-		WHERE id = ?`,
+		WHERE id = ? AND deleted_at IS NULL`,
 		nullIfZero(updatedBy), id)
 	if err != nil {
 		return fmt.Errorf("store: restore margin option %d: %w", id, err)
@@ -318,4 +318,72 @@ func (s *Store) RestoreMarginOption(ctx context.Context, id int64, updatedBy int
 		return ErrMarginOptionNotFound
 	}
 	return nil
+}
+
+// ErrMarginOptionActive is returned by DeleteMarginOption for an option that isn't
+// retired: only a retired one can be deleted.
+var ErrMarginOptionActive = errors.New("store: only a retired margin option can be deleted")
+
+// DeleteMarginOption takes a retired option out of Márgenes for good (#86). Quotes
+// issued with it keep their frozen name and value; drafts still on it (refused at issue
+// while it's retired) move to "Otro margen" with its value, as revisions and duplicates of
+// quotes that used it start (see deletedMarginCarry). The row stays, marked deleted, so
+// those quotes can still point at it. An active option is ErrMarginOptionActive.
+func (s *Store) DeleteMarginOption(ctx context.Context, id int64, updatedBy int64) error {
+	return s.inTx(ctx, "delete margin option", func(tx *sql.Tx) error {
+		var retired sql.NullString
+		var value money.Micros
+		err := tx.QueryRowContext(ctx, `SELECT retired_at, value_micros FROM margin_options WHERE id = ? AND deleted_at IS NULL`, id).
+			Scan(&retired, &value)
+		if err == sql.ErrNoRows {
+			return ErrMarginOptionNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if !retired.Valid {
+			return ErrMarginOptionActive
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE quotes SET custom_margin_micros = ?
+			WHERE margin_option_id = ? AND status = 'borrador' AND custom_margin_micros IS NULL
+				AND custom_copper_price_micros IS NULL`, value, id); err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `
+			UPDATE margin_options SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_by = ?,
+				updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+			WHERE id = ?`, nullIfZero(updatedBy), id)
+		return err
+	})
+}
+
+// deletedMarginCarry is the custom margin a revision or duplicate of original starts on
+// when original was priced with a margin option since deleted (#86) and its type has no
+// active option of that name to take its place: the margin it used (frozen at issue, else
+// the option's value), as "Otro margen". Nil otherwise, including when original already
+// had a custom margin, which is copied as it is.
+func (s *Store) deletedMarginCarry(ctx context.Context, original *Quote) (*money.Micros, error) {
+	if original.MarginOptionID == nil || original.CustomMarginMicros != nil {
+		return nil, nil
+	}
+	var value money.Micros
+	err := s.db.QueryRowContext(ctx, `
+		SELECT o.value_micros FROM margin_options o
+		WHERE o.id = ?1 AND o.deleted_at IS NOT NULL
+			AND NOT EXISTS (SELECT 1 FROM margin_options m
+				WHERE m.name = o.name AND m.retired_at IS NULL AND m.deleted_at IS NULL
+					AND COALESCE(m.quote_type_id, 0) = (SELECT CASE WHEN EXISTS
+						(SELECT 1 FROM margin_options WHERE quote_type_id = ?2) THEN ?2 ELSE 0 END))`,
+		*original.MarginOptionID, original.QuoteTypeID).Scan(&value)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("store: deleted margin of quote %d: %w", original.ID, err)
+	}
+	if original.MarginSnapshotMicros != nil {
+		value = *original.MarginSnapshotMicros
+	}
+	return &value, nil
 }

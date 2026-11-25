@@ -66,7 +66,7 @@ líneas libres no lo usan.
 Las cotizaciones nuevas de un tipo empiezan con su margen **Predeterminado**. Para cambiarlo, haz
 clic en **Hacer predeterminado** en otro margen.
 
-**Retirar o restaurar un margen**
+**Retirar, restaurar o eliminar un margen**
 
 - **Retirar** quita el margen de la lista que ven los vendedores. No se borra: las
   cotizaciones emitidas con él lo siguen mostrando. Un borrador que lo tenía elegido
@@ -74,6 +74,12 @@ clic en **Hacer predeterminado** en otro margen.
   hasta elegir otro.
 - No se puede retirar el predeterminado; primero haz predeterminado otro.
 - **Restaurar** lo vuelve a poner en la lista.
+- **Eliminar** (solo en un margen retirado, y te pide confirmar) lo quita de esta pantalla
+  para siempre. Las cotizaciones emitidas y las listas de precios que lo usaron no
+  cambian: conservan su margen y sus precios. Un borrador que lo tenía elegido pasa a
+  **Otro margen** con el mismo porcentaje, y una revisión o copia de una cotización que
+  lo usó empieza igual (p. ej. *"Otro margen: 20.28%"*); el vendedor puede cambiarlo a
+  cualquiera de los márgenes vigentes. Su nombre queda libre para un margen nuevo.
 
 ## Materiales
 
