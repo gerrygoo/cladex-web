@@ -538,8 +538,9 @@ var ErrPagoOverSaldo = errors.New("store: payment is more than the factura's sal
 var ErrPagoInProgress = errors.New("store: another complemento de pago is in progress")
 
 // CreatePagoDraft starts the complemento de pago for a payment in Cobro (#83): it pays the
-// proyecto's stamped P.P.D. factura that payment's amount, on that payment's day, its forma
-// de pago still to pick, and the payment is linked to it. A payment that already has a
+// proyecto's stamped P.P.D. factura that payment's amount, on that payment's day, with the
+// payment's forma de pago (still to pick for one recorded without it, #87), and the
+// payment is linked to it. A payment that already has a
 // draft returns that draft. A payment covered by a valid complemento, or with none of its
 // proyecto's factura stamped P.P.D., is ErrComprobanteState; more than the factura's
 // saldo, ErrPagoOverSaldo; another payment's complemento under way, ErrPagoInProgress.
@@ -547,13 +548,13 @@ func (s *Store) CreatePagoDraft(ctx context.Context, projectID, paymentID, userI
 	var id int64
 	err := s.inTx(ctx, "create pago draft", func(tx *sql.Tx) error {
 		var amount money.Centavos
-		var paidOn, linkedStatus, linkedTipo string
+		var paidOn, formaPago, linkedStatus, linkedTipo string
 		var linked int64
 		err := tx.QueryRowContext(ctx, `
-			SELECT pm.amount, pm.paid_on, COALESCE(pm.comprobante_id, 0), COALESCE(c.status, ''), COALESCE(c.tipo, '')
+			SELECT pm.amount, pm.paid_on, COALESCE(pm.forma_pago, ''), COALESCE(pm.comprobante_id, 0), COALESCE(c.status, ''), COALESCE(c.tipo, '')
 			FROM payments pm LEFT JOIN comprobantes c ON c.id = pm.comprobante_id
 			WHERE pm.id = ? AND pm.project_id = ? AND pm.deleted_at IS NULL`, paymentID, projectID).
-			Scan(&amount, &paidOn, &linked, &linkedStatus, &linkedTipo)
+			Scan(&amount, &paidOn, &formaPago, &linked, &linkedStatus, &linkedTipo)
 		if err == sql.ErrNoRows {
 			return ErrComprobanteState
 		}
@@ -596,9 +597,9 @@ func (s *Store) CreatePagoDraft(ctx context.Context, projectID, paymentID, userI
 			return ErrPagoOverSaldo
 		}
 		res, err := tx.ExecContext(ctx, `
-			INSERT INTO comprobantes (tipo, project_id, related_id, moneda, tipo_cambio_micros, recipients, pago_fecha, subtotal, iva, total, created_by)
-			VALUES ('pago', ?, ?, ?, ?, NULLIF(?, ''), ?, 0, 0, ?, ?)`,
-			projectID, facturaID, moneda, tc, email, paidOn, amount, userID)
+			INSERT INTO comprobantes (tipo, project_id, related_id, moneda, tipo_cambio_micros, recipients, pago_fecha, forma_pago, subtotal, iva, total, created_by)
+			VALUES ('pago', ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), 0, 0, ?, ?)`,
+			projectID, facturaID, moneda, tc, email, paidOn, formaPago, amount, userID)
 		if err != nil {
 			return err
 		}

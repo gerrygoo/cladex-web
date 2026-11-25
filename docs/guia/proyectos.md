@@ -30,6 +30,12 @@ Cuando los tres están completos (*Facturada*, *Entregado* y *Pagado*), el proye
 **Cerrado · Ganado**. Si después algo deja de cumplirse (por ejemplo, se cancela su factura
 o se borra un pago registrado por error), regresa solo a **En curso**.
 
+Mientras está **En curso**, junto a la etapa dice qué le falta para cerrarse, con un
+enlace a la sección donde se hace. Por ejemplo: *"En curso · Falta: marcar entrega;
+registrar pago (saldo $42,000.00)"* o *"En curso · Falta: complemento de pago de
+$42,000.00 (pago del 19/11/2026)"*. En la lista de proyectos, lo mismo aparece al pasar
+el cursor sobre la columna **Etapa**.
+
 ## Buscar un proyecto
 
 1. En el menú **Proyectos**, elige **Ver proyectos**.
@@ -338,17 +344,20 @@ administradores.
 3. Revisa la **Fecha de pago**: viene con la de hoy y no puede ser futura.
 4. Revisa el **Monto (con IVA)**: viene con el saldo pendiente. Tiene que ser mayor a $0 y
    no mayor al saldo.
-5. En **¿Quieres subir un comprobante de pago?**, deja **No**, o elige **Sí** y adjunta el
+5. Elige la **Forma de pago** con que pagó el cliente (por ejemplo, *03 - Transferencia
+   electrónica de fondos*). Es obligatoria, y su complemento de pago, si la factura es
+   P.P.D., ya viene con ella.
+6. En **¿Quieres subir un comprobante de pago?**, deja **No**, o elige **Sí** y adjunta el
    **Comprobante de pago** (PDF, JPG o PNG de hasta 10 MB, como el archivo de la O.C.).
    Con **Sí**, el archivo es obligatorio.
-6. Haz clic en **Guardar**.
+7. Haz clic en **Guardar**.
 
 El [[estado de cobro]] cambia solo: *Pago parcial* mientras los pagos no cubren el total
 (el resumen dice, por ejemplo, *"Pago parcial · Pagado $7,467.98 de $14,935.95 · Saldo
 $7,467.97"*) y *Pagado*, con la fecha del último pago, cuando lo cubren. Entonces
 **Registrar pago** ya no aparece.
 
-**Cobro** muestra la tabla de pagos (**Fecha de pago**, **Monto**, **Comprobante**, con
+**Cobro** muestra la tabla de pagos (**Fecha de pago**, **Monto**, **Forma de pago**, **Comprobante**, con
 enlace si se subió, y **Registró**, quién y cuándo) y debajo el **Total del proyecto (con
 IVA)**, lo **Pagado** y el **Saldo pendiente**. En el historial queda *"Pago registrado: $X
 el [fecha] por [usuario]."*, y *"con comprobante"* si se subió.

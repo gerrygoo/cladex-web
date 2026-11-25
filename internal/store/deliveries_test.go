@@ -176,7 +176,7 @@ func TestDeliveries(t *testing.T) {
 	if err := s.RecordInvoice(ctx, project, user, testInvoice, "PUE", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.RecordPayment(ctx, project, user, 11600, "2026-11-08", nil); err != nil {
+	if err := s.RecordPayment(ctx, project, user, 11600, "2026-11-08", "03", nil); err != nil {
 		t.Fatal(err)
 	}
 	if p = load(); p.Stage() != StageCerrado || !p.States.Cerrado {

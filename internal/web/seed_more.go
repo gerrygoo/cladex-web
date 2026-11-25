@@ -206,7 +206,7 @@ func seedMoreProjects(ctx context.Context, st *store.Store, pos *PurchaseOrders,
 		return nil, err
 	}
 	half := p.Total / 2
-	if err := st.RecordPayment(actx, p.ID, admin.ID, half, day(-25), nil); err != nil {
+	if err := st.RecordPayment(actx, p.ID, admin.ID, half, day(-25), "03", nil); err != nil {
 		return nil, err
 	}
 	f, err := factura(p, c, "PPD", "")

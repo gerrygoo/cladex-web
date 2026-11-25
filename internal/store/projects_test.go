@@ -923,7 +923,7 @@ func TestPayments(t *testing.T) {
 		return p
 	}
 	// Only en curso.
-	if err := s.RecordPayment(ctx, project, user, 100, "2026-11-10", nil); !errors.Is(err, ErrBadTransition) {
+	if err := s.RecordPayment(ctx, project, user, 100, "2026-11-10", "03", nil); !errors.Is(err, ErrBadTransition) {
 		t.Errorf("RecordPayment(prospecto) = %v, want ErrBadTransition", err)
 	}
 	if err := s.ReceiveOC(ctx, project, user, testOC, nil, ""); err != nil {
@@ -939,16 +939,16 @@ func TestPayments(t *testing.T) {
 		"no date":    {100, "", nil},
 		"empty file": {100, "2026-11-10", &NewFile{Filename: "cp.pdf"}},
 	} {
-		if err := s.RecordPayment(ctx, project, user, c.amount, c.day, c.file); !errors.Is(err, ErrBadTransition) {
+		if err := s.RecordPayment(ctx, project, user, c.amount, c.day, "03", c.file); !errors.Is(err, ErrBadTransition) {
 			t.Errorf("RecordPayment(%s) = %v, want ErrBadTransition", name, err)
 		}
 	}
-	if err := s.RecordPayment(ctx, project, user, 1493596, "2026-11-10", nil); !errors.Is(err, ErrPaymentOverBalance) {
+	if err := s.RecordPayment(ctx, project, user, 1493596, "2026-11-10", "03", nil); !errors.Is(err, ErrPaymentOverBalance) {
 		t.Errorf("RecordPayment(over the total) = %v, want ErrPaymentOverBalance", err)
 	}
 
 	// Half, without a comprobante: Pago parcial.
-	if err := s.RecordPayment(ctx, project, user, 746798, "2026-11-09", nil); err != nil {
+	if err := s.RecordPayment(ctx, project, user, 746798, "2026-11-09", "03", nil); err != nil {
 		t.Fatalf("RecordPayment: %v", err)
 	}
 	p := load()
@@ -958,13 +958,13 @@ func TestPayments(t *testing.T) {
 	if p.LastBody != "Pago registrado: $7,467.98 el 09/11/2026 por Rodolfo." {
 		t.Errorf("history = %q", p.LastBody)
 	}
-	if err := s.RecordPayment(ctx, project, user, 746798, "2026-11-10", nil); !errors.Is(err, ErrPaymentOverBalance) {
+	if err := s.RecordPayment(ctx, project, user, 746798, "2026-11-10", "03", nil); !errors.Is(err, ErrPaymentOverBalance) {
 		t.Errorf("RecordPayment(over the balance) = %v, want ErrPaymentOverBalance", err)
 	}
 
 	// The rest, with its comprobante: Pagado, as of the last payment.
 	cp := &NewFile{Filename: "transferencia.pdf", ContentType: "application/pdf", Data: []byte("%PDF-1.7 cp")}
-	if err := s.RecordPayment(ctx, project, user, 746797, "2026-11-10", cp); err != nil {
+	if err := s.RecordPayment(ctx, project, user, 746797, "2026-11-10", "03", cp); err != nil {
 		t.Fatalf("RecordPayment(rest): %v", err)
 	}
 	if p = load(); p.States.Cobro != CobroPagado || p.States.Paid != 1493595 || p.Balance() != 0 || p.States.LastPaidOn != "2026-11-10" {
@@ -1349,5 +1349,56 @@ func addColumnIfMissing(t *testing.T, s *Store, table, column, decl string) {
 			t.Fatal(err)
 		}
 		shimColumns[s] = append(shimColumns[s], [2]string{table, column})
+	}
+}
+
+// #87: an en curso proyecto lists what keeps it from Cerrado · Ganado.
+func TestProjectGaps(t *testing.T) {
+	en := func(f, e string, total, paid money.Centavos) Project {
+		return Project{Status: StageEnCurso, Total: total, States: ProjectStates{Facturacion: f, Entrega: e, Paid: paid}}
+	}
+	texts := func(gaps []ProjectGap) []string {
+		var out []string
+		for _, g := range gaps {
+			out = append(out, g.Text+"#"+g.Anchor)
+		}
+		return out
+	}
+	covered := Payment{Amount: 1000, PaidOn: "2026-11-01", ComprobanteStatus: CompTimbrada}
+	open := Payment{Amount: 4200000, PaidOn: "2026-11-19"}
+	for name, c := range map[string]struct {
+		p        Project
+		payments []Payment
+		want     []string
+	}{
+		"nothing done": {en(FacturacionPendiente, EntregaSinOC, 5000, 0), nil,
+			[]string{"timbrar factura#facturacion", "emitir la O.C. al proveedor#oc-proveedor", "registrar pago (saldo $50.00)#cobro"}},
+		"in delivery, partly paid": {en(FacturacionFacturada, EntregaEnProceso, 5000, 1000), nil,
+			[]string{"marcar entrega#entrega", "registrar pago (saldo $40.00)#cobro"}},
+		"only a complemento (QCCS0044)": {en(FacturacionPendienteComplemento, EntregaEntregado, 4201000, 4201000), []Payment{covered, open},
+			[]string{"complemento de pago de $42,000.00 (pago del 19/11/2026)#cobro"}},
+		"only a complemento, in a list": {en(FacturacionPendienteComplemento, EntregaEntregado, 4201000, 4201000), nil,
+			[]string{"complemento de pago#cobro"}},
+		"complementos follow the payments": {en(FacturacionPendienteComplemento, EntregaEntregado, 5000, 1000), []Payment{covered},
+			[]string{"registrar pago (saldo $40.00)#cobro"}},
+	} {
+		if got := texts(c.p.Gaps(c.payments)); strings.Join(got, "|") != strings.Join(c.want, "|") {
+			t.Errorf("%s: Gaps = %q, want %q", name, got, c.want)
+		}
+	}
+	closed := en(FacturacionFacturada, EntregaEntregado, 5000, 5000)
+	closed.States.Cerrado = true
+	for name, p := range map[string]Project{"cerrado": closed, "prospecto": {Status: StageProspecto}} {
+		if g := p.Gaps(nil); g != nil {
+			t.Errorf("%s: Gaps = %v, want none", name, g)
+		}
+	}
+}
+
+func TestPaymentFormKnown(t *testing.T) {
+	for code, want := range map[string]bool{"03": true, "01": true, "": false, "99": false, "XX": false} {
+		if got := PaymentFormKnown(code); got != want {
+			t.Errorf("PaymentFormKnown(%q) = %v, want %v", code, got, want)
+		}
 	}
 }

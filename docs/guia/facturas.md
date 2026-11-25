@@ -154,7 +154,8 @@ P.P.D. Si el cliente paga todo de una vez, es un solo complemento.
    complemento en borrador con la **fecha** y el **monto** del pago, su número de
    **parcialidad**, el **saldo anterior** de la factura y el **saldo insoluto** (lo que
    queda después de este pago).
-3. Elige la **forma de pago** (transferencia, cheque…).
+3. Revisa la **forma de pago**: viene con la que se eligió al registrar el pago. Sin ella
+   el complemento no pasa la validación.
 4. Haz clic en **Guardar y ver PDF** para revisarlo. Todavía no se timbra.
 5. **Validar**, y luego **Timbrar**.
 

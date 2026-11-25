@@ -91,8 +91,11 @@ templ ProjectsTableBody(projects []store.Project, today string) {
 				<td>
 					@sellerCell(p.UserName)
 				</td>
-				<td>
+				<td title={ gapsTitle(p.Gaps(nil)) }>
 					@StatusBadge(p.Stage())
+					if gaps := p.Gaps(nil); len(gaps) > 0 {
+						<span class="visually-hidden">{ gapsTitle(gaps) }</span>
+					}
 				</td>
 				<td>
 					if p.Status == store.StageProspecto {
@@ -211,6 +214,7 @@ templ ProjectPage(p store.Project, today string, quotes []store.Quote, files []s
 			<dt>Etapa</dt>
 			<dd>
 				@StatusBadge(p.Stage())
+				@stageGaps(p.Gaps(cobro.Payments))
 			</dd>
 			if p.Status == "prospecto" {
 				<dt>Probabilidad</dt>
@@ -481,6 +485,7 @@ templ ProjectCobroSection(p store.Project, c ProjectCobro, today string) {
 						<tr>
 							<th scope="col">Fecha de pago</th>
 							<th scope="col" class="num">Monto</th>
+							<th scope="col">Forma de pago</th>
 							<th scope="col">Comprobante</th>
 							<th scope="col">Registró</th>
 							if c.showComplementos() {
@@ -496,6 +501,13 @@ templ ProjectCobroSection(p store.Project, c ProjectCobro, today string) {
 							<tr>
 								<td>{ dateText(pm.PaidOn) }</td>
 								<td class="num">{ pm.Amount.String() }</td>
+								<td>
+									if pm.FormaPago != "" {
+										{ store.SATLabel(store.PaymentForms, pm.FormaPago) }
+									} else {
+										{ noValue }
+									}
+								</td>
 								<td>
 									if pm.FileID != 0 {
 										<a href={ templ.URL(projectFilePath(p.Folio, pm.FileID)) }>{ pm.FileName }</a>
@@ -555,6 +567,17 @@ templ ProjectCobroSection(p store.Project, c ProjectCobro, today string) {
 								<input type="number" name="monto" value={ centavosValue(p.Balance()) } min="0.01" max={ centavosValue(p.Balance()) } step="0.01" inputmode="decimal" required/>
 							</label>
 						</div>
+						<label>
+							Forma de pago
+							<select name="forma_pago" required>
+								<option value="">Elige…</option>
+								for _, f := range store.PaymentForms {
+									if f.Code != "99" {
+										<option value={ f.Code }>{ f.Code } - { f.Description }</option>
+									}
+								}
+							</select>
+						</label>
 						<fieldset class="probability">
 							<legend>¿Quieres subir un comprobante de pago?</legend>
 							<label>
@@ -942,4 +965,36 @@ templ OCForm(p store.Project, today, button string, primary, withNote bool) {
 		}
 		<button type="submit" class={ templ.KV("primary", primary) }>{ button }</button>
 	</form>
+}
+
+// stageGaps follows an en curso proyecto's stage with what it still lacks to be
+// Cerrado · Ganado (#87), each linked to the section where it is done.
+templ stageGaps(gaps []store.ProjectGap) {
+	if len(gaps) > 0 {
+		<span class="stage-gaps">
+			{ " · Falta: " }
+			for i, g := range gaps {
+				if i > 0 {
+					{ "; " }
+				}
+				<a href={ templ.SafeURL("#" + g.Anchor) }>{ g.Text }</a>
+			}
+		</span>
+	}
+}
+
+// gapsTitle is a proyecto's gaps in one line, "Falta: marcar entrega; registrar pago
+// (saldo $X)", for the Etapa column of the list, where there is no room to link them.
+func gapsTitle(gaps []store.ProjectGap) string {
+	if len(gaps) == 0 {
+		return ""
+	}
+	out := "Falta: "
+	for i, g := range gaps {
+		if i > 0 {
+			out += "; "
+		}
+		out += g.Text
+	}
+	return out
 }

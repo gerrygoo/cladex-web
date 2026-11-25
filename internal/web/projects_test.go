@@ -883,7 +883,7 @@ func TestProjectsReceiveOC(t *testing.T) {
 	}
 	// The receive section and the follow-up dates are gone; the purchase order's summary
 	// comes before the comment box.
-	for _, gone := range []string{"Recibir la orden de compra", "O.C. 4411 · 07/10/2026 · P.", `name="forma_pago"`} {
+	for _, gone := range []string{"Recibir la orden de compra", "O.C. 4411 · 07/10/2026 · P."} {
 		if strings.Contains(body, gone) {
 			t.Errorf("oc_recibida page still shows %q", gone)
 		}
@@ -1044,6 +1044,9 @@ func TestProjectsCobro(t *testing.T) {
 		t.Helper()
 		var buf bytes.Buffer
 		mw := multipart.NewWriter(&buf)
+		if _, ok := fields["forma_pago"]; !ok {
+			mw.WriteField("forma_pago", "03") // every case below but "no forma de pago"
+		}
 		for k, v := range fields {
 			mw.WriteField(k, v)
 		}
@@ -1080,7 +1083,7 @@ func TestProjectsCobro(t *testing.T) {
 	for _, want := range []string{"<dt>Estado de cobro</dt><dd>Pendiente de pago</dd>", "<h2>Cobro</h2>", "Todavía no hay pagos registrados.",
 		"<dt>Total del proyecto (con IVA)</dt><dd>" + total.String() + "</dd>", "<dt>Pagado</dt><dd>$0.00</dd>", "<dt>Saldo pendiente</dt><dd>" + total.String() + "</dd>",
 		"<summary>Registrar pago</summary>", `name="monto" value="` + value(total) + `" min="0.01" max="` + value(total) + `"`, `max="` + time.Now().UTC().Format("2006-01-02")[:4],
-		"¿Quieres subir un comprobante de pago?", `name="comprobante" value="no" checked`, "<label data-comprobante-file hidden>"} {
+		"¿Quieres subir un comprobante de pago?", `name="comprobante" value="no" checked`, `<select name="forma_pago" required>`, "<label data-comprobante-file hidden>"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("en curso page missing %q", want)
 		}
@@ -1111,6 +1114,8 @@ func TestProjectsCobro(t *testing.T) {
 		"sí without file":  {map[string]string{"fecha": "2026-11-09", "monto": "1", "comprobante": "si"}, "", nil, "adjunta el comprobante de pago"},
 		"sí with a .txt":   {map[string]string{"fecha": "2026-11-09", "monto": "1", "comprobante": "si"}, "cp.txt", []byte("hola"), "debe ser PDF, JPG o PNG"},
 		"unknown comprob.": {map[string]string{"fecha": "2026-11-09", "monto": "1", "comprobante": "tal vez"}, "", nil, "elige si quieres subir"},
+		"no forma de pago": {map[string]string{"fecha": "2026-11-09", "monto": "1", "forma_pago": ""}, "", nil, "elige la forma de pago"},
+		"forma 99":         {map[string]string{"fecha": "2026-11-09", "monto": "1", "forma_pago": "99"}, "", nil, "elige la forma de pago"},
 	} {
 		if rec := pay(ana, c.fields, c.file, c.data); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), c.want) {
 			t.Errorf("Pagos(%s) = %d %q, want 400 %q", name, rec.Code, rec.Body.String(), c.want)
@@ -1124,7 +1129,7 @@ func TestProjectsCobro(t *testing.T) {
 	}
 	body = page(ana)
 	for _, want := range []string{"<dt>Estado de cobro</dt><dd>Pago parcial · Pagado " + first.String() + " de " + total.String() + " · Saldo " + rest.String() + "</dd>",
-		"<td>09/11/2026</td>", "Sin comprobante", "Pago registrado: " + first.String() + " el 09/11/2026 por ana.",
+		"<td>09/11/2026</td>", "<td>03 - Transferencia electrónica de fondos</td>", "Sin comprobante", "Pago registrado: " + first.String() + " el 09/11/2026 por ana.",
 		`name="monto" value="` + value(rest) + `"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("partly paid page missing %q", want)

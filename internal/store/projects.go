@@ -924,6 +924,50 @@ func (p Project) Stage() string {
 	return p.Status
 }
 
+// ProjectGap is one thing an en curso proyecto still lacks to be Cerrado · Ganado (#87):
+// what to do ("marcar entrega") and the section of its page where it is done (Anchor,
+// "entrega").
+type ProjectGap struct {
+	Text   string
+	Anchor string
+}
+
+// Gaps lists what an en curso proyecto still lacks to be Cerrado · Ganado, in the order
+// the work goes: its factura, its supplier O.C. and delivery, the client's payments and,
+// for a P.P.D. factura, the complemento de pago of each payment. payments are its Cobro's
+// (ListPayments), to name each missing complemento; without them (a list of proyectos)
+// one "complemento de pago" stands for them all. Nil for any other proyecto.
+func (p Project) Gaps(payments []Payment) []ProjectGap {
+	if p.Status != StageEnCurso || p.States.Cerrado {
+		return nil
+	}
+	var gaps []ProjectGap
+	if p.States.Facturacion == FacturacionPendiente {
+		gaps = append(gaps, ProjectGap{"timbrar factura", "facturacion"})
+	}
+	switch p.States.Entrega {
+	case EntregaSinOC:
+		gaps = append(gaps, ProjectGap{"emitir la O.C. al proveedor", "oc-proveedor"})
+	case EntregaEnProceso:
+		gaps = append(gaps, ProjectGap{"marcar entrega", "entrega"})
+	}
+	if b := p.Balance(); b > 0 || p.States.Paid <= 0 {
+		gaps = append(gaps, ProjectGap{"registrar pago (saldo " + b.String() + ")", "cobro"})
+	}
+	if p.States.Facturacion == FacturacionPendienteComplemento {
+		n := len(gaps)
+		for _, pm := range payments {
+			if !pm.Covered() {
+				gaps = append(gaps, ProjectGap{"complemento de pago de " + pm.Amount.String() + " (pago del " + dayText(pm.PaidOn) + ")", "cobro"})
+			}
+		}
+		if len(gaps) == n && (payments == nil || p.Balance() == 0) {
+			gaps = append(gaps, ProjectGap{"complemento de pago", "cobro"})
+		}
+	}
+	return gaps
+}
+
 // Open is whether the proyecto is still being worked: a prospecto, or en curso and not
 // yet Cerrado · Ganado. It is the Go side of projectOpenSQL.
 func (p Project) Open() bool {

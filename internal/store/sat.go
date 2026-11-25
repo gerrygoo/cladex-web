@@ -59,6 +59,12 @@ var CFDIUses = []SATCode{
 }
 
 // ValidSATCode reports whether code is in catalog; "" (not set) is valid.
+// PaymentFormKnown reports whether code is a forma de pago a payment can have been made
+// with: one of PaymentForms other than 99 (Por definir), never "" (#87).
+func PaymentFormKnown(code string) bool {
+	return code != "" && code != "99" && ValidSATCode(PaymentForms, code)
+}
+
 func ValidSATCode(catalog []SATCode, code string) bool {
 	if code == "" {
 		return true

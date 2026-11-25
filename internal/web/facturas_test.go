@@ -237,7 +237,7 @@ func TestFacturacionEndToEnd(t *testing.T) {
 	}
 	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
 	first := c.Total / 2
-	if err := a.store.RecordPayment(ctx, project.ID, admin, first, yesterday, nil); err != nil {
+	if err := a.store.RecordPayment(ctx, project.ID, admin, first, yesterday, "03", nil); err != nil {
 		t.Fatal(err)
 	}
 	payments, _ := a.store.ListPayments(ctx, project.ID)
@@ -276,7 +276,7 @@ func TestFacturacionEndToEnd(t *testing.T) {
 	if d, _ := a.store.ComprobanteByID(ctx, pago.ID); d.Status != store.CompCancelada {
 		t.Errorf("the deleted payment's draft = %s, want cancelada", d.Status)
 	}
-	if err := a.store.RecordPayment(ctx, project.ID, admin, first, yesterday, nil); err != nil {
+	if err := a.store.RecordPayment(ctx, project.ID, admin, first, yesterday, "03", nil); err != nil {
 		t.Fatal(err)
 	}
 	payments, _ = a.store.ListPayments(ctx, project.ID)
@@ -290,6 +290,15 @@ func TestFacturacionEndToEnd(t *testing.T) {
 	pago, _ = a.store.ComprobanteByID(ctx, mustAtoi(t, pagoID))
 	if pago.Parcialidad != 1 || pago.PaymentID != payments[0].ID {
 		t.Fatalf("new draft = #%d payment %d", pago.Parcialidad, pago.PaymentID)
+	}
+	// #87: the draft starts with the payment's forma de pago, and doesn't validate without one.
+	if pago.FormaPago != "03" {
+		t.Errorf("pago draft forma de pago = %q, want the payment's 03", pago.FormaPago)
+	}
+	if rec := post(admin, f.Validar, "/facturas/"+pagoID+"/validar", ppv, url.Values{"forma_pago": {""}}); rec.Code == http.StatusSeeOther {
+		t.Errorf("Validar pago without forma de pago = %d, want it refused", rec.Code)
+	} else if d, _ := a.store.ComprobanteByID(ctx, pago.ID); d.Status == store.CompLista {
+		t.Errorf("a pago without forma de pago went lista para timbrar")
 	}
 	// The day is the payment's: the form can't change it.
 	if rec := post(admin, f.Validar, "/facturas/"+pagoID+"/validar", ppv, url.Values{"pago_fecha": {"2020-01-01"}, "forma_pago": {"03"}}); rec.Code != http.StatusSeeOther {
@@ -308,7 +317,7 @@ func TestFacturacionEndToEnd(t *testing.T) {
 		t.Errorf("pago preview PDF = %d", rec.Code)
 	}
 	// A second payment can't start its complemento while this one is on its way.
-	if err := a.store.RecordPayment(ctx, project.ID, admin, saldo, yesterday, nil); err != nil {
+	if err := a.store.RecordPayment(ctx, project.ID, admin, saldo, yesterday, "03", nil); err != nil {
 		t.Fatal(err)
 	}
 	payments, _ = a.store.ListPayments(ctx, project.ID)
@@ -327,6 +336,10 @@ func TestFacturacionEndToEnd(t *testing.T) {
 	}
 	if body := projectPage(); !strings.Contains(body, pago.UUID) || !strings.Contains(body, "/pagos/"+pay2+"/complemento") {
 		t.Errorf("Cobro should show the first payment's folio fiscal and offer the second's complemento")
+	}
+	// #87: the stage says what is missing, down to the payment.
+	if body := projectPage(); !strings.Contains(body, "complemento de pago de "+saldo.String()+" (pago del "+yesterday[8:10]+"/"+yesterday[5:7]+"/"+yesterday[:4]+")") {
+		t.Errorf("Etapa should say the second payment's complemento is missing")
 	}
 	if rec := doForm(t, a, admin, a.RequireAdmin(http.HandlerFunc(p.EliminarPago)).ServeHTTP, "POST", "/proyectos/"+folio+"/pagos/"+pay1+"/eliminar",
 		map[string]string{"folio": folio, "id": pay1}, url.Values{"reason": {"error"}}, false); rec.Code != http.StatusConflict {
@@ -866,7 +879,7 @@ func TestManualComplementos(t *testing.T) {
 	half := total / 2
 
 	// The anticipo, recorded in Cobro by hand before the factura.
-	if err := a.store.RecordPayment(ctx, project.ID, admin, half, "2026-11-01", nil); err != nil {
+	if err := a.store.RecordPayment(ctx, project.ID, admin, half, "2026-11-01", "03", nil); err != nil {
 		t.Fatal(err)
 	}
 	fid := recordTestFactura(t, a, admin, folio, "PPD")

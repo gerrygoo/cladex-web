@@ -309,7 +309,7 @@ func SeedStagingKeeping(ctx context.Context, st *store.Store, now time.Time, tes
 	if p4, err = st.ProjectByFolio(ctx, p4.Folio); err != nil {
 		return err
 	}
-	if err := st.RecordPayment(withSeedUser(ctx, admin), p4.ID, admin.ID, p4.Total/2, today, nil); err != nil {
+	if err := st.RecordPayment(withSeedUser(ctx, admin), p4.ID, admin.ID, p4.Total/2, today, "03", nil); err != nil {
 		return fmt.Errorf("anticipo %s: %w", p4.Folio, err)
 	}
 	if _, err := st.RecordManualFactura(withSeedUser(ctx, admin), p4.ID, admin.ID, store.ManualFactura{

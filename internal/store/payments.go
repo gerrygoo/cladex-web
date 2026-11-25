@@ -38,6 +38,10 @@ type Payment struct {
 	FileName      string
 	CreatedByName string
 	CreatedAt     string
+	// FormaPago is how the client paid (SAT c_FormaPago, #87): typed with a manual
+	// payment, the comprobante's for one a factura or complemento recorded, "" for manual
+	// payments recorded before it was asked.
+	FormaPago string
 	// The comprobante linked to it (ComprobanteID; #83): its tipo, status and folio
 	// fiscal, "" when none.
 	ComprobanteTipo   string
@@ -76,7 +80,8 @@ func (s *Store) ListPayments(ctx context.Context, projectID int64) ([]Payment, e
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT pm.id, pm.project_id, pm.amount, pm.paid_on, pm.source, COALESCE(pm.comprobante_id, 0),
 			COALESCE(pm.file_id, 0), COALESCE(f.filename, ''), u.name, pm.created_at,
-			COALESCE(c.tipo, ''), COALESCE(c.status, ''), COALESCE(c.uuid, '')
+			COALESCE(c.tipo, ''), COALESCE(c.status, ''), COALESCE(c.uuid, ''),
+			COALESCE(pm.forma_pago, CASE WHEN pm.source != 'manual' THEN c.forma_pago END, '')
 		FROM payments pm
 		JOIN users u ON u.id = pm.created_by
 		LEFT JOIN project_files f ON f.id = pm.file_id
@@ -92,7 +97,7 @@ func (s *Store) ListPayments(ctx context.Context, projectID int64) ([]Payment, e
 		var p Payment
 		if err := rows.Scan(&p.ID, &p.ProjectID, &p.Amount, &p.PaidOn, &p.Source, &p.ComprobanteID,
 			&p.FileID, &p.FileName, &p.CreatedByName, &p.CreatedAt,
-			&p.ComprobanteTipo, &p.ComprobanteStatus, &p.ComprobanteUUID); err != nil {
+			&p.ComprobanteTipo, &p.ComprobanteStatus, &p.ComprobanteUUID, &p.FormaPago); err != nil {
 			return nil, fmt.Errorf("store: payments of project %d: %w", projectID, err)
 		}
 		out = append(out, p)
@@ -103,12 +108,13 @@ func (s *Store) ListPayments(ctx context.Context, projectID int64) ([]Payment, e
 // RecordPayment records a payment the client made toward an en curso proyecto by hand
 // ("Registrar pago"): amount (centavos with IVA, more than zero and no more than what is
 // still owed, else ErrPaymentOverBalance), the day it came in (YYYY-MM-DD; whether it may
-// be in the future is the caller's decision) and, optionally, the comprobante de pago,
+// be in the future is the caller's decision), how the client paid (formaPago, a SAT
+// c_FormaPago code other than 99 Por definir, #87) and, optionally, the comprobante de pago,
 // stored with the proyecto's files. The history gets "Pago registrado: $X el [fecha] por
 // [usuario]", plus "con comprobante" when there is a file. Anything else is
 // ErrBadTransition.
-func (s *Store) RecordPayment(ctx context.Context, projectID, userID int64, amount money.Centavos, paidOn string, file *NewFile) error {
-	if _, err := time.Parse("2006-01-02", paidOn); err != nil || amount <= 0 ||
+func (s *Store) RecordPayment(ctx context.Context, projectID, userID int64, amount money.Centavos, paidOn, formaPago string, file *NewFile) error {
+	if _, err := time.Parse("2006-01-02", paidOn); err != nil || amount <= 0 || !PaymentFormKnown(formaPago) ||
 		file != nil && (strings.TrimSpace(file.Filename) == "" || len(file.Data) == 0) {
 		return ErrBadTransition
 	}
@@ -137,8 +143,8 @@ func (s *Store) RecordPayment(ctx context.Context, projectID, userID int64, amou
 			fileID = id
 		}
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO payments (project_id, amount, paid_on, source, file_id, created_by)
-			VALUES (?, ?, ?, 'manual', ?, ?)`, projectID, amount, paidOn, fileID, userID); err != nil {
+			INSERT INTO payments (project_id, amount, paid_on, source, file_id, forma_pago, created_by)
+			VALUES (?, ?, ?, 'manual', ?, ?, ?)`, projectID, amount, paidOn, fileID, formaPago, userID); err != nil {
 			return err
 		}
 		var name string

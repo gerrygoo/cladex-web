@@ -570,7 +570,8 @@ func (p *Projects) Archivo(w http.ResponseWriter, r *http.Request) {
 // Pagos handles POST /proyectos/{folio}/pagos: "Registrar pago" (#67), a payment the
 // client made toward an en curso proyecto. "fecha" is the day it came in (required, not
 // after the viewer's today), "monto" the amount with IVA (required, more than $0 and no
-// more than the saldo pendiente), and "comprobante" sí or no; with sí, "archivo" (PDF,
+// more than the saldo pendiente), "forma_pago" how the client paid (required, a SAT
+// c_FormaPago code other than 99, #87), and "comprobante" sí or no; with sí, "archivo" (PDF,
 // JPG or PNG up to 10 MB, like the O.C.'s) is required. The proyecto's vendedor and the
 // admins can.
 func (p *Projects) Pagos(w http.ResponseWriter, r *http.Request) {
@@ -611,6 +612,11 @@ func (p *Projects) Pagos(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "el monto no puede ser mayor al saldo pendiente, "+project.Balance().String(), http.StatusBadRequest)
 		return
 	}
+	formaPago := r.FormValue("forma_pago")
+	if !store.PaymentFormKnown(formaPago) {
+		http.Error(w, "elige la forma de pago", http.StatusBadRequest)
+		return
+	}
 	var file *store.NewFile
 	switch r.FormValue("comprobante") {
 	case "si":
@@ -630,7 +636,7 @@ func (p *Projects) Pagos(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "elige si quieres subir un comprobante de pago", http.StatusBadRequest)
 		return
 	}
-	if err := p.store.RecordPayment(ctx, project.ID, user.ID, amount, day, file); err != nil {
+	if err := p.store.RecordPayment(ctx, project.ID, user.ID, amount, day, formaPago, file); err != nil {
 		switch {
 		case errors.Is(err, store.ErrPaymentOverBalance):
 			http.Error(w, "el monto no puede ser mayor al saldo pendiente", http.StatusConflict)

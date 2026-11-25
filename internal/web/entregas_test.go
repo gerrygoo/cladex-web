@@ -291,7 +291,7 @@ func TestEntrega(t *testing.T) {
 	if err := a.store.RecordInvoice(ctx, project.ID, ana, store.Document{Ref: "F-1", Date: "2026-11-06"}, "PUE", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.store.RecordPayment(ctx, project.ID, ana, project.Total, "2026-11-07", nil); err != nil {
+	if err := a.store.RecordPayment(ctx, project.ID, ana, project.Total, "2026-11-07", "03", nil); err != nil {
 		t.Fatal(err)
 	}
 	if body := page(ana); !strings.Contains(body, `<span class="badge badge-cerrado">Cerrado · Ganado</span>`) {
