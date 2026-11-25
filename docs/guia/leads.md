@@ -99,7 +99,7 @@ PDF. Las de un lead también aparecen en su página.
    quieras (p. ej. `1000` metros) para que la lista muestre ese total; pon `0` para
    quitar un producto.
 3. Elige el **Margen**. Para uno que no está en la lista, elige **Otro margen** y escribe
-   el porcentaje en **Otro margen (%)**.
+   el porcentaje en **Otro margen (%)**, que aparece al elegirlo.
 4. Si los términos de ese tipo llevan tiempo de entrega, escríbelo.
 5. Revisa **Para** (desde un lead ya viene su nombre) y haz clic en **Recalcular** para
    ver los precios.

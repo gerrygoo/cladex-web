@@ -154,7 +154,7 @@ func (h *PriceLists) build(w http.ResponseWriter, r *http.Request) *priceListSta
 		if form != nil {
 			qty = strings.TrimSpace(form.Get("qty_" + strconv.FormatInt(p.ID, 10)))
 		}
-		row := views.PriceListRow{ProductID: p.ID, Label: p.SKU + " — " + p.Description, Qty: qty}
+		row := views.PriceListRow{ProductID: p.ID, Label: p.SKU + " — " + p.Description, Qty: qty, UnitCode: p.UnitCode}
 		if p.UnitCode == "" && !qt.KgPriced {
 			st.view.NoUnit = append(st.view.NoUnit, p.SKU)
 		}

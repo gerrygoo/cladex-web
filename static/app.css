@@ -1906,3 +1906,19 @@ article.entrega-oc {
 article.entrega-oc h3 {
   margin-block: 0 0.5rem;
 }
+
+/* Price list builder (#85): the margin and "Otro margen (%)" side by side, and each
+   product's unit right after its quantity, not on a line of its own. */
+div.margin-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: flex-end;
+}
+
+span.qty-unit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}

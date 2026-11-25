@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gerrygoo/cladex-web/internal/store"
+	"github.com/gerrygoo/cladex-web/internal/views"
 )
 
 // A price list prices every product of the tipo's familia as a quote of that tipo would,
@@ -36,6 +37,12 @@ func TestPriceListForLead(t *testing.T) {
 		!strings.Contains(body, "$100.00") || !strings.Contains(body, "$64.29") || !strings.Contains(body, `value="Juan Pérez · Eléctrica Norte"`) {
 		t.Fatalf("NewPage = %d:\n%s", rec.Code, body)
 	}
+	// #85: a Partida column, and "Otro margen (%)" hidden until Otro margen is picked.
+	for _, want := range []string{`<th class="num">Partida</th>`, `<span id="margin-custom" hidden>`, `id="margin-select"`, "margin.js"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("NewPage missing %q", want)
+		}
+	}
 
 	form := func(extra url.Values) url.Values {
 		f := url.Values{"tipo": {qa}, "lead": {lead}, "para": {"Juan Pérez"}, "delivery_time": {"2 semanas"},
@@ -48,6 +55,13 @@ func TestPriceListForLead(t *testing.T) {
 	rec = doForm(t, a, userID, h.Build, "POST", "/listas-de-precios/nueva", nil, form(nil), false)
 	if body := rec.Body.String(); rec.Code != http.StatusOK || !strings.Contains(body, "$1,000.00") || !strings.Contains(body, "No va en la lista") {
 		t.Fatalf("Recalcular = %d", rec.Code)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, `<td class="num">1</td>`) {
+		t.Errorf("the product on the list isn't Partida 1")
+	}
+	rec = doForm(t, a, userID, h.Build, "POST", "/listas-de-precios/nueva", nil, form(url.Values{"margin_option_id": {views.CustomMarginValue}, "margin_pct": {"20"}}), false)
+	if body := rec.Body.String(); !strings.Contains(body, `<span id="margin-custom">`) || !strings.Contains(body, `name="margin_pct" id="margin-pct" value="20"`) {
+		t.Errorf("Otro margen picked doesn't show its percentage")
 	}
 	rec = doForm(t, a, userID, h.Build, "POST", "/listas-de-precios/nueva", nil, form(url.Values{"generar": {"1"}, "qty_" + strconv.FormatInt(costID, 10): {"x"}}), false)
 	if rec.Code != http.StatusUnprocessableEntity {

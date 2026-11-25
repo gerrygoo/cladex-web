@@ -20,6 +20,8 @@ type PriceListRow struct {
 	Error     string
 	Line      int
 	Priced    *QuoteLineView
+	// UnitCode is the product's unit ("m", "pza"), shown next to its quantity, "" without one.
+	UnitCode string
 }
 
 // PriceListBuilder is the price list being built (#82, slice L3).
@@ -161,28 +163,32 @@ templ PriceListBuilderPage(b PriceListBuilder, user *NavUser) {
 				Para
 				<input type="text" name="para" value={ b.Recipient } placeholder="p. ej. Juan Pérez · Eléctrica Norte"/>
 			</label>
-			<div class="margin-controls">
+			// "Otro margen (%)" only shows while Otro margen is picked; margin.js (the
+			// quote builder's) shows it and fills it in as the margin changes (#85).
+			<div class="margin-controls" id="margin-controls">
 				<label>
 					Margen
-					<select name="margin_option_id">
+					<select name="margin_option_id" id="margin-select">
 						if b.Margin.NoneChosen && !b.Margin.Custom {
 							<option value="" selected>— Elige un margen —</option>
 						}
 						for _, c := range b.Margin.Choices {
-							<option value={ marginChoiceValue(c.ID) } selected?={ c.Selected && !b.Margin.Custom }>{ c.Label }</option>
+							<option value={ marginChoiceValue(c.ID) } data-pct={ c.Pct } selected?={ c.Selected && !b.Margin.Custom }>{ c.Label }</option>
 						}
 						<option value={ CustomMarginValue } selected?={ b.Margin.Custom }>{ b.Margin.CustomOptionLabel() }</option>
 					</select>
 				</label>
-				<label>
-					Otro margen (%)
-					<input type="text" inputmode="decimal" name="margin_pct" value={ customPctValue(b.Margin) } size="6"/>
-				</label>
+				<span id="margin-custom" hidden?={ !b.Margin.Custom }>
+					<input type="hidden" name="margin_edited" id="margin-edited" value=""/>
+					<label>
+						Otro margen (%)
+						<input type="text" inputmode="decimal" name="margin_pct" id="margin-pct" value={ customPctValue(b.Margin) } size="6" readonly?={ !b.Margin.Custom }/>
+					</label>
+				</span>
 				if b.Margin.Error != "" {
 					<p class="error">{ b.Margin.Error }</p>
 				}
 			</div>
-			<p class="hint">"Otro margen (%)" solo cuenta con <em>Otro margen</em> elegido.</p>
 			if b.AsksDeliveryTime {
 				<label>
 					Tiempo de entrega
@@ -197,6 +203,7 @@ templ PriceListBuilderPage(b PriceListBuilder, user *NavUser) {
 				<table class={ templ.KV("kg-lines", b.ShowKg) }>
 					<thead>
 						<tr>
+							<th class="num">Partida</th>
 							<th>Producto</th>
 							if b.ShowKg {
 								<th class="num">Cantidad (m)</th>
@@ -211,10 +218,15 @@ templ PriceListBuilderPage(b PriceListBuilder, user *NavUser) {
 					</thead>
 					<tbody>
 						if len(b.Rows) == 0 {
-							<tr><td colspan="6">Esta familia no tiene productos.</td></tr>
+							<tr><td colspan="7">Esta familia no tiene productos.</td></tr>
 						}
 						for _, row := range b.Rows {
 							<tr class={ templ.KV("excluded", row.Excluded) }>
+								<td class="num">
+									if row.Priced != nil {
+										{ strconv.Itoa(row.Line + 1) }
+									}
+								</td>
 								<td>
 									{ row.Label }
 									if row.Error != "" {
@@ -224,10 +236,12 @@ templ PriceListBuilderPage(b PriceListBuilder, user *NavUser) {
 									}
 								</td>
 								<td class="num">
-									<input type="text" inputmode="decimal" size="7" name={ "qty_" + strconv.FormatInt(row.ProductID, 10) } value={ row.Qty } aria-label={ "Cantidad de " + row.Label }/>
-									if row.Priced != nil && !b.ShowKg && row.Priced.UnitCode != "" {
-										{ " " + row.Priced.UnitCode }
-									}
+									<span class="qty-unit">
+										<input type="text" inputmode="decimal" size="7" name={ "qty_" + strconv.FormatInt(row.ProductID, 10) } value={ row.Qty } aria-label={ "Cantidad de " + row.Label }/>
+										if !b.ShowKg && row.UnitCode != "" {
+											<span>{ row.UnitCode }</span>
+										}
+									</span>
 								</td>
 								if b.ShowKg {
 									<td class="num">
@@ -263,6 +277,7 @@ templ PriceListBuilderPage(b PriceListBuilder, user *NavUser) {
 			<button type="submit">Recalcular</button>
 			<button type="submit" name="generar" value="1" class="primary">Generar PDF</button>
 		</form>
+		<script src={ Asset("margin.js") } defer></script>
 	}
 }
 
