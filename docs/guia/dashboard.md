@@ -59,10 +59,16 @@ que quieras.
 
 ### Completados
 
-A un lado (abajo en el celular), en verde, está lo que completaste en los **últimos 30
-días**, del más reciente al más antiguo: los seguimientos, con cómo se completaron (*con
-un comentario*, *con una nueva fecha* o *por cambio de etapa*), y tus pendientes libres.
+A un lado (abajo en el celular), en verde, está **todo** lo que has completado, del más
+reciente al más antiguo: los seguimientos, con cómo se completaron (*con un
+comentario*, *con una nueva fecha* o *por cambio de etapa*), y tus pendientes libres.
 Si completaste uno libre por error, haz clic en **Reabrir** y regresa a la lista.
+
+La caja muestra 5 a la vez; los demás se ven desplazándote dentro de ella, sin que la
+página crezca. Para quitarla de la pantalla, haz clic en **Ocultar pendientes
+completados**; para volver a verla, en **Mostrar pendientes completados (23)**, con
+cuántos tienes. La app recuerda tu elección la próxima vez que entres, y no cambia lo que
+ven los demás.
 
 ### Quién ve tus pendientes
 

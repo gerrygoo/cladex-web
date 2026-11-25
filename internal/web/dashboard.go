@@ -28,9 +28,6 @@ func NewDashboard(s *store.Store, build Build) *Dashboard {
 	return &Dashboard{store: s, build: build, now: time.Now}
 }
 
-// completedWindow is how far back Completados reaches.
-const completedWindow = 30 * 24 * time.Hour
-
 // announcements are what the screen reader hears after each action on Mis pendientes,
 // keyed by the "hecho" param the action redirects with.
 var announcements = map[string]string{
@@ -38,6 +35,8 @@ var announcements = map[string]string{
 	"prioridad":  "Prioridad guardada.",
 	"completado": "Pendiente completado.",
 	"reabierto":  "Pendiente reabierto.",
+	"ocultos":    "Pendientes completados ocultos.",
+	"visibles":   "Pendientes completados visibles.",
 }
 
 // orden is the list's priority order: "asc" or the default "desc".
@@ -64,10 +63,10 @@ func (d *Dashboard) render(w http.ResponseWriter, r *http.Request, m views.MisPe
 	ctx := r.Context()
 	user, _ := UserFromContext(ctx)
 	now := d.now()
-	since := now.Add(-completedWindow)
 	m.Today = store.InMexicoCity(now).Format("2006-01-02")
 
-	periods, err := d.store.SeguimientoPeriods(ctx, store.InMexicoCity(since).Format("2006-01-02"), "", now)
+	// Completados holds everything the user has done (#90), in a box of its own.
+	periods, err := d.store.SeguimientoPeriods(ctx, "", "", now)
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -78,7 +77,7 @@ func (d *Dashboard) render(w http.ResponseWriter, r *http.Request, m views.MisPe
 		case p.LastUserID != user.ID: // whoever owns it now (or did when it closed)
 		case p.Open():
 			m.Items = append(m.Items, views.PendienteItem{Period: p})
-		case !p.ClosedAt.Before(since):
+		default:
 			m.Done = append(m.Done, views.DoneItem{Period: p, At: p.ClosedAt})
 		}
 	}
@@ -90,7 +89,7 @@ func (d *Dashboard) render(w http.ResponseWriter, r *http.Request, m views.MisPe
 	for i := range open {
 		m.Items = append(m.Items, views.PendienteItem{Pendiente: &open[i]})
 	}
-	done, err := d.store.CompletedPendientes(ctx, user.ID, since)
+	done, err := d.store.CompletedPendientes(ctx, user.ID, time.Time{})
 	if err != nil {
 		serverError(w, r, err)
 		return
@@ -101,6 +100,10 @@ func (d *Dashboard) render(w http.ResponseWriter, r *http.Request, m views.MisPe
 	}
 	views.SortPendientes(m.Items, m.Dir)
 	views.SortDone(m.Done)
+	if m.HideDone, err = d.store.CompletadosHidden(ctx, user.ID); err != nil {
+		serverError(w, r, err)
+		return
+	}
 
 	if m.Sales, err = d.store.SalesDashboard(ctx, today(r)); err != nil {
 		serverError(w, r, err)
@@ -296,4 +299,21 @@ func equipoRange(periodo, desde, hasta string, now time.Time) (from, to, errMsg 
 	}
 	first := time.Date(day.Year(), day.Month(), 1, 0, 0, 0, 0, day.Location())
 	return first.Format("2006-01-02"), first.AddDate(0, 1, -1).Format("2006-01-02"), ""
+}
+
+// Completados handles POST /pendientes/completados (#90): "ocultar" 1 hides the user's
+// Completados, 0 shows it again; the choice is remembered for the next visit.
+func (d *Dashboard) Completados(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user, _ := UserFromContext(ctx)
+	hide := r.FormValue("ocultar") == "1"
+	if err := d.store.SetCompletadosHidden(ctx, user.ID, hide); err != nil {
+		serverError(w, r, err)
+		return
+	}
+	if hide {
+		back(w, r, "ocultos")
+	} else {
+		back(w, r, "visibles")
+	}
 }

@@ -274,6 +274,7 @@ func NewMux(build Build, staticFS fs.FS, guide *guia.Guide, db *store.Store, coo
 	// The Dashboard tab (docs/planning/dashboard.md): Mis pendientes is the home page.
 	mux.Handle("GET /{$}", authed(dashboard.MisPendientes))
 	mux.Handle("POST /pendientes", authed(dashboard.AgregarPendiente))
+	mux.Handle("POST /pendientes/completados", authed(dashboard.Completados))
 	mux.Handle("POST /pendientes/{id}/prioridad", authed(dashboard.Prioridad))
 	mux.Handle("POST /pendientes/{id}/completar", authed(dashboard.Completar))
 	mux.Handle("POST /pendientes/{id}/reabrir", authed(dashboard.Reabrir))

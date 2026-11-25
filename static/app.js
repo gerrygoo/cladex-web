@@ -344,6 +344,24 @@
     box.classList.add("capped");
   }
   document.addEventListener("DOMContentLoaded", capLines);
+
+  // Mis pendientes' Completados shows data-max-items at a time and scrolls inside its
+  // box past that (#90). Measured like capLines, since an item can take two lines; the
+  // stylesheet's max-height stands in without JS.
+  function capItems() {
+    document.querySelectorAll("[data-max-items]").forEach(function (box) {
+      var max = parseInt(box.dataset.maxItems, 10);
+      var items = box.querySelectorAll("li");
+      if (items.length <= max) {
+        box.style.maxHeight = "none";
+        return;
+      }
+      box.style.maxHeight = (items[max].getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop) + "px";
+    });
+  }
+  document.addEventListener("DOMContentLoaded", capItems);
+  document.addEventListener("htmx:afterSettle", capItems);
+  window.addEventListener("resize", capItems);
   document.addEventListener("htmx:afterSwap", function (e) {
     if (e.detail.target && e.detail.target.id !== "quote-lines-fragment") return;
     capLines();

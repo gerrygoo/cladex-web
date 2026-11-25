@@ -340,3 +340,45 @@ func TestEquipoRange(t *testing.T) {
 		t.Errorf("Sunday's week = %s to %s", from, to)
 	}
 }
+
+// #90: Completados is a box of its own with all of them, and each user hides or shows it
+// for themselves, remembered.
+func TestCompletadosToggle(t *testing.T) {
+	f := newDashboardFixture(t)
+	ctx := context.Background()
+	ana := createTestUser(t, f.a, "ana", "vendedor", "hunter2")
+	beto := createTestUser(t, f.a, "beto", "vendedor", "hunter2")
+	get := func(user int64) string {
+		return doForm(t, f.a, user, f.d.MisPendientes, "GET", "/", nil, nil, false).Body.String()
+	}
+	toggle := func(user int64, ocultar string) *httptest.ResponseRecorder {
+		return doForm(t, f.a, user, f.d.Completados, "POST", "/pendientes/completados", nil, url.Values{"ocultar": {ocultar}}, false)
+	}
+	for i := 0; i < 7; i++ {
+		id, err := f.a.store.AddPendiente(ctx, ana, "Pendiente "+strconv.Itoa(i), "media")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Long ago: Completados keeps them all, not only the last 30 days.
+		if err := f.a.store.CompletePendiente(ctx, ana, id, time.Now().AddDate(0, -3, 0)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	body := get(ana)
+	assertContains(t, body, `data-max-items="5"`, "Ocultar pendientes completados", "Pendiente 0", "Pendiente 6")
+	if rec := toggle(ana, "1"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("hide = %d", rec.Code)
+	}
+	body = get(ana)
+	assertContains(t, body, "Mostrar pendientes completados (7)")
+	if strings.Contains(body, "Pendiente 0") {
+		t.Error("hidden Completados still lists them")
+	}
+	if !strings.Contains(get(beto), "Ocultar pendientes completados") {
+		t.Error("Ana hiding hers hid Beto's")
+	}
+	if rec := toggle(ana, "0"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("show = %d", rec.Code)
+	}
+	assertContains(t, get(ana), "Ocultar pendientes completados", "Pendiente 6")
+}

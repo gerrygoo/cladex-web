@@ -1,6 +1,10 @@
 package views
 
-import "github.com/gerrygoo/cladex-web/internal/store"
+import (
+	"strconv"
+
+	"github.com/gerrygoo/cladex-web/internal/store"
+)
 
 // MisPendientesPage is the home page (issue #72; docs/planning/dashboard.md).
 templ MisPendientesPage(m MisPendientes, user *NavUser) {
@@ -69,41 +73,57 @@ templ MisPendientesSection(m MisPendientes) {
 				<a class="button" href="/?agregar=1#nuevo-pendiente" data-reveal="nuevo-pendiente">Agregar pendiente</a>
 			</p>
 		</section>
-		<section class="completados" aria-labelledby="completados-titulo">
-			<h2 id="completados-titulo">Completados</h2>
-			<p class="hint">Lo que sacaste en los últimos 30 días.</p>
-			if len(m.Done) == 0 {
-				<p>Nada todavía.</p>
-			} else {
-				<ul class="completados-list">
-					for _, d := range m.Done {
-						<li>
-							if d.Period != nil {
-								<span class="completado-mark" aria-hidden="true">✓</span>
-								<span>
-									Seguimiento de
-									if d.Period.Deleted {
-										{ d.Period.Folio }
-									} else {
-										<a href={ templ.URL(projectPath(d.Period.Folio)) }>{ store.ProjectLabel(d.Period.Folio, d.Period.ProjectName) }</a>
-									}
-									{ " · " + d.Period.CustomerName }
-									<small class="comment-meta">Completado { closedReasonText(d.Period.Reason) } el { mxTimeText(d.At) }</small>
-								</span>
-							} else {
-								<span class="completado-mark" aria-hidden="true">✓</span>
-								<span>
-									{ d.Pendiente.Body }
-									<small class="comment-meta">Completado el { mxTimeText(d.At) }</small>
-								</span>
-								<form method="post" action={ templ.URL(pendientePath(d.Pendiente.ID, "reabrir")) } hx-post={ pendientePath(d.Pendiente.ID, "reabrir") }>
-									<input type="hidden" name="orden" value={ m.Dir }/>
-									<button type="submit" id={ pendienteIDField("reabrir", d.Pendiente.ID) } aria-label={ "Reabrir: " + d.Pendiente.Body }>Reabrir</button>
-								</form>
-							}
-						</li>
+		<section class={ "completados", templ.KV("completados-hidden", m.HideDone) } aria-labelledby="completados-titulo">
+			<div class="completados-head">
+				<h2 id="completados-titulo">Completados</h2>
+				<form method="post" action="/pendientes/completados" hx-post="/pendientes/completados">
+					<input type="hidden" name="orden" value={ m.Dir }/>
+					if m.HideDone {
+						<input type="hidden" name="ocultar" value="0"/>
+						<button type="submit" id="completados-toggle" aria-expanded="false">Mostrar pendientes completados ({ strconv.Itoa(len(m.Done)) })</button>
+					} else {
+						<input type="hidden" name="ocultar" value="1"/>
+						<button type="submit" id="completados-toggle" aria-expanded="true" aria-controls="completados-box">Ocultar pendientes completados</button>
 					}
-				</ul>
+				</form>
+			</div>
+			if !m.HideDone {
+				if len(m.Done) == 0 {
+					<p>Nada todavía.</p>
+				} else {
+					// Five at a time; the rest scroll inside the box, so the page doesn't grow.
+					<div class="completados-box" id="completados-box" data-max-items="5" tabindex="0" role="region" aria-labelledby="completados-titulo">
+						<ul class="completados-list">
+							for _, d := range m.Done {
+								<li>
+									if d.Period != nil {
+										<span class="completado-mark" aria-hidden="true">✓</span>
+										<span>
+											Seguimiento de
+											if d.Period.Deleted {
+												{ d.Period.Folio }
+											} else {
+												<a href={ templ.URL(projectPath(d.Period.Folio)) }>{ store.ProjectLabel(d.Period.Folio, d.Period.ProjectName) }</a>
+											}
+											{ " · " + d.Period.CustomerName }
+											<small class="comment-meta">Completado { closedReasonText(d.Period.Reason) } el { mxTimeText(d.At) }</small>
+										</span>
+									} else {
+										<span class="completado-mark" aria-hidden="true">✓</span>
+										<span>
+											{ d.Pendiente.Body }
+											<small class="comment-meta">Completado el { mxTimeText(d.At) }</small>
+										</span>
+										<form method="post" action={ templ.URL(pendientePath(d.Pendiente.ID, "reabrir")) } hx-post={ pendientePath(d.Pendiente.ID, "reabrir") }>
+											<input type="hidden" name="orden" value={ m.Dir }/>
+											<button type="submit" id={ pendienteIDField("reabrir", d.Pendiente.ID) } aria-label={ "Reabrir: " + d.Pendiente.Body }>Reabrir</button>
+										</form>
+									}
+								</li>
+							}
+						</ul>
+					</div>
+				}
 			}
 		</section>
 	</div>

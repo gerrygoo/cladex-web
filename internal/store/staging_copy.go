@@ -78,6 +78,7 @@ var StagingTables = map[string]StagingRule{
 	"notifications":       StagingEmpty,
 	"notification_events": StagingEmpty,
 	"aviso_rounds":        StagingEmpty,
+	"user_prefs":          StagingEmpty,
 
 	"schema_migrations": StagingSkip,
 }

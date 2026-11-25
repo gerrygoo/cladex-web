@@ -1857,7 +1857,33 @@ p.pendientes-actions {
 
 /* Completados: what the user got done, in green. */
 section.completados h2 {
-  margin-top: 0;
+  margin: 0;
+}
+
+/* The heading and its Ocultar / Mostrar button on one line while they fit (#90). */
+div.completados-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+div.completados-head form {
+  margin: 0;
+}
+
+/* Five at a time, the rest scrolling inside (app.js measures five exactly). */
+div.completados-box {
+  max-height: 22rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+div.completados-box:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 ul.completados-list {

@@ -13,7 +13,9 @@ import (
 // Vendedores table below.
 type MisPendientes struct {
 	Items []PendienteItem // in the order shown
-	Done  []DoneItem      // newest first
+	Done  []DoneItem      // newest first, all of them
+	// HideDone is the user's choice to hide Completados (#90).
+	HideDone bool
 	// Dir is the priority order: "desc" (muy alta first, the default) or "asc".
 	Dir string
 	// Adding shows the new pendiente's row (?agregar=1, or after a failed save); Body,

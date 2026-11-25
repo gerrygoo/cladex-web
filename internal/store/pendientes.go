@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -125,6 +126,29 @@ func (s *Store) pendienteWrite(ctx context.Context, id int64, query string, args
 		return fmt.Errorf("store: pendiente %d: %w", id, err)
 	} else if n != 1 {
 		return ErrPendienteNotFound
+	}
+	return nil
+}
+
+// CompletadosHidden reports whether userID hid Mis pendientes' Completados (#90).
+func (s *Store) CompletadosHidden(ctx context.Context, userID int64) (bool, error) {
+	var hidden bool
+	err := s.db.QueryRowContext(ctx, `SELECT hide_completados FROM user_prefs WHERE user_id = ?`, userID).Scan(&hidden)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("store: completados hidden for user %d: %w", userID, err)
+	}
+	return hidden, nil
+}
+
+// SetCompletadosHidden remembers whether userID hides Completados.
+func (s *Store) SetCompletadosHidden(ctx context.Context, userID int64, hidden bool) error {
+	if _, err := s.db.ExecContext(ctx, `
+		INSERT INTO user_prefs (user_id, hide_completados) VALUES (?, ?)
+		ON CONFLICT (user_id) DO UPDATE SET hide_completados = excluded.hide_completados`, userID, hidden); err != nil {
+		return fmt.Errorf("store: set completados hidden for user %d: %w", userID, err)
 	}
 	return nil
 }
