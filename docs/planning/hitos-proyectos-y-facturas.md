@@ -1,6 +1,12 @@
 # Hitos: proyectos y facturas
 
-**Proposed, nothing shipped.** The implementation order for the two design docs in this
+**M4 built (slices 4.1–4.5, see `docs/PLAN.md`); M5, M6 and M8 built with facturación
+(2026-10-20, [facturas §9](facturas-timbrado-y-envio.md#9-built-2026-10-20)), stamping in
+production since 2026-11-14; M7's resend not built (N5 in the
+[notifications doc](notificaciones-y-trabajos.md)). The strict gates (decision 3) and the
+single post-O.C. line of stages were superseded on 2026-11-10 by
+[estados del proyecto](estados-del-proyecto.md).** Kept as the record of the order and
+the decisions. It was the implementation order for the two design docs in this
 directory: the [quote → project → payment lifecycle](ciclo-de-vida-cotizacion-a-cobro.md)
 and [facturas: timbrado y envío](facturas-timbrado-y-envio.md). Milestone numbers
 continue `docs/PLAN.md` (M0–M3 are shipped); a milestone moves there, slice by slice,

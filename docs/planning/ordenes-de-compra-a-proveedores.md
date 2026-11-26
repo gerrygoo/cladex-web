@@ -1,7 +1,8 @@
 # Órdenes de compra a proveedores
 
-**Designed, nothing shipped, parked** (issue #21 is labeled requiere-diseño until it's
-resumed). A product goal noted by the user on
+**Built 2026-11-05 as Proveedores (#64) and supplier O.C.s (#65); delivery (#66) on
+2026-11-10. #21 closed 2026-11-25.** Receiving goods line by line and real cost against
+quoted cost are not built and stay open here. A product goal noted by the user on
 2026-10-06; the first version's scope was decided on 2026-10-22 (see
 [Decisions](#decisions-2026-10-22)).
 

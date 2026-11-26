@@ -32,11 +32,11 @@ documentation of shipped behavior.
 | Doc | Covers |
 |---|---|
 | [Ciclo de vida: cotización → proyecto → cobro](ciclo-de-vida-cotizacion-a-cobro.md) | The 2026-10-05 whiteboard: quote states, post-issue project pipeline, and a proposed payment sub-status (PPD/PUE) |
-| [Hitos: proyectos y facturas](hitos-proyectos-y-facturas.md) | Implementation order for the two docs above: M4 proyectos, M5–M8 facturación, the decisions behind it and the questions still open for Emilio |
-| [Facturas: timbrado digital y envío](facturas-timbrado-y-envio.md) | CFDI stamping through an external PAC and delivery to recipients: states before/after each step, cancellation, tracking model, dependencies |
+| [Hitos: proyectos y facturas](hitos-proyectos-y-facturas.md) | M4 and facturación built; gates superseded by Estados del proyecto. Implementation order for the two docs above: M4 proyectos, M5–M8 facturación, the decisions behind it and the questions still open for Emilio |
+| [Facturas: timbrado digital y envío](facturas-timbrado-y-envio.md) | Built 2026-10-20, stamping in production since 2026-11-14: CFDI stamping through an external PAC and delivery to recipients: states before/after each step, cancellation, tracking model, dependencies |
 | [Dashboard: Mis pendientes y Equipo](dashboard.md) | #72 and #70: the home page's pendientes, the admins' team view, and seguimiento periods derived from the audit log |
-| [Órdenes de compra a proveedores](ordenes-de-compra-a-proveedores.md) | Designed 2026-10-22, parked: tracking and generating Cladex's own O.C. to suppliers for what a proyecto needs |
+| [Órdenes de compra a proveedores](ordenes-de-compra-a-proveedores.md) | Designed 2026-10-22, built 2026-11-05 (#64, #65; #21 closed): tracking and generating Cladex's own O.C. to suppliers for what a proyecto needs |
 | [Notificaciones y trabajos en segundo plano](notificaciones-y-trabajos.md) | Designed 2026-10-23; N1–N3 (runner, email, avisos) built, #18/#19 closed; N4 WhatsApp blocked on Meta (#84): the SQLite job runner (#19) and WhatsApp + email notifications (#18), first used for the seguimiento reminder |
-| [Tipos de cotización](tipos-de-cotizacion.md) | Designed 2026-10-28 for #53, not started: split the quote series (numbering, terms, PDF and builder behavior) from the catalog familia, so prefixes are labels, not keys |
-| [Estados del proyecto](estados-del-proyecto.md) | Decided 2026-11-03, not started: facturación, entrega and cobro as three states derived in a view (#63, #66, #67), real stamping plus manual mode, supplier per familia |
+| [Tipos de cotización](tipos-de-cotizacion.md) | Designed 2026-10-28 for #53, T1 and T2 built: split the quote series (numbering, terms, PDF and builder behavior) from the catalog familia, so prefixes are labels, not keys |
+| [Estados del proyecto](estados-del-proyecto.md) | Decided 2026-11-03, built 2026-11-10: facturación, entrega and cobro as three states derived in a view (#63, #66, #67), real stamping plus manual mode, supplier per familia |
 | [Leads y listas de precios](leads-y-listas-de-precios.md) | 2026-11-18 for #82; L1 (margins per tipo), L2 (leads) and L3 (price lists) built: margins per tipo de cotización, leads outside Pronóstico, and price lists by familia, as three slices |

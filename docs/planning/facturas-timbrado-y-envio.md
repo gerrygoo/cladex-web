@@ -1,6 +1,8 @@
 # Facturas: timbrado digital y envío
 
-**Built (2026-10-20), against Facturoporti's sandbox; not yet stamping for real.** What
+**Built (2026-10-20) against Facturoporti's sandbox; stamping in production since
+2026-11-14** (real CSD and token on the NAS, #20; rotating the token is #78). Staging
+stays on the sandbox. What
 shipped and the decisions it took are in [§9](#9-built-2026-10-20); §1–§7 are the design it
 follows, §8 the research.
 
