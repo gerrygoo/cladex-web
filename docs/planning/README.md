@@ -7,6 +7,9 @@ features not yet designed into a slice. Something here graduates into `docs/PLAN
 (or a GitHub issue) once it's actually scheduled; until then it's a proposal, not
 documentation of shipped behavior.
 
+One level up, [`docs/product/`](../product/README.md) maps the product tracks and their
+growth edges, sized roughly; an edge picked from there gets its design doc here.
+
 ## Conventions
 
 - **Diagrams are Mermaid**, in fenced ` ```mermaid ` blocks inside plain markdown.
